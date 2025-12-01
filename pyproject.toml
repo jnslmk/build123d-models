@@ -12,16 +12,16 @@ dependencies = [
 ]
 
 [project.scripts]
-model = "run:main"
+show = "show:main"
+export = "export_model:main"
 render = "render_svg:main"
-viewer = "viewer:main"
 
 [tool.uv]
 package = true
 
 [tool.setuptools]
 packages = ["models"]
-py-modules = ["run", "main", "viewer", "render_svg", "export"]
+py-modules = ["show", "export_model", "main", "viewer", "render_svg", "export"]
 
 [dependency-groups]
 dev = [
