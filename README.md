@@ -10,13 +10,11 @@ uv sync
 
 ## Viewing Models
 
-Start the viewer server (Catppuccin Mocha themed):
+Start the transparent viewer:
 
 ```bash
 uv run viewer
 ```
-
-Open `http://127.0.0.1:3939` in your browser.
 
 In another terminal, run a model:
 
@@ -24,7 +22,19 @@ In another terminal, run a model:
 uv run model cube
 ```
 
-The model will appear in the browser viewer.
+The model will appear in the viewer window.
+
+## Rendering to SVG
+
+Generate SVG projections without a viewer:
+
+```bash
+uv run render cube                    # exports/cube_iso.svg
+uv run render cube --view top         # exports/cube_top.svg
+uv run render cube --view front       # exports/cube_front.svg
+```
+
+Available views: `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`
 
 ## Building All Models
 

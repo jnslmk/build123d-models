@@ -20,12 +20,8 @@ uv run render cube out.svg --scale 2  # custom output and scale
 # Build all models
 uv run python main.py
 
-# Start viewer server with Catppuccin theme (run in separate terminal)
+# Start transparent viewer (Catppuccin themed, pywebview)
 uv run viewer
-# Then open http://127.0.0.1:3939
-
-# Start transparent pywebview viewer
-uv run tviewer
 
 # Lint
 uv run ruff check .
@@ -79,23 +75,6 @@ Views: `iso` (default), `front`, `back`, `left`, `right`, `top`, `bottom`
 
 This is the preferred method for agent workflows since it requires no running server.
 
-## Viewer Interaction (Server Required)
+## Viewer
 
-The `viewer.py` module provides programmatic control of the OCP viewer for visual feedback:
-
-```python
-from viewer import show_and_screenshot, set_camera, screenshot, view_iso, view_top
-
-# Show object and take screenshot from specific view
-path = show_and_screenshot(part, "exports/screenshot.png", view="ISO", zoom=1.0)
-
-# Convenience functions for common views
-view_iso(part, "exports/iso.png")
-view_top(part, "exports/top.png")
-view_front(part, "exports/front.png")
-
-# Camera presets: ISO, TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK
-set_camera(view="FRONT", zoom=1.5)
-```
-
-**Requires the viewer server running:** `uv run viewer` or `uv run tviewer`
+The transparent pywebview viewer (`uv run viewer`) provides a Catppuccin Mocha themed window with 80% opacity background for interactive model viewing.
