@@ -3,6 +3,8 @@
 import importlib
 import sys
 
+from viewer import ensure_server
+
 
 def main() -> None:
     if len(sys.argv) < 2:
@@ -11,6 +13,11 @@ def main() -> None:
         sys.exit(1)
 
     name = sys.argv[1]
+
+    # Start viewer if not running (stays open after script exits)
+    if ensure_server():
+        print("Started viewer in background")
+
     try:
         module = importlib.import_module(f"models.{name}")
         module.main()

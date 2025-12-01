@@ -1,5 +1,8 @@
 """Simple cube model example using builder mode."""
 
+import io
+import sys
+
 from build123d import BuildPart, Box, Part, export_step, export_stl
 from ocp_vscode import show
 
@@ -18,7 +21,12 @@ def main() -> None:
     """Build and export the cube model."""
     cube = create_cube()
 
+    # Suppress ocp_vscode's '+' output
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
     show(cube)
+    sys.stdout = old_stdout
+    print("Sent cube to viewer")
 
     export_step(cube, "exports/cube.step")
     export_stl(cube, "exports/cube.stl")
