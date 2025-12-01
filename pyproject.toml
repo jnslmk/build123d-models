@@ -1,0 +1,30 @@
+[project]
+name = "build123d-models"
+version = "0.1.0"
+description = "Collection of 3D printable models built with build123d"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "build123d>=0.10.0",
+    "ocp-vscode @ file:///home/jonas/git-projects/vscode-ocp-cad-viewer",
+    "pygobject>=3.54.5",
+    "pywebview>=6.1",
+]
+
+[project.scripts]
+model = "run:main"
+viewer = "viewer:start_viewer"
+tviewer = "transparent_viewer:main"
+
+[tool.uv]
+package = true
+
+[tool.setuptools]
+packages = ["models"]
+py-modules = ["run", "main", "viewer", "transparent_viewer"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.7",
+    "ty>=0.0.1a29",
+]
