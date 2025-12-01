@@ -70,7 +70,7 @@ def main() -> None:
 
     try:
         # Create transparent window
-        window = webview.create_window(
+        webview.create_window(
             title="OCP CAD Viewer",
             url=f"http://127.0.0.1:{PORT}/viewer",
             width=1200,

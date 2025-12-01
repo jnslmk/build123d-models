@@ -1,12 +1,13 @@
 """Build all models and export them."""
 
-from models.cube import main as build_cube
+from export import export
+from models.cube import create as create_cube
 
 
 def main() -> None:
     """Build and export all models."""
     print("Building all models...")
-    build_cube()
+    export(create_cube(), "cube")
     print("Done!")
 
 

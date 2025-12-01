@@ -24,12 +24,7 @@ import argparse
 import importlib
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-from build123d import Compound, ExportSVG, LineType
-
-if TYPE_CHECKING:
-    from build123d import Part
+from build123d import Color, Compound, ExportSVG, LineType, Part
 
 # Camera positions for standard views (x, y, z)
 VIEWS: dict[str, tuple[float, float, float]] = {
@@ -43,8 +38,8 @@ VIEWS: dict[str, tuple[float, float, float]] = {
 }
 
 # Catppuccin Mocha colors
-VISIBLE_COLOR = (205, 214, 244)  # text
-HIDDEN_COLOR = (108, 112, 134)  # overlay0
+VISIBLE_COLOR = Color(205 / 255, 214 / 255, 244 / 255)  # text
+HIDDEN_COLOR = Color(108 / 255, 112 / 255, 134 / 255)  # overlay0
 
 
 def get_model_part(model_name: str) -> Part:
@@ -55,17 +50,10 @@ def get_model_part(model_name: str) -> Part:
         print(f"Error: Model 'models/{model_name}.py' not found")
         sys.exit(1)
 
-    # Look for create_* function or 'part' attribute
-    for name in dir(module):
-        if name.startswith("create_"):
-            func = getattr(module, name)
-            if callable(func):
-                return func()
+    if hasattr(module, "create"):
+        return module.create()
 
-    if hasattr(module, "part"):
-        return module.part
-
-    print(f"Error: No create_* function or 'part' found in models/{model_name}.py")
+    print(f"Error: No create() function found in models/{model_name}.py")
     sys.exit(1)
 
 
@@ -83,8 +71,8 @@ def render_svg(
 
     viewport_origin = VIEWS[view]
 
-    # Project to 2D
-    visible, hidden = part.project_to_viewport(viewport_origin)
+    # Project to 2D (ty has issues with build123d's union types)
+    visible, hidden = part.project_to_viewport(viewport_origin)  # type: ignore[arg-type]
 
     # Auto-scale to fit if not specified
     if scale is None:
