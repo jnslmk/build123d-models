@@ -8,8 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 uv sync
 
-# Run a model by name (shows in viewer + exports)
-uv run model cube
+# Show a model in the viewer (starts viewer in background if needed)
+uv run show cube
+
+# Export a model to STEP and STL (no viewer)
+uv run export cube
 
 # Render model to SVG (no viewer needed)
 uv run render cube                    # exports/cube_iso.svg
@@ -19,9 +22,6 @@ uv run render cube out.svg --scale 2  # custom output and scale
 
 # Build all models
 uv run python main.py
-
-# Start transparent viewer (Catppuccin themed, pywebview)
-uv run viewer
 
 # Lint
 uv run ruff check .
@@ -77,4 +77,10 @@ This is the preferred method for agent workflows since it requires no running se
 
 ## Viewer
 
-The transparent pywebview viewer (`uv run viewer`) provides a Catppuccin Mocha themed window with 80% opacity background for interactive model viewing.
+The `show` command automatically starts the pywebview viewer in the background if not already running.
+
+## Design Guidelines
+
+**Print orientation**: Parts print bottom-to-top in layers. Design with Z+ as the print direction—flat base on the build plate, overhangs minimized or supported.
+
+**Edge design for FDM**: Use chamfers (45°) on horizontal edges, fillets on vertical edges. This accounts for how layers stack—chamfers print cleanly on horizontal surfaces while fillets work better on vertical walls.
