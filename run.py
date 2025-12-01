@@ -3,6 +3,7 @@
 import importlib
 import sys
 
+from export import display_and_export
 from viewer import ensure_server
 
 
@@ -20,7 +21,8 @@ def main() -> None:
 
     try:
         module = importlib.import_module(f"models.{name}")
-        module.main()
+        part = module.create()
+        display_and_export(part, name)
     except ModuleNotFoundError:
         print(f"Model '{name}' not found in models/")
         sys.exit(1)

@@ -21,7 +21,7 @@ package = true
 
 [tool.setuptools]
 packages = ["models"]
-py-modules = ["run", "main", "viewer", "render_svg"]
+py-modules = ["run", "main", "viewer", "render_svg", "export"]
 
 [dependency-groups]
 dev = [
