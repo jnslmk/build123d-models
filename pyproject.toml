@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 model = "run:main"
+render = "render_svg:main"
 viewer = "viewer:start_viewer"
 tviewer = "transparent_viewer:main"
 
@@ -21,7 +22,7 @@ package = true
 
 [tool.setuptools]
 packages = ["models"]
-py-modules = ["run", "main", "viewer", "transparent_viewer"]
+py-modules = ["run", "main", "viewer", "transparent_viewer", "render_svg"]
 
 [dependency-groups]
 dev = [
