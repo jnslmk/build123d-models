@@ -28,6 +28,9 @@ uv run ruff check .
 
 # Type check
 uv run ty check .
+
+# Query selection buffer (elements clicked in viewer)
+uv run selection                      # JSON output + human summary
 ```
 
 ## Architecture
@@ -78,6 +81,19 @@ This is the preferred method for agent workflows since it requires no running se
 ## Viewer
 
 The `show` command automatically starts the pywebview viewer in the background if not already running.
+
+## Element Picker
+
+The viewer includes an Element Picker tool for interactive geometry selection:
+
+1. Click the crosshairs button in the toolbar (or activate Picker tool)
+2. Click on faces/edges/vertices in the 3D view
+3. Overlay shows: element type, geometry info, and build123d selector
+4. Selector auto-copies to clipboard
+5. Click again to deselect (toggle behavior)
+6. Press Escape to clear all selections
+
+**For AI agents:** Use `uv run selection` to retrieve selected elements as JSON with suggested selectors.
 
 ## Viewer Development
 
