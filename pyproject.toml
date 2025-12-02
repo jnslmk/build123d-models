@@ -15,13 +15,14 @@ dependencies = [
 show = "show:main"
 export = "export_model:main"
 render = "render_svg:main"
+selection = "selection:main"
 
 [tool.uv]
 package = true
 
 [tool.setuptools]
 packages = ["models"]
-py-modules = ["show", "export_model", "main", "viewer", "render_svg", "export"]
+py-modules = ["show", "export_model", "main", "viewer", "render_svg", "export", "selection"]
 
 [dependency-groups]
 dev = [
