@@ -79,6 +79,37 @@ This is the preferred method for agent workflows since it requires no running se
 
 The `show` command automatically starts the pywebview viewer in the background if not already running.
 
+## Viewer Development
+
+This project uses a local development setup with three related repositories:
+
+- `build123d-models/` - This repo (Python CAD models)
+- `vscode-ocp-cad-viewer/` - Python backend + VS Code extension
+- `three-cad-viewer/` - JavaScript frontend (Three.js viewer)
+
+### Frontend Build Workflow
+
+When modifying the viewer frontend (e.g., adding tools, changing UI):
+
+```bash
+# 1. Make changes in three-cad-viewer
+cd ~/git-projects/three-cad-viewer
+# ... edit src/cad_tools/, src/viewer.js, etc.
+
+# 2. Build the frontend bundle
+npm run build
+
+# 3. Copy built files to vscode-ocp-cad-viewer
+cp dist/three-cad-viewer.esm.js ~/git-projects/vscode-ocp-cad-viewer/ocp_vscode/static/js/
+cp dist/three-cad-viewer.css ~/git-projects/vscode-ocp-cad-viewer/ocp_vscode/static/css/
+
+# 4. Test with a model from this repo
+cd ~/git-projects/build123d-models
+uv run show cube
+```
+
+The JS/CSS files in vscode-ocp-cad-viewer are gitignored (they're built artifacts). Changes to the frontend require commits in three-cad-viewer, not vscode-ocp-cad-viewer.
+
 ## Design Guidelines
 
 **Print orientation**: Parts print bottom-to-top in layers. Design with Z+ as the print direction—flat base on the build plate, overhangs minimized or supported.
