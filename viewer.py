@@ -45,6 +45,26 @@ def start_ocp_server(port: int = PORT) -> subprocess.Popen:
     return proc
 
 
+def wait_for_viewer_ready(port: int, timeout: float = 10.0) -> bool:
+    """Wait for the viewer to be fully ready (JS client connected)."""
+    import urllib.request
+    import urllib.error
+
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            # Check if viewer status endpoint responds with connected client
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/viewer", timeout=1) as resp:
+                if resp.status == 200:
+                    # Give the pywebview window time to open and JS to establish WebSocket
+                    time.sleep(2.0)
+                    return True
+        except (urllib.error.URLError, TimeoutError):
+            pass
+        time.sleep(0.2)
+    return False
+
+
 def ensure_server(port: int = PORT) -> subprocess.Popen | None:
     """Ensure OCP server is running with viewer window. Returns process if started, None if already running."""
     if is_server_running(port=port):
@@ -59,6 +79,10 @@ def ensure_server(port: int = PORT) -> subprocess.Popen | None:
     if not wait_for_server("127.0.0.1", port):
         proc.terminate()
         raise RuntimeError(f"Viewer failed to start on port {port}")
+    # Wait for viewer window to be ready
+    if not wait_for_viewer_ready(port):
+        proc.terminate()
+        raise RuntimeError(f"Viewer window failed to initialize on port {port}")
     return proc
 
 
