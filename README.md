@@ -36,6 +36,15 @@ uv run render cube --view front       # exports/cube_front.svg
 
 Available views: `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`
 
+## Rendering DIN A4 PDF Sheets
+
+Generate a DIN A4 PDF with top, front, left, and isometric views:
+
+```bash
+uv run render-a4 cube
+uv run render-a4 door_latch exports/door_latch_views.pdf
+```
+
 ## Building All Models
 
 ```bash
