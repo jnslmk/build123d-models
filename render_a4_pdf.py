@@ -11,6 +11,7 @@ Example:
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +56,8 @@ ORTHO_VIEWPORTS: dict[str, tuple[tuple[float, float, float], tuple[float, float,
 class ProjectedView:
     visible: list[list[tuple[float, float]]]
     hidden: list[list[tuple[float, float]]]
+    line_segments: list[tuple[float, float, float, float]]
+    circles: list[tuple[float, float, float, bool]]
     min_x: float
     min_y: float
     max_x: float
@@ -93,16 +96,38 @@ def _project_view(part: Part, view: str) -> ProjectedView:
 
     visible = [_edge_to_polyline(edge) for edge in visible_edges]
     hidden = [_edge_to_polyline(edge) for edge in hidden_edges]
+    line_segments: list[tuple[float, float, float, float]] = []
+    circles: list[tuple[float, float, float, bool]] = []
+
+    for edge in visible_edges:
+        if edge.geom_type.name == "LINE":
+            start = edge.start_point()
+            end = edge.end_point()
+            line_segments.append((start.X, start.Y, end.X, end.Y))
+        elif edge.geom_type.name == "CIRCLE":
+            center = edge.center()
+            circles.append((center.X, center.Y, edge.radius, bool(edge.is_closed)))
 
     all_points = [point for polyline in (visible + hidden) for point in polyline]
     if not all_points:
-        return ProjectedView(visible=visible, hidden=hidden, min_x=0, min_y=0, max_x=1, max_y=1)
+        return ProjectedView(
+            visible=visible,
+            hidden=hidden,
+            line_segments=line_segments,
+            circles=circles,
+            min_x=0,
+            min_y=0,
+            max_x=1,
+            max_y=1,
+        )
 
     xs = [point[0] for point in all_points]
     ys = [point[1] for point in all_points]
     return ProjectedView(
         visible=visible,
         hidden=hidden,
+        line_segments=line_segments,
+        circles=circles,
         min_x=min(xs),
         min_y=min(ys),
         max_x=max(xs),
@@ -190,6 +215,21 @@ def _stroke_polylines(
     ctx.stroke()
 
 
+def _compute_view_transform(
+    projection: ProjectedView,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    scale: float,
+) -> tuple[float, float]:
+    draw_width = projection.width * scale
+    draw_height = projection.height * scale
+    tx = x + (w - draw_width) / 2 - projection.min_x * scale
+    ty = y + (h - draw_height) / 2 + projection.max_y * scale
+    return tx, ty
+
+
 def _draw_projected_view(
     ctx: cairo.Context,
     projection: ProjectedView,
@@ -199,11 +239,7 @@ def _draw_projected_view(
     h: float,
     scale: float,
 ) -> None:
-    draw_width = projection.width * scale
-    draw_height = projection.height * scale
-
-    tx = x + (w - draw_width) / 2 - projection.min_x * scale
-    ty = y + (h - draw_height) / 2 + projection.max_y * scale
+    tx, ty = _compute_view_transform(projection, x=x, y=y, w=w, h=h, scale=scale)
 
     # Hidden edges first (lighter + dashed)
     ctx.set_source_rgb(0.55, 0.55, 0.55)
@@ -218,7 +254,279 @@ def _draw_projected_view(
     _stroke_polylines(ctx, projection.visible, tx=tx, ty=ty, scale=scale)
 
 
-def render_din_a4_views_pdf(model: str, output: Path, scale_ratio: float | None = None) -> None:
+def _dedupe_sorted(values: list[float], epsilon: float = 0.05) -> list[float]:
+    if not values:
+        return []
+    sorted_values = sorted(values)
+    result = [sorted_values[0]]
+    for value in sorted_values[1:]:
+        if abs(value - result[-1]) > epsilon:
+            result.append(value)
+    return result
+
+
+def _format_length(length_mm: float, precision: int) -> str:
+    return f"{length_mm:.{precision}f} mm"
+
+
+def _draw_arrowhead(ctx: cairo.Context, x: float, y: float, angle: float, size: float = 6.0) -> None:
+    wing = math.radians(28)
+    x1 = x - size * math.cos(angle - wing)
+    y1 = y - size * math.sin(angle - wing)
+    x2 = x - size * math.cos(angle + wing)
+    y2 = y - size * math.sin(angle + wing)
+    ctx.move_to(x, y)
+    ctx.line_to(x1, y1)
+    ctx.line_to(x2, y2)
+    ctx.close_path()
+    ctx.fill()
+
+
+def _draw_linear_dimension(
+    ctx: cairo.Context,
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    text: str,
+    text_offset: float = 10.0,
+) -> None:
+    ctx.set_source_rgb(0.2, 0.2, 0.2)
+    ctx.set_line_width(0.7)
+    ctx.set_dash([], 0)
+    ctx.move_to(x1, y1)
+    ctx.line_to(x2, y2)
+    ctx.stroke()
+
+    angle = math.atan2(y2 - y1, x2 - x1)
+    _draw_arrowhead(ctx, x1, y1, angle, size=5.0)
+    _draw_arrowhead(ctx, x2, y2, angle + math.pi, size=5.0)
+
+    mid_x = (x1 + x2) / 2
+    mid_y = (y1 + y2) / 2
+    normal_x = -math.sin(angle)
+    normal_y = math.cos(angle)
+
+    ctx.set_source_rgb(0.15, 0.15, 0.15)
+    ctx.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.set_font_size(8)
+    extents = ctx.text_extents(text)
+    text_x = mid_x + normal_x * text_offset - extents.width / 2
+    text_y = mid_y + normal_y * text_offset
+    ctx.move_to(text_x, text_y)
+    ctx.show_text(text)
+
+
+def _draw_extension_line(ctx: cairo.Context, x1: float, y1: float, x2: float, y2: float) -> None:
+    ctx.set_source_rgb(0.5, 0.5, 0.5)
+    ctx.set_line_width(0.5)
+    ctx.set_dash([], 0)
+    ctx.move_to(x1, y1)
+    ctx.line_to(x2, y2)
+    ctx.stroke()
+
+
+def _draw_diameter_callout(
+    ctx: cairo.Context,
+    sx: float,
+    sy: float,
+    radius_screen: float,
+    text: str,
+    outward_sign_x: float,
+    outward_sign_y: float,
+) -> None:
+    """Draw a diameter annotation with an outside leader to reduce clutter."""
+    anchor_x = sx + outward_sign_x * radius_screen
+    anchor_y = sy + outward_sign_y * radius_screen
+    elbow_x = anchor_x + outward_sign_x * 14.0
+    elbow_y = anchor_y + outward_sign_y * 8.0
+    end_x = elbow_x + outward_sign_x * 18.0
+    end_y = elbow_y
+
+    _draw_extension_line(ctx, anchor_x, anchor_y, elbow_x, elbow_y)
+    _draw_extension_line(ctx, elbow_x, elbow_y, end_x, end_y)
+
+    angle = math.atan2(anchor_y - elbow_y, anchor_x - elbow_x)
+    ctx.set_source_rgb(0.2, 0.2, 0.2)
+    _draw_arrowhead(ctx, anchor_x, anchor_y, angle, size=4.5)
+
+    ctx.set_source_rgb(0.15, 0.15, 0.15)
+    ctx.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.set_font_size(8)
+    extents = ctx.text_extents(text)
+    text_x = end_x + (2 if outward_sign_x >= 0 else -extents.width - 2)
+    text_y = end_y - 2
+    ctx.move_to(text_x, text_y)
+    ctx.show_text(text)
+
+
+def _draw_dimensions(
+    ctx: cairo.Context,
+    projection: ProjectedView,
+    view_name: str,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    scale: float,
+    precision: int,
+    max_dims_per_axis: int,
+    min_dim_value_mm: float,
+) -> None:
+    if view_name not in {"top", "front", "left"}:
+        return
+
+    tx, ty = _compute_view_transform(projection, x=x, y=y, w=w, h=h, scale=scale)
+
+    top_screen = ty - projection.max_y * scale
+    right_screen = tx + projection.max_x * scale
+
+    x_values: list[float] = []
+    y_values: list[float] = []
+    axis_tol = 0.05
+    min_feature = 6.0
+    for x1, y1, x2, y2 in projection.line_segments:
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+        if dx <= axis_tol and dy >= min_feature:
+            x_values.extend([x1, x2])
+        if dy <= axis_tol and dx >= min_feature:
+            y_values.extend([y1, y2])
+
+    # Fallback to overall dimensions when no aligned features are found.
+    if not x_values:
+        x_values = [projection.min_x, projection.max_x]
+    if not y_values:
+        y_values = [projection.min_y, projection.max_y]
+
+    x_positions = _dedupe_sorted(x_values, epsilon=0.2)
+    y_positions = _dedupe_sorted(y_values, epsilon=0.2)
+
+    dim_gap = 14.0
+    ext_pad = 4.0
+
+    # Horizontal chain dimensions above the geometry.
+    seen_horizontal_lengths: list[float] = []
+    horizontal_slot = 0
+    for index, (mx1, mx2) in enumerate(zip(x_positions, x_positions[1:])):
+        if horizontal_slot >= max_dims_per_axis:
+            break
+        dim_value = abs(mx2 - mx1)
+        if dim_value < min_dim_value_mm:
+            continue
+        if any(abs(dim_value - seen) < 0.2 for seen in seen_horizontal_lengths):
+            continue
+        seen_horizontal_lengths.append(dim_value)
+        horizontal_slot += 1
+        y_dim = top_screen - dim_gap * horizontal_slot
+        sx1 = tx + mx1 * scale
+        sx2 = tx + mx2 * scale
+        _draw_extension_line(ctx, sx1, top_screen - ext_pad, sx1, y_dim + ext_pad)
+        _draw_extension_line(ctx, sx2, top_screen - ext_pad, sx2, y_dim + ext_pad)
+        _draw_linear_dimension(
+            ctx,
+            sx1,
+            y_dim,
+            sx2,
+            y_dim,
+            _format_length(dim_value, precision),
+            text_offset=9.0,
+        )
+
+    # Total horizontal dimension (outermost)
+    y_dim = top_screen - dim_gap * (min(len(x_positions), max_dims_per_axis + 1) + 1)
+    sx1 = tx + projection.min_x * scale
+    sx2 = tx + projection.max_x * scale
+    _draw_extension_line(ctx, sx1, top_screen - ext_pad, sx1, y_dim + ext_pad)
+    _draw_extension_line(ctx, sx2, top_screen - ext_pad, sx2, y_dim + ext_pad)
+    _draw_linear_dimension(
+        ctx,
+        sx1,
+        y_dim,
+        sx2,
+        y_dim,
+        f"TOTAL {_format_length(abs(projection.max_x - projection.min_x), precision)}",
+        text_offset=9.0,
+    )
+
+    # Vertical chain dimensions to the right of the geometry.
+    seen_vertical_lengths: list[float] = []
+    vertical_slot = 0
+    for index, (my1, my2) in enumerate(zip(y_positions, y_positions[1:])):
+        if vertical_slot >= max_dims_per_axis:
+            break
+        dim_value = abs(my2 - my1)
+        if dim_value < min_dim_value_mm:
+            continue
+        if any(abs(dim_value - seen) < 0.2 for seen in seen_vertical_lengths):
+            continue
+        seen_vertical_lengths.append(dim_value)
+        vertical_slot += 1
+        x_dim = right_screen + dim_gap * vertical_slot
+        sy1 = ty - my1 * scale
+        sy2 = ty - my2 * scale
+        _draw_extension_line(ctx, right_screen + ext_pad, sy1, x_dim - ext_pad, sy1)
+        _draw_extension_line(ctx, right_screen + ext_pad, sy2, x_dim - ext_pad, sy2)
+        _draw_linear_dimension(
+            ctx,
+            x_dim,
+            sy1,
+            x_dim,
+            sy2,
+            _format_length(dim_value, precision),
+            text_offset=11.0,
+        )
+
+    # Total vertical dimension (outermost)
+    x_dim = right_screen + dim_gap * (min(len(y_positions), max_dims_per_axis + 1) + 1)
+    sy1 = ty - projection.min_y * scale
+    sy2 = ty - projection.max_y * scale
+    _draw_extension_line(ctx, right_screen + ext_pad, sy1, x_dim - ext_pad, sy1)
+    _draw_extension_line(ctx, right_screen + ext_pad, sy2, x_dim - ext_pad, sy2)
+    _draw_linear_dimension(
+        ctx,
+        x_dim,
+        sy1,
+        x_dim,
+        sy2,
+        f"TOTAL {_format_length(abs(projection.max_y - projection.min_y), precision)}",
+        text_offset=11.0,
+    )
+
+    # Diameter dimensions for visible circles.
+    closed_circles = [circle for circle in projection.circles if circle[3]]
+    for circle_index, (cx, cy, radius, _is_closed) in enumerate(closed_circles):
+        if circle_index >= max_dims_per_axis:
+            break
+        sx = tx + cx * scale
+        sy = ty - cy * scale
+        radius_screen = radius * scale
+        space_left = (sx - radius_screen) - x
+        space_right = (x + w) - (sx + radius_screen)
+        space_up = (sy - radius_screen) - y
+        space_down = (y + h) - (sy + radius_screen)
+        outward_sign_x = 1.0 if space_right >= space_left else -1.0
+        outward_sign_y = 1.0 if space_down >= space_up else -1.0
+        _draw_diameter_callout(
+            ctx,
+            sx=sx,
+            sy=sy,
+            radius_screen=radius_screen,
+            text=f"d={_format_length(2 * radius, precision)}",
+            outward_sign_x=outward_sign_x,
+            outward_sign_y=outward_sign_y,
+        )
+
+
+def render_din_a4_views_pdf(
+    model: str,
+    output: Path,
+    scale_ratio: float | None = None,
+    dimensions: str = "full",
+    dim_precision: int = 1,
+    max_dims_per_axis: int = 6,
+    min_dim_value_mm: float = 3.0,
+) -> None:
     """Render top/front/left/isometric model views into a DIN A4 PDF."""
     part = get_model_part(model)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -281,6 +589,20 @@ def render_din_a4_views_pdf(model: str, output: Path, scale_ratio: float | None 
             h=frame_height - (2 * inner_padding),
             scale=shared_scale,
         )
+        if dimensions == "full":
+            _draw_dimensions(
+                ctx=ctx,
+                projection=projections[view],
+                view_name=view,
+                x=x + inner_padding,
+                y=y + inner_padding,
+                w=cell_width - (2 * inner_padding),
+                h=frame_height - (2 * inner_padding),
+                scale=shared_scale,
+                precision=dim_precision,
+                max_dims_per_axis=max_dims_per_axis,
+                min_dim_value_mm=min_dim_value_mm,
+            )
 
         ctx.set_source_rgb(0.15, 0.15, 0.15)
         ctx.select_font_face("Sans", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
@@ -308,6 +630,30 @@ def main() -> None:
         default="auto",
         help="Drawing scale as paper:model (e.g. 1:1, 1:2, 2:1) or 'auto' (default)",
     )
+    parser.add_argument(
+        "--dimensions",
+        choices=["none", "full"],
+        default="full",
+        help="Dimension mode (default: full)",
+    )
+    parser.add_argument(
+        "--dim-precision",
+        type=int,
+        default=1,
+        help="Dimension precision in decimal places (default: 1)",
+    )
+    parser.add_argument(
+        "--max-dims-per-axis",
+        type=int,
+        default=6,
+        help="Maximum chain dimensions per axis and view (default: 6)",
+    )
+    parser.add_argument(
+        "--min-dim-mm",
+        type=float,
+        default=3.0,
+        help="Ignore chain dimensions smaller than this value in mm (default: 3.0)",
+    )
     args = parser.parse_args()
 
     output = Path(args.output) if args.output else Path(f"exports/{args.model}_din_a4_views.pdf")
@@ -318,7 +664,15 @@ def main() -> None:
         sys.exit(2)
 
     try:
-        render_din_a4_views_pdf(args.model, output, scale_ratio=scale_ratio)
+        render_din_a4_views_pdf(
+            args.model,
+            output,
+            scale_ratio=scale_ratio,
+            dimensions=args.dimensions,
+            dim_precision=max(args.dim_precision, 0),
+            max_dims_per_axis=max(args.max_dims_per_axis, 1),
+            min_dim_value_mm=max(args.min_dim_mm, 0.1),
+        )
     except ModuleNotFoundError:
         print(f"Model '{args.model}' not found in models/")
         sys.exit(1)

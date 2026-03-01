@@ -7,6 +7,8 @@ from render_a4_pdf import (
     ORTHO_VIEWPORTS,
     POINTS_PER_MM,
     _camera_for_view,
+    _dedupe_sorted,
+    _format_length,
     compute_uniform_scale,
     format_drawing_scale,
     parse_scale_option,
@@ -58,6 +60,23 @@ class RenderA4PdfTests(unittest.TestCase):
             parse_scale_option("0:1")
         with self.assertRaises(ValueError):
             parse_scale_option("foo")
+
+    def test_dedupe_sorted(self) -> None:
+        values = [10.0, 10.02, 5.0, 5.01, 15.0]
+        self.assertEqual(_dedupe_sorted(values, epsilon=0.05), [5.0, 10.0, 15.0])
+
+    def test_format_length(self) -> None:
+        self.assertEqual(_format_length(12.345, precision=1), "12.3 mm")
+        self.assertEqual(_format_length(12.345, precision=0), "12 mm")
+
+    def test_only_closed_circles_are_dimension_candidates(self) -> None:
+        circles = [
+            (0.0, 0.0, 4.0, False),
+            (10.0, 0.0, 2.0, True),
+            (20.0, 0.0, 3.0, False),
+        ]
+        closed = [circle for circle in circles if circle[3]]
+        self.assertEqual(closed, [(10.0, 0.0, 2.0, True)])
 
 
 if __name__ == "__main__":
