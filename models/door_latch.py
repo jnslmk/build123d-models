@@ -1,6 +1,17 @@
 """Rounded L-shaped door latch that pivots around a screw hole."""
 
-from build123d import Axis, Box, BuildPart, Cylinder, Locations, Mode, Part, fillet
+from build123d import (
+    Axis,
+    BuildPart,
+    BuildSketch,
+    Circle,
+    Locations,
+    Mode,
+    Part,
+    Rectangle,
+    extrude,
+    fillet,
+)
 
 LATCH_LENGTH = 85.0
 ARM_WIDTH = 10.0
@@ -15,23 +26,39 @@ OUTER_FILLET_RADIUS = 4.0
 def create() -> Part:
     """Create a printable rounded L-shaped pivoting door latch."""
     with BuildPart() as builder:
-        # Main arm (x from 0 to LATCH_LENGTH, y from -ARM_WIDTH/2 to +ARM_WIDTH/2)
-        with Locations((LATCH_LENGTH / 2, 0, 0)):
-            Box(LATCH_LENGTH, ARM_WIDTH, THICKNESS)
-
-        # Hook leg extends on one side to form the L profile.
-        hook_center_x = LATCH_LENGTH - HOOK_LENGTH / 2
+        # Main latch footprint with a rounded cap on the short hook end.
+        hook_start_x = LATCH_LENGTH - HOOK_LENGTH
         hook_center_y = ARM_WIDTH
-        with Locations((hook_center_x, hook_center_y, 0)):
-            Box(HOOK_LENGTH, ARM_WIDTH, THICKNESS)
+        hook_stem_length = max(HOOK_LENGTH - ARM_WIDTH / 2, 0)
+        hook_stem_center_x = hook_start_x + hook_stem_length / 2
+        hook_cap_center_x = hook_start_x + hook_stem_length
+
+        with BuildSketch():
+            with Locations((LATCH_LENGTH / 2, 0)):
+                Rectangle(LATCH_LENGTH, ARM_WIDTH)
+            if hook_stem_length > 0:
+                with Locations((hook_stem_center_x, hook_center_y)):
+                    Rectangle(hook_stem_length, ARM_WIDTH)
+            with Locations((hook_cap_center_x, hook_center_y)):
+                Circle(ARM_WIDTH / 2)
+        extrude(amount=THICKNESS / 2, both=True)
 
         # Through-hole for pivot screw.
-        with Locations((PIVOT_INSET, 0, 0)):
-            Cylinder(PIVOT_HOLE_DIAMETER / 2, THICKNESS * 2, mode=Mode.SUBTRACT)
+        with BuildSketch():
+            with Locations((PIVOT_INSET, 0)):
+                Circle(PIVOT_HOLE_DIAMETER / 2)
+        extrude(amount=THICKNESS, both=True, mode=Mode.SUBTRACT)
 
         # Round external vertical corners for a softer latch profile.
         vertical_edges = list(builder.edges().filter_by(Axis.Z))
-        if vertical_edges:
-            fillet(vertical_edges, radius=OUTER_FILLET_RADIUS)
+        fillet_edges = []
+        for edge in vertical_edges:
+            center = edge.center()
+            # Exclude stem-to-cap transition edges; they are not valid for this fillet.
+            if abs(center.X - hook_cap_center_x) < 1e-7:
+                continue
+            fillet_edges.append(edge)
+        if fillet_edges:
+            fillet(fillet_edges, radius=OUTER_FILLET_RADIUS)
 
     return builder.part
