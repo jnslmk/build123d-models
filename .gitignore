@@ -17,3 +17,6 @@ sketches/
 
 # Git worktrees
 .worktrees/
+
+# Tool metadata
+.sisyphus/
