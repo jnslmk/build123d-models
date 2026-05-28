@@ -92,7 +92,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "build123d", specifier = ">=0.10.0" },
-    { name = "ocp-vscode", directory = "../vscode-ocp-cad-viewer" },
+    { name = "ocp-vscode", directory = "/home/jonas/git-projects/build123d/vscode-ocp-cad-viewer" },
     { name = "pygobject", specifier = ">=3.54.5" },
     { name = "pywebview", specifier = ">=6.1" },
 ]
@@ -980,8 +980,8 @@ wheels = [
 
 [[package]]
 name = "ocp-vscode"
-version = "3.0.1"
-source = { directory = "../vscode-ocp-cad-viewer" }
+version = "3.0.6"
+source = { directory = "/home/jonas/git-projects/build123d/vscode-ocp-cad-viewer" }
 dependencies = [
     { name = "click" },
     { name = "flask" },
