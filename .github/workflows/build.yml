@@ -25,9 +25,6 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      - name: Install Python dependencies
-        run: uv sync --frozen
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -38,6 +35,9 @@ jobs:
             python3-dev \
             gir1.2-gtk-3.0 \
             libgtk-3-0
+
+      - name: Install Python dependencies
+        run: uv sync --frozen
 
       - name: Build all models
         run: uv run python main.py
