@@ -1,0 +1,134 @@
+name: Build Models
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Export Models
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python dependencies
+        run: uv sync --frozen
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgirepository1.0-dev \
+            libcairo2-dev \
+            pkg-config \
+            python3-dev \
+            gir1.2-gtk-3.0 \
+            libgtk-3-0
+
+      - name: Build all models
+        run: uv run python main.py
+
+      - name: Generate SVG renders
+        run: |
+          uv run render cube --view iso
+          uv run render cube --view top
+          uv run render cube --view front
+          uv run render door_latch --view iso
+          uv run render door_latch --view top
+          uv run render door_latch --view front
+          uv run render lens_cap --view iso
+          uv run render lens_cap --view top
+          uv run render lens_cap --view front
+          uv run render satellite_led --view iso
+          uv run render satellite_led --view top
+          uv run render satellite_led --view front
+          uv run render slotted_plate --view iso
+          uv run render slotted_plate --view top
+          uv run render slotted_plate --view front
+          uv run render spiral_vase_lampshade --view iso
+          uv run render spiral_vase_lampshade --view top
+          uv run render spiral_vase_lampshade --view front
+          uv run render wall_bar_lamp --view iso
+          uv run render wall_bar_lamp --view top
+          uv run render wall_bar_lamp --view front
+
+      - name: Generate models manifest
+        run: |
+          python3 - << 'EOF'
+          import json
+          from pathlib import Path
+
+          exports = Path("exports")
+          known_models = [
+            "cube", "door_latch", "lens_cap", "satellite_led",
+            "slotted_plate", "spiral_vase_lampshade", "wall_bar_lamp"
+          ]
+
+          models = []
+          for name in known_models:
+            stl = exports / f"{name}.stl"
+            step = exports / f"{name}.step"
+            iso = exports / f"{name}_iso.svg"
+            top = exports / f"{name}_top.svg"
+            front = exports / f"{name}_front.svg"
+
+            if stl.exists():
+              models.append({
+                "name": name,
+                "stl": f"exports/{stl.name}",
+                "step": f"exports/{step.name}" if step.exists() else None,
+                "iso": f"exports/{iso.name}" if iso.exists() else None,
+                "top": f"exports/{top.name}" if top.exists() else None,
+                "front": f"exports/{front.name}" if front.exists() else None,
+              })
+
+          manifest = {"models": models}
+          with open("exports/models.json", "w") as f:
+            json.dump(manifest, f, indent=2)
+          print(f"Generated manifest with {len(models)} models")
+          EOF
+
+      - name: Upload exports
+        uses: actions/upload-artifact@v4
+        with:
+          name: exports
+          path: exports/
+          retention-days: 7
+
+  build-website:
+    name: Build Website
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download exports
+        uses: actions/download-artifact@v4
+        with:
+          name: exports
+          path: website/exports/
+
+      - name: Upload website
+        uses: actions/upload-artifact@v4
+        with:
+          name: website
+          path: website/
+          retention-days: 7

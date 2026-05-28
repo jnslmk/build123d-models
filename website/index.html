@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>build123d Models</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <h1>build123d Models</h1>
+      <p class="subtitle">3D printable models built with <a href="https://github.com/gumyr/build123d" target="_blank" rel="noopener">build123d</a></p>
+    </div>
+  </header>
+
+  <main>
+    <aside class="model-list-panel">
+      <h2>Models</h2>
+      <div id="model-list" class="model-list">
+        <p class="loading">Loading models...</p>
+      </div>
+    </aside>
+
+    <section class="viewer-panel">
+      <div id="viewer-placeholder" class="viewer-placeholder">
+        <div class="placeholder-content">
+          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+            <line x1="12" y1="22.08" x2="12" y2="12"/>
+          </svg>
+          <p>Select a model to view</p>
+        </div>
+      </div>
+
+      <div id="model-viewer-container" class="model-viewer-container hidden">
+        <model-viewer
+          id="model-viewer"
+          camera-controls
+          auto-rotate
+          auto-rotate-delay="1000"
+          rotation-per-second="20deg"
+          shadow-intensity="1"
+          exposure="1"
+          ar
+          ar-modes="model-viewer"
+          loading="eager"
+        >
+          <div class="progress-bar" id="progress-bar">
+            <div class="update-bar" id="update-bar"></div>
+          </div>
+        </model-viewer>
+
+        <div class="viewer-controls">
+          <button id="btn-iso" class="view-btn active" data-view="iso">ISO</button>
+          <button id="btn-top" class="view-btn" data-view="top">Top</button>
+          <button id="btn-front" class="view-btn" data-view="front">Front</button>
+        </div>
+      </div>
+
+      <div id="svg-container" class="svg-container hidden">
+        <img id="svg-viewer" src="" alt="SVG view">
+      </div>
+
+      <div class="toggle-container">
+        <button id="toggle-viewer" class="toggle-btn active">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+          3D
+        </button>
+        <button id="toggle-svg" class="toggle-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          SVG
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built with <a href="https://github.com/gumyr/build123d" target="_blank" rel="noopener">build123d</a> ·
+       View source on <a href="https://github.com/build123d/build123d-models" target="_blank" rel="noopener">GitHub</a></p>
+  </footer>
+
+  <script>
+    // State
+    let models = [];
+    let currentModel = null;
+    let currentView = 'iso';
+
+    // DOM elements
+    const modelList = document.getElementById('model-list');
+    const viewerPlaceholder = document.getElementById('viewer-placeholder');
+    const modelViewerContainer = document.getElementById('model-viewer-container');
+    const svgContainer = document.getElementById('svg-container');
+    const svgViewer = document.getElementById('svg-viewer');
+    const modelViewer = document.getElementById('model-viewer');
+    const progressBar = document.getElementById('progress-bar');
+    const updateBar = document.getElementById('update-bar');
+    const toggleViewer = document.getElementById('toggle-viewer');
+    const toggleSvg = document.getElementById('toggle-svg');
+    const viewBtns = document.querySelectorAll('.view-btn');
+
+    // Load models manifest
+    async function loadModels() {
+      try {
+        const resp = await fetch('exports/models.json');
+        const data = await resp.json();
+        models = data.models;
+        renderModelList();
+      } catch (err) {
+        modelList.innerHTML = '<p class="error">Failed to load models</p>';
+        console.error(err);
+      }
+    }
+
+    // Render model list
+    function renderModelList() {
+      if (models.length === 0) {
+        modelList.innerHTML = '<p class="empty">No models found</p>';
+        return;
+      }
+
+      modelList.innerHTML = models.map(m => `
+        <button class="model-item" data-name="${m.name}" data-stl="${m.stl || ''}">
+          <span class="model-name">${formatName(m.name)}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+        </button>
+      `).join('');
+
+      // Add click handlers
+      modelList.querySelectorAll('.model-item').forEach(btn => {
+        btn.addEventListener('click', () => selectModel(btn.dataset.name));
+      });
+    }
+
+    // Format model name for display
+    function formatName(name) {
+      return name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+
+    // Select and load a model
+    function selectModel(name) {
+      currentModel = models.find(m => m.name === name);
+      if (!currentModel) return;
+
+      // Update active state in list
+      modelList.querySelectorAll('.model-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.name === name);
+      });
+
+      // Load STL in 3D viewer
+      if (currentModel.stl) {
+        modelViewer.src = currentModel.stl;
+        modelViewer.alt = currentModel.name;
+        viewerPlaceholder.classList.add('hidden');
+        modelViewerContainer.classList.remove('hidden');
+        svgContainer.classList.add('hidden');
+      }
+
+      // Load SVG preview
+      const svgSrc = currentModel[currentView];
+      if (svgSrc) {
+        svgViewer.src = svgSrc;
+      }
+
+      // Reset to 3D view
+      toggleViewer.classList.add('active');
+      toggleSvg.classList.remove('active');
+      modelViewerContainer.classList.remove('hidden');
+      svgContainer.classList.add('hidden');
+    }
+
+    // View button handlers
+    viewBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view;
+        currentView = view;
+        viewBtns.forEach(b => b.classList.toggle('active', b === btn));
+        if (currentModel) {
+          const svgSrc = currentModel[view];
+          if (svgSrc) svgViewer.src = svgSrc;
+        }
+      });
+    });
+
+    // Toggle between 3D viewer and SVG
+    toggleViewer.addEventListener('click', () => {
+      toggleViewer.classList.add('active');
+      toggleSvg.classList.remove('active');
+      modelViewerContainer.classList.remove('hidden');
+      svgContainer.classList.add('hidden');
+    });
+
+    toggleSvg.addEventListener('click', () => {
+      toggleSvg.classList.add('active');
+      toggleViewer.classList.remove('active');
+      modelViewerContainer.classList.add('hidden');
+      svgContainer.classList.remove('hidden');
+    });
+
+    // Progress bar handling for model-viewer
+    modelViewer.addEventListener('progress', (e) => {
+      const { totalProgress } = e.detail;
+      updateBar.style.width = `${totalProgress * 100}%`;
+      progressBar.style.opacity = totalProgress < 1 ? '1' : '0';
+    });
+
+    // Auto-load first model
+    loadModels().then(() => {
+      if (models.length > 0) {
+        selectModel(models[0].name);
+      }
+    });
+  </script>
+</body>
+</html>
