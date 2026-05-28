@@ -31,6 +31,16 @@ uv run ty check .
 uv run selection                      # JSON output + human summary
 ```
 
+## Post-Update Verification
+
+After modifying any model, always verify it visually in the viewer:
+
+```bash
+uv run show <model_name>
+```
+
+This opens the model in the 3D viewer so you can confirm geometry, orientation, and colors before considering the task complete. Run this immediately after any model change.
+
 ## Architecture
 
 This is a collection of 3D printable models using build123d (Python CAD library).
