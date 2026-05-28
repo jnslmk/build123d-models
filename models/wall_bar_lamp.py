@@ -99,11 +99,8 @@ def create_tube() -> Part:
     with BuildPart() as tube:
         with BuildSketch(Plane.YZ.offset(-tube_half)):
             Circle(outer_radius)
+            Circle(inner_radius, mode=Mode.SUBTRACT)
         extrude(amount=TUBE_HALF_LENGTH)
-
-        with BuildSketch(Plane.YZ.offset(-tube_half)):
-            Circle(TUBE_PEG_DIAMETER / 2)
-        extrude(amount=TUBE_PEG_LENGTH)
 
     return tube.part
 
