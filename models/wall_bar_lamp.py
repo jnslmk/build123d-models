@@ -10,14 +10,13 @@ from build123d import (
     Part,
     Plane,
     Polygon,
-    RectangleRounded,
     extrude,
     loft,
 )
 
 # Diffuser tube
 TUBE_OUTER_DIAMETER = 26.0
-TUBE_WALL = 1.6
+TUBE_WALL = 1.2
 TUBE_HALF_LENGTH = 150.0
 TUBE_PEG_DIAMETER = 18.2
 TUBE_PEG_LENGTH = 10.0
@@ -34,7 +33,7 @@ BACKPLATE_HEIGHT = 24.0
 BACKPLATE_THICKNESS = 3.0
 BACKPLATE_RADIUS = 5.0
 SHROUD_OUTER_DIAMETER = 31.0
-SHROUD_BORE_DIAMETER = 26.4
+SHROUD_BORE_DIAMETER = 18.8
 SHROUD_CENTER_WIDTH = 12.0
 SHROUD_TRANSITION_LENGTH = 8.0
 BASE_WIDTH = 16.0
@@ -57,10 +56,6 @@ def create_mount() -> Part:
     end_x = half_center_width + SHROUD_TRANSITION_LENGTH
 
     with BuildPart() as mount:
-        with BuildSketch(Plane.XZ):
-            RectangleRounded(BACKPLATE_WIDTH, BACKPLATE_HEIGHT, BACKPLATE_RADIUS)
-        extrude(amount=BACKPLATE_THICKNESS, both=True)
-
         outer_sections = []
         for offset, radius in (
             (-end_x, tube_radius + 0.8),
@@ -90,13 +85,6 @@ def create_mount() -> Part:
             )
         extrude(amount=BASE_WIDTH, both=True)
 
-        with BuildSketch(Plane.XZ.offset(-BACKPLATE_THICKNESS / 2)):
-            RectangleRounded(
-                CABLE_SLOT_WIDTH,
-                CABLE_SLOT_HEIGHT,
-                CABLE_SLOT_HEIGHT / 2 - 0.5,
-            )
-        extrude(amount=BACKPLATE_THICKNESS, mode=Mode.SUBTRACT)
 
     mount.part.label = "wall_mount"
     return mount.part
@@ -111,7 +99,6 @@ def create_tube() -> Part:
     with BuildPart() as tube:
         with BuildSketch(Plane.YZ.offset(-tube_half)):
             Circle(outer_radius)
-            Circle(inner_radius, mode=Mode.SUBTRACT)
         extrude(amount=TUBE_HALF_LENGTH)
 
         with BuildSketch(Plane.YZ.offset(-tube_half)):
