@@ -60,6 +60,8 @@ Exports are saved to `exports/` as STEP and STL files.
 
 ## CI/CD
 
+<!-- Trigger rebuild: disabled and re-enabled Pages -->
+
 Every push to `main` automatically:
 1. Builds all models
 2. Generates SVG renders (iso, top, front views)
