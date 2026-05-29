@@ -2,6 +2,11 @@
 
 Collection of 3D printable models built with [build123d](https://github.com/gumyr/build123d).
 
+[![Deploy to GitHub Pages](https://github.com/jnslmk/build123d-models/actions/workflows/build.yml/badge.svg)](https://github.com/jnslmk/build123d-models/actions/workflows/build.yml)
+[![GitHub Pages](https://img.shields.io/github/pages/jnslmk/build123d-models)](https://jnslmk.github.io/build123d-models/)
+
+**Live 3D viewer:** https://jnslmk.github.io/build123d-models/
+
 ## Setup
 
 ```bash
@@ -52,6 +57,15 @@ uv run python main.py
 ```
 
 Exports are saved to `exports/` as STEP and STL files.
+
+## CI/CD
+
+Every push to `main` automatically:
+1. Builds all models
+2. Generates SVG renders (iso, top, front views)
+3. Deploys to GitHub Pages
+
+View live at: https://jnslmk.github.io/build123d-models/
 
 ## Models
 
