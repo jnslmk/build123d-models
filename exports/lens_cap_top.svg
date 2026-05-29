@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg width="100.5mm" height="100.5mm" viewBox="-26.8335 -26.8335 53.667 53.667" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <g transform="scale(1,-1)" stroke-linecap="round">
+    <g fill="none" stroke="rgb(205,214,244)" stroke-width="0.26699999999999996" id="Visible">
+      <circle cx="0.0" cy="-0.0" r="26.7" />
+      <circle cx="0.0" cy="-0.0" r="25.5" />
+    </g>
+    <g fill="none" stroke="rgb(108,112,134)" stroke-width="0.13349999999999998" id="Hidden" stroke-dasharray="0.003391 0.402195">
+      <circle cx="0.0" cy="-0.0" r="26.7" />
+      <circle cx="0.0" cy="-0.0" r="26.099999999999998" />
+      <circle cx="0.0" cy="-0.0" r="25.5" />
+    </g>
+  </g>
+</svg>

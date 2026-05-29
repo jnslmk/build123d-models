@@ -1,0 +1,60 @@
+{
+  "models": [
+    {
+      "name": "cube",
+      "stl": "exports/cube.stl",
+      "step": "exports/cube.step",
+      "iso": "exports/cube_iso.svg",
+      "top": "exports/cube_top.svg",
+      "front": "exports/cube_front.svg"
+    },
+    {
+      "name": "door_latch",
+      "stl": "exports/door_latch.stl",
+      "step": "exports/door_latch.step",
+      "iso": "exports/door_latch_iso.svg",
+      "top": "exports/door_latch_top.svg",
+      "front": "exports/door_latch_front.svg"
+    },
+    {
+      "name": "lens_cap",
+      "stl": "exports/lens_cap.stl",
+      "step": "exports/lens_cap.step",
+      "iso": "exports/lens_cap_iso.svg",
+      "top": "exports/lens_cap_top.svg",
+      "front": "exports/lens_cap_front.svg"
+    },
+    {
+      "name": "satellite_led",
+      "stl": "exports/satellite_led.stl",
+      "step": "exports/satellite_led.step",
+      "iso": "exports/satellite_led_iso.svg",
+      "top": "exports/satellite_led_top.svg",
+      "front": "exports/satellite_led_front.svg"
+    },
+    {
+      "name": "slotted_plate",
+      "stl": "exports/slotted_plate.stl",
+      "step": "exports/slotted_plate.step",
+      "iso": "exports/slotted_plate_iso.svg",
+      "top": "exports/slotted_plate_top.svg",
+      "front": "exports/slotted_plate_front.svg"
+    },
+    {
+      "name": "spiral_vase_lampshade",
+      "stl": "exports/spiral_vase_lampshade.stl",
+      "step": "exports/spiral_vase_lampshade.step",
+      "iso": "exports/spiral_vase_lampshade_iso.svg",
+      "top": "exports/spiral_vase_lampshade_top.svg",
+      "front": "exports/spiral_vase_lampshade_front.svg"
+    },
+    {
+      "name": "wall_bar_lamp",
+      "stl": "exports/wall_bar_lamp.stl",
+      "step": "exports/wall_bar_lamp.step",
+      "iso": "exports/wall_bar_lamp_iso.svg",
+      "top": "exports/wall_bar_lamp_top.svg",
+      "front": "exports/wall_bar_lamp_front.svg"
+    }
+  ]
+}

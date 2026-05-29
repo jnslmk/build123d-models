@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg width="100.5mm" height="100.5mm" viewBox="-10.05 -10.05 20.1 20.1" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <g transform="scale(1,-1)" stroke-linecap="round">
+    <g fill="none" stroke="rgb(205,214,244)" stroke-width="0.1" id="Visible">
+      <line x1="-10.0" y1="-10.0" x2="-10.0" y2="10.0" />
+      <line x1="10.0" y1="-10.0" x2="10.0" y2="10.0" />
+      <line x1="-10.0" y1="-10.0" x2="10.0" y2="-10.0" />
+      <line x1="-10.0" y1="10.0" x2="10.0" y2="10.0" />
+    </g>
+    <g fill="none" stroke="rgb(108,112,134)" stroke-width="0.05" id="Hidden" stroke-dasharray="0.00127 0.150635">
+      <line x1="-10.0" y1="-10.0" x2="-10.0" y2="10.0" />
+      <line x1="10.0" y1="-10.0" x2="10.0" y2="10.0" />
+      <line x1="-10.0" y1="-10.0" x2="10.0" y2="-10.0" />
+      <line x1="-10.0" y1="10.0" x2="10.0" y2="10.0" />
+    </g>
+  </g>
+</svg>
