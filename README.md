@@ -60,7 +60,7 @@ Exports are saved to `exports/` as STEP and STL files.
 
 ## CI/CD
 
-<!-- Trigger rebuild: disabled and re-enabled Pages -->
+<!-- Trigger rebuild: Pages reconfiguration attempt #2 -->
 
 Every push to `main` automatically:
 1. Builds all models
