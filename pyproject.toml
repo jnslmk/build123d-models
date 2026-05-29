@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "build123d>=0.10.0",
     "ocp-vscode>=3.4.0",
+    "ocp-tessellate>=3.3.0",
     "pygobject>=3.54.5",
     "pywebview>=6.1",
 ]
@@ -17,13 +18,15 @@ export = "export_model:main"
 render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
+tessellate = "tessellate_models:main"
+website = "website:main"
 
 [tool.uv]
 package = true
 
 [tool.setuptools]
 packages = ["models"]
-py-modules = ["show", "export_model", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection"]
+py-modules = ["show", "export_model", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 
 [dependency-groups]
 dev = [

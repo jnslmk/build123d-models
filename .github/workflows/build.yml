@@ -42,7 +42,8 @@ jobs:
       - name: Build all models
         run: uv run python main.py
 
-      - name: Generate SVG renders
+      - name: Tessellate models for three-cad-viewer
+        run: uv run tessellate all
         run: |
           uv run render cube --view iso
           uv run render cube --view top
@@ -85,6 +86,7 @@ jobs:
             iso = exports / f"{name}_iso.svg"
             top = exports / f"{name}_top.svg"
             front = exports / f"{name}_front.svg"
+            shapes = exports / f"{name}_shapes.json"
 
             if stl.exists():
               models.append({
@@ -94,6 +96,7 @@ jobs:
                 "iso": f"exports/{iso.name}" if iso.exists() else None,
                 "top": f"exports/{top.name}" if top.exists() else None,
                 "front": f"exports/{front.name}" if front.exists() else None,
+                "shapes": f"exports/{shapes.name}" if shapes.exists() else None,
               })
 
           manifest = {"models": models}

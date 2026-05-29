@@ -16,6 +16,7 @@ from build123d import (
     Plane,
     Polygon,
     Rectangle,
+    RectangleRounded,
     Vector,
     export_step,
     export_stl,
@@ -46,6 +47,7 @@ ALUMINUM_COLOR = Color(0.75, 0.75, 0.75)
 PCB_COLOR = Color(1.0, 1.0, 1.0)
 LED_COLOR = Color(0.05, 0.05, 0.05)
 LED_DIE_COLOR = Color(1.0, 0.9, 0.2)
+COPPER_COLOR = Color(0.80, 0.45, 0.20)
 GOLD_COLOR = Color(0.83, 0.68, 0.21)
 
 MIRROR_DIAMETER = 1400.0
@@ -140,7 +142,7 @@ def create_led(angle: float, z_offset: float, index: int) -> Compound:
     return led
 
 
-def create_solder_pad(angle: float, z_offset: float, index: int) -> Part:
+def create_solder_pad_group(angle: float, z_offset: float, index: int) -> list[Part]:
     base_origin = Vector(
         (HEX_APOTHEM + PCB_THICKNESS) * math.cos(angle),
         (HEX_APOTHEM + PCB_THICKNESS) * math.sin(angle),
@@ -148,16 +150,28 @@ def create_solder_pad(angle: float, z_offset: float, index: int) -> Part:
     )
     x_dir = Vector(0, 0, 1)
     z_dir = Vector(math.cos(angle), math.sin(angle), 0)
-    base_plane = Plane(base_origin, x_dir, z_dir)
 
-    with BuildPart() as pad:
-        with BuildSketch(base_plane):
-            Rectangle(SOLDER_PAD_WIDTH, SOLDER_PAD_LENGTH, align=Align.CENTER)
-        extrude(amount=PCB_THICKNESS)
+    pads = []
+    pad_width = 2.5
+    pad_length = 0.6
+    spacing = 0.6
+    num_pads = 3
 
-    pad.part.color = GOLD_COLOR
-    pad.part.label = f"solder_pad_{index:02d}"
-    return pad.part
+    for j in range(num_pads):
+        offset_z = (j - (num_pads - 1) / 2) * spacing
+        pad_origin = base_origin + Vector(0, 0, offset_z)
+        pad_plane = Plane(pad_origin, x_dir, z_dir)
+
+        with BuildPart() as pad:
+            with BuildSketch(pad_plane):
+                RectangleRounded(pad_width, pad_length, radius=0.15)
+            extrude(amount=PCB_THICKNESS * 0.3)
+
+        pad.part.color = COPPER_COLOR
+        pad.part.label = f"solder_pad_{index:02d}_{j}"
+        pads.append(pad.part)
+
+    return pads
 
 
 def create_led_strip(face_index: int) -> Compound:
@@ -171,9 +185,10 @@ def create_led_strip(face_index: int) -> Compound:
         z = -HEX_LENGTH / 2 + LED_PITCH / 2 + i * LED_PITCH
         led = create_led(angle, z, i)
         leds.append(led)
-        if i % SOLDER_PAD_INTERVAL == 0:
-            pad = create_solder_pad(angle, z, i)
-            solder_pads.append(pad)
+        if i < num_leds - 1:
+            pad_z = z + LED_PITCH / 2
+            pads = create_solder_pad_group(angle, pad_z, i)
+            solder_pads.extend(pads)
 
     return Compound(
         label=f"led_strip_{face_index}", children=[pcb] + leds + solder_pads

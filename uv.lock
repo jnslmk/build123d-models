@@ -78,6 +78,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "build123d" },
+    { name = "ocp-tessellate" },
     { name = "ocp-vscode" },
     { name = "pygobject" },
     { name = "pywebview" },
@@ -92,6 +93,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "build123d", specifier = ">=0.10.0" },
+    { name = "ocp-tessellate", specifier = ">=3.3.0" },
     { name = "ocp-vscode", specifier = ">=3.4.0" },
     { name = "pygobject", specifier = ">=3.54.5" },
     { name = "pywebview", specifier = ">=6.1" },

@@ -8,6 +8,10 @@
     {
       "matchManagers": ["github-actions"],
       "labels": ["github-actions"]
+    },
+    {
+      "matchManagers": ["uv"],
+      "labels": ["python"]
     }
   ]
 }

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>build123d Models</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/three-cad-viewer@4.3.9/dist/three-cad-viewer.css">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 </head>
 <body>
   <header>
@@ -37,28 +37,7 @@
       </div>
 
       <div id="model-viewer-container" class="model-viewer-container hidden">
-        <model-viewer
-          id="model-viewer"
-          camera-controls
-          auto-rotate
-          auto-rotate-delay="1000"
-          rotation-per-second="20deg"
-          shadow-intensity="1"
-          exposure="1"
-          ar
-          ar-modes="model-viewer"
-          loading="eager"
-        >
-          <div class="progress-bar" id="progress-bar">
-            <div class="update-bar" id="update-bar"></div>
-          </div>
-        </model-viewer>
-
-        <div class="viewer-controls">
-          <button id="btn-iso" class="view-btn active" data-view="iso">ISO</button>
-          <button id="btn-top" class="view-btn" data-view="top">Top</button>
-          <button id="btn-front" class="view-btn" data-view="front">Front</button>
-        </div>
+        <div id="cad-view"></div>
       </div>
 
       <div id="svg-container" class="svg-container hidden">
@@ -89,11 +68,15 @@
        View source on <a href="https://github.com/build123d/build123d-models" target="_blank" rel="noopener">GitHub</a></p>
   </footer>
 
-  <script>
+  <script type="module">
+    import { Viewer, Display } from "https://cdn.jsdelivr.net/npm/three-cad-viewer@4.3.9/dist/three-cad-viewer.esm.js";
+
     // State
     let models = [];
     let currentModel = null;
     let currentView = 'iso';
+    let viewer = null;
+    let display = null;
 
     // DOM elements
     const modelList = document.getElementById('model-list');
@@ -101,12 +84,38 @@
     const modelViewerContainer = document.getElementById('model-viewer-container');
     const svgContainer = document.getElementById('svg-container');
     const svgViewer = document.getElementById('svg-viewer');
-    const modelViewer = document.getElementById('model-viewer');
-    const progressBar = document.getElementById('progress-bar');
-    const updateBar = document.getElementById('update-bar');
     const toggleViewer = document.getElementById('toggle-viewer');
     const toggleSvg = document.getElementById('toggle-svg');
     const viewBtns = document.querySelectorAll('.view-btn');
+    const cadView = document.getElementById('cad-view');
+
+    const displayOptions = {
+      treeWidth: 280,
+      theme: "dark",
+      pinning: true,
+    };
+
+    const renderOptions = {
+      ambientIntensity: 1.0,
+      directIntensity: 1.1,
+      metalness: 0.3,
+      roughness: 0.65,
+      edgeColor: 0x707070,
+      defaultOpacity: 1.0,
+      normalLen: 0,
+    };
+
+    const viewerOptions = {
+      target: [0, 0, 0],
+      up: "Z",
+    };
+
+    // Initialize viewer once
+    function initViewer() {
+      if (display) return;
+      display = new Display(cadView, displayOptions);
+      viewer = new Viewer(display, viewerOptions, console.log);
+    }
 
     // Load models manifest
     async function loadModels() {
@@ -114,7 +123,11 @@
         const resp = await fetch('exports/models.json');
         const data = await resp.json();
         models = data.models;
+        initViewer();
         renderModelList();
+        if (models.length > 0) {
+          selectModel(models[0].name);
+        }
       } catch (err) {
         modelList.innerHTML = '<p class="error">Failed to load models</p>';
         console.error(err);
@@ -129,7 +142,7 @@
       }
 
       modelList.innerHTML = models.map(m => `
-        <button class="model-item" data-name="${m.name}" data-stl="${m.stl || ''}">
+        <button class="model-item" data-name="${m.name}" data-shapes="${m.shapes || ''}">
           <span class="model-name">${formatName(m.name)}</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -137,7 +150,6 @@
         </button>
       `).join('');
 
-      // Add click handlers
       modelList.querySelectorAll('.model-item').forEach(btn => {
         btn.addEventListener('click', () => selectModel(btn.dataset.name));
       });
@@ -149,31 +161,37 @@
     }
 
     // Select and load a model
-    function selectModel(name) {
+    async function selectModel(name) {
       currentModel = models.find(m => m.name === name);
       if (!currentModel) return;
 
-      // Update active state in list
       modelList.querySelectorAll('.model-item').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.name === name);
       });
 
-      // Load STL in 3D viewer
-      if (currentModel.stl) {
-        modelViewer.src = currentModel.stl;
-        modelViewer.alt = currentModel.name;
-        viewerPlaceholder.classList.add('hidden');
-        modelViewerContainer.classList.remove('hidden');
-        svgContainer.classList.add('hidden');
+      if (currentModel.shapes) {
+        try {
+          const resp = await fetch(currentModel.shapes);
+          const shapesData = await resp.json();
+          if (viewer) {
+            viewer.clear();
+            viewer.render(shapesData, renderOptions, viewerOptions);
+          }
+          viewerPlaceholder.classList.add('hidden');
+          modelViewerContainer.classList.remove('hidden');
+          svgContainer.classList.add('hidden');
+        } catch (err) {
+          console.error('Failed to load shapes:', err);
+          viewerPlaceholder.classList.remove('hidden');
+          modelViewerContainer.classList.add('hidden');
+        }
       }
 
-      // Load SVG preview
       const svgSrc = currentModel[currentView];
       if (svgSrc) {
         svgViewer.src = svgSrc;
       }
 
-      // Reset to 3D view
       toggleViewer.classList.add('active');
       toggleSvg.classList.remove('active');
       modelViewerContainer.classList.remove('hidden');
@@ -208,19 +226,8 @@
       svgContainer.classList.remove('hidden');
     });
 
-    // Progress bar handling for model-viewer
-    modelViewer.addEventListener('progress', (e) => {
-      const { totalProgress } = e.detail;
-      updateBar.style.width = `${totalProgress * 100}%`;
-      progressBar.style.opacity = totalProgress < 1 ? '1' : '0';
-    });
-
-    // Auto-load first model
-    loadModels().then(() => {
-      if (models.length > 0) {
-        selectModel(models[0].name);
-      }
-    });
+    // Start
+    loadModels();
   </script>
 </body>
 </html>
