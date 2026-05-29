@@ -64,7 +64,9 @@ def _rib_modulation(angle: float, z: float) -> float:
     return RIB_DEPTH * modulation
 
 
-def _generate_section_points(z: float, inner: bool = False) -> list[tuple[float, float]]:
+def _generate_section_points(
+    z: float, inner: bool = False
+) -> list[tuple[float, float]]:
     """Generate points for a cross-section at height z."""
     points = []
     base_r = _radius_at_height(z)

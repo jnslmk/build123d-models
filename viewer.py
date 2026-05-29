@@ -54,7 +54,9 @@ def wait_for_viewer_ready(port: int, timeout: float = 10.0) -> bool:
     while time.time() - start < timeout:
         try:
             # Check if viewer status endpoint responds with connected client
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/viewer", timeout=1) as resp:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/viewer", timeout=1
+            ) as resp:
                 if resp.status == 200:
                     # Give the pywebview window time to open and JS to establish WebSocket
                     time.sleep(2.0)

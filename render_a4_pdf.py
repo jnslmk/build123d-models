@@ -45,12 +45,15 @@ VIEW_LAYOUT: list[tuple[str, str]] = [
 ]
 
 # Explicit view-up vectors avoid roll ambiguity for top view.
-ORTHO_VIEWPORTS: dict[str, tuple[tuple[float, float, float], tuple[float, float, float]]] = {
+ORTHO_VIEWPORTS: dict[
+    str, tuple[tuple[float, float, float], tuple[float, float, float]]
+] = {
     "top": ((0, 0, 100), (0, 1, 0)),
     "front": ((0, -100, 0), (0, 0, 1)),
     "left": ((-100, 0, 0), (0, 0, 1)),
     "iso": ((100, -100, 80), (0, 0, 1)),
 }
+
 
 @dataclass(frozen=True)
 class ProjectedView:
@@ -138,7 +141,9 @@ def _project_view(part: Part, view: str) -> ProjectedView:
 def _camera_for_view(
     part: Part,
     view: str,
-) -> tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]:
+) -> tuple[
+    tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]
+]:
     """Build an axis-aligned camera around the model center for a stable orthographic projection."""
     center = part.bounding_box().center()
     cx, cy, cz = center.X, center.Y, center.Z
@@ -269,7 +274,9 @@ def _format_length(length_mm: float, precision: int) -> str:
     return f"{length_mm:.{precision}f} mm"
 
 
-def _draw_arrowhead(ctx: cairo.Context, x: float, y: float, angle: float, size: float = 6.0) -> None:
+def _draw_arrowhead(
+    ctx: cairo.Context, x: float, y: float, angle: float, size: float = 6.0
+) -> None:
     wing = math.radians(28)
     x1 = x - size * math.cos(angle - wing)
     y1 = y - size * math.sin(angle - wing)
@@ -317,7 +324,9 @@ def _draw_linear_dimension(
     ctx.show_text(text)
 
 
-def _draw_extension_line(ctx: cairo.Context, x1: float, y1: float, x2: float, y2: float) -> None:
+def _draw_extension_line(
+    ctx: cairo.Context, x1: float, y1: float, x2: float, y2: float
+) -> None:
     ctx.set_source_rgb(0.5, 0.5, 0.5)
     ctx.set_line_width(0.5)
     ctx.set_dash([], 0)
@@ -557,7 +566,10 @@ def render_din_a4_views_pdf(
     inner_padding = 6.0
     if scale_ratio is None:
         shared_scale = compute_uniform_scale(
-            {view: (projection.width, projection.height) for view, projection in projections.items()},
+            {
+                view: (projection.width, projection.height)
+                for view, projection in projections.items()
+            },
             usable_width=cell_width - (2 * inner_padding),
             usable_height=frame_height - (2 * inner_padding),
         )
@@ -656,7 +668,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    output = Path(args.output) if args.output else Path(f"exports/{args.model}_din_a4_views.pdf")
+    output = (
+        Path(args.output)
+        if args.output
+        else Path(f"exports/{args.model}_din_a4_views.pdf")
+    )
     try:
         scale_ratio = parse_scale_option(args.scale)
     except ValueError as error:

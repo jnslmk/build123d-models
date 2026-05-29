@@ -85,7 +85,6 @@ def create_mount() -> Part:
             )
         extrude(amount=BASE_WIDTH, both=True)
 
-
     mount.part.label = "wall_mount"
     return mount.part
 
@@ -114,7 +113,9 @@ def create_end_cap() -> Part:
             Circle(body_radius)
         extrude(amount=END_CAP_BODY_LENGTH)
 
-        with BuildSketch(Plane.YZ.offset(-END_CAP_BODY_LENGTH / 2 - END_CAP_LIP_LENGTH)):
+        with BuildSketch(
+            Plane.YZ.offset(-END_CAP_BODY_LENGTH / 2 - END_CAP_LIP_LENGTH)
+        ):
             Circle(END_CAP_LIP_DIAMETER / 2)
         extrude(amount=END_CAP_LIP_LENGTH)
 
@@ -125,18 +126,26 @@ def _assemble_components() -> list[Part]:
     """Return individually labeled assembled parts for viewer grouping."""
     mount = create_mount()
 
-    left_tube = create_tube().move(Location((-TUBE_HALF_LENGTH / 2 - CENTER_GAP / 2, 0, 0)))
+    left_tube = create_tube().move(
+        Location((-TUBE_HALF_LENGTH / 2 - CENTER_GAP / 2, 0, 0))
+    )
     left_tube.label = "left_tube"
 
-    right_tube = create_tube().move(Location((TUBE_HALF_LENGTH / 2 + CENTER_GAP / 2, 0, 0)))
+    right_tube = create_tube().move(
+        Location((TUBE_HALF_LENGTH / 2 + CENTER_GAP / 2, 0, 0))
+    )
     right_tube.label = "right_tube"
 
     cap_center_offset = TUBE_HALF_LENGTH + END_CAP_BODY_LENGTH / 2
 
-    left_cap = create_end_cap().move(Location((-cap_center_offset - CENTER_GAP / 2, 0, 0)))
+    left_cap = create_end_cap().move(
+        Location((-cap_center_offset - CENTER_GAP / 2, 0, 0))
+    )
     left_cap.label = "left_end_cap"
 
-    right_cap = create_end_cap().move(Location((cap_center_offset + CENTER_GAP / 2, 0, 0)))
+    right_cap = create_end_cap().move(
+        Location((cap_center_offset + CENTER_GAP / 2, 0, 0))
+    )
     right_cap.label = "right_end_cap"
 
     return [mount, left_tube, right_tube, left_cap, right_cap]
@@ -147,10 +156,14 @@ def create_print_layout() -> Compound:
     mount = create_mount()
     mount.label = "wall_mount"
 
-    left_tube = create_tube().move(Location((0, 0, BACKPLATE_HEIGHT / 2 + TUBE_OUTER_DIAMETER / 2 + LAYOUT_GAP)))
+    left_tube = create_tube().move(
+        Location((0, 0, BACKPLATE_HEIGHT / 2 + TUBE_OUTER_DIAMETER / 2 + LAYOUT_GAP))
+    )
     left_tube.label = "tube_a"
 
-    right_tube = create_tube().move(Location((0, 0, -(BACKPLATE_HEIGHT / 2 + TUBE_OUTER_DIAMETER / 2 + LAYOUT_GAP))))
+    right_tube = create_tube().move(
+        Location((0, 0, -(BACKPLATE_HEIGHT / 2 + TUBE_OUTER_DIAMETER / 2 + LAYOUT_GAP)))
+    )
     right_tube.label = "tube_b"
 
     cap_offset_x = TUBE_HALF_LENGTH / 2 + END_CAP_BODY_LENGTH / 2 + LAYOUT_GAP
@@ -162,7 +175,10 @@ def create_print_layout() -> Compound:
     right_cap = create_end_cap().move(Location((cap_offset_x, 0, cap_offset_z)))
     right_cap.label = "end_cap_b"
 
-    return Compound(label="wall_bar_lamp_print_layout", children=[mount, left_tube, right_tube, left_cap, right_cap])
+    return Compound(
+        label="wall_bar_lamp_print_layout",
+        children=[mount, left_tube, right_tube, left_cap, right_cap],
+    )
 
 
 def create() -> Compound:

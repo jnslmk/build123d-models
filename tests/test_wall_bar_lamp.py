@@ -13,13 +13,16 @@ class WallBarLampModelTests(unittest.TestCase):
         part = wall_bar_lamp.create()
         self.assertIsInstance(part, Compound)
         self.assertEqual(part.label, "wall_bar_lamp")
-        self.assertEqual([child.label for child in part.children], [
-            "wall_mount",
-            "left_tube",
-            "right_tube",
-            "left_end_cap",
-            "right_end_cap",
-        ])
+        self.assertEqual(
+            [child.label for child in part.children],
+            [
+                "wall_mount",
+                "left_tube",
+                "right_tube",
+                "left_end_cap",
+                "right_end_cap",
+            ],
+        )
 
     def test_mount_is_one_piece(self) -> None:
         mount = wall_bar_lamp.create_mount()
@@ -42,7 +45,10 @@ class WallBarLampModelTests(unittest.TestCase):
     def test_print_layout_stacks_parts_apart(self) -> None:
         part = wall_bar_lamp.create_print_layout()
         bbox = part.bounding_box()
-        self.assertGreater(bbox.size.Z, wall_bar_lamp.BACKPLATE_HEIGHT + wall_bar_lamp.TUBE_OUTER_DIAMETER)
+        self.assertGreater(
+            bbox.size.Z,
+            wall_bar_lamp.BACKPLATE_HEIGHT + wall_bar_lamp.TUBE_OUTER_DIAMETER,
+        )
 
 
 if __name__ == "__main__":

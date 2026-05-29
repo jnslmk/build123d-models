@@ -38,10 +38,15 @@ LED_SIZE = 5.0
 LED_HEIGHT = 1.6
 LED_DIE_DIAMETER = 2.8
 INDICATOR_DEPTH = 0.4
+SOLDER_PAD_WIDTH = 2.0
+SOLDER_PAD_LENGTH = 3.0
+SOLDER_PAD_INTERVAL = 10
 
 ALUMINUM_COLOR = Color(0.75, 0.75, 0.75)
 PCB_COLOR = Color(1.0, 1.0, 1.0)
 LED_COLOR = Color(0.05, 0.05, 0.05)
+LED_DIE_COLOR = Color(1.0, 0.9, 0.2)
+GOLD_COLOR = Color(0.83, 0.68, 0.21)
 
 MIRROR_DIAMETER = 1400.0
 MIRROR_RADIUS = MIRROR_DIAMETER / 2
@@ -109,7 +114,7 @@ def create_pcb(angle: float) -> Part:
     return pcb.part
 
 
-def create_led(angle: float, z_offset: float, index: int) -> Part:
+def create_led(angle: float, z_offset: float, index: int) -> Compound:
     base_origin = Vector(
         (HEX_APOTHEM + PCB_THICKNESS) * math.cos(angle),
         (HEX_APOTHEM + PCB_THICKNESS) * math.sin(angle),
@@ -119,18 +124,40 @@ def create_led(angle: float, z_offset: float, index: int) -> Part:
     z_dir = Vector(math.cos(angle), math.sin(angle), 0)
     base_plane = Plane(base_origin, x_dir, z_dir)
 
-    with BuildPart() as led:
+    with BuildPart() as led_base:
         with BuildSketch(base_plane):
             Rectangle(LED_SIZE, LED_SIZE, align=Align.CENTER)
         extrude(amount=LED_HEIGHT)
+    led_base.part.color = LED_COLOR
 
+    with BuildPart() as led_die:
         with BuildSketch(base_plane.offset(LED_HEIGHT)):
             Circle(LED_DIE_DIAMETER / 2)
-        extrude(amount=-INDICATOR_DEPTH, mode=Mode.SUBTRACT)
+        extrude(amount=INDICATOR_DEPTH)
+    led_die.part.color = LED_DIE_COLOR
 
-    led.part.color = LED_COLOR
-    led.part.label = f"led_{index:02d}"
-    return led.part
+    led = Compound(label=f"led_{index:02d}", children=[led_base.part, led_die.part])
+    return led
+
+
+def create_solder_pad(angle: float, z_offset: float, index: int) -> Part:
+    base_origin = Vector(
+        (HEX_APOTHEM + PCB_THICKNESS) * math.cos(angle),
+        (HEX_APOTHEM + PCB_THICKNESS) * math.sin(angle),
+        z_offset,
+    )
+    x_dir = Vector(0, 0, 1)
+    z_dir = Vector(math.cos(angle), math.sin(angle), 0)
+    base_plane = Plane(base_origin, x_dir, z_dir)
+
+    with BuildPart() as pad:
+        with BuildSketch(base_plane):
+            Rectangle(SOLDER_PAD_WIDTH, SOLDER_PAD_LENGTH, align=Align.CENTER)
+        extrude(amount=PCB_THICKNESS)
+
+    pad.part.color = GOLD_COLOR
+    pad.part.label = f"solder_pad_{index:02d}"
+    return pad.part
 
 
 def create_led_strip(face_index: int) -> Compound:
@@ -139,12 +166,18 @@ def create_led_strip(face_index: int) -> Compound:
 
     num_leds = int(HEX_LENGTH / LED_PITCH)
     leds = []
+    solder_pads = []
     for i in range(num_leds):
         z = -HEX_LENGTH / 2 + LED_PITCH / 2 + i * LED_PITCH
         led = create_led(angle, z, i)
         leds.append(led)
+        if i % SOLDER_PAD_INTERVAL == 0:
+            pad = create_solder_pad(angle, z, i)
+            solder_pads.append(pad)
 
-    return Compound(label=f"led_strip_{face_index}", children=[pcb] + leds)
+    return Compound(
+        label=f"led_strip_{face_index}", children=[pcb] + leds + solder_pads
+    )
 
 
 def create_parabolic_mirror() -> Part:
@@ -152,7 +185,7 @@ def create_parabolic_mirror() -> Part:
     n = 80
 
     with BuildPart() as mirror:
-        with BuildSketch(Plane.XZ) as profile:
+        with BuildSketch(Plane.XZ):
             points = []
 
             for i in range(n + 1):
@@ -181,7 +214,6 @@ def create_parabolic_mirror() -> Part:
 
 def _hemisphere_sections(outer_r: float, inner_r: float, base_z: float, n: int = 24):
     outer_sections = []
-    inner_sections = []
     for i in range(n + 1):
         t = i / n
         z = base_z + outer_r * t
