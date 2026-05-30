@@ -217,13 +217,91 @@ main {
   display: flex;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 
 #cad-view {
   position: absolute;
   inset: 0;
+  overflow: hidden;
 }
 
+#cad-view .tcv_cad_viewer {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+#cad-view .tcv_cad_toolbar {
+  display: none !important;
+}
+
+#cad-view .tcv_tab_clip,
+#cad-view .tcv_tab_zebra,
+#cad-view .tcv_tab_material,
+#cad-view .tcv_tab_studio,
+#cad-view .tcv_cad_clip_container,
+#cad-view .tcv_cad_zebra_container,
+#cad-view .tcv_cad_material_container,
+#cad-view .tcv_cad_studio_container,
+#cad-view .tcv_toggles_clip,
+#cad-view .tcv_toggles_zebra,
+#cad-view .tcv_toggles_material,
+#cad-view .tcv_toggles_studio {
+  display: none !important;
+}
+
+#cad-view .tcv_tab_tree {
+  display: flex !important;
+}
+
+#cad-view .tcv_toggles_tree {
+  display: flex !important;
+}
+
+#cad-view .tcv_tabnav,
+#cad-view .tcv_collapse_singles,
+#cad-view .tcv_expand_root,
+#cad-view .tcv_collapse_all,
+#cad-view .tcv_expand {
+  display: none !important;
+}
+
+#cad-view .tcv_cad_tree,
+#cad-view .tcv_cad_tree * {
+  border: none !important;
+  background: transparent !important;
+  color: #1e1e2e !important;
+}
+
+#cad-view .tv-node-content {
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.9) !important;
+}
+
+#cad-view .tcv_cad_info_wrapper {
+  display: none !important;
+}
+
+#cad-view .tcv_cad_view {
+  flex: 1 !important;
+  width: auto !important;
+  margin: 0 !important;
+  height: 100% !important;
+  align-self: stretch !important;
+}
+
+#cad-view .tcv_cad_body {
+  width: 100% !important;
+  position: relative !important;
+}
+
+#cad-view .tcv_cad_navigation {
+  position: absolute !important;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  background: transparent !important;
+}
 
 /* View controls */
 .viewer-controls {
