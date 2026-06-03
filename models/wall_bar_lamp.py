@@ -4,6 +4,7 @@ from build123d import (
     BuildPart,
     BuildSketch,
     Circle,
+    Color,
     Compound,
     Location,
     Mode,
@@ -15,9 +16,9 @@ from build123d import (
 )
 
 # Diffuser tube
-TUBE_OUTER_DIAMETER = 26.0
+TUBE_OUTER_DIAMETER = 40.0
 TUBE_WALL = 1.2
-TUBE_HALF_LENGTH = 150.0
+TUBE_HALF_LENGTH = 200.0
 TUBE_PEG_DIAMETER = 18.2
 TUBE_PEG_LENGTH = 10.0
 CENTER_GAP = 0.0
@@ -32,8 +33,8 @@ BACKPLATE_WIDTH = 36.0
 BACKPLATE_HEIGHT = 24.0
 BACKPLATE_THICKNESS = 3.0
 BACKPLATE_RADIUS = 5.0
-SHROUD_OUTER_DIAMETER = 31.0
-SHROUD_BORE_DIAMETER = 18.8
+SHROUD_OUTER_DIAMETER = TUBE_OUTER_DIAMETER + 6.0
+SHROUD_BORE_DIAMETER = TUBE_OUTER_DIAMETER + 0.4
 SHROUD_CENTER_WIDTH = 12.0
 SHROUD_TRANSITION_LENGTH = 8.0
 BASE_WIDTH = 16.0
@@ -45,6 +46,9 @@ CABLE_SLOT_HEIGHT = 6.0
 
 # Print layout spacing
 LAYOUT_GAP = 10.0
+
+TRANSLUCENT_WHITE = Color(1, 1, 1, 0.7)
+BLACK = Color(0.1, 0.1, 0.1)
 
 
 def create_mount() -> Part:
@@ -86,6 +90,7 @@ def create_mount() -> Part:
         extrude(amount=BASE_WIDTH, both=True)
 
     mount.part.label = "wall_mount"
+    mount.part.color = BLACK
     return mount.part
 
 
@@ -101,6 +106,7 @@ def create_tube() -> Part:
             Circle(inner_radius, mode=Mode.SUBTRACT)
         extrude(amount=TUBE_HALF_LENGTH)
 
+    tube.part.color = TRANSLUCENT_WHITE
     return tube.part
 
 
@@ -119,6 +125,7 @@ def create_end_cap() -> Part:
             Circle(END_CAP_LIP_DIAMETER / 2)
         extrude(amount=END_CAP_LIP_LENGTH)
 
+    end_cap.part.color = TRANSLUCENT_WHITE
     return end_cap.part
 
 
