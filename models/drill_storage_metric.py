@@ -32,25 +32,28 @@ LABEL = "Wood"  # material name embossed on the cover
 # rides on three rounded contacts with this clearance and drops in cleanly.
 BORE_CLEARANCE = 0.5
 
-# Round drill bores (diameter, x, y). Ribbed + wider-clearance bores need more
-# room than plain ones, so the 8 mm and 3 mm bores are spaced out from their
-# neighbours (the 10 mm bore) to keep sensible walls -- all still sit inside the
-# collar.
+# Round drill bores (diameter, x, y). With 7 and 9 mm added there are 11 ribbed
+# bores plus the countersink's 10 mm head footprint packed into the 39 mm
+# collar, so the whole layout is repacked (relaxation solver) to keep >= ~0.8 mm
+# walls everywhere; the four big features (8/9/10 mm bores + hex head) sit near
+# the four corners, smalls fill the middle.
 DRILL_BORES = [
-    (2.5, -10.5, 13.5),
-    (3.0, 0.0, 14.0),
-    (2.0, 10.5, 13.5),
-    (6.0, -10.5, 5.0),
-    (10.0, 0.0, 5.0),
-    (8.0, 11.5, 5.0),
-    (5.0, 0.0, -5.0),
-    (4.0, 10.5, -5.0),
-    (3.5, 0.0, -13.5),
+    (2.0, 6.0, -6.0),
+    (2.5, -6.0, -6.0),
+    (3.0, 6.0, 6.0),
+    (3.5, -5.0, 5.0),
+    (4.0, 0.0, -13.0),
+    (5.0, 0.0, 13.0),
+    (6.0, 13.0, 1.0),
+    (7.0, -13.0, 0.0),
+    (8.0, 12.0, 12.0),
+    (9.0, 12.0, -12.0),
+    (10.0, -12.0, 12.0),
 ]
 
-# 10 mm countersink with a 6.3 mm hex shank: a hex socket for the shank at a
-# position that keeps 10 mm of clear top surface for the head to rest on.
-CSK_X, CSK_Y = -10.5, -5.0
+# 10 mm countersink with a 6.3 mm hex shank: a hex socket for the shank in the
+# fourth corner, keeping a 10 mm clear top footprint for the head to rest on.
+CSK_X, CSK_Y = -12.0, -12.0
 CSK_HEX_AF = 7.0  # 6.3 mm hex + a little fit clearance, across flats
 HEX_BORES = [(CSK_HEX_AF, CSK_X, CSK_Y)]
 

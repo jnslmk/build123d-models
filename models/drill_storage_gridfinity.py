@@ -71,8 +71,8 @@ CAP_FILLET = 1.5  # inner fillet where the bore ceiling meets walls
 INNER_R = 2.0
 LABEL_SIZE = 13.0
 LABEL_Z = 45.0
-LABEL_DEPTH = 0.5  # engrave depth into the flat face (< COVER_WALL, no punch-through)
-LABEL_CHAMFER = 0.3  # bevel on the engraved mouth: crisp, print-clean, paint-fillable
+LABEL_DEPTH = 0.6  # engrave depth into the flat face (< COVER_WALL, no punch-through)
+LABEL_CHAMFER = 0.5  # near-full-depth bevel -> a continuous V-groove wall, no step
 
 # --- Snap fit -----------------------------------------------------------------
 # A small rounded bead runs around the inside of the cover near its opening and
