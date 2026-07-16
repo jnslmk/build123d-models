@@ -39,7 +39,7 @@ After modifying any model, always verify it visually in the viewer:
 uv run show <model_name>
 ```
 
-This opens the model in the 3D viewer so you can confirm geometry, orientation, and colors before considering the task complete. Run this immediately after any model change.
+This opens the model in the 3D viewer so you can confirm geometry, orientation, and colors before considering the task complete. **Always run `uv run show <model_name>` immediately after every edit to a model — do not wait to be asked — so the user can see the change live in the viewer.** It is the last step of any model change.
 
 ## Architecture
 
@@ -139,3 +139,19 @@ The JS/CSS files in vscode-ocp-cad-viewer are gitignored (they're built artifact
 **Print orientation**: Parts print bottom-to-top in layers. Design with Z+ as the print direction—flat base on the build plate, overhangs minimized or supported.
 
 **Edge design for FDM**: Use chamfers (45°) on horizontal edges, fillets on vertical edges. This accounts for how layers stack—chamfers print cleanly on horizontal surfaces while fillets work better on vertical walls.
+
+**Holes & tool inserts (drill holders, bit trays, etc.)**:
+
+- **Never cut a bore at exactly the nominal diameter.** FDM prints small vertical holes ~0.1–0.3 mm *undersized* (the nozzle drags the inner perimeter inward), so a nominal bore ends up a press fit. Add a diametral clearance (~0.4–0.5 mm for an easy drop-in tool fit; wood/brad-point bits want the looser end because their spurs cut over the shank). Expose it as a constant, not a magic number.
+- **Prefer ribbed bores for a robust, variation-tolerant grip.** Cut the bore a little wider (a valley), then add 3 rounded internal ribs so the tool rides on three line-contacts instead of a full-circle wall. This drops in cleanly and keeps a light, even grip regardless of layer scarring or bore shrinkage. See `models/drill_storage_gridfinity.py::create_base(ribbed=True)` (`RIB_COUNT`/`RIB_RELIEF`/`RIB_TOP_GAP`). Stop the ribs a few mm below the mouth so the opening stays a clean circle for the lead-in.
+- **Always add a lead-in at every hole mouth** so bits self-guide. A fillet (rounded) or chamfer both work; fillet doubles as a print-friendly funnel.
+- **Ribbed/wider bores need more room.** Keep walls between neighbouring bores ≥ ~0.8–1.2 mm (2–3 perimeters at a 0.4 mm nozzle); re-space a tight layout rather than letting bores merge (a <~0.3 mm gap won't slice as a wall).
+
+**Telescoping / mating parts**: mating faces must have the *same* geometry — flat-on-flat or chamfer-on-chamfer. A straight rim landing on a chamfered shoulder only makes a thin line contact and wobbles. Also watch for one part being slightly wider than the other (e.g. a 42 mm cover over a 41.5 mm Gridfinity body): chamfer the wider part's mating edge so it seats flush instead of overhanging.
+
+## build123d Gotchas
+
+- **`Edge.center()` on a full circle returns a point *on* the curve, not the centre.** When selecting a circular hole mouth by position, use `edge.arc_center` (guard with try/except for non-circular edges, which raise `ValueError`). Line edges (e.g. hex sockets) can use `.center()` (midpoint).
+- **`fillet`/`chamfer` are all-or-nothing over the edge set you pass.** One edge that can't take the radius (e.g. beside a thin wall) fails the whole call. Wrap in `try/except` and, if it matters, retry with a decreasing radius ladder so each feature still gets the largest fillet that fits.
+- **Selecting edges then filleting in a loop:** each fillet changes the topology and invalidates stale edge references. Select/fillet **per feature** and **re-query the live edges** (`base.edges()...`) each pass rather than reusing a list captured up front.
+- **Verify internal geometry in code**, not just the viewer. Ribs, wall gaps, and fit clearances aren't visible in a projection — point-sample the solid with `OCP.BRepClass3d.BRepClass3d_SolidClassifier` (`.Perform(gp_Pnt, tol)` → `TopAbs_IN`) to confirm ribs exist, walls are solid, and mouths widened.
