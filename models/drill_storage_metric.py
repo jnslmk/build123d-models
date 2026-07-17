@@ -37,7 +37,7 @@ LABEL = "Wood"  # material name embossed on the cover
 # holes ~0.1-0.3 mm undersized, so cutting the bores at exactly nominal is a
 # tight press fit. Bores are ribbed (see drill_storage_gridfinity), so the bit
 # rides on three rounded contacts with this clearance and drops in cleanly.
-BORE_CLEARANCE = 0.3
+BORE_CLEARANCE = 0.15
 
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
 # or remove a size and the layout re-packs itself.

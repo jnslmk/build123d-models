@@ -117,7 +117,7 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 # clean. The small gap past the fillet edge matters: a rib fade that lands
 # exactly on the fillet's tangent circle makes a degenerate solid (OCC crash).
 RIB_COUNT = 3
-RIB_RELIEF = 0.5  # radial relief of the valley beyond the rib tips (also rib width)
+RIB_RELIEF = 0.3  # radial relief of the valley beyond the rib tips (also rib width)
 RIB_TAPER = 4.0  # height over which each rib ramps out to nothing
 RIB_TOP_GAP = BORE_MOUTH_FILLET + 0.4  # rib fades just below the fillet edge
 
