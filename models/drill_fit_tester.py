@@ -1,11 +1,15 @@
-"""Fit-test coupon for the ``drill_storage_metric`` bores.
+"""Fit-test coupons for the ``drill_storage_metric`` bores.
 
-A small flat strip carrying every drill bore (and the countersink hex socket)
-from the Wood set at the *same* clearance, ribs and mouth chamfer as the real
-holder -- so you can print just this coupon to check bit fit and dial in
-``BORE_CLEARANCE`` / ``CSK_HEX_AF`` without printing the whole base. Each hole is
-labelled (raised text) with its size, and it's kept shallow (about half the
-holder's bore depth) to save filament.
+A small flat, through-bored strip carrying every drill size (and the countersink
+hex socket) so you can dial in fit by printing just the coupon instead of the
+whole holder. Each hole is labelled (raised text) with its size and the coupon
+carries a raised variant title.
+
+This module holds the shared ``_coupon`` frame plus the **ribbed** variant
+(``create``). Two siblings reuse the frame:
+
+* ``drill_fit_tester_plain``  -- nominal holes, no ribs (tune via slicer comp).
+* ``drill_fit_tester_taper``  -- every hole slightly tapered (self-centring).
 
 Prints flat, bores-up, no supports.
 """
@@ -44,17 +48,22 @@ EDGE = BORE_MOUTH_CHAMFER + 1.0  # hole/label-to-edge margin
 LABEL_TEXT = 3.5  # label glyph height
 LABEL_HEIGHT = 0.6  # raised (embossed) -- reads better than a shallow engrave
 LABEL_PITCH = 7.5  # min hole centre spacing so the size labels don't crowd
-LABEL_GAP = 1.5  # gap between a hole's bottom and its label
+LABEL_GAP = 1.5  # gap between a hole and its label / the title
 
 
-def _valley_r(d: float) -> float:
-    """Ribbed-bore cut (valley) radius for a bit of diameter ``d`` mm."""
+def _layout_r(d: float) -> float:
+    """Layout footprint radius per size -- the ribbed valley, so all three
+    coupons share one hole layout regardless of how they cut the holes."""
     return (d + BORE_CLEARANCE) / 2 + RIB_RELIEF
 
 
-def create() -> Part:
-    """A flat, labelled coupon with one ribbed bore per drill size + the hex."""
-    items = [(f"{d:g}", _valley_r(d)) for d in sorted(DRILL_DIAMS)]
+def _coupon(cut_fn, part_label: str, title: str) -> Part:
+    """Build a labelled, through-bored fit-test coupon.
+
+    ``cut_fn(bores, hex_bores, top_z, depth)`` cuts the holes into the active
+    part (each variant supplies its own); the frame, labels and title are shared.
+    """
+    items = [(f"{d:g}", _layout_r(d)) for d in sorted(DRILL_DIAMS)]
     items.append(("hex", CSK_HEAD_D / 2))
 
     # Place hole centres left-to-right: at least a mouth-chamfer wall apart, and
@@ -78,10 +87,10 @@ def create() -> Part:
     hex_bores = [(CSK_HEX_AF, px, 0.0) for k, px, r in placed if k == "hex"]
     labels = [("6.3" if k == "hex" else k, px) for k, px, r in placed]
 
-    # Holes sit at y=0; labels run in a band below. Size the plate to enclose both.
-    label_y = -(max_r + LABEL_GAP + LABEL_TEXT / 2)
-    top = max_r + EDGE
-    bottom = label_y - LABEL_TEXT / 2 - EDGE
+    # Holes at y=0; size labels in a band below, the variant title in a band above.
+    band = max_r + LABEL_GAP + LABEL_TEXT / 2
+    top = band + LABEL_TEXT / 2 + EDGE
+    bottom = -band - LABEL_TEXT / 2 - EDGE
     plate_len = (max_x - min_x) + 2 * EDGE
 
     with BuildPart() as plate:
@@ -94,22 +103,31 @@ def create() -> Part:
         chamfer(plate.edges().group_by(Axis.Z)[0], PLATE_CH)
         chamfer(plate.edges().group_by(Axis.Z)[-1], PLATE_CH)
 
-        # Ribbed bores + hex socket + mouth chamfers -- identical to the holder,
-        # but bored all the way through (no floor).
-        cut_holes(
-            bores, hex_bores, BORE_CLEARANCE, True, PLATE_H, PLATE_H, through=True
-        )
+        cut_fn(bores, hex_bores, PLATE_H, PLATE_H)
 
-        # Raised size label under each hole (embossed reads better than engraved).
+        # Raised size labels (below each hole) + the variant title (above, centred).
         with BuildSketch(Plane.XY.offset(PLATE_H)):
             for text, lx in labels:
-                with Locations((lx, label_y)):
+                with Locations((lx, -band)):
                     Text(text, LABEL_TEXT)
+            with Locations((0, band)):
+                Text(title, LABEL_TEXT)
         extrude(amount=LABEL_HEIGHT)
 
-    plate.part.label = "drill_fit_tester"
+    plate.part.label = part_label
     plate.part.color = BASE_COLOR
     return plate.part
+
+
+def create() -> Part:
+    """Ribbed variant -- the holder's real geometry (3 ribs grip the bit)."""
+    return _coupon(
+        lambda b, h, tz, dp: cut_holes(
+            b, h, BORE_CLEARANCE, True, tz, dp, through=True
+        ),
+        "drill_fit_tester",
+        "RIBBED",
+    )
 
 
 def main() -> None:
