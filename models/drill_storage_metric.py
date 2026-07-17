@@ -58,7 +58,9 @@ def _valley_r(d: float) -> float:
 # fillet plus the top-rim fillet to the collar wall, so every fillet forms and
 # the holes come out uniform. Add/remove a size above and this re-packs.
 _HOLE_WALL = 2 * BORE_MOUTH_FILLET + 0.1
-_COLLAR_WALL = BORE_MOUTH_FILLET + BASE_TOP_FILLET + 0.1
+# Extra margin past (mouth + rim fillet) so the one-piece rim fillet reliably
+# forms even with every perimeter hole pinned to the same wall gap.
+_COLLAR_WALL = BORE_MOUTH_FILLET + BASE_TOP_FILLET + 0.4
 _FOOTPRINTS = [(f"{d:g}", _valley_r(d)) for d in DRILL_DIAMS] + [
     ("hex", CSK_HEAD_D / 2)
 ]

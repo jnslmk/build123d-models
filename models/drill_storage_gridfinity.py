@@ -180,13 +180,16 @@ def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
 
 # Fixed symmetry slots for the structured layout, outermost group first: the
 # corner diagonals, the edge axes, then an inner diagonal ring, an inner axis
-# ring, and finally the centre. Each entry is (angles_deg, seed_radius_fraction).
+# ring, and finally the centre. Each entry is (angles_deg, seed_radius_fraction,
+# pinned). Pinned (perimeter) holes are held at their maximum radius so every one
+# sits the SAME distance from the wall -- even margins all the way round; the
+# rest seed inward and relax so the interior spreads out without touching a wall.
 _HOLE_SLOTS = [
-    ([45, 135, 225, 315], 0.62),  # corners -- the biggest holes
-    ([0, 90, 180, 270], 0.60),  # edges -- the next size down
-    ([45, 135, 225, 315], 0.28),  # inner diagonal ring
-    ([0, 90, 180, 270], 0.24),  # inner axis ring
-    ([None], 0.0),  # centre (single hole)
+    ([45, 135, 225, 315], 0.62, True),  # corners -> pinned to a uniform wall gap
+    ([0, 90, 180, 270], 0.60, True),  # edges -> pinned to a uniform wall gap
+    ([45, 135, 225, 315], 0.28, False),  # inner diagonal ring -> relaxed inward
+    ([0, 90, 180, 270], 0.24, False),  # inner axis ring -> relaxed inward
+    ([None], 0.0, False),  # centre
 ]
 
 
@@ -223,17 +226,13 @@ def pack_holes(
 
     theta: list[float | None] = []
     seed: list[float] = []
-    for angles, frac in _HOLE_SLOTS:
+    pinned: list[bool] = []
+    for angles, frac, pin in _HOLE_SLOTS:
         for a in angles:
             if len(theta) < n:
                 theta.append(None if a is None else math.radians(a))
                 seed.append(frac * collar_half)
-    pos = [
-        [0.0, 0.0]
-        if theta[i] is None
-        else [seed[i] * math.cos(theta[i]), seed[i] * math.sin(theta[i])]
-        for i in range(n)
-    ]
+                pinned.append(pin)
 
     def sdf(px: float, py: float) -> float:
         # Signed distance to the rounded-square collar wall (negative inside).
@@ -241,15 +240,11 @@ def pack_holes(
         qy = abs(py) - (collar_half - corner_r)
         return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - corner_r
 
-    def reproject(i: int) -> None:
-        # Snap the hole back onto its fixed spoke and shrink its radius until it
-        # clears the collar wall -- this both enforces the symmetry and contains.
-        if theta[i] is None:
-            pos[i] = [0.0, 0.0]
-            return
-        rho = math.hypot(pos[i][0], pos[i][1])
-        lo, hi = 0.0, rho
-        for _ in range(24):
+    def max_radius(i: int) -> float:
+        # Largest radius on hole i's fixed spoke that still clears the collar
+        # wall by ``collar_wall`` -- i.e. an exactly ``collar_wall`` margin.
+        lo, hi = 0.0, collar_half
+        for _ in range(28):
             m = (lo + hi) / 2.0
             if (
                 -sdf(m * math.cos(theta[i]), m * math.sin(theta[i])) - r[i]
@@ -258,7 +253,30 @@ def pack_holes(
                 lo = m
             else:
                 hi = m
-        pos[i] = [lo * math.cos(theta[i]), lo * math.sin(theta[i])]
+        return lo
+
+    def spoke(i: int, rho: float) -> list[float]:
+        return [rho * math.cos(theta[i]), rho * math.sin(theta[i])]
+
+    # Pin perimeter holes to their max radius (uniform wall margin); seed the
+    # rest inward to relax.
+    pos = [
+        [0.0, 0.0]
+        if theta[i] is None
+        else spoke(i, max_radius(i) if pinned[i] else seed[i])
+        for i in range(n)
+    ]
+
+    def reproject(i: int) -> None:
+        # Keep each hole on its fixed spoke: perimeter holes stay pinned at the
+        # uniform wall margin; inner holes clamp to their max radius but are
+        # otherwise free to relax inward.
+        if theta[i] is None:
+            pos[i] = [0.0, 0.0]
+        elif pinned[i]:
+            pos[i] = spoke(i, max_radius(i))
+        else:
+            pos[i] = spoke(i, min(math.hypot(pos[i][0], pos[i][1]), max_radius(i)))
 
     for _ in range(iters):
         moved = 0.0
@@ -377,11 +395,14 @@ def cut_holes(
 
     def _fillet_mouth(cx: float, cy: float, reach: float, label: str) -> None:
         # Full radius or nothing -- no silent step-down. A mouth that can't take
-        # the fillet (usually walls too thin) is left plain and reported, so the
-        # problem is obvious rather than hidden behind a shrunken fillet.
+        # the fillet (usually walls too thin) is left plain and reported.
+        # Snapshot/restore the part on failure: a failed fillet otherwise
+        # corrupts the builder so every *later* fillet fails too (silent cascade).
+        saved = part.part
         try:
             fillet(_mouth_at(cx, cy, reach), BORE_MOUTH_FILLET)
         except Exception as exc:
+            part.part = saved
             print(
                 f"WARNING: {label} mouth at ({cx:.1f}, {cy:.1f}) could not take "
                 f"the {BORE_MOUTH_FILLET} mm fillet -- left unfilleted "
@@ -449,9 +470,11 @@ def create_base(
         # the cover). Same policy: full radius or none, with a warning.
         top_face = base.faces().filter_by(Plane.XY).sort_by(Axis.Z)[-1]
         rim = top_face.outer_wire().edges()
+        saved = base.part
         try:
             fillet(rim, BASE_TOP_FILLET)
         except Exception as exc:
+            base.part = saved
             print(
                 f"WARNING: base top rim could not take the {BASE_TOP_FILLET} mm "
                 f"fillet -- left unfilleted: {exc}",
