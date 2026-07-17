@@ -2,8 +2,8 @@
 
 A small flat, through-bored strip carrying every drill size (and the countersink
 hex socket) so you can dial in fit by printing just the coupon instead of the
-whole holder. Each hole is labelled (raised text) with its size and the coupon
-carries a raised variant title.
+whole holder. Each hole is labelled (engraved) with its size and the coupon
+carries an engraved variant title.
 
 This module holds the shared ``_coupon`` frame plus the **ribbed** variant
 (``create``). Two siblings reuse the frame:
@@ -19,6 +19,7 @@ from build123d import (
     BuildPart,
     BuildSketch,
     Locations,
+    Mode,
     Part,
     Plane,
     RectangleRounded,
@@ -45,9 +46,9 @@ PLATE_R = 2.0  # coupon corner radius
 PLATE_CH = 0.5  # chamfer on the top + bottom plate edges (bottom = foot relief)
 HOLE_WALL = 2 * BORE_MOUTH_CHAMFER + 0.1  # both mouth chamfers fit between holes
 EDGE = BORE_MOUTH_CHAMFER + 1.0  # hole/label-to-edge margin
-LABEL_TEXT = 3.5  # label glyph height
-LABEL_HEIGHT = 0.6  # raised (embossed) -- reads better than a shallow engrave
-LABEL_PITCH = 7.5  # min hole centre spacing so the size labels don't crowd
+LABEL_TEXT = 4.5  # label glyph height (big enough to read when engraved)
+LABEL_DEPTH = 0.8  # engraved (recessed) -- raised thin text gets slicer-dropped
+LABEL_PITCH = 8.5  # min hole centre spacing so the size labels don't crowd
 LABEL_GAP = 1.5  # gap between a hole and its label / the title
 
 
@@ -105,14 +106,16 @@ def _coupon(cut_fn, part_label: str, title: str) -> Part:
 
         cut_fn(bores, hex_bores, PLATE_H, PLATE_H)
 
-        # Raised size labels (below each hole) + the variant title (above, centred).
+        # Engraved size labels (below each hole) + the variant title (above).
+        # Engraved, not raised: thin raised text gets dropped by the slicer's
+        # small-feature removal, but a recess always prints.
         with BuildSketch(Plane.XY.offset(PLATE_H)):
             for text, lx in labels:
                 with Locations((lx, -band)):
                     Text(text, LABEL_TEXT)
             with Locations((0, band)):
                 Text(title, LABEL_TEXT)
-        extrude(amount=LABEL_HEIGHT)
+        extrude(amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
 
     plate.part.label = part_label
     plate.part.color = BASE_COLOR
