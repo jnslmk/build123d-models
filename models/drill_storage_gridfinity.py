@@ -117,7 +117,7 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 # clean. The small gap past the fillet edge matters: a rib fade that lands
 # exactly on the fillet's tangent circle makes a degenerate solid (OCC crash).
 RIB_COUNT = 3
-RIB_RELIEF = 0.3  # radial relief of the valley beyond the rib tips (also rib width)
+RIB_RELIEF = 0.45  # radial relief of the valley beyond the rib tips (also rib width)
 RIB_TAPER = 4.0  # height over which each rib ramps out to nothing
 RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # rib fades just below the mouth chamfer
 
@@ -344,6 +344,7 @@ def cut_holes(
     ribbed: bool,
     top_z: float,
     bore_depth: float,
+    through: bool = False,
 ) -> None:
     """Sink drill bores + hex sockets into the active part and chamfer every mouth.
 
@@ -355,16 +356,19 @@ def cut_holes(
     ``top_z``; when ``ribbed`` each gets ``RIB_COUNT`` rounded ribs (tips at the
     bit radius) that taper out just below the mouth. ``hex_bores`` are
     ``(across_flats, x, y)``. Every mouth gets a 45-deg lead-in chamfer of depth
-    ``BORE_MOUTH_CHAMFER``, cut as a boolean (robust; see the note below).
+    ``BORE_MOUTH_CHAMFER``, cut as a boolean (robust; see the note below). With
+    ``through`` the bores punch out the bottom (no floor); the ribs still start
+    at ``top_z - bore_depth``.
     """
     floor_z = top_z - bore_depth
+    below = 1.0 if through else 0.0  # extend the cut past the bottom face
     for d, x, y in bores:
         r_tip = (d + clearance) / 2
         r_valley = r_tip + (RIB_RELIEF if ribbed else 0.0)
-        with Locations((x, y, floor_z)):
+        with Locations((x, y, floor_z - below)):
             Cylinder(
                 r_valley,
-                bore_depth + 1,
+                bore_depth + 1 + below,
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.SUBTRACT,
             )
@@ -396,7 +400,7 @@ def cut_holes(
                 RegularPolygon(af / 3**0.5, 6)
         # Pass the sketch explicitly: inside a helper the implicit "pending
         # sketch" lookup that a bare extrude() relies on doesn't resolve.
-        extrude(hex_sk.sketch, amount=-bore_depth, mode=Mode.SUBTRACT)
+        extrude(hex_sk.sketch, amount=-(bore_depth + below), mode=Mode.SUBTRACT)
 
     # Lead-in chamfer at every mouth, cut as a boolean 45-deg cone/frustum. We
     # deliberately avoid OCC's fillet op here: filleting a *ribbed* mouth is
