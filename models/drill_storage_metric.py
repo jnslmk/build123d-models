@@ -21,6 +21,7 @@ from models.drill_storage_gridfinity import (
     BASE_COLOR,
     BASE_TOP_FILLET,
     BORE_MOUTH_FILLET,
+    COLLAR_R,
     COLLAR_W,
     COVER_COLOR,
     RIB_RELIEF,
@@ -36,7 +37,7 @@ LABEL = "Wood"  # material name embossed on the cover
 # holes ~0.1-0.3 mm undersized, so cutting the bores at exactly nominal is a
 # tight press fit. Bores are ribbed (see drill_storage_gridfinity), so the bit
 # rides on three rounded contacts with this clearance and drops in cleanly.
-BORE_CLEARANCE = 0.4
+BORE_CLEARANCE = 0.3
 
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
 # or remove a size and the layout re-packs itself.
@@ -44,7 +45,7 @@ DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
 # 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
 # 10 mm head rests on the top face, so the packer reserves the head's footprint.
-CSK_HEX_AF = 6.8  # 6.3 mm hex + fit clearance (between the original 6.6 and 7.0)
+CSK_HEX_AF = 6.6  # 6.3 mm hex + ~0.3 mm drop-in clearance (per Orca tol. test)
 CSK_HEAD_D = 10.0
 
 
@@ -61,7 +62,7 @@ _COLLAR_WALL = BORE_MOUTH_FILLET + BASE_TOP_FILLET + 0.1
 _FOOTPRINTS = [(f"{d:g}", _valley_r(d)) for d in DRILL_DIAMS] + [
     ("hex", CSK_HEAD_D / 2)
 ]
-_POS = pack_holes(_FOOTPRINTS, COLLAR_W / 2, _HOLE_WALL, _COLLAR_WALL)
+_POS = pack_holes(_FOOTPRINTS, COLLAR_W / 2, COLLAR_R, _HOLE_WALL, _COLLAR_WALL)
 
 DRILL_BORES = [(d, *_POS[f"{d:g}"]) for d in DRILL_DIAMS]
 HEX_BORES = [(CSK_HEX_AF, *_POS["hex"])]

@@ -178,48 +178,87 @@ def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
     return ring.part
 
 
+# Fixed symmetry slots for the structured layout, outermost group first: the
+# corner diagonals, the edge axes, then an inner diagonal ring, an inner axis
+# ring, and finally the centre. Each entry is (angles_deg, seed_radius_fraction).
+_HOLE_SLOTS = [
+    ([45, 135, 225, 315], 0.62),  # corners -- the biggest holes
+    ([0, 90, 180, 270], 0.60),  # edges -- the next size down
+    ([45, 135, 225, 315], 0.28),  # inner diagonal ring
+    ([0, 90, 180, 270], 0.24),  # inner axis ring
+    ([None], 0.0),  # centre (single hole)
+]
+
+
 def pack_holes(
     footprints: list[tuple[str, float]],
     collar_half: float,
+    corner_r: float,
     hole_wall: float,
     collar_wall: float,
-    iters: int = 20000,
+    iters: int = 6000,
 ) -> dict[str, tuple[float, float]]:
-    """Auto-place holes inside the collar; return ``{key: (x, y)}``.
+    """Place holes in an orderly, symmetric layout; return ``{key: (x, y)}``.
 
     ``footprints`` is ``(key, radius)`` per hole, ``radius`` being the hole's cut
     footprint (a ribbed bore's valley radius, or the hex countersink's head
-    radius). Every hole is kept at least ``hole_wall`` from its neighbours
-    edge-to-edge -- size this to ``2 * BORE_MOUTH_FILLET`` so both mouth fillets
-    fit between adjacent holes -- and at least ``collar_wall`` from the collar's
-    outer wall -- size it to ``BORE_MOUTH_FILLET + BASE_TOP_FILLET`` so a hole's
-    mouth fillet and the top-rim fillet both fit. Meeting these guarantees every
-    fillet in ``create_base`` forms, so the holes come out even and uniform.
+    radius). The holes are graded onto fixed symmetry slots (``_HOLE_SLOTS``) --
+    largest four to the corner diagonals, next four to the edge axes, the rest to
+    an inner ring / centre -- and each hole's radius *along its fixed spoke* is
+    relaxed until it keeps at least ``hole_wall`` to its neighbours edge-to-edge
+    and at least ``collar_wall`` to the rounded collar wall. Fixing the angles
+    keeps the arrangement tidy and symmetric while the radial relaxation resolves
+    spacing.
 
-    Deterministic (no RNG, so builds are reproducible): holes are seeded
-    largest-first on a golden-angle spiral and relaxed with pairwise repulsion +
-    square containment until settled. Prints a WARNING if the collar is too
-    crowded to reach the requested spacing, so an over-full layout is obvious
-    rather than silently overlapping.
+    Size ``hole_wall`` to ``2 * BORE_MOUTH_FILLET`` so both mouth fillets fit
+    between neighbours, and ``collar_wall`` to ``BORE_MOUTH_FILLET +
+    BASE_TOP_FILLET`` so a hole's mouth fillet and the top-rim fillet both fit;
+    then every fillet in ``create_base`` forms. Deterministic (no RNG). Prints a
+    WARNING if the collar is too crowded to reach the spacing.
     """
     order = sorted(range(len(footprints)), key=lambda i: -footprints[i][1])
     keys = [footprints[i][0] for i in order]
     r = [footprints[i][1] for i in order]
     n = len(footprints)
-    golden = math.pi * (3.0 - math.sqrt(5.0))
-    r_seed = max(collar_half - (max(r) if r else 0.0) - collar_wall, 0.0)
+
+    theta: list[float | None] = []
+    seed: list[float] = []
+    for angles, frac in _HOLE_SLOTS:
+        for a in angles:
+            if len(theta) < n:
+                theta.append(None if a is None else math.radians(a))
+                seed.append(frac * collar_half)
     pos = [
-        [
-            r_seed * math.sqrt((k + 0.5) / n) * math.cos(k * golden),
-            r_seed * math.sqrt((k + 0.5) / n) * math.sin(k * golden),
-        ]
-        for k in range(n)
+        [0.0, 0.0]
+        if theta[i] is None
+        else [seed[i] * math.cos(theta[i]), seed[i] * math.sin(theta[i])]
+        for i in range(n)
     ]
 
-    def contain(i: int) -> None:
-        lim = collar_half - r[i] - collar_wall
-        pos[i][0] = max(-lim, min(lim, pos[i][0]))
-        pos[i][1] = max(-lim, min(lim, pos[i][1]))
+    def sdf(px: float, py: float) -> float:
+        # Signed distance to the rounded-square collar wall (negative inside).
+        qx = abs(px) - (collar_half - corner_r)
+        qy = abs(py) - (collar_half - corner_r)
+        return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - corner_r
+
+    def reproject(i: int) -> None:
+        # Snap the hole back onto its fixed spoke and shrink its radius until it
+        # clears the collar wall -- this both enforces the symmetry and contains.
+        if theta[i] is None:
+            pos[i] = [0.0, 0.0]
+            return
+        rho = math.hypot(pos[i][0], pos[i][1])
+        lo, hi = 0.0, rho
+        for _ in range(24):
+            m = (lo + hi) / 2.0
+            if (
+                -sdf(m * math.cos(theta[i]), m * math.sin(theta[i])) - r[i]
+                >= collar_wall
+            ):
+                lo = m
+            else:
+                hi = m
+        pos[i] = [lo * math.cos(theta[i]), lo * math.sin(theta[i])]
 
     for _ in range(iters):
         moved = 0.0
@@ -237,7 +276,8 @@ def pack_holes(
                     pos[j][0] += ux * push
                     pos[j][1] += uy * push
                     moved = max(moved, push)
-            contain(i)
+        for i in range(n):
+            reproject(i)
         if moved < 1e-4:
             break
 
@@ -251,12 +291,108 @@ def pack_holes(
     )
     if worst < hole_wall - 0.05:
         print(
-            f"WARNING: hole auto-placement only reached {worst:.2f} mm walls "
+            f"WARNING: hole placement only reached {worst:.2f} mm walls "
             f"(wanted {hole_wall:.2f} mm) -- the collar is too crowded; drop a "
             f"hole or shrink one.",
             file=sys.stderr,
         )
     return {keys[i]: (round(pos[i][0], 2), round(pos[i][1], 2)) for i in range(n)}
+
+
+def cut_holes(
+    part: BuildPart,
+    bores: list[tuple[float, float, float]],
+    hex_bores: list[tuple[float, float, float]] | None,
+    clearance: float,
+    ribbed: bool,
+    top_z: float,
+    bore_depth: float,
+) -> None:
+    """Sink drill bores + hex sockets into the active part and round every mouth.
+
+    Call this inside a ``with BuildPart() as part:`` block; it is shared by the
+    Gridfinity base and the fit tester so both get identical bore geometry.
+
+    Round ``bores`` are ``(diameter, x, y)`` sunk ``bore_depth`` down from
+    ``top_z``; when ``ribbed`` each gets ``RIB_COUNT`` rounded ribs (tips at the
+    bit radius) that taper out just below the mouth. ``hex_bores`` are
+    ``(across_flats, x, y)``. Every mouth gets a full ``BORE_MOUTH_FILLET``
+    lead-in or none at all (with a warning), so thin-wall problems stay visible.
+    """
+    floor_z = top_z - bore_depth
+    for d, x, y in bores:
+        r_tip = (d + clearance) / 2
+        r_valley = r_tip + (RIB_RELIEF if ribbed else 0.0)
+        with Locations((x, y, floor_z)):
+            Cylinder(
+                r_valley,
+                bore_depth + 1,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+        if ribbed:
+            # Each rib is a rounded vertical pin that ramps out to nothing near
+            # the mouth (a cone cap) so it blends smoothly into the valley wall
+            # and the lead-in fillet instead of ending abruptly.
+            cyl_h = bore_depth - RIB_TOP_GAP - RIB_TAPER
+            with Locations((x, y, floor_z)):
+                with PolarLocations(r_valley, RIB_COUNT):
+                    Cylinder(
+                        RIB_RELIEF,
+                        cyl_h,
+                        align=(Align.CENTER, Align.CENTER, Align.MIN),
+                        mode=Mode.ADD,
+                    )
+                    with Locations((0, 0, cyl_h)):
+                        Cone(
+                            RIB_RELIEF,
+                            0.0,
+                            RIB_TAPER,
+                            align=(Align.CENTER, Align.CENTER, Align.MIN),
+                            mode=Mode.ADD,
+                        )
+
+    for af, x, y in hex_bores or []:
+        with BuildSketch(Plane.XY.offset(top_z)) as hex_sk:
+            with Locations((x, y)):
+                RegularPolygon(af / 3**0.5, 6)
+        # Pass the sketch explicitly: inside a helper the implicit "pending
+        # sketch" lookup that a bare extrude() relies on doesn't resolve.
+        extrude(hex_sk.sketch, amount=-bore_depth, mode=Mode.SUBTRACT)
+
+    # Lead-in fillet at every insert-hole mouth (round bores *and* hex sockets),
+    # targeted by hole centre and re-querying live edges each pass so an earlier
+    # fillet can't invalidate a later one. A round mouth is one concentric circle
+    # (use the arc centre -- a full circle's ``.center()`` is a point *on* it); a
+    # hex mouth is six shared-vertex sides that must fillet together in one call.
+    def _mouth_at(cx: float, cy: float, reach: float):
+        def near(e: object) -> bool:
+            try:
+                c = e.arc_center
+            except (ValueError, AttributeError):
+                c = e.center()
+            return ((c.X - cx) ** 2 + (c.Y - cy) ** 2) ** 0.5 <= reach
+
+        return part.edges().filter_by_position(Axis.Z, top_z, top_z).filter_by(near)
+
+    def _fillet_mouth(cx: float, cy: float, reach: float, label: str) -> None:
+        # Full radius or nothing -- no silent step-down. A mouth that can't take
+        # the fillet (usually walls too thin) is left plain and reported, so the
+        # problem is obvious rather than hidden behind a shrunken fillet.
+        try:
+            fillet(_mouth_at(cx, cy, reach), BORE_MOUTH_FILLET)
+        except Exception as exc:
+            print(
+                f"WARNING: {label} mouth at ({cx:.1f}, {cy:.1f}) could not take "
+                f"the {BORE_MOUTH_FILLET} mm fillet -- left unfilleted "
+                f"(walls too thin?): {exc}",
+                file=sys.stderr,
+            )
+
+    for d, x, y in bores:
+        _fillet_mouth(x, y, 0.6, f"{d:g} mm bore")
+    for af, x, y in hex_bores or []:
+        _fillet_mouth(x, y, af, f"hex socket (AF {af:g})")
 
 
 def create_base(
@@ -306,91 +442,8 @@ def create_base(
             mode=Mode.SUBTRACT,
         )
 
-        # Sink the graduated drill bores from the top face. A plain bore is a
-        # single cylinder; a ribbed bore is a wider valley cylinder with
-        # RIB_COUNT rounded ribs added back, tips at the bit radius. Each rib
-        # tapers out to meet the lower edge of the mouth fillet.
-        top_z = BASE_TOTAL_H
-        floor_z = top_z - BORE_DEPTH
-        for d, x, y in bores:
-            r_tip = (d + clearance) / 2
-            r_valley = r_tip + (RIB_RELIEF if ribbed else 0.0)
-            with Locations((x, y, floor_z)):
-                Cylinder(
-                    r_valley,
-                    BORE_DEPTH + 1,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                    mode=Mode.SUBTRACT,
-                )
-            if ribbed:
-                # Each rib is a rounded vertical pin that ramps out to nothing
-                # near the mouth (a cone cap) so it blends smoothly into the
-                # valley wall and the lead-in fillet instead of ending abruptly.
-                cyl_h = BORE_DEPTH - RIB_TOP_GAP - RIB_TAPER
-                with Locations((x, y, floor_z)):
-                    with PolarLocations(r_valley, RIB_COUNT):
-                        Cylinder(
-                            RIB_RELIEF,
-                            cyl_h,
-                            align=(Align.CENTER, Align.CENTER, Align.MIN),
-                            mode=Mode.ADD,
-                        )
-                        with Locations((0, 0, cyl_h)):
-                            Cone(
-                                RIB_RELIEF,
-                                0.0,
-                                RIB_TAPER,
-                                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                                mode=Mode.ADD,
-                            )
-
-        # Hex sockets for hex-shank bits (across-flats -> circumradius).
-        for af, x, y in hex_bores or []:
-            with BuildSketch(Plane.XY.offset(top_z)):
-                with Locations((x, y)):
-                    RegularPolygon(af / 3**0.5, 6)
-            extrude(amount=-BORE_DEPTH, mode=Mode.SUBTRACT)
-
-        # Lead-in fillet at every insert-hole mouth (round bores *and* hex
-        # sockets) so each bit drops in on a rounded edge. Targeted by hole
-        # centre so the collar's own top rim is never rounded, re-querying the
-        # live edges each pass so an earlier fillet can't invalidate a later one.
-        # Best-effort: a mouth whose fillet would overrun a thin wall is skipped
-        # on its own. A round mouth is one concentric circle; a hex mouth is six
-        # shared-vertex sides that must fillet together in a single call.
-        def _mouth_at(cx: float, cy: float, reach: float):
-            def near(e: object) -> bool:
-                # Circular mouths: use the true arc centre (a full circle's
-                # ``.center()`` returns a point *on* the curve, not the centre).
-                # Straight hex-side mouths: fall back to the edge midpoint.
-                try:
-                    c = e.arc_center
-                except (ValueError, AttributeError):
-                    c = e.center()
-                return ((c.X - cx) ** 2 + (c.Y - cy) ** 2) ** 0.5 <= reach
-
-            return base.edges().filter_by_position(Axis.Z, top_z, top_z).filter_by(near)
-
-        def _fillet_mouth(cx: float, cy: float, reach: float, label: str) -> None:
-            # Fillet the mouth at the full radius, or not at all. We deliberately
-            # do NOT step the radius down on failure: a mouth that can't take the
-            # full fillet (usually walls too thin for a neighbour) is left plain
-            # and reported, so the thin spot is obvious in the viewer and the log
-            # rather than silently shrinking and hiding the layout problem.
-            try:
-                fillet(_mouth_at(cx, cy, reach), BORE_MOUTH_FILLET)
-            except Exception as exc:
-                print(
-                    f"WARNING: {label} mouth at ({cx:.1f}, {cy:.1f}) could not "
-                    f"take the {BORE_MOUTH_FILLET} mm fillet -- left unfilleted "
-                    f"(walls too thin?): {exc}",
-                    file=sys.stderr,
-                )
-
-        for d, x, y in bores:
-            _fillet_mouth(x, y, 0.6, f"{d:g} mm bore")
-        for af, x, y in hex_bores or []:
-            _fillet_mouth(x, y, af, f"hex socket (AF {af:g})")
+        # Sink the graduated drill bores + hex socket and round every mouth.
+        cut_holes(base, bores, hex_bores, clearance, ribbed, BASE_TOTAL_H, BORE_DEPTH)
 
         # Round over the base's top outer rim (softer top edge + a lead-in for
         # the cover). Same policy: full radius or none, with a warning.
