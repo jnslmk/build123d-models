@@ -92,7 +92,8 @@ BASE_TOTAL_H = FOOT_TOP + COLLAR_H  # 42 mm (6U)
 COVER_SEAT_CH = 0.4  # cover bottom-edge chamfer so it seats flush on
 #                                 the flat body shoulder without overhanging it
 BORE_DEPTH = 36.0  # bores sunk from the top face (stops above foot)
-BORE_MOUTH_FILLET = 0.6  # rounded lead-in at every insert-hole mouth
+BORE_MOUTH_FILLET = 0.8  # rounded lead-in at every insert-hole mouth
+BASE_TOP_FILLET = 1.0  # round-over on the base's top outer rim
 
 # --- Assembled height ---------------------------------------------------------
 # A drill stands on the bore floor and rises up into the cover. Size the cover
@@ -115,7 +116,7 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 # clean. The small gap past the fillet edge matters: a rib fade that lands
 # exactly on the fillet's tangent circle makes a degenerate solid (OCC crash).
 RIB_COUNT = 3
-RIB_RELIEF = 0.4  # radial relief of the valley beyond the rib tips
+RIB_RELIEF = 0.5  # radial relief of the valley beyond the rib tips (also rib width)
 RIB_TAPER = 4.0  # height over which each rib ramps out to nothing
 RIB_TOP_GAP = BORE_MOUTH_FILLET + 0.4  # rib fades just below the fillet edge
 
@@ -302,6 +303,17 @@ def create_base(
             _fillet_mouth(x, y, 0.6)
         for af, x, y in hex_bores or []:
             _fillet_mouth(x, y, af)
+
+        # Round over the base's top outer rim (softer top edge + a lead-in for
+        # the cover). Best-effort with a step-down if the full radius won't take.
+        top_face = base.faces().filter_by(Plane.XY).sort_by(Axis.Z)[-1]
+        rim = top_face.outer_wire().edges()
+        for r in (BASE_TOP_FILLET, 0.7, 0.5, 0.3):
+            try:
+                fillet(rim, r)
+                break
+            except Exception:
+                continue
     return base.part
 
 

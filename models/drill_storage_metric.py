@@ -30,7 +30,7 @@ LABEL = "Wood"  # material name embossed on the cover
 # holes ~0.1-0.3 mm undersized, so cutting the bores at exactly nominal is a
 # tight press fit. Bores are ribbed (see drill_storage_gridfinity), so the bit
 # rides on three rounded contacts with this clearance and drops in cleanly.
-BORE_CLEARANCE = 0.5
+BORE_CLEARANCE = 0.4
 
 # Round drill bores (diameter, x, y). With 7 and 9 mm added there are 11 ribbed
 # bores plus the countersink's 10 mm head footprint packed into the 39 mm
@@ -54,7 +54,7 @@ DRILL_BORES = [
 # 10 mm countersink with a 6.3 mm hex shank: a hex socket for the shank in the
 # fourth corner, keeping a 10 mm clear top footprint for the head to rest on.
 CSK_X, CSK_Y = -12.0, -12.0
-CSK_HEX_AF = 7.0  # 6.3 mm hex + a little fit clearance, across flats
+CSK_HEX_AF = 6.8  # 6.3 mm hex + fit clearance (between the original 6.6 and 7.0)
 HEX_BORES = [(CSK_HEX_AF, CSK_X, CSK_Y)]
 
 
