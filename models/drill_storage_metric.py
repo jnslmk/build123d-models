@@ -2,12 +2,13 @@
 10 mm hex-shank countersink.
 
 A ready-to-print pair built on the square Gridfinity base/cover from
-``drill_storage_gridfinity``: a 1x1 base holding nine graduated drills
-(2, 2.5, 3, 3.5, 4, 5, 6, 8, 10 mm) plus a 10 mm countersink bit with a 6.3 mm
-hex shank, and a matching labelled cover that snaps over it.
+``drill_storage_gridfinity``: a 1x1 base holding eleven graduated drills
+(2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10 mm) plus a 10 mm countersink bit with a
+6.3 mm hex shank, and a matching labelled cover that snaps over it.
 
-The nine drills and the countersink are hand-packed into the 1x1 collar (all
-positions verified to sit inside the collar with sensible walls). The
+Hole positions are computed by ``pack_holes`` (a deterministic relaxation
+solver) rather than hand-placed, so the walls always clear the mouth and top-rim
+fillets and you can edit ``DRILL_DIAMS`` freely and let it re-pack. The
 countersink drops into a hex socket for its shank; its 10 mm head just rests on
 the top face, so that position reserves a 10 mm clear footprint.
 
@@ -18,9 +19,14 @@ from build123d import Compound, Pos
 
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
+    BASE_TOP_FILLET,
+    BORE_MOUTH_FILLET,
+    COLLAR_W,
     COVER_COLOR,
+    RIB_RELIEF,
     create_base,
     create_cover,
+    pack_holes,
 )
 
 LABEL = "Wood"  # material name embossed on the cover
@@ -32,30 +38,33 @@ LABEL = "Wood"  # material name embossed on the cover
 # rides on three rounded contacts with this clearance and drops in cleanly.
 BORE_CLEARANCE = 0.4
 
-# Round drill bores (diameter, x, y). With 7 and 9 mm added there are 11 ribbed
-# bores plus the countersink's 10 mm head footprint packed into the 39 mm
-# collar, so the whole layout is repacked (relaxation solver) to keep >= ~0.8 mm
-# walls everywhere; the four big features (8/9/10 mm bores + hex head) sit near
-# the four corners, smalls fill the middle.
-DRILL_BORES = [
-    (2.0, 6.0, -6.0),
-    (2.5, -6.0, -6.0),
-    (3.0, 6.0, 6.0),
-    (3.5, -5.0, 5.0),
-    (4.0, 0.0, -13.0),
-    (5.0, 0.0, 13.0),
-    (6.0, 13.0, 1.0),
-    (7.0, -13.0, 0.0),
-    (8.0, 12.0, 12.0),
-    (9.0, 12.0, -12.0),
-    (10.0, -12.0, 12.0),
-]
+# Drill sizes in the set (mm). Positions are auto-placed below, so you can add
+# or remove a size and the layout re-packs itself.
+DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
-# 10 mm countersink with a 6.3 mm hex shank: a hex socket for the shank in the
-# fourth corner, keeping a 10 mm clear top footprint for the head to rest on.
-CSK_X, CSK_Y = -12.0, -12.0
+# 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
+# 10 mm head rests on the top face, so the packer reserves the head's footprint.
 CSK_HEX_AF = 6.8  # 6.3 mm hex + fit clearance (between the original 6.6 and 7.0)
-HEX_BORES = [(CSK_HEX_AF, CSK_X, CSK_Y)]
+CSK_HEAD_D = 10.0
+
+
+def _valley_r(d: float) -> float:
+    """Ribbed-bore cut (valley) radius for a bit of diameter ``d`` mm."""
+    return (d + BORE_CLEARANCE) / 2 + RIB_RELIEF
+
+
+# Auto-placement: keep two mouth fillets of wall between holes, and one mouth
+# fillet plus the top-rim fillet to the collar wall, so every fillet forms and
+# the holes come out uniform. Add/remove a size above and this re-packs.
+_HOLE_WALL = 2 * BORE_MOUTH_FILLET + 0.1
+_COLLAR_WALL = BORE_MOUTH_FILLET + BASE_TOP_FILLET + 0.1
+_FOOTPRINTS = [(f"{d:g}", _valley_r(d)) for d in DRILL_DIAMS] + [
+    ("hex", CSK_HEAD_D / 2)
+]
+_POS = pack_holes(_FOOTPRINTS, COLLAR_W / 2, _HOLE_WALL, _COLLAR_WALL)
+
+DRILL_BORES = [(d, *_POS[f"{d:g}"]) for d in DRILL_DIAMS]
+HEX_BORES = [(CSK_HEX_AF, *_POS["hex"])]
 
 
 def create() -> Compound:

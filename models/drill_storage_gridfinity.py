@@ -21,6 +21,7 @@ in a Gridfinity baseplate; the cover is a free lid.
 """
 
 import math
+import sys
 
 from build123d import (
     Align,
@@ -177,6 +178,87 @@ def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
     return ring.part
 
 
+def pack_holes(
+    footprints: list[tuple[str, float]],
+    collar_half: float,
+    hole_wall: float,
+    collar_wall: float,
+    iters: int = 20000,
+) -> dict[str, tuple[float, float]]:
+    """Auto-place holes inside the collar; return ``{key: (x, y)}``.
+
+    ``footprints`` is ``(key, radius)`` per hole, ``radius`` being the hole's cut
+    footprint (a ribbed bore's valley radius, or the hex countersink's head
+    radius). Every hole is kept at least ``hole_wall`` from its neighbours
+    edge-to-edge -- size this to ``2 * BORE_MOUTH_FILLET`` so both mouth fillets
+    fit between adjacent holes -- and at least ``collar_wall`` from the collar's
+    outer wall -- size it to ``BORE_MOUTH_FILLET + BASE_TOP_FILLET`` so a hole's
+    mouth fillet and the top-rim fillet both fit. Meeting these guarantees every
+    fillet in ``create_base`` forms, so the holes come out even and uniform.
+
+    Deterministic (no RNG, so builds are reproducible): holes are seeded
+    largest-first on a golden-angle spiral and relaxed with pairwise repulsion +
+    square containment until settled. Prints a WARNING if the collar is too
+    crowded to reach the requested spacing, so an over-full layout is obvious
+    rather than silently overlapping.
+    """
+    order = sorted(range(len(footprints)), key=lambda i: -footprints[i][1])
+    keys = [footprints[i][0] for i in order]
+    r = [footprints[i][1] for i in order]
+    n = len(footprints)
+    golden = math.pi * (3.0 - math.sqrt(5.0))
+    r_seed = max(collar_half - (max(r) if r else 0.0) - collar_wall, 0.0)
+    pos = [
+        [
+            r_seed * math.sqrt((k + 0.5) / n) * math.cos(k * golden),
+            r_seed * math.sqrt((k + 0.5) / n) * math.sin(k * golden),
+        ]
+        for k in range(n)
+    ]
+
+    def contain(i: int) -> None:
+        lim = collar_half - r[i] - collar_wall
+        pos[i][0] = max(-lim, min(lim, pos[i][0]))
+        pos[i][1] = max(-lim, min(lim, pos[i][1]))
+
+    for _ in range(iters):
+        moved = 0.0
+        for i in range(n):
+            for j in range(i + 1, n):
+                dx = pos[j][0] - pos[i][0]
+                dy = pos[j][1] - pos[i][1]
+                d = math.hypot(dx, dy) or 1e-9
+                need = r[i] + r[j] + hole_wall
+                if d < need:
+                    push = (need - d) / 2.0
+                    ux, uy = dx / d, dy / d
+                    pos[i][0] -= ux * push
+                    pos[i][1] -= uy * push
+                    pos[j][0] += ux * push
+                    pos[j][1] += uy * push
+                    moved = max(moved, push)
+            contain(i)
+        if moved < 1e-4:
+            break
+
+    worst = min(
+        (
+            math.hypot(pos[j][0] - pos[i][0], pos[j][1] - pos[i][1]) - r[i] - r[j]
+            for i in range(n)
+            for j in range(i + 1, n)
+        ),
+        default=hole_wall,
+    )
+    if worst < hole_wall - 0.05:
+        print(
+            f"WARNING: hole auto-placement only reached {worst:.2f} mm walls "
+            f"(wanted {hole_wall:.2f} mm) -- the collar is too crowded; drop a "
+            f"hole or shrink one.",
+            file=sys.stderr,
+        )
+    return {keys[i]: (round(pos[i][0], 2), round(pos[i][1], 2)) for i in range(n)}
+
+
 def create_base(
     bores: list[tuple[float, float, float]],
     hex_bores: list[tuple[float, float, float]] | None = None,
@@ -289,31 +371,39 @@ def create_base(
 
             return base.edges().filter_by_position(Axis.Z, top_z, top_z).filter_by(near)
 
-        def _fillet_mouth(cx: float, cy: float, reach: float) -> None:
-            # Try the full lead-in, then step down so a mouth beside a thin wall
-            # still gets the largest fillet that fits (rather than none at all).
-            for r in (BORE_MOUTH_FILLET, 0.45, 0.3, 0.2):
-                try:
-                    fillet(_mouth_at(cx, cy, reach), r)
-                    return
-                except Exception:
-                    continue
+        def _fillet_mouth(cx: float, cy: float, reach: float, label: str) -> None:
+            # Fillet the mouth at the full radius, or not at all. We deliberately
+            # do NOT step the radius down on failure: a mouth that can't take the
+            # full fillet (usually walls too thin for a neighbour) is left plain
+            # and reported, so the thin spot is obvious in the viewer and the log
+            # rather than silently shrinking and hiding the layout problem.
+            try:
+                fillet(_mouth_at(cx, cy, reach), BORE_MOUTH_FILLET)
+            except Exception as exc:
+                print(
+                    f"WARNING: {label} mouth at ({cx:.1f}, {cy:.1f}) could not "
+                    f"take the {BORE_MOUTH_FILLET} mm fillet -- left unfilleted "
+                    f"(walls too thin?): {exc}",
+                    file=sys.stderr,
+                )
 
-        for _d, x, y in bores:
-            _fillet_mouth(x, y, 0.6)
+        for d, x, y in bores:
+            _fillet_mouth(x, y, 0.6, f"{d:g} mm bore")
         for af, x, y in hex_bores or []:
-            _fillet_mouth(x, y, af)
+            _fillet_mouth(x, y, af, f"hex socket (AF {af:g})")
 
         # Round over the base's top outer rim (softer top edge + a lead-in for
-        # the cover). Best-effort with a step-down if the full radius won't take.
+        # the cover). Same policy: full radius or none, with a warning.
         top_face = base.faces().filter_by(Plane.XY).sort_by(Axis.Z)[-1]
         rim = top_face.outer_wire().edges()
-        for r in (BASE_TOP_FILLET, 0.7, 0.5, 0.3):
-            try:
-                fillet(rim, r)
-                break
-            except Exception:
-                continue
+        try:
+            fillet(rim, BASE_TOP_FILLET)
+        except Exception as exc:
+            print(
+                f"WARNING: base top rim could not take the {BASE_TOP_FILLET} mm "
+                f"fillet -- left unfilleted: {exc}",
+                file=sys.stderr,
+            )
     return base.part
 
 
