@@ -28,6 +28,7 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
+    Box,
     Color,
     Compound,
     Cone,
@@ -109,17 +110,16 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 
 # --- Ribbed bores (opt-in) ----------------------------------------------------
 # A ribbed bore is cut RIB_RELIEF wider than the bit and then given RIB_COUNT
-# rounded internal ribs. The bit rides on the rib tips (three line-contacts)
-# instead of a full-circle wall, so FDM bore variation and layer scarring no
-# longer bind the bit -- it drops in cleanly with a light, even grip. Each rib
-# ramps out to nothing over RIB_TAPER and fades out just below the mouth fillet
-# (RIB_TOP_GAP), so it flows into the fillet while leaving the mouth circle
-# clean. The small gap past the fillet edge matters: a rib fade that lands
-# exactly on the fillet's tangent circle makes a degenerate solid (OCC crash).
+# wide, flat-faced ribs standing proud of the relieved valley. The bit grips on
+# the rib faces -- which sit a hair *inside* the bit (a negative bore clearance),
+# so it's held by light interference rather than rattling in a full-circle wall.
+# The ribs are wide and flat (RIB_WIDTH) rather than thin pointed pins so the
+# slicer actually prints them, and they stop RIB_TOP_GAP below the mouth so the
+# opening stays clean for the lead-in chamfer.
 RIB_COUNT = 3
-RIB_RELIEF = 0.45  # radial relief of the valley beyond the rib tips (also rib width)
-RIB_TAPER = 4.0  # height over which each rib ramps out to nothing
-RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # rib fades just below the mouth chamfer
+RIB_RELIEF = 0.4  # radial protrusion of the ribs past the valley (drives valley)
+RIB_WIDTH = 1.2  # tangential rib width -- wide + flat so it prints and grips
+RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 
 # Bore layouts (diameter, x, y) -- graduated drill sizes on a square grid.
 BORES_9 = [  # 3x3, 10 mm pitch (keeps the corner bores inside the collar)
@@ -373,26 +373,23 @@ def cut_holes(
                 mode=Mode.SUBTRACT,
             )
         if ribbed:
-            # Each rib is a rounded vertical pin that ramps out to nothing near
-            # the mouth (a cone cap) so it blends smoothly into the valley wall
-            # and the lead-in fillet instead of ending abruptly.
-            cyl_h = bore_depth - RIB_TOP_GAP - RIB_TAPER
+            # Wide, flat-faced ribs standing proud of the valley: the bit grips
+            # on their faces (which sit just inside it). Wide + flat prints where
+            # a thin pointed pin gets dropped by the slicer; radial length =
+            # protrusion + embed into the wall. Narrower ribs in tiny holes so
+            # they don't choke the opening.
+            rib_h = bore_depth - RIB_TOP_GAP
+            width = min(RIB_WIDTH, 1.4 * r_tip)
+            r_len = RIB_RELIEF + 0.5
             with Locations((x, y, floor_z)):
-                with PolarLocations(r_valley, RIB_COUNT):
-                    Cylinder(
-                        RIB_RELIEF,
-                        cyl_h,
+                with PolarLocations(r_tip + r_len / 2, RIB_COUNT):
+                    Box(
+                        r_len,
+                        width,
+                        rib_h,
                         align=(Align.CENTER, Align.CENTER, Align.MIN),
                         mode=Mode.ADD,
                     )
-                    with Locations((0, 0, cyl_h)):
-                        Cone(
-                            RIB_RELIEF,
-                            0.0,
-                            RIB_TAPER,
-                            align=(Align.CENTER, Align.CENTER, Align.MIN),
-                            mode=Mode.ADD,
-                        )
 
     for af, x, y in hex_bores or []:
         with BuildSketch(Plane.XY.offset(top_z)) as hex_sk:
