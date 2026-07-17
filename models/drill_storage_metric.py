@@ -37,7 +37,7 @@ LABEL = "Wood"  # material name embossed on the cover
 # holes ~0.1-0.3 mm undersized, so cutting the bores at exactly nominal is a
 # tight press fit. Bores are ribbed (see drill_storage_gridfinity), so the bit
 # rides on three rounded contacts with this clearance and drops in cleanly.
-BORE_CLEARANCE = -0.3  # rib faces sit 0.3 mm inside the bit -> firmer grip
+BORE_CLEARANCE = -0.4  # rib faces sit 0.4 mm inside the bit -> firmer grip
 
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
 # or remove a size and the layout re-packs itself.
@@ -45,7 +45,7 @@ DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
 # 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
 # 10 mm head rests on the top face, so the packer reserves the head's footprint.
-CSK_HEX_AF = 6.5  # 6.3 mm shank + ~0.2 mm across-flats clearance (easy drop-in)
+CSK_HEX_AF = 6.4  # 6.3 mm shank + ~0.1 mm across-flats clearance (snug drop-in)
 CSK_HEAD_D = 10.0
 
 
