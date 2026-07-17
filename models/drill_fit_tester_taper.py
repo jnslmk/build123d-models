@@ -23,8 +23,8 @@ from build123d import (
 
 from models.drill_fit_tester import _coupon
 
-TAPER_TOP = 0.2  # diametral clearance at the top of each hole
-TAPER_BOTTOM = 0.2  # diametral undersize at the bottom of each hole
+TAPER_TOP = 0.1  # diametral clearance at the top of each hole
+TAPER_BOTTOM = 0.1  # diametral undersize at the bottom of each hole
 _EXT = 1.0  # extend the cut past both faces for a clean through-cut
 
 

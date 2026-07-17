@@ -18,7 +18,6 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
-    Locations,
     Mode,
     Part,
     Plane,
@@ -49,13 +48,20 @@ EDGE = BORE_MOUTH_CHAMFER + 1.0  # hole/label-to-edge margin
 LABEL_TEXT = 4.5  # label glyph height (big enough to read when engraved)
 LABEL_DEPTH = 0.8  # engraved (recessed) -- raised thin text gets slicer-dropped
 LABEL_PITCH = 8.5  # min hole centre spacing so the size labels don't crowd
-LABEL_GAP = 1.5  # gap between a hole and its label / the title
 
 
 def _layout_r(d: float) -> float:
     """Layout footprint radius per size -- the ribbed valley, so all three
     coupons share one hole layout regardless of how they cut the holes."""
     return (d + BORE_CLEARANCE) / 2 + RIB_RELIEF
+
+
+def _engrave(text: str, origin, x_dir, z_dir) -> None:
+    """Engrave ``text`` ``LABEL_DEPTH`` into the active part's face at ``origin``,
+    reading along ``x_dir`` with outward face normal ``z_dir``."""
+    with BuildSketch(Plane(origin=origin, x_dir=x_dir, z_dir=z_dir)) as sk:
+        Text(text, LABEL_TEXT)
+    extrude(sk.sketch, amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
 
 
 def _coupon(cut_fn, part_label: str, title: str) -> Part:
@@ -88,16 +94,15 @@ def _coupon(cut_fn, part_label: str, title: str) -> Part:
     hex_bores = [(CSK_HEX_AF, px, 0.0) for k, px, r in placed if k == "hex"]
     labels = [("6.3" if k == "hex" else k, px) for k, px, r in placed]
 
-    # Holes at y=0; size labels in a band below, the variant title in a band above.
-    band = max_r + LABEL_GAP + LABEL_TEXT / 2
-    top = band + LABEL_TEXT / 2 + EDGE
-    bottom = -band - LABEL_TEXT / 2 - EDGE
+    # Narrow strip: holes at y=0, text engraved on the long side faces to save
+    # space -- size labels on the front (-Y), the variant title on the back (+Y).
+    half_w = max_r + EDGE
     plate_len = (max_x - min_x) + 2 * EDGE
+    z_mid = PLATE_H / 2
 
     with BuildPart() as plate:
         with BuildSketch():
-            with Locations((0, (top + bottom) / 2)):
-                RectangleRounded(plate_len, top - bottom, PLATE_R)
+            RectangleRounded(plate_len, 2 * half_w, PLATE_R)
         extrude(amount=PLATE_H)
         # Chamfer top + bottom outer edges; the bottom chamfer doubles as
         # elephant-foot relief since the coupon prints floor-down.
@@ -106,16 +111,10 @@ def _coupon(cut_fn, part_label: str, title: str) -> Part:
 
         cut_fn(bores, hex_bores, PLATE_H, PLATE_H)
 
-        # Engraved size labels (below each hole) + the variant title (above).
-        # Engraved, not raised: thin raised text gets dropped by the slicer's
-        # small-feature removal, but a recess always prints.
-        with BuildSketch(Plane.XY.offset(PLATE_H)):
-            for text, lx in labels:
-                with Locations((lx, -band)):
-                    Text(text, LABEL_TEXT)
-            with Locations((0, band)):
-                Text(title, LABEL_TEXT)
-        extrude(amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
+        # Engraved (a recess always prints; thin raised text gets slicer-dropped).
+        for text, lx in labels:
+            _engrave(text, (lx, -half_w, z_mid), (1, 0, 0), (0, -1, 0))
+        _engrave(title, (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
 
     plate.part.label = part_label
     plate.part.color = BASE_COLOR

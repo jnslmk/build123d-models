@@ -118,7 +118,7 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 # opening stays clean for the lead-in chamfer.
 RIB_COUNT = 3
 RIB_RELIEF = 0.4  # radial protrusion of the ribs past the valley (drives valley)
-RIB_WIDTH = 1.2  # tangential rib width -- wide + flat so it prints and grips
+RIB_WIDTH = 1.5  # tangential rib width -- wide + flat so it prints and grips
 RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 
 # Bore layouts (diameter, x, y) -- graduated drill sizes on a square grid.
