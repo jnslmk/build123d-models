@@ -117,7 +117,8 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 # printable / meaningful on the smallest bits. Ribs stop RIB_TOP_GAP below the
 # mouth so the opening stays clean for the lead-in chamfer.
 RIB_COUNT = 3
-RIB_UNDERSIZE = 0.04  # rib faces sit this fraction of d inside the bit (grip)
+RIB_UNDERSIZE = 0.04  # rib faces sit this fraction of d inside the bit (grip) ...
+RIB_UNDERSIZE_MIN = 0.15  # ... but at least this, so small holes aren't too loose
 RIB_RELIEF_FRAC = 0.04  # rib protrusion past the valley, as a fraction of d ...
 RIB_RELIEF_MIN = 0.2  # ... but at least this, so the rib is a defined feature
 RIB_WIDTH_FRAC = 0.15  # tangential rib width, as a fraction of d ...
@@ -129,7 +130,7 @@ RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 def _rib_tip_r(d: float) -> float:
     """Radius of the rib faces (grip) for a bit of diameter ``d`` -- just inside
     the bit so it's held by light interference."""
-    return (d - RIB_UNDERSIZE * d) / 2
+    return (d - max(RIB_UNDERSIZE * d, RIB_UNDERSIZE_MIN)) / 2
 
 
 def _rib_relief(d: float) -> float:
