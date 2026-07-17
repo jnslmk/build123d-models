@@ -30,11 +30,10 @@ from build123d import (
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
     BORE_MOUTH_CHAMFER,
-    RIB_RELIEF,
     cut_holes,
+    ribbed_valley_r,
 )
 from models.drill_storage_metric import (
-    BORE_CLEARANCE,
     CSK_HEAD_D,
     CSK_HEX_AF,
     DRILL_DIAMS,
@@ -53,7 +52,7 @@ LABEL_PITCH = 8.5  # min hole centre spacing so the size labels don't crowd
 def _layout_r(d: float) -> float:
     """Layout footprint radius per size -- the ribbed valley, so all three
     coupons share one hole layout regardless of how they cut the holes."""
-    return (d + BORE_CLEARANCE) / 2 + RIB_RELIEF
+    return ribbed_valley_r(d)
 
 
 def _engrave(text: str, origin, x_dir, z_dir) -> None:
@@ -124,9 +123,7 @@ def _coupon(cut_fn, part_label: str, title: str) -> Part:
 def create() -> Part:
     """Ribbed variant -- the holder's real geometry (3 ribs grip the bit)."""
     return _coupon(
-        lambda b, h, tz, dp: cut_holes(
-            b, h, BORE_CLEARANCE, True, tz, dp, through=True
-        ),
+        lambda b, h, tz, dp: cut_holes(b, h, 0.0, True, tz, dp, through=True),
         "drill_fit_tester",
         "RIBBED",
     )

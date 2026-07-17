@@ -24,35 +24,24 @@ from models.drill_storage_gridfinity import (
     COLLAR_R,
     COLLAR_W,
     COVER_COLOR,
-    RIB_RELIEF,
     create_base,
     create_cover,
     pack_holes,
+    ribbed_valley_r,
 )
 
 LABEL = "Wood"  # material name embossed on the cover
 
-# Diametral bore clearance (mm) at the rib tips. Wood/brad-point bits have outer
-# spurs that cut a hair over the nominal shank, and FDM prints small vertical
-# holes ~0.1-0.3 mm undersized, so cutting the bores at exactly nominal is a
-# tight press fit. Bores are ribbed (see drill_storage_gridfinity), so the bit
-# rides on three rounded contacts with this clearance and drops in cleanly.
-BORE_CLEARANCE = -0.4  # rib faces sit 0.4 mm inside the bit -> firmer grip
-
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
-# or remove a size and the layout re-packs itself.
+# or remove a size and the layout re-packs itself. Bores are ribbed: the ribs
+# grip a fixed *fraction* under each bit (see RIB_UNDERSIZE), so the grip is
+# proportional across sizes -- no per-bore clearance to set here.
 DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
 # 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
 # 10 mm head rests on the top face, so the packer reserves the head's footprint.
 CSK_HEX_AF = 6.4  # 6.3 mm shank + ~0.1 mm across-flats clearance (snug drop-in)
 CSK_HEAD_D = 10.0
-
-
-def _valley_r(d: float) -> float:
-    """Ribbed-bore cut (valley) radius for a bit of diameter ``d`` mm."""
-    return (d + BORE_CLEARANCE) / 2 + RIB_RELIEF
-
 
 # Auto-placement: keep two mouth fillets of wall between holes, and one mouth
 # fillet plus the top-rim fillet to the collar wall, so every fillet forms and
@@ -61,7 +50,7 @@ _HOLE_WALL = 2 * BORE_MOUTH_CHAMFER + 0.1
 # Extra margin past (mouth + rim fillet) so the one-piece rim fillet reliably
 # forms even with every perimeter hole pinned to the same wall gap.
 _COLLAR_WALL = BORE_MOUTH_CHAMFER + BASE_TOP_CHAMFER + 0.4
-_FOOTPRINTS = [(f"{d:g}", _valley_r(d)) for d in DRILL_DIAMS] + [
+_FOOTPRINTS = [(f"{d:g}", ribbed_valley_r(d)) for d in DRILL_DIAMS] + [
     ("hex", CSK_HEAD_D / 2)
 ]
 _POS = pack_holes(_FOOTPRINTS, COLLAR_W / 2, COLLAR_R, _HOLE_WALL, _COLLAR_WALL)
@@ -72,9 +61,7 @@ HEX_BORES = [(CSK_HEX_AF, *_POS["hex"])]
 
 def create() -> Compound:
     """The base for the drill set + countersink, with its matching cover."""
-    base = create_base(
-        DRILL_BORES, hex_bores=HEX_BORES, clearance=BORE_CLEARANCE, ribbed=True
-    )
+    base = create_base(DRILL_BORES, hex_bores=HEX_BORES, clearance=0.0, ribbed=True)
     base.label = "base_2_10mm_csk"
     base.color = BASE_COLOR
 
