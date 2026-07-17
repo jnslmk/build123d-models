@@ -19,8 +19,8 @@ from build123d import Compound, Pos
 
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
-    BASE_TOP_FILLET,
-    BORE_MOUTH_FILLET,
+    BASE_TOP_CHAMFER,
+    BORE_MOUTH_CHAMFER,
     COLLAR_R,
     COLLAR_W,
     COVER_COLOR,
@@ -37,7 +37,7 @@ LABEL = "Wood"  # material name embossed on the cover
 # holes ~0.1-0.3 mm undersized, so cutting the bores at exactly nominal is a
 # tight press fit. Bores are ribbed (see drill_storage_gridfinity), so the bit
 # rides on three rounded contacts with this clearance and drops in cleanly.
-BORE_CLEARANCE = 0.15
+BORE_CLEARANCE = 0.0
 
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
 # or remove a size and the layout re-packs itself.
@@ -45,7 +45,8 @@ DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
 # 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
 # 10 mm head rests on the top face, so the packer reserves the head's footprint.
-CSK_HEX_AF = 6.6  # 6.3 mm hex + ~0.3 mm drop-in clearance (per Orca tol. test)
+CSK_HEX_AF = 6.3  # nominal shank size -- printer prints true (Orca hole comp),
+#                   so no extra clearance -> snug fit like the calibrated hex test
 CSK_HEAD_D = 10.0
 
 
@@ -57,10 +58,10 @@ def _valley_r(d: float) -> float:
 # Auto-placement: keep two mouth fillets of wall between holes, and one mouth
 # fillet plus the top-rim fillet to the collar wall, so every fillet forms and
 # the holes come out uniform. Add/remove a size above and this re-packs.
-_HOLE_WALL = 2 * BORE_MOUTH_FILLET + 0.1
+_HOLE_WALL = 2 * BORE_MOUTH_CHAMFER + 0.1
 # Extra margin past (mouth + rim fillet) so the one-piece rim fillet reliably
 # forms even with every perimeter hole pinned to the same wall gap.
-_COLLAR_WALL = BORE_MOUTH_FILLET + BASE_TOP_FILLET + 0.4
+_COLLAR_WALL = BORE_MOUTH_CHAMFER + BASE_TOP_CHAMFER + 0.4
 _FOOTPRINTS = [(f"{d:g}", _valley_r(d)) for d in DRILL_DIAMS] + [
     ("hex", CSK_HEAD_D / 2)
 ]

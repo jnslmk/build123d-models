@@ -93,8 +93,8 @@ BASE_TOTAL_H = FOOT_TOP + COLLAR_H  # 42 mm (6U)
 COVER_SEAT_CH = 0.4  # cover bottom-edge chamfer so it seats flush on
 #                                 the flat body shoulder without overhanging it
 BORE_DEPTH = 36.0  # bores sunk from the top face (stops above foot)
-BORE_MOUTH_FILLET = 0.8  # rounded lead-in at every insert-hole mouth
-BASE_TOP_FILLET = 1.0  # round-over on the base's top outer rim
+BORE_MOUTH_CHAMFER = 0.8  # 45-deg lead-in chamfer depth at every insert-hole mouth
+BASE_TOP_CHAMFER = 1.0  # 45-deg chamfer on the base's top outer rim
 
 # --- Assembled height ---------------------------------------------------------
 # A drill stands on the bore floor and rises up into the cover. Size the cover
@@ -119,7 +119,7 @@ COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 RIB_COUNT = 3
 RIB_RELIEF = 0.3  # radial relief of the valley beyond the rib tips (also rib width)
 RIB_TAPER = 4.0  # height over which each rib ramps out to nothing
-RIB_TOP_GAP = BORE_MOUTH_FILLET + 0.4  # rib fades just below the fillet edge
+RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # rib fades just below the mouth chamfer
 
 # Bore layouts (diameter, x, y) -- graduated drill sizes on a square grid.
 BORES_9 = [  # 3x3, 10 mm pitch (keeps the corner bores inside the collar)
@@ -178,6 +178,26 @@ def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
     return ring.part
 
 
+def _rim_chamfer_tool(width: float, corner_r: float, top_z: float, ch: float) -> Part:
+    """A subtract tool that 45-deg-chamfers a rounded-square top outer rim.
+
+    Built as booleans (an oversized slab minus the beveled keep-frustum) instead
+    of an OCC fillet/chamfer op, which is unreliable on this rim next to the
+    perimeter holes. Subtract the returned part from the base.
+    """
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY.offset(top_z - ch)):
+            RectangleRounded(width + 4, width + 4, corner_r)
+        extrude(amount=ch)
+        # Beveled keep-shape: full rim at the bottom, inset by ch at the top.
+        with BuildSketch(Plane.XY.offset(top_z - ch)):
+            RectangleRounded(width, width, corner_r)
+        with BuildSketch(Plane.XY.offset(top_z)):
+            RectangleRounded(width - 2 * ch, width - 2 * ch, max(corner_r - ch, 0.2))
+        loft(mode=Mode.SUBTRACT)
+    return tool.part
+
+
 # Fixed symmetry slots for the structured layout, outermost group first: the
 # corner diagonals, the edge axes, then an inner diagonal ring, an inner axis
 # ring, and finally the centre. Each entry is (angles_deg, seed_radius_fraction,
@@ -213,9 +233,9 @@ def pack_holes(
     keeps the arrangement tidy and symmetric while the radial relaxation resolves
     spacing.
 
-    Size ``hole_wall`` to ``2 * BORE_MOUTH_FILLET`` so both mouth fillets fit
-    between neighbours, and ``collar_wall`` to ``BORE_MOUTH_FILLET +
-    BASE_TOP_FILLET`` so a hole's mouth fillet and the top-rim fillet both fit;
+    Size ``hole_wall`` to ``2 * BORE_MOUTH_CHAMFER`` so both mouth fillets fit
+    between neighbours, and ``collar_wall`` to ``BORE_MOUTH_CHAMFER +
+    BASE_TOP_CHAMFER`` so a hole's mouth fillet and the top-rim fillet both fit;
     then every fillet in ``create_base`` forms. Deterministic (no RNG). Prints a
     WARNING if the collar is too crowded to reach the spacing.
     """
@@ -318,7 +338,6 @@ def pack_holes(
 
 
 def cut_holes(
-    part: BuildPart,
     bores: list[tuple[float, float, float]],
     hex_bores: list[tuple[float, float, float]] | None,
     clearance: float,
@@ -326,16 +345,17 @@ def cut_holes(
     top_z: float,
     bore_depth: float,
 ) -> None:
-    """Sink drill bores + hex sockets into the active part and round every mouth.
+    """Sink drill bores + hex sockets into the active part and chamfer every mouth.
 
-    Call this inside a ``with BuildPart() as part:`` block; it is shared by the
-    Gridfinity base and the fit tester so both get identical bore geometry.
+    Call this inside a ``with BuildPart()`` block; it operates on the active
+    builder and is shared by the Gridfinity base and the fit tester so both get
+    identical bore geometry.
 
     Round ``bores`` are ``(diameter, x, y)`` sunk ``bore_depth`` down from
     ``top_z``; when ``ribbed`` each gets ``RIB_COUNT`` rounded ribs (tips at the
     bit radius) that taper out just below the mouth. ``hex_bores`` are
-    ``(across_flats, x, y)``. Every mouth gets a full ``BORE_MOUTH_FILLET``
-    lead-in or none at all (with a warning), so thin-wall problems stay visible.
+    ``(across_flats, x, y)``. Every mouth gets a 45-deg lead-in chamfer of depth
+    ``BORE_MOUTH_CHAMFER``, cut as a boolean (robust; see the note below).
     """
     floor_z = top_z - bore_depth
     for d, x, y in bores:
@@ -378,42 +398,32 @@ def cut_holes(
         # sketch" lookup that a bare extrude() relies on doesn't resolve.
         extrude(hex_sk.sketch, amount=-bore_depth, mode=Mode.SUBTRACT)
 
-    # Lead-in fillet at every insert-hole mouth (round bores *and* hex sockets),
-    # targeted by hole centre and re-querying live edges each pass so an earlier
-    # fillet can't invalidate a later one. A round mouth is one concentric circle
-    # (use the arc centre -- a full circle's ``.center()`` is a point *on* it); a
-    # hex mouth is six shared-vertex sides that must fillet together in one call.
-    def _mouth_at(cx: float, cy: float, reach: float):
-        def near(e: object) -> bool:
-            try:
-                c = e.arc_center
-            except (ValueError, AttributeError):
-                c = e.center()
-            return ((c.X - cx) ** 2 + (c.Y - cy) ** 2) ** 0.5 <= reach
-
-        return part.edges().filter_by_position(Axis.Z, top_z, top_z).filter_by(near)
-
-    def _fillet_mouth(cx: float, cy: float, reach: float, label: str) -> None:
-        # Full radius or nothing -- no silent step-down. A mouth that can't take
-        # the fillet (usually walls too thin) is left plain and reported.
-        # Snapshot/restore the part on failure: a failed fillet otherwise
-        # corrupts the builder so every *later* fillet fails too (silent cascade).
-        saved = part.part
-        try:
-            fillet(_mouth_at(cx, cy, reach), BORE_MOUTH_FILLET)
-        except Exception as exc:
-            part.part = saved
-            print(
-                f"WARNING: {label} mouth at ({cx:.1f}, {cy:.1f}) could not take "
-                f"the {BORE_MOUTH_FILLET} mm fillet -- left unfilleted "
-                f"(walls too thin?): {exc}",
-                file=sys.stderr,
-            )
-
+    # Lead-in chamfer at every mouth, cut as a boolean 45-deg cone/frustum. We
+    # deliberately avoid OCC's fillet op here: filleting a *ribbed* mouth is
+    # unreliable, and a failed fillet corrupts the builder so every later fillet
+    # fails too (a silent cascade). A boolean cut can't fail that way, and a
+    # chamfer on a horizontal top edge is the house style anyway. The ribs fade
+    # out below the chamfer zone, so it only bevels the clean valley rim.
     for d, x, y in bores:
-        _fillet_mouth(x, y, 0.6, f"{d:g} mm bore")
+        r = (d + clearance) / 2 + (RIB_RELIEF if ribbed else 0.0)
+        with Locations((x, y, top_z - BORE_MOUTH_CHAMFER)):
+            Cone(
+                r,
+                r + BORE_MOUTH_CHAMFER,
+                BORE_MOUTH_CHAMFER,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
     for af, x, y in hex_bores or []:
-        _fillet_mouth(x, y, af, f"hex socket (AF {af:g})")
+        rc = af / 3**0.5  # hex circumradius
+        with Locations((x, y, top_z - BORE_MOUTH_CHAMFER)):
+            Cone(
+                rc,
+                rc + BORE_MOUTH_CHAMFER,
+                BORE_MOUTH_CHAMFER,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
 
 
 def create_base(
@@ -440,7 +450,7 @@ def create_base(
     print variation better than a plain wall and keeps a light, consistent grip.
     Ribbed bores need more room, so a tightly packed layout may need re-spacing.
 
-    Every hole mouth (round *and* hex) gets a lead-in fillet of ``BORE_MOUTH_FILLET``.
+    Every hole mouth (round *and* hex) gets a lead-in fillet of ``BORE_MOUTH_CHAMFER``.
     """
     with BuildPart() as base:
         add(_gridfinity_foot())
@@ -464,22 +474,14 @@ def create_base(
         )
 
         # Sink the graduated drill bores + hex socket and round every mouth.
-        cut_holes(base, bores, hex_bores, clearance, ribbed, BASE_TOTAL_H, BORE_DEPTH)
+        cut_holes(bores, hex_bores, clearance, ribbed, BASE_TOTAL_H, BORE_DEPTH)
 
-        # Round over the base's top outer rim (softer top edge + a lead-in for
-        # the cover). Same policy: full radius or none, with a warning.
-        top_face = base.faces().filter_by(Plane.XY).sort_by(Axis.Z)[-1]
-        rim = top_face.outer_wire().edges()
-        saved = base.part
-        try:
-            fillet(rim, BASE_TOP_FILLET)
-        except Exception as exc:
-            base.part = saved
-            print(
-                f"WARNING: base top rim could not take the {BASE_TOP_FILLET} mm "
-                f"fillet -- left unfilleted: {exc}",
-                file=sys.stderr,
-            )
+        # Chamfer the collar's top outer rim (softer top edge + a lead-in for the
+        # cover) via a boolean cut -- robust, unlike the flaky fillet op.
+        add(
+            _rim_chamfer_tool(COLLAR_W, COLLAR_R, BASE_TOTAL_H, BASE_TOP_CHAMFER),
+            mode=Mode.SUBTRACT,
+        )
     return base.part
 
 
