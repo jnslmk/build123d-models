@@ -40,6 +40,7 @@ from build123d import (
     Part,
     Plane,
     PolarLocations,
+    Polygon,
     Pos,
     RectangleRounded,
     RegularPolygon,
@@ -79,13 +80,21 @@ LABEL_DEPTH = 0.6  # engrave depth into the flat face (< COVER_WALL, no punch-th
 LABEL_CHAMFER = 0.5  # near-full-depth bevel -> a continuous V-groove wall, no step
 
 # --- Snap fit -----------------------------------------------------------------
-# A small rounded bead runs around the inside of the cover near its opening and
-# clicks into a matching groove on the base collar. Both are half-round rings so
-# the cover rides on and off with a light detent.
+# A shallow *ramped* bead runs around the inside of the cover near its opening
+# and clicks into a rounded groove on the base collar. The bead is an asymmetric
+# chamfered ring, not a half-round bump: a long gentle lead-in ramp on the
+# insertion side (below the tip) so the cover slides on progressively, and a
+# shorter, steeper retention face above so it still detents on the way in. The
+# old half-round bead changed height as steeply as it protruded, so the cover
+# fought over it going on. Protrusion is also trimmed a touch so the bulge is
+# thinner. The groove stays a forgiving round pocket that simply receives the tip.
 SLIP = 0.4  # diametral slip clearance, collar in cover bore
-SNAP_Z = 6.0  # height above the cover opening / collar base
-SNAP_BEAD_R = 0.6  # bead radius -> protrudes 0.6 mm into the bore
-SNAP_GROOVE_R = 0.8  # groove radius on the collar (a touch deeper)
+SNAP_Z = 6.0  # height of the bead/groove above the cover opening / collar base
+SNAP_PROTRUSION = 0.45  # how far the bead tip stands into the bore (was 0.6)
+SNAP_LEAD_IN = 2.4  # vertical run of the gentle insertion ramp (below the tip)
+SNAP_BACK = 1.1  # vertical run of the steeper retention face (above the tip)
+SNAP_TIP_FLAT = 0.3  # short flat at the tip so it isn't a fragile knife edge
+SNAP_GROOVE_R = 0.8  # rounded groove radius on the collar (receives the bead tip)
 
 # --- Base ---------------------------------------------------------------------
 FOOT_TOP = 24.0  # top of the full-width body (cover seats here)
@@ -210,6 +219,37 @@ def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
         with BuildSketch(Plane.XZ):
             with Locations((size / 2, z)):
                 Circle(bead_r)
+        sweep(path=path)
+    return ring.part
+
+
+def _snap_bead_ring(size: float, corner_r: float, z: float) -> Part:
+    """A chamfered (asymmetric) bead ring for a smooth-engaging snap fit.
+
+    Instead of a half-round bump, the cross-section is a quad that protrudes
+    ``SNAP_PROTRUSION`` inward from the wall and rises with a long, gentle
+    ``SNAP_LEAD_IN`` ramp on the insertion (lower) side and a shorter, steeper
+    ``SNAP_BACK`` retention face on the upper side, with a small ``SNAP_TIP_FLAT``
+    at the tip. Swept around the rounded-square perimeter of side ``size`` at
+    height ``z``; union it into the cover so the cover slides on progressively
+    yet still detents into the collar groove. The gentle ramp is the "chamber
+    that slides on"; the round groove (``_snap_ring``) forgivingly receives it.
+    """
+    with BuildSketch(Plane.XY.offset(z)) as outline:
+        RectangleRounded(size, size, corner_r)
+    path = outline.faces()[0].outer_wire()
+    x_wall = size / 2  # bead base sits on the bore wall ...
+    x_tip = size / 2 - SNAP_PROTRUSION  # ... and its tip stands inward into the bore
+    # Local sketch coords on Plane.XZ: x -> radius, y -> height (matches _snap_ring).
+    profile = [
+        (x_wall, z - SNAP_LEAD_IN),  # bottom of the gentle insertion ramp
+        (x_tip, z - SNAP_TIP_FLAT / 2),  # tip, lower
+        (x_tip, z + SNAP_TIP_FLAT / 2),  # tip, upper
+        (x_wall, z + SNAP_BACK),  # top of the steeper retention face
+    ]
+    with BuildPart() as ring:
+        with BuildSketch(Plane.XZ):
+            Polygon(*profile, align=None)
         sweep(path=path)
     return ring.part
 
@@ -743,9 +783,9 @@ def create_cover(label: str) -> Part:
         )
         if ceiling:
             fillet(ceiling, CAP_FILLET)
-        # Snap bead: a rounded ridge just inside the opening that clicks into
-        # the groove on the base collar.
-        add(_snap_ring(INNER_W, INNER_R, SNAP_Z, SNAP_BEAD_R))
+        # Snap bead: a chamfered (ramped) ridge just inside the opening that
+        # slides on gently and clicks into the groove on the base collar.
+        add(_snap_bead_ring(INNER_W, INNER_R, SNAP_Z))
 
         # Engraved label, upright and reading up the +Y flat face. The glyphs
         # are cut into the wall (durable, can't snag or shear off), shallower
@@ -778,6 +818,26 @@ def create_cover(label: str) -> Part:
     return Pos(0, 0, -part.bounding_box().min.Z) * part
 
 
+def _legend_from_bores(
+    bores: list[tuple[float, float, float]],
+) -> tuple[list[list[str]], dict[str, tuple[float, float]]]:
+    """Build ``(rows, hole_pos)`` for the wall size legend from a fixed bore grid.
+
+    Groups ``(diameter, x, y)`` bores into rows by their y coordinate (rows
+    ordered back -> front, sizes within a row largest -> smallest) and keys each
+    hole by its ``{d:g}`` size string, so a hardcoded layout like ``BORES_9`` gets
+    the same engraved size legend that ``pack_rows`` produces for the wood/metal
+    sets. Assumes distinct sizes (unique keys) and holes aligned in y rows.
+    """
+    pos = {f"{d:g}": (x, y) for d, x, y in bores}
+    rows = [
+        [f"{d:g}" for d, _ in sorted(row, key=lambda t: -t[0])]
+        for yv in sorted({y for _, _, y in bores}, reverse=True)
+        for row in [[(d, x) for d, x, y in bores if y == yv]]
+    ]
+    return rows, pos
+
+
 def create() -> Compound:
     """Full set: three labelled square covers with two Gridfinity bases."""
     covers = []
@@ -787,10 +847,12 @@ def create() -> Compound:
         c.color = COVER_COLOR
         covers.append(Pos(x, 30, 0) * c)
 
-    base9 = create_base(BORES_9)
+    rows9, pos9 = _legend_from_bores(BORES_9)
+    base9 = create_base(BORES_9, rows=rows9, hole_pos=pos9)
     base9.label = "base_9_bore"
     base9.color = BASE_COLOR
-    base4 = create_base(BORES_4)
+    rows4, pos4 = _legend_from_bores(BORES_4)
+    base4 = create_base(BORES_4, rows=rows4, hole_pos=pos4)
     base4.label = "base_4_bore"
     base4.color = BASE_COLOR
 
