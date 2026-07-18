@@ -34,6 +34,7 @@ from build123d import (
     Cone,
     Cylinder,
     Circle,
+    FontStyle,
     Locations,
     Mode,
     Part,
@@ -42,6 +43,7 @@ from build123d import (
     Pos,
     RectangleRounded,
     RegularPolygon,
+    Rotation,
     Text,
     add,
     chamfer,
@@ -96,6 +98,18 @@ COVER_SEAT_CH = 0.4  # cover bottom-edge chamfer so it seats flush on
 BORE_DEPTH = 36.0  # bores sunk from the top face (stops above foot)
 BORE_MOUTH_CHAMFER = 0.8  # 45-deg lead-in chamfer depth at every insert-hole mouth
 BASE_TOP_CHAMFER = 1.0  # 45-deg chamfer on the base's top outer rim
+
+# --- Size labels on the base body walls ---------------------------------------
+# Each drill's size is engraved into the body's outer wall, on whichever of the
+# four faces the hole points toward, centred in front of the hole -- so you read
+# a face and look straight in, and the set is legible from all four sides.
+WALL_LABEL_SIZE = 4.0
+WALL_LABEL_Z = 14.0  # vertical centre of the numbers on the ~4.4..24 mm body wall
+WALL_LABEL_DEPTH = 0.8  # engrave depth -- deep enough to stay legible under layer
+#                         lines on the vertical (bores-up) print orientation
+WALL_LABEL_STYLE = FontStyle.BOLD  # bold: ~1 mm strokes + a 0.7 mm decimal point,
+#                         so the fine features survive an FDM nozzle in ABS
+WALL_LABEL_MAX_LAT = PAD / 2 - CORNER_R - 1.0  # keep numbers off the rounded corners
 
 # --- Assembled height ---------------------------------------------------------
 # A drill stands on the bore floor and rises up into the cover. Size the cover
@@ -359,6 +373,180 @@ def pack_holes(
     return {keys[i]: (round(pos[i][0], 2), round(pos[i][1], 2)) for i in range(n)}
 
 
+def pack_rows(
+    items: list[tuple[str, float]],
+    collar_half: float,
+    corner_r: float,
+    hole_wall: float,
+    wall_clearance: float,
+) -> tuple[dict[str, tuple[float, float]], list[list[str]]]:
+    """Lay holes out in tidy rows, ordered largest -> smallest, rows shrinking,
+    spread to fill the collar.
+
+    ``items`` is ``(key, footprint_r)``. Holes are sorted big-first and dealt into
+    ~sqrt(n) rows so the biggest fill a short top row and each following row holds
+    progressively smaller bits (a balanced pyramid). Within a row they run largest
+    -> smallest, left -> right; rows stack back (+Y, biggest) to front (-Y,
+    smallest).
+
+    Rather than centre-packing, the holes are *spread*: rows are pushed apart
+    vertically and the holes within each row pushed apart horizontally until the
+    outermost sit exactly ``wall_clearance`` from the rounded collar wall, then the
+    remaining slack is shared out as equal gaps. This maximises the space between
+    holes while keeping the minimum edge distance and neat, evenly spaced rows.
+    ``hole_wall`` is only the *minimum* spacing used to grade holes into rows.
+
+    Returns ``({key: (x, y)}, rows)`` (``rows`` = keys per row, biggest first).
+    Prints a WARNING if a row can't fit (holes would overlap).
+    """
+    rmap = {k: r for k, r in items}
+    order = sorted(items, key=lambda kv: -kv[1])
+    n = len(order)
+    n_rows = max(1, round(n**0.5))
+    a = collar_half - corner_r
+
+    def sdf(px: float, py: float) -> float:
+        qx = abs(px) - a
+        qy = abs(py) - a
+        return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - corner_r
+
+    def reach(coord, r: float) -> float:
+        """Largest t >= 0 along the ray ``coord(t)`` where a hole of radius ``r``
+        still keeps ``wall_clearance`` to the collar wall."""
+        lo, hi = 0.0, collar_half
+        for _ in range(44):
+            m = (lo + hi) / 2
+            px, py = coord(m)
+            if -sdf(px, py) - r >= wall_clearance:
+                lo = m
+            else:
+                hi = m
+        return lo
+
+    # Grade holes into rows: each row takes its share, but never more than fits
+    # across the widest usable span (centres reach in by wall_clearance + radius).
+    budget = 2 * reach(lambda t: (t, 0.0), 0.0)
+    rows: list[list[str]] = []
+    idx = 0
+    rows_left = n_rows
+    while idx < n:
+        cap = math.ceil((n - idx) / rows_left)
+        row: list[str] = []
+        w = 0.0
+        while idx < n and len(row) < cap:
+            r = order[idx][1]
+            need = 2 * r + (hole_wall if row else 0.0)
+            if row and w + need > budget:
+                break
+            row.append(order[idx][0])
+            w += need
+            idx += 1
+        rows.append(row)
+        rows_left = max(1, rows_left - 1)
+
+    row_rmax = [max(rmap[k] for k in row) for row in rows]
+    n_r = len(rows)
+
+    # Vertical: push the top/bottom rows out to their wall clearance and share the
+    # remaining height as equal gaps between rows.
+    if n_r == 1:
+        y_centers = [0.0]
+    else:
+        y_top = reach(lambda t: (0.0, t), row_rmax[0])
+        y_bot = -reach(lambda t: (0.0, t), row_rmax[-1])
+        adj = sum(row_rmax[i] + row_rmax[i + 1] for i in range(n_r - 1))
+        gap_y = (y_top - y_bot - adj) / (n_r - 1)
+        y_centers = [y_top]
+        for i in range(n_r - 1):
+            y_centers.append(y_centers[-1] - (row_rmax[i] + gap_y + row_rmax[i + 1]))
+
+    positions: dict[str, tuple[float, float]] = {}
+    worst_gap = 1e9
+    for row, yc in zip(rows, y_centers):
+        rs = [rmap[k] for k in row]
+        k = len(row)
+        if k == 1:
+            xs = [0.0]
+        else:
+            # End holes out to their own wall clearance; slack shared as equal gaps.
+            x_left = -reach(lambda t: (-t, yc), rs[0])
+            x_right = reach(lambda t: (t, yc), rs[-1])
+            gap_x = ((x_right - x_left) - (2 * sum(rs) - rs[0] - rs[-1])) / (k - 1)
+            worst_gap = min(worst_gap, gap_x)
+            xs = [x_left]
+            for i in range(k - 1):
+                xs.append(xs[-1] + rs[i] + gap_x + rs[i + 1])
+        for key, x in zip(row, xs):
+            positions[key] = (round(x, 2), round(yc, 2))
+
+    if worst_gap < -0.05:
+        print(
+            f"WARNING: a row overpacks by {-worst_gap:.2f} mm (holes overlap) -- "
+            f"drop a size or shrink one.",
+            file=sys.stderr,
+        )
+    return positions, rows
+
+
+# Outward-normal, upright (+Z up) text frames for each body face: (origin, x_dir,
+# z_dir) as a function of the in-face lateral offset and height. Used to engrave
+# the size legend into the base body's four walls.
+def _face_frame(face: str, lateral: float, z: float):
+    half = PAD / 2
+    return {
+        "N": ((lateral, half, z), (-1, 0, 0), (0, 1, 0)),
+        "S": ((lateral, -half, z), (1, 0, 0), (0, -1, 0)),
+        "E": ((half, lateral, z), (0, 1, 0), (1, 0, 0)),
+        "W": ((-half, lateral, z), (0, -1, 0), (-1, 0, 0)),
+    }[face]
+
+
+def _engrave_row_legend(
+    rows: list[list[str]], pos: dict[str, tuple[float, float]]
+) -> None:
+    """Engrave the size legend into the front and back body walls.
+
+    ``rows`` lists the hole keys per row (biggest row first); ``pos`` is each
+    key's ``(x, y)``. Only the front and back walls (-Y / +Y) carry the legend --
+    the rows run edge-on into the left/right walls, so a legend there can't line
+    up with the holes and is left off.
+
+    Each number is engraved *individually*, centred at its hole's own x, so it
+    sits directly in front of that hole's column (from either wall -- a label at
+    the hole's world-x tracks the hole through the view mirror). Rows stack in z
+    with the row nearest the wall at the bottom. A number is nudged inward only if
+    it would otherwise run off the flat wall onto a rounded corner.
+
+    Call inside the active BuildPart.
+    """
+    n = len(rows)
+    line_h = WALL_LABEL_SIZE + 1.6
+    z_top = WALL_LABEL_Z + (n - 1) * line_h / 2
+    flat_half = PAD / 2 - CORNER_R  # numbers must stay on the flat wall face
+
+    def engrave(text: str, face: str, lateral: float, z: float) -> None:
+        # Keep the (centre-aligned) glyphs clear of the rounded corners.
+        limit = flat_half - 0.31 * WALL_LABEL_SIZE * len(text) - 0.3
+        lateral = max(-limit, min(limit, lateral))
+        origin, x_dir, z_dir = _face_frame(face, lateral, z)
+        with BuildSketch(Plane(origin=origin, x_dir=x_dir, z_dir=z_dir)) as sk:
+            Text(text, font_size=WALL_LABEL_SIZE, font_style=WALL_LABEL_STYLE)
+        extrude(sk.sketch, amount=-WALL_LABEL_DEPTH, mode=Mode.SUBTRACT)
+
+    row_y = [sum(pos[k][1] for k in row) / len(row) for row in rows]
+    # Front (-Y / S): nearest row (min y) at the bottom. Back (+Y / N): nearest
+    # row (max y) at the bottom. Each number is placed at its hole's world-x, so
+    # it lines up in front of the hole from that wall's side either way.
+    for face, order in (
+        ("S", sorted(range(n), key=lambda i: -row_y[i])),
+        ("N", sorted(range(n), key=lambda i: row_y[i])),
+    ):
+        for line_idx, ri in enumerate(order):
+            z = z_top - line_idx * line_h
+            for k in rows[ri]:
+                engrave(k, face, pos[k][0], z)
+
+
 def cut_holes(
     bores: list[tuple[float, float, float]],
     hex_bores: list[tuple[float, float, float]] | None,
@@ -466,6 +654,8 @@ def create_base(
     hex_bores: list[tuple[float, float, float]] | None = None,
     clearance: float = 0.0,
     ribbed: bool = False,
+    rows: list[list[str]] | None = None,
+    hole_pos: dict[str, tuple[float, float]] | None = None,
 ) -> Part:
     """A Gridfinity 1x1 base: foot + body stepping to a collar, with drill bores.
 
@@ -473,6 +663,10 @@ def create_base(
     sockets ``(across_flats, x, y)`` for hex-shank bits -- the shank drops into
     the socket and any wider head above just rests on the top face, so leave
     clearance around a hex position for the head diameter.
+
+    ``rows`` (hole keys per row, biggest row first) with ``hole_pos``
+    (``{key: (x, y)}``) engrave the size legend into all four body walls, each
+    ordered to read correctly from its own side, so the sizes read from any side.
 
     ``clearance`` is a diametral allowance (mm) added to every round bore so the
     bit drops in freely. FDM prints small vertical holes 0.1-0.3 mm *under* the
@@ -517,6 +711,10 @@ def create_base(
             _rim_chamfer_tool(COLLAR_W, COLLAR_R, BASE_TOTAL_H, BASE_TOP_CHAMFER),
             mode=Mode.SUBTRACT,
         )
+
+        # Engrave the size legend into the body walls (all four sides).
+        if rows and hole_pos:
+            _engrave_row_legend(rows, hole_pos)
     return base.part
 
 
@@ -574,7 +772,10 @@ def create_cover(label: str) -> Part:
                 chamfer(mouth, LABEL_CHAMFER)
             except Exception:
                 pass
-    return cover.part
+    # Print orientation: flip the cover upside down (pillow top on the bed, open
+    # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
+    part = Rotation(180, 0, 0) * cover.part
+    return Pos(0, 0, -part.bounding_box().min.Z) * part
 
 
 def create() -> Compound:
