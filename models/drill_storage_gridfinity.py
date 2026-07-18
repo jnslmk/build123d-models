@@ -28,7 +28,6 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
-    Box,
     Color,
     Compound,
     Cone,
@@ -132,21 +131,26 @@ TOTAL_ASSEMBLED_H = math.ceil(_cover_top_min / HEIGHT_UNIT) * HEIGHT_UNIT  # 147
 COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
 
 # --- Ribbed bores (opt-in) ----------------------------------------------------
-# A ribbed bore is cut wider than the bit and given RIB_COUNT wide, flat-faced
-# ribs standing proud of the relieved valley. The bit grips on the rib faces --
-# which sit just *inside* it -- so it's held by light interference rather than
-# rattling. The rib dimensions SCALE with the bit diameter (a fixed-size rib
-# swamps a small hole and rattles in a big one), each floored so it stays
-# printable / meaningful on the smallest bits. Ribs stop RIB_TOP_GAP below the
-# mouth so the opening stays clean for the lead-in chamfer.
+# A ribbed bore is cut wider than the bit and given RIB_COUNT rounded ribs
+# standing proud of the relieved valley. Each rib is a vertical round-topped bead
+# (a cylinder whose inner edge is the grip radius), so the bit rides on a rounded
+# contact -- which sits just *inside* it -- and is held by light interference
+# rather than rattling. Near the top each rib ramps out to nothing over RIB_TAPER
+# (a cone cap) so it flows back into the wall instead of ending in a sharp square
+# top: that taper is the bit's lead-in onto the ribs. The rib dimensions SCALE
+# with the bit diameter (a fixed-size rib swamps a small hole and rattles in a
+# big one), each floored so it stays printable / meaningful on the smallest bits.
+# Ribs stop RIB_TOP_GAP below the mouth so the opening stays clean for the lead-in
+# chamfer.
 RIB_COUNT = 3
 RIB_UNDERSIZE = 0.04  # rib faces sit this fraction of d inside the bit (grip) ...
 RIB_UNDERSIZE_MIN = 0.15  # ... but at least this, so small holes aren't too loose
 RIB_RELIEF_FRAC = 0.04  # rib protrusion past the valley, as a fraction of d ...
 RIB_RELIEF_MIN = 0.2  # ... but at least this, so the rib is a defined feature
-RIB_WIDTH_FRAC = 0.15  # tangential rib width, as a fraction of d ...
+RIB_WIDTH_FRAC = 0.15  # rounded-bead diameter, as a fraction of d ...
 RIB_WIDTH_MIN = 0.8  # ... at least a nozzle-friendly width ...
 RIB_WIDTH_MAX = 1.5  # ... and no wider than this
+RIB_TAPER = 4.0  # height over which each rib ramps out to nothing near the top
 RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 
 
@@ -604,9 +608,10 @@ def cut_holes(
     identical bore geometry.
 
     Round ``bores`` are ``(diameter, x, y)`` sunk ``bore_depth`` down from
-    ``top_z``. When ``ribbed`` each gets ``RIB_COUNT`` wide flat ribs whose faces
-    sit ``RIB_UNDERSIZE`` (a *fraction* of the bit) inside it, so grip is
-    proportional across sizes. Plain (not ribbed) holes are sized ``clearance``
+    ``top_z``. When ``ribbed`` each gets ``RIB_COUNT`` rounded ribs whose contact
+    edge sits ``RIB_UNDERSIZE`` (a *fraction* of the bit) inside it, so grip is
+    proportional across sizes; each rib tapers out to nothing over ``RIB_TAPER``
+    near the top as a lead-in. Plain (not ribbed) holes are sized ``clearance``
     (mm) plus ``undersize_frac`` (a fraction of the bit) under -- the fractional
     part compensates the way small holes print tighter than large ones.
 
@@ -633,25 +638,38 @@ def cut_holes(
                 mode=Mode.SUBTRACT,
             )
         if ribbed:
-            # Wide, flat-faced ribs standing proud of the valley: the bit grips
-            # on their faces (which sit just inside it). Wide + flat prints where
-            # a thin pointed pin gets dropped by the slicer; radial length =
-            # protrusion + embed into the wall. Width scales with the hole (and
-            # is capped) so ribs don't choke a tiny bore.
+            # Rounded ribs standing proud of the valley: each is a vertical
+            # round-topped bead (a cylinder of diameter ``width``) whose inner
+            # edge is the grip radius ``r_tip``, so the bit rides on a rounded
+            # contact. The bead is wide enough that its far side always crosses
+            # the valley wall (width > relief), so it merges solidly into the
+            # body -- never a floating pin. Over the top RIB_TAPER a coaxial cone
+            # tapers the bead to nothing (apex at the wall, not free-floating), so
+            # it ramps out into the wall as a lead-in instead of ending square.
+            # Width scales with the hole (and is capped) so it can't choke a bore.
             rib_h = bore_depth - RIB_TOP_GAP
             width = min(
                 max(RIB_WIDTH_FRAC * d, RIB_WIDTH_MIN), RIB_WIDTH_MAX, 1.4 * r_tip
             )
-            r_len = relief + 0.5
+            bead_r = width / 2
+            center_r = r_tip + bead_r  # inner edge of the bead lands on r_tip
+            body_h = rib_h - RIB_TAPER
             with Locations((x, y, floor_z)):
-                with PolarLocations(r_tip + r_len / 2, RIB_COUNT):
-                    Box(
-                        r_len,
-                        width,
-                        rib_h,
+                with PolarLocations(center_r, RIB_COUNT):
+                    Cylinder(
+                        bead_r,
+                        body_h,
                         align=(Align.CENTER, Align.CENTER, Align.MIN),
                         mode=Mode.ADD,
                     )
+                    with Locations((0, 0, body_h)):
+                        Cone(
+                            bead_r,
+                            0.0,
+                            RIB_TAPER,
+                            align=(Align.CENTER, Align.CENTER, Align.MIN),
+                            mode=Mode.ADD,
+                        )
 
     for af, x, y in hex_bores or []:
         with BuildSketch(Plane.XY.offset(top_z)) as hex_sk:
@@ -714,10 +732,11 @@ def create_base(
     press fit; a modest positive clearance restores a slip fit. Hex sockets are
     unaffected -- their across-flats already carries its own fit allowance.
 
-    ``ribbed`` relieves each round bore and restores ``RIB_COUNT`` wide flat ribs
-    whose faces sit ``RIB_UNDERSIZE`` (a fraction of the bit) inside it, so the
-    bit is held by a proportional light interference on the rib faces. Ribbed
-    bores need more room, so a tightly packed layout may need re-spacing.
+    ``ribbed`` relieves each round bore and restores ``RIB_COUNT`` rounded ribs
+    whose contact edge sits ``RIB_UNDERSIZE`` (a fraction of the bit) inside it,
+    so the bit is held by a proportional light interference; each rib tapers out
+    to nothing near the top as a lead-in. Ribbed bores need more room, so a
+    tightly packed layout may need re-spacing.
 
     Every hole mouth (round *and* hex) gets a lead-in fillet of ``BORE_MOUTH_CHAMFER``.
     """
