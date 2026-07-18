@@ -20,6 +20,8 @@ Examples:
 
 from __future__ import annotations
 
+import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
+
 import argparse
 import importlib
 import sys

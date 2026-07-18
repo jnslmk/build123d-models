@@ -1,3 +1,5 @@
+import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
+
 import argparse
 import importlib
 import json
