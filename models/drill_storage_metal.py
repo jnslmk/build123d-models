@@ -1,7 +1,7 @@
 """Gridfinity drill storage sized for a 1-10 mm metal (HSS twist) drill set plus
 a 10 mm hex-shank insert.
 
-A sibling of ``drill_storage_metric`` built on the very same square Gridfinity
+A sibling of ``drill_storage_wood`` built on the very same square Gridfinity
 base/cover engine from ``drill_storage_gridfinity`` -- only the inputs differ: a
 1x1 base holding ten graduated drills (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10 mm)
 plus a 10 mm across-flats hex-shank insert dropping into a hex socket, and a
@@ -23,15 +23,10 @@ from build123d import Compound, Pos
 
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
-    BASE_TOP_CHAMFER,
-    BORE_MOUTH_CHAMFER,
-    COLLAR_R,
-    COLLAR_W,
     COVER_COLOR,
     create_base,
     create_cover,
-    pack_rows,
-    ribbed_valley_r,
+    layout_bores,
 )
 
 LABEL = "Metal"  # material name embossed on the cover
@@ -48,22 +43,14 @@ DRILL_DIAMS = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0]
 HEX_AF = 10.1  # 10 mm hex shank + ~0.1 mm across-flats clearance
 HEX_LABEL = "TAP"  # wall legend for the hex socket
 
-# Row layout: minimum spacing used to grade holes into rows, and the minimum
-# clearance every hole keeps to the collar wall (a mouth chamfer + the top-rim
-# chamfer + margin, so both lead-ins still form). Holes are then spread out to
-# fill the collar. Add/remove a size above and this re-packs.
-_HOLE_WALL = 2 * BORE_MOUTH_CHAMFER + 0.1
-_WALL_CLEARANCE = BORE_MOUTH_CHAMFER + BASE_TOP_CHAMFER + 0.4
-# The hex socket's footprint is its circumradius (af / sqrt(3)) -- there is no
-# wider head resting on top, unlike the countersink in ``drill_storage_wood``.
-_HEX_FOOTPRINT_R = HEX_AF / 3**0.5
-_ITEMS = [(f"{d:g}", ribbed_valley_r(d)) for d in DRILL_DIAMS] + [
-    (HEX_LABEL, _HEX_FOOTPRINT_R)
-]
-_POS, _ROWS = pack_rows(_ITEMS, COLLAR_W / 2, COLLAR_R, _HOLE_WALL, _WALL_CLEARANCE)
-
-DRILL_BORES = [(d, *_POS[f"{d:g}"]) for d in DRILL_DIAMS]
-HEX_BORES = [(HEX_AF, *_POS[HEX_LABEL])]
+# Positions are solved by the shared ``layout_bores``. The hex socket's footprint
+# is just its circumradius (af / sqrt(3)) -- there is no wider head resting on top,
+# unlike the countersink in ``drill_storage_wood``. Add/remove a size above and it
+# re-packs.
+DRILL_BORES, HEX_BORES, _ROWS, _POS = layout_bores(
+    DRILL_DIAMS,
+    hex_tools=[(HEX_LABEL, HEX_AF, HEX_AF / 3**0.5)],
+)
 
 
 def create() -> Compound:

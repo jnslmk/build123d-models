@@ -20,15 +20,10 @@ from build123d import Compound, Pos
 
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
-    BASE_TOP_CHAMFER,
-    BORE_MOUTH_CHAMFER,
-    COLLAR_R,
-    COLLAR_W,
     COVER_COLOR,
     create_base,
     create_cover,
-    pack_rows,
-    ribbed_valley_r,
+    layout_bores,
 )
 
 LABEL = "Wood"  # material name embossed on the cover
@@ -44,24 +39,16 @@ DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 CSK_HEX_AF = 6.3  # 6.3 mm shank, no clearance -> a tighter grip on the hex shank
 CSK_HEAD_D = 10.0
 
-# Row layout: minimum spacing used to grade holes into rows, and the minimum
-# clearance every hole keeps to the collar wall (a mouth chamfer + the top-rim
-# chamfer + margin, so both lead-ins still form). Holes are then spread out to
-# fill the collar. Add/remove a size above and this re-packs.
-_HOLE_WALL = 2 * BORE_MOUTH_CHAMFER + 0.1
-_WALL_CLEARANCE = BORE_MOUTH_CHAMFER + BASE_TOP_CHAMFER + 0.4
-_ITEMS = [(f"{d:g}", ribbed_valley_r(d)) for d in DRILL_DIAMS] + [
-    ("CSK", CSK_HEAD_D / 2)
-]
-_POS, _ROWS = pack_rows(_ITEMS, COLLAR_W / 2, COLLAR_R, _HOLE_WALL, _WALL_CLEARANCE)
-
-# Swap the countersink and the 10 mm drill so the CSK sits at the row edge and
-# the 10 mm bore takes the centre slot. Their footprints are within 0.2 mm
-# (10 -> 5.2, CSK head -> 5.0), so trading places keeps every wall clearance.
-_POS["CSK"], _POS["10"] = _POS["10"], _POS["CSK"]
-
-DRILL_BORES = [(d, *_POS[f"{d:g}"]) for d in DRILL_DIAMS]
-HEX_BORES = [(CSK_HEX_AF, *_POS["CSK"])]
+# Positions are solved by the shared ``layout_bores``: the CSK is packed by its
+# 10 mm head footprint but bored as a 6.3 mm hex socket, and swapped with the
+# 10 mm drill so the CSK sits at a row edge while the 10 mm bore takes the centre
+# slot. Their footprints are within 0.2 mm (10 -> 5.2, CSK head -> 5.0), so the
+# trade keeps every wall clearance. Add/remove a size above and it re-packs.
+DRILL_BORES, HEX_BORES, _ROWS, _POS = layout_bores(
+    DRILL_DIAMS,
+    hex_tools=[("CSK", CSK_HEX_AF, CSK_HEAD_D / 2)],
+    swap=[("CSK", "10")],
+)
 
 
 def create() -> Compound:

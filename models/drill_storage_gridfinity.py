@@ -119,6 +119,15 @@ WALL_LABEL_STYLE = FontStyle.BOLD  # bold: ~1 mm strokes + a 0.7 mm decimal poin
 #                         so the fine features survive an FDM nozzle in ABS
 WALL_LABEL_MAX_LAT = PAD / 2 - CORNER_R - 1.0  # keep numbers off the rounded corners
 
+# --- Automatic hole layout ----------------------------------------------------
+# Spacing budget handed to ``pack_rows`` (see ``layout_bores``). HOLE_WALL is the
+# minimum edge-to-edge gap used to grade holes into rows -- two mouth chamfers
+# plus a hair so both lead-ins fit between neighbours. WALL_CLEARANCE is the
+# minimum every hole keeps to the collar wall -- a mouth chamfer + the top-rim
+# chamfer + margin, so a hole's lead-in and the rim chamfer both still form.
+HOLE_WALL = 2 * BORE_MOUTH_CHAMFER + 0.1
+WALL_CLEARANCE = BORE_MOUTH_CHAMFER + BASE_TOP_CHAMFER + 0.4
+
 # --- Assembled height ---------------------------------------------------------
 # A drill stands on the bore floor and rises up into the cover. Size the cover
 # so the assembled envelope (cover top above the baseplate) rounds UP to a whole
@@ -170,24 +179,11 @@ def ribbed_valley_r(d: float) -> float:
     return _rib_tip_r(d) + _rib_relief(d)
 
 
-# Bore layouts (diameter, x, y) -- graduated drill sizes on a square grid.
-BORES_9 = [  # 3x3, 10 mm pitch (keeps the corner bores inside the collar)
-    (3.0, -10, 10),
-    (3.5, 0, 10),
-    (4.0, 10, 10),
-    (5.0, -10, 0),
-    (6.0, 0, 0),
-    (7.0, 10, 0),
-    (8.0, -10, -10),
-    (9.0, 0, -10),
-    (9.5, 10, -10),
-]
-BORES_4 = [  # 2x2, 14 mm pitch, larger bits
-    (12.0, -7, -7),
-    (10.0, 7, -7),
-    (8.0, -7, 7),
-    (6.0, 7, 7),
-]
+# Demo drill sets for the default holder -- just the sizes; ``layout_bores``
+# solves the positions (see ``create``). A small graduated set and a large-bit
+# set, to show both ends of the range.
+DEMO_DIAMS_SMALL = [3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.5]
+DEMO_DIAMS_LARGE = [6.0, 8.0, 10.0, 12.0]
 
 BASE_COLOR = Color(0.62, 0.64, 0.67)
 COVER_COLOR = Color(0.93, 0.93, 0.92)
@@ -532,6 +528,46 @@ def pack_rows(
     return positions, rows
 
 
+def layout_bores(
+    drill_diams: list[float],
+    hex_tools: list[tuple[str, float, float]] | None = None,
+    swap: list[tuple[str, str]] | None = None,
+) -> tuple[
+    list[tuple[float, float, float]],
+    list[tuple[float, float, float]],
+    list[list[str]],
+    dict[str, tuple[float, float]],
+]:
+    """Intelligently position a graduated drill set on the collar in tidy rows.
+
+    The one-call front end to ``pack_rows`` shared by every variant: hand it the
+    drill diameters (and any hex-shank tools) and it returns everything
+    ``create_base`` needs -- positioned round bores, hex sockets, the row grouping
+    and the ``{key: (x, y)}`` map for the wall legend -- so a set is defined by
+    just its sizes and the layout is solved, not hand-placed.
+
+    ``drill_diams`` are round ribbed bores; each is packed by its
+    ``ribbed_valley_r`` footprint and keyed by its ``{d:g}`` size string.
+    ``hex_tools`` are ``(label, across_flats, footprint_r)`` for hex-shank bits:
+    the shank drops into an ``across_flats`` socket while ``footprint_r`` is the
+    radius reserved during packing (a countersink's head is wider than its socket;
+    a plain hex tool's is just its circumradius). ``swap`` optionally exchanges the
+    positions of two keys after packing (e.g. move a countersink out to a row edge
+    and give the centre slot to a same-size drill).
+
+    Returns ``(drill_bores, hex_bores, rows, hole_pos)``.
+    """
+    hex_tools = hex_tools or []
+    items = [(f"{d:g}", ribbed_valley_r(d)) for d in drill_diams]
+    items += [(label, foot_r) for label, _af, foot_r in hex_tools]
+    pos, rows = pack_rows(items, COLLAR_W / 2, COLLAR_R, HOLE_WALL, WALL_CLEARANCE)
+    for a, b in swap or []:
+        pos[a], pos[b] = pos[b], pos[a]
+    drill_bores = [(d, pos[f"{d:g}"][0], pos[f"{d:g}"][1]) for d in drill_diams]
+    hex_bores = [(af, pos[label][0], pos[label][1]) for label, af, _foot_r in hex_tools]
+    return drill_bores, hex_bores, rows, pos
+
+
 # Outward-normal, upright (+Z up) text frames for each body face: (origin, x_dir,
 # z_dir) as a function of the in-face lateral offset and height. Used to engrave
 # the size legend into the base body's four walls.
@@ -837,26 +873,6 @@ def create_cover(label: str) -> Part:
     return Pos(0, 0, -part.bounding_box().min.Z) * part
 
 
-def _legend_from_bores(
-    bores: list[tuple[float, float, float]],
-) -> tuple[list[list[str]], dict[str, tuple[float, float]]]:
-    """Build ``(rows, hole_pos)`` for the wall size legend from a fixed bore grid.
-
-    Groups ``(diameter, x, y)`` bores into rows by their y coordinate (rows
-    ordered back -> front, sizes within a row largest -> smallest) and keys each
-    hole by its ``{d:g}`` size string, so a hardcoded layout like ``BORES_9`` gets
-    the same engraved size legend that ``pack_rows`` produces for the wood/metal
-    sets. Assumes distinct sizes (unique keys) and holes aligned in y rows.
-    """
-    pos = {f"{d:g}": (x, y) for d, x, y in bores}
-    rows = [
-        [f"{d:g}" for d, _ in sorted(row, key=lambda t: -t[0])]
-        for yv in sorted({y for _, _, y in bores}, reverse=True)
-        for row in [[(d, x) for d, x, y in bores if y == yv]]
-    ]
-    return rows, pos
-
-
 def create() -> Compound:
     """Full set: three labelled square covers with two Gridfinity bases."""
     covers = []
@@ -866,12 +882,12 @@ def create() -> Compound:
         c.color = COVER_COLOR
         covers.append(Pos(x, 30, 0) * c)
 
-    rows9, pos9 = _legend_from_bores(BORES_9)
-    base9 = create_base(BORES_9, rows=rows9, hole_pos=pos9)
+    bores9, _, rows9, pos9 = layout_bores(DEMO_DIAMS_SMALL)
+    base9 = create_base(bores9, ribbed=True, rows=rows9, hole_pos=pos9)
     base9.label = "base_9_bore"
     base9.color = BASE_COLOR
-    rows4, pos4 = _legend_from_bores(BORES_4)
-    base4 = create_base(BORES_4, rows=rows4, hole_pos=pos4)
+    bores4, _, rows4, pos4 = layout_bores(DEMO_DIAMS_LARGE)
+    base4 = create_base(bores4, ribbed=True, rows=rows4, hole_pos=pos4)
     base4.label = "base_4_bore"
     base4.color = BASE_COLOR
 
