@@ -149,6 +149,18 @@ The JS/CSS files in vscode-ocp-cad-viewer are gitignored (they're built artifact
 
 **Telescoping / mating parts**: mating faces must have the *same* geometry — flat-on-flat or chamfer-on-chamfer. A straight rim landing on a chamfered shoulder only makes a thin line contact and wobbles. Also watch for one part being slightly wider than the other (e.g. a 42 mm cover over a 41.5 mm Gridfinity body): chamfer the wider part's mating edge so it seats flush instead of overhanging.
 
+**Engraved / embossed text (labels, size numbers)**: FDM can't resolve arbitrarily fine glyphs — a nozzle lays down ~0.4 mm lines, so design to that. Rules of thumb (FDM, 0.4 mm nozzle; corroborated against our own glyph measurements):
+
+- **Character height** ≥ 3 mm absolute minimum, 5 mm+ preferred. Note build123d's `Text(font_size=N)` renders a *digit* height of only ~0.75·N (e.g. `font_size=4` → ~3 mm digits) — size against the glyph, not the nominal.
+- **Stroke width** ≥ 0.4 mm (one nozzle) minimum, 0.8 mm+ (two perimeters) preferred. **The cheapest fix is `font_style=FontStyle.BOLD`** — at `font_size=4` it roughly doubles stroke (~0.6→~1.0 mm) and, critically, grows a decimal point from **0.41 → 0.70 mm** (a period at regular weight is ~one nozzle wide and often vanishes, so "2.5" prints as "25"). Bold buys readability with **no change to size, spacing, or alignment**.
+- **Depth** ≥ 0.5 mm engraved (we use 0.8). Engrave into solid walls only; keep depth < wall thickness.
+- **Font**: bold sans-serif, ALL-CAPS / digits (uniform, simple shapes). build123d defaults to a system sans-serif; `FontStyle.BOLD` resolves to its bold face.
+- **Orientation is the biggest lever.** Text on an up-facing horizontal top face prints at full layer resolution and is crispest; text on a **vertical wall** (unavoidable when a base prints bores-up) crosses the layer lines, so lean on bold + extra depth there. Bottom faces are worst — avoid.
+- **Embossed (raised)** generally prints more reliably than engraved but needs bigger minimums (≥1 mm stroke, ≥4 mm char) and can't be paint-filled; **engraved + a wipe of paint/marker** in the recess gives the best contrast for small labels.
+- **Aligning wall labels to holes**: place each label at the hole's own world-x so it tracks the hole through the view mirror (same number reads correctly on the front *and* back wall). But labels live on the body's flat wall face (`±(PAD/2 − CORNER_R)`), which is narrower than the collar the holes spread across — clamp each label inward off the rounded corners, and expect the outermost labels to sit slightly inboard of their holes. Bigger font ⇒ more clamp ⇒ worse edge alignment, so there's a real 3-way tension between text size, hole spread, and alignment.
+- **ABS**: holds fine detail as well as PLA/PETG, but **do not acetone vapor-smooth a labelled face** — it melts the small glyphs shut.
+- **Verify in code, not just the viewer**: sample glyph geometry (`BuildSketch(Text(...))` → `.bounding_box()` / `.area`) to read off actual stroke, digit height, and period size before trusting a font size.
+
 ## build123d Gotchas
 
 - **`Edge.center()` on a full circle returns a point *on* the curve, not the centre.** When selecting a circular hole mouth by position, use `edge.arc_center` (guard with try/except for non-circular edges, which raise `ValueError`). Line edges (e.g. hex sockets) can use `.center()` (midpoint).
