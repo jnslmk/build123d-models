@@ -21,6 +21,7 @@ from build123d import Compound, Pos
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
     COVER_COLOR,
+    cover_height_for,
     create_base,
     create_cover,
     layout_bores,
@@ -33,6 +34,18 @@ LABEL = "Wood"  # material name embossed on the cover
 # grip a fixed *fraction* under each bit (see RIB_UNDERSIZE), so the grip is
 # proportional across sizes -- no per-bore clearance to set here.
 DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+
+# Longest brad-point drill in this set (the 10 mm), overall length in mm. The
+# cover is sized to the *smallest* whole Gridfinity Z unit that still swallows a
+# drill this long standing on the bore floor (see ``cover_height_for``): it just
+# fits, and a longer drill would need one more 7 mm unit. We ask for only a tiny
+# tip clearance (not the generic 6 mm headroom) so it lands on the true minimum
+# unit -- 19U -- rather than wasting a whole unit on slack; the 7 mm quantisation
+# then leaves ~3 mm above the tip anyway.
+MAX_WOOD_DRILL_LEN = 121.0
+COVER_TIP_CLEARANCE = 1.0  # min gap wanted above the longest tip when picking the unit
+COVER_H_WOOD = cover_height_for(MAX_WOOD_DRILL_LEN, headroom=COVER_TIP_CLEARANCE)
+#                                                  -> 109 mm cover, 19U assembled
 
 # 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
 # 10 mm head rests on the top face, so the packer reserves the head's footprint.
@@ -64,7 +77,7 @@ def create() -> Compound:
     base.label = "base_2_10mm_csk"
     base.color = BASE_COLOR
 
-    cover = create_cover(LABEL)
+    cover = create_cover(LABEL, cover_h=COVER_H_WOOD)
     cover.label = f"cover_{LABEL.lower()}"
     cover.color = COVER_COLOR
 

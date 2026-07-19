@@ -132,12 +132,28 @@ WALL_CLEARANCE = BORE_MOUTH_CHAMFER + BASE_TOP_CHAMFER + 0.4
 # A drill stands on the bore floor and rises up into the cover. Size the cover
 # so the assembled envelope (cover top above the baseplate) rounds UP to a whole
 # Gridfinity Z unit and still clears the longest drill plus headroom.
-MAX_DRILL_LEN = 132.0  # longest drill the assembled holder must enclose
+MAX_DRILL_LEN = 132.0  # longest drill the *default* holder must enclose
 DRILL_HEADROOM = 6.0  # clear space above the drill tip under the cap
 BORE_FLOOR_Z = BASE_TOTAL_H - BORE_DEPTH  # 6 mm above plate
-_cover_top_min = BORE_FLOOR_Z + MAX_DRILL_LEN + DRILL_HEADROOM + CAP_H
-TOTAL_ASSEMBLED_H = math.ceil(_cover_top_min / HEIGHT_UNIT) * HEIGHT_UNIT  # 147 (21U)
-COVER_H = TOTAL_ASSEMBLED_H - FOOT_TOP  # 123 mm cover
+
+
+def cover_height_for(max_drill_len: float, headroom: float = DRILL_HEADROOM) -> float:
+    """Cover height whose *assembled* envelope is the smallest whole Gridfinity Z
+    unit that still encloses a drill of ``max_drill_len`` standing on the bore
+    floor, plus ``headroom`` under the cap. This is the "just fits, not longer"
+    rule: the total assembled height quantises up to the next 7 mm unit, so a
+    drill any longer would need one more unit.
+    """
+    cover_top_min = BORE_FLOOR_Z + max_drill_len + headroom + CAP_H
+    total_assembled_h = math.ceil(cover_top_min / HEIGHT_UNIT) * HEIGHT_UNIT
+    return total_assembled_h - FOOT_TOP
+
+
+TOTAL_ASSEMBLED_H = (
+    math.ceil((BORE_FLOOR_Z + MAX_DRILL_LEN + DRILL_HEADROOM + CAP_H) / HEIGHT_UNIT)
+    * HEIGHT_UNIT
+)  # 147 (21U)
+COVER_H = cover_height_for(MAX_DRILL_LEN)  # 123 mm default cover
 
 # --- Ribbed bores (opt-in) ----------------------------------------------------
 # A ribbed bore is cut wider than the bit and given RIB_COUNT rounded ribs
@@ -813,12 +829,16 @@ def create_base(
     return base.part
 
 
-def create_cover(label: str) -> Part:
-    """A tall rounded-square cover with a pillow top and an engraved label."""
+def create_cover(label: str, cover_h: float = COVER_H) -> Part:
+    """A tall rounded-square cover with a pillow top and an engraved label.
+
+    ``cover_h`` sets the wall height; pass ``cover_height_for(max_drill_len)`` to
+    size a cover to a specific drill set (the default clears ``MAX_DRILL_LEN``).
+    """
     with BuildPart() as cover:
         with BuildSketch():
             RectangleRounded(COVER_W, COVER_W, CORNER_R)
-        extrude(amount=COVER_H)
+        extrude(amount=cover_h)
         # Round the top over into a pillow.
         fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
         # Chamfer the bottom outer edge so the open rim seats flush on the flat
@@ -830,11 +850,11 @@ def create_cover(label: str) -> Part:
         # Hollow: a single uniform bore (no step), open bottom to the solid cap.
         with BuildSketch():
             RectangleRounded(INNER_W, INNER_W, INNER_R)
-        extrude(amount=COVER_H - CAP_H, mode=Mode.SUBTRACT)
+        extrude(amount=cover_h - CAP_H, mode=Mode.SUBTRACT)
         # Small internal fillet where the bore ceiling meets the walls: relieves
         # stress at the cap join and eases the overhang printed under the cap.
         ceiling = cover.edges().filter_by_position(
-            Axis.Z, COVER_H - CAP_H, COVER_H - CAP_H
+            Axis.Z, cover_h - CAP_H, cover_h - CAP_H
         )
         if ceiling:
             fillet(ceiling, CAP_FILLET)
