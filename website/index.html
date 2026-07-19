@@ -33,7 +33,7 @@
 
   #side { grid-area: side; overflow-y: auto; padding: 14px; border-right: 1px solid #2a2f37; }
   #edit { grid-area: edit; display: flex; flex-direction: column; border-right: 1px solid #2a2f37; min-width: 0; }
-  #view { grid-area: view; position: relative; min-width: 0; }
+  #view { grid-area: view; position: relative; min-width: 0; min-height: 0; }
 
   label.fld { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #9aa4b2; margin: 0 0 5px; }
   select {
@@ -65,7 +65,11 @@
   .cm-editor { height: 100%; }
   .cm-scroller { font: 13px/1.5 ui-monospace, "SF Mono", monospace; }
 
-  canvas#viewer { width: 100%; height: 100%; display: block; }
+  /* Absolutely positioned so the canvas's intrinsic aspect ratio (derived from its
+     drawing-buffer width/height attributes) can't feed back into the grid track's
+     min-content height. Otherwise growing the window after a resize blows the
+     "view" row out to width×(oldH/oldW) and the page overflows vertically. */
+  canvas#viewer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #vinfo { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: #6b7280; pointer-events: none; }
   #vstatus { position: absolute; left: 12px; top: 10px; right: 12px; font-size: 12px; color: #cdd3db;
     background: rgba(20,23,28,.7); border: 1px solid #2a2f37; border-radius: 6px; padding: 5px 10px; }
