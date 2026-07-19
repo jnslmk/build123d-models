@@ -9,8 +9,13 @@
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
     background: #14171c; color: #e6e8eb;
     display: grid;
+    /* minmax(0, 1fr) pins the body row's minimum to 0 so a tall cell — the
+       CodeMirror editor's full source height, or the canvas's intrinsic aspect
+       ratio — can't drive the whole row (and the viewer) taller than the
+       viewport. Without the 0 minimum the row's auto minimum is its tallest
+       cell's min-content, which overflows the page. */
     grid-template: "bar bar bar" auto
-                   "side edit view" 1fr
+                   "side edit view" minmax(0, 1fr)
                  / 300px minmax(320px, 1fr) minmax(360px, 1.25fr);
     height: 100vh;
   }
@@ -124,6 +129,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
 import { python } from 'https://esm.sh/@codemirror/lang-python@6.1.6';
 import { oneDark } from 'https://esm.sh/@codemirror/theme-one-dark@6.1.2';
@@ -145,10 +151,21 @@ const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(120, 80,
 const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-90, -130, 90); scene.add(fill);
 const grid = new THREE.GridHelper(400, 20, 0x3a4048, 0x2a2f37); grid.rotation.x = Math.PI / 2; scene.add(grid);
 const material = new THREE.MeshStandardMaterial({ color: 0x59a6ff, metalness: 0.1, roughness: 0.55, flatShading: true });
-let currentMesh = null;
+const gltfLoader = new GLTFLoader();
+let currentObject = null;   // the currently displayed render object (STL mesh or glTF scene)
 
-function frameMesh(mesh) {
-  const box = new THREE.Box3().setFromObject(mesh);
+function clearObject() {
+  if (!currentObject) return;
+  scene.remove(currentObject);
+  currentObject.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach((m) => { if (m !== material) m.dispose(); });
+  });
+  currentObject = null;
+}
+function frameMesh(obj) {
+  obj.updateWorldMatrix(true, true);  // ensure scale/rotation are baked before measuring
+  const box = new THREE.Box3().setFromObject(obj);
   if (box.isEmpty()) return;
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
@@ -162,10 +179,35 @@ function showStl(bytes, reframe) {
   const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   const geom = new STLLoader().parse(buf);
   geom.computeVertexNormals();
-  if (currentMesh) { scene.remove(currentMesh); currentMesh.geometry.dispose(); }
-  currentMesh = new THREE.Mesh(geom, material);
-  scene.add(currentMesh);
-  if (reframe) frameMesh(currentMesh);
+  clearObject();
+  currentObject = new THREE.Mesh(geom, material);
+  scene.add(currentObject);
+  if (reframe) frameMesh(currentObject);
+}
+// Render a GLB (binary glTF). Carries per-part colour + transparency, which STL
+// can't. build123d exports glTF in metres and (via OpenCASCADE) Y-up, so scale
+// ×1000 back to millimetres and rotate +90° about X to bring it into the viewer's
+// Z-up mm scene, matching the STL path and grid.
+function showGlb(bytes, reframe) {
+  const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  gltfLoader.parse(buf, '', (gltf) => {
+    const root = gltf.scene;
+    root.scale.setScalar(1000);
+    root.rotation.x = Math.PI / 2;   // glTF Y-up -> scene Z-up
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        m.metalness = Math.min(m.metalness ?? 0, 0.1);   // OCC exports metalness 1; tame the flat look
+        m.roughness = 0.55;
+        if (m.transparent && m.opacity < 1) { m.depthWrite = false; m.side = THREE.DoubleSide; }
+      }
+    });
+    clearObject();
+    currentObject = root;
+    scene.add(root);
+    if (reframe) frameMesh(root);
+  }, (err) => { setVStatus('failed to render colours (see log)', true); log('glTF: ' + err); });
 }
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -215,6 +257,7 @@ let workerReady = false;
 let firstFrameForModel = true;
 let editorDirty = false;
 let lastStl = null;          // Uint8Array from the worker (live geometry)
+let lastGlb = null;          // ArrayBuffer from the worker (colour render), or null
 let lastStep = null;         // ArrayBuffer from the worker, or null
 
 // ---------------------------------------------------------------------------
@@ -291,8 +334,9 @@ worker.onmessage = (ev) => {
     busy = false;
     if (!current || m.model !== current.name) { drainPending(); return; }  // stale model
     const stl = new Uint8Array(m.stl);
-    lastStl = stl; lastStep = m.step || null;
-    showStl(stl, firstFrameForModel);
+    lastStl = stl; lastGlb = m.glb || null; lastStep = m.step || null;
+    if (m.glb) showGlb(new Uint8Array(m.glb), firstFrameForModel);
+    else showStl(stl, firstFrameForModel);
     firstFrameForModel = false;
     el.btnStl.disabled = false;
     el.btnStep.disabled = false;
@@ -341,19 +385,22 @@ function selectModel(name) {
   el.editFile.textContent = current.source;
   setEditor(sources[current.source] || '# source unavailable');
   buildForm(current.params || []);
-  lastStl = null; lastStep = null;
+  lastStl = null; lastGlb = null; lastStep = null;
   el.btnStl.disabled = !current.stl;
   el.btnStep.disabled = !current.step;
-  // Instant preview from the CI-rendered STL while Pyodide is (or gets) ready.
-  if (current.stl) {
+  // Instant preview from the CI-rendered assets while Pyodide is (or gets) ready.
+  // Prefer the colour-carrying GLB; fall back to the colourless STL.
+  const previewUrl = current.glb || current.stl;
+  if (previewUrl) {
     setVStatus('loading prebuilt preview…');
     const forName = name;
-    fetch(current.stl).then((r) => r.arrayBuffer()).then((buf) => {
+    const isGlb = !!current.glb;
+    fetch(previewUrl).then((r) => r.arrayBuffer()).then((buf) => {
       if (current.name !== forName) return;  // model switched while fetching
       const bytes = new Uint8Array(buf);
-      showStl(bytes, firstFrameForModel);
+      if (isGlb) { showGlb(bytes, firstFrameForModel); setVStatus('prebuilt preview'); }
+      else { showStl(bytes, firstFrameForModel); setVStatus(`prebuilt · ${triCount(bytes).toLocaleString()} triangles`); }
       firstFrameForModel = false;
-      setVStatus(`prebuilt · ${triCount(bytes).toLocaleString()} triangles`);
     }).catch((e) => { setVStatus('no prebuilt preview', true); log('preview: ' + e); });
   } else {
     setVStatus('no prebuilt preview — run the code to build', false);

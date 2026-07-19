@@ -8,7 +8,7 @@ import sys
 import warnings
 from pathlib import Path
 
-from build123d import Compound, Part, export_step, export_stl
+from build123d import Color, Compound, Part, export_gltf, export_step, export_stl
 from ocp_vscode import show
 
 # ocp_vscode warns when reset_camera=KEEP but no camera state is stored yet;
@@ -16,6 +16,25 @@ from ocp_vscode import show
 warnings.filterwarnings("ignore", message=r".*reset_camera is set to KEEP.*")
 
 EXPORTS_DIR = Path("exports")
+
+# House blue (#59a6ff) — the viewer's default so uncolored models still render in
+# brand colour rather than glTF's material-less white. Kept in sync with the CSS
+# accent in website/index.html.
+DEFAULT_COLOR = Color(0.35, 0.65, 1.0)
+
+
+def apply_default_colors(part: Part | Compound, default: Color = DEFAULT_COLOR) -> None:
+    """Give every leaf that has no explicit ``.color`` the house default, in place.
+
+    glTF drops the material entirely for an uncolored solid, which would render as
+    a flat white default. Seeding a colour here means the GLB always carries a real
+    material so the web viewer can render straight from it with no heuristics. STL /
+    STEP ignore colour, so this only affects the glTF export.
+    """
+    leaves = list(part.leaves) if isinstance(part, Compound) else [part]
+    for leaf in leaves:
+        if leaf.color is None:
+            leaf.color = default
 
 
 def _slugify(value: str) -> str:
@@ -55,6 +74,13 @@ def export(part: Part | Compound, name: str, *, step: bool = False) -> None:
         export_step(part, EXPORTS_DIR / f"{name}.step")
     export_stl(part, EXPORTS_DIR / f"{name}.stl")
     _export_child_stls(part, name)
+    # Colour-carrying render asset for the web viewer (STL is colourless). Best
+    # effort: a glTF failure must never block the STL/STEP build.
+    try:
+        apply_default_colors(part)
+        export_gltf(part, EXPORTS_DIR / f"{name}.glb", binary=True)
+    except Exception as exc:  # noqa: BLE001 -- render asset is optional
+        print(f"glTF export skipped for {name}: {exc}")
     print(f"Exported {name} to {EXPORTS_DIR}/")
 
 

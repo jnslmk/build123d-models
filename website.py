@@ -52,6 +52,7 @@ def _manifest() -> dict:
     for name in MODELS:
         stl = EXPORTS / f"{name}.stl"
         step = EXPORTS / f"{name}.step"
+        glb = EXPORTS / f"{name}.glb"
         thumb = EXPORTS / f"{name}.png"
         models.append(
             {
@@ -61,6 +62,7 @@ def _manifest() -> dict:
                 "source": f"models/{name}.py",
                 "stl": f"exports/{name}.stl" if stl.exists() else None,
                 "step": f"exports/{name}.step" if step.exists() else None,
+                "glb": f"exports/{name}.glb" if glb.exists() else None,
                 "thumb": f"exports/{name}.png" if thumb.exists() else None,
             }
         )
@@ -74,7 +76,7 @@ def build_web_bundle() -> None:
     (WEBSITE_DIR / "models-manifest.json").write_text(json.dumps(_manifest(), indent=2))
     copied = 0
     for name in MODELS:
-        for ext in ("stl", "step", "png"):
+        for ext in ("stl", "step", "glb", "png"):
             src = EXPORTS / f"{name}.{ext}"
             if src.exists():
                 shutil.copy2(src, WEBSITE_EXPORTS / src.name)

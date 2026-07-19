@@ -20,7 +20,7 @@
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.0a3/full/pyodide.js");
 
 let pyodide = null;
-const cache = new Map(); // JSON({model,params}) -> Uint8Array (STL bytes)
+const cache = new Map(); // JSON({model,params}) -> {stl:Uint8Array, glb:Uint8Array|null}
 
 const status = (text) => self.postMessage({ type: "status", text });
 const log = (text) => self.postMessage({ type: "log", text });
@@ -59,7 +59,17 @@ print("build123d", build123d.__version__, "ready")
 // sys.modules would silently run old code and yield wrong geometry.
 const DRIVER = `
 import json, time, importlib, sys
-from build123d import export_stl, export_step
+from build123d import Color, Compound, export_stl, export_step, export_gltf
+
+# House blue (#59a6ff) so uncolored models still render in brand colour rather
+# than glTF's material-less white. Kept in sync with export.py / the viewer CSS.
+_DEFAULT_COLOR = Color(0.35, 0.65, 1.0)
+
+def _apply_default_colors(part):
+    leaves = list(part.leaves) if isinstance(part, Compound) else [part]
+    for leaf in leaves:
+        if leaf.color is None:
+            leaf.color = _DEFAULT_COLOR
 
 def _run(model, params_json, source):
     if source is not None:
@@ -71,16 +81,23 @@ def _run(model, params_json, source):
     mod = importlib.import_module("models." + model)
     params = json.loads(params_json) if params_json else {}
     t = time.time()
-    part = mod.create(**params)       # Part or Compound; export_stl handles both
+    part = mod.create(**params)       # Part or Compound; exporters handle both
     cad_ms = round((time.time() - t) * 1000)
-    export_stl(part, "/tmp/out.stl", tolerance=0.1)
+    export_stl(part, "/tmp/out.stl", tolerance=0.1)   # colourless, drives downloads
+    have_glb = False
+    try:                               # colour-carrying render asset for the viewer
+        _apply_default_colors(part)
+        export_gltf(part, "/tmp/out.glb", binary=True)
+        have_glb = True
+    except Exception as exc:            # glTF is best-effort; STL still renders
+        print("gltf export skipped:", exc)
     have_step = False
     try:
         export_step(part, "/tmp/out.step")
         have_step = True
     except Exception as exc:            # STEP is best-effort; never block the STL
         print("step export skipped:", exc)
-    return json.dumps({"cadMs": cad_ms, "step": have_step})
+    return json.dumps({"cadMs": cad_ms, "glb": have_glb, "step": have_step})
 
 _run(MODEL, PARAMS_JSON, SOURCE)
 `;
@@ -126,10 +143,15 @@ self.onmessage = async (ev) => {
   // Cache hit (param builds only) — hand back a fresh copy so the cached buffer
   // survives the transfer.
   if (!isEdit && cache.has(key)) {
-    const copy = new Uint8Array(cache.get(key));
+    const hit = cache.get(key);
+    const stl = new Uint8Array(hit.stl);
+    const glb = hit.glb ? new Uint8Array(hit.glb) : null;
+    const transfer = [stl.buffer];
+    if (glb) transfer.push(glb.buffer);
     self.postMessage(
-      { type: "result", id: msg.id, model: msg.model, cached: true, cadMs: 0, wallMs: 0, stl: copy.buffer, step: null },
-      [copy.buffer]
+      { type: "result", id: msg.id, model: msg.model, cached: true, cadMs: 0, wallMs: 0,
+        stl: stl.buffer, glb: glb ? glb.buffer : null, step: null },
+      transfer
     );
     return;
   }
@@ -144,10 +166,14 @@ self.onmessage = async (ev) => {
     const meta = JSON.parse(metaJson);
 
     const stlBytes = new Uint8Array(pyodide.FS.readFile("/tmp/out.stl"));
-    if (!isEdit) cache.set(key, new Uint8Array(stlBytes)); // keep a copy for the cache
+    const glbBytes = meta.glb ? new Uint8Array(pyodide.FS.readFile("/tmp/out.glb")) : null;
+    // keep copies for the cache (the originals get transferred away below)
+    if (!isEdit) cache.set(key, { stl: new Uint8Array(stlBytes), glb: glbBytes ? new Uint8Array(glbBytes) : null });
 
-    let stepBuf = null;
     const transfer = [stlBytes.buffer];
+    let glbBuf = null;
+    if (glbBytes) { glbBuf = glbBytes.buffer; transfer.push(glbBuf); }
+    let stepBuf = null;
     if (meta.step) {
       const stepBytes = new Uint8Array(pyodide.FS.readFile("/tmp/out.step"));
       stepBuf = stepBytes.buffer;
@@ -158,7 +184,7 @@ self.onmessage = async (ev) => {
       {
         type: "result", id: msg.id, model: msg.model, cached: false,
         cadMs: meta.cadMs, wallMs: Math.round(performance.now() - t0),
-        stl: stlBytes.buffer, step: stepBuf,
+        stl: stlBytes.buffer, glb: glbBuf, step: stepBuf,
       },
       transfer
     );
