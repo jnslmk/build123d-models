@@ -1,4 +1,4 @@
-"""Fit-test coupons for the ``drill_storage_metric`` bores.
+"""Fit-test coupons for the ``drill_storage_wood`` bores.
 
 A small flat, through-bored strip carrying every drill size (and the countersink
 hex socket) so you can dial in fit by printing just the coupon instead of the
@@ -33,7 +33,7 @@ from models.drill_storage_gridfinity import (
     cut_holes,
     ribbed_valley_r,
 )
-from models.drill_storage_metric import (
+from models.drill_storage_wood import (
     CSK_HEAD_D,
     CSK_HEX_AF,
     DRILL_DIAMS,

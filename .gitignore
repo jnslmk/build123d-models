@@ -13,6 +13,10 @@ wheels/
 exports/
 website/exports/
 
+# Generated web bundle (built by website.build_web_bundle / CI)
+website/models-manifest.json
+website/py-sources.json
+
 # Sketches
 sketches/
 

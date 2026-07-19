@@ -1,18 +1,26 @@
+"""Model registry + loader shared by the web-bundle builder (website.py) and CI.
+
+Historically this also tessellated models for three-cad-viewer; that pipeline is
+gone (the site now runs build123d in-browser via Pyodide), but the module name is
+kept because callers import ``MODELS`` / ``model_params`` / ``get_part`` from it.
+"""
+
 import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
 
-import argparse
 import importlib
-import json
-from pathlib import Path
 
-from ocp_tessellate.convert import to_ocpgroup, tessellate_group
-from ocp_tessellate.utils import numpy_to_buffer_json
-
-EXPORTS = Path("exports")
-
+# The model roster the website + CI expose. Single source of truth; main.py's
+# BUILDERS mirrors this list.
 MODELS = [
     "cube",
     "door_latch",
+    "drill_fit_tester",
+    "drill_fit_tester_plain",
+    "drill_fit_tester_taper",
+    "drill_storage_gridfinity",
+    "drill_storage_metal",
+    "drill_storage_wood",
+    "drill_storage_wood_assembly",
     "lens_cap",
     "satellite_led",
     "slotted_plate",
@@ -21,42 +29,21 @@ MODELS = [
 ]
 
 
-def get_part(name: str):
-    return importlib.import_module(f"models.{name}").create()
+def _module(name: str):
+    return importlib.import_module(f"models.{name}")
 
 
-def tessellate_to_json(name: str) -> dict:
-    part = get_part(name)
-    group, instances = to_ocpgroup(part)
-    meshed_instances, shapes, _mapping = tessellate_group(group, instances)
-    return numpy_to_buffer_json({"instances": meshed_instances, "shapes": shapes})
+def model_params(name: str) -> list[dict]:
+    """UI schema for a model's parameters, or [] if it isn't parametric.
+
+    A parametric model module exposes a module-level ``PARAMS`` list of dicts with
+    keys ``name``, ``label``, ``type``, ``min``, ``max``, ``step``, ``default`` and
+    a matching ``create(**kwargs)`` signature.
+    """
+    return list(getattr(_module(name), "PARAMS", []))
 
 
-def write_model(name: str) -> None:
-    EXPORTS.mkdir(exist_ok=True)
-    data = tessellate_to_json(name)
-    out_path = EXPORTS / f"{name}_shapes.json"
-    out_path.write_text(json.dumps(data))
-    print(f"Tessellated {name} → {out_path}")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Tessellate models for three-cad-viewer"
-    )
-    parser.add_argument("model", nargs="?", default=None, help="Model name or 'all'")
-    args = parser.parse_args()
-
-    if args.model and args.model != "all":
-        targets = [args.model]
-    else:
-        targets = MODELS
-
-    for name in targets:
-        write_model(name)
-
-    print("Done!")
-
-
-if __name__ == "__main__":
-    main()
+def get_part(name: str, params: dict | None = None):
+    """Build a model part, optionally with parameters."""
+    create = _module(name).create
+    return create(**params) if params else create()

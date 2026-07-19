@@ -39,93 +39,11 @@ jobs:
       - name: Install Python dependencies
         run: uv sync --frozen
 
-      - name: Build all models
+      - name: Build all models (STL + STEP)
         run: uv run python main.py
 
-      - name: Tessellate models for three-cad-viewer
-        run: uv run tessellate all
-        run: |
-          uv run render cube --view iso
-          uv run render cube --view top
-          uv run render cube --view front
-          uv run render door_latch --view iso
-          uv run render door_latch --view top
-          uv run render door_latch --view front
-          uv run render lens_cap --view iso
-          uv run render lens_cap --view top
-          uv run render lens_cap --view front
-          uv run render satellite_led --view iso
-          uv run render satellite_led --view top
-          uv run render satellite_led --view front
-          uv run render slotted_plate --view iso
-          uv run render slotted_plate --view top
-          uv run render slotted_plate --view front
-          uv run render spiral_vase_lampshade --view iso
-          uv run render spiral_vase_lampshade --view top
-          uv run render spiral_vase_lampshade --view front
-          uv run render wall_bar_lamp --view iso
-          uv run render wall_bar_lamp --view top
-          uv run render wall_bar_lamp --view front
-
-      - name: Generate models manifest
-        run: |
-          python3 - << 'EOF'
-          import json
-          from pathlib import Path
-
-          exports = Path("exports")
-          known_models = [
-            "cube", "door_latch", "lens_cap", "satellite_led",
-            "slotted_plate", "spiral_vase_lampshade", "wall_bar_lamp"
-          ]
-
-          models = []
-          for name in known_models:
-            stl = exports / f"{name}.stl"
-            step = exports / f"{name}.step"
-            iso = exports / f"{name}_iso.svg"
-            top = exports / f"{name}_top.svg"
-            front = exports / f"{name}_front.svg"
-            shapes = exports / f"{name}_shapes.json"
-
-            if stl.exists():
-              models.append({
-                "name": name,
-                "stl": f"exports/{stl.name}",
-                "step": f"exports/{step.name}" if step.exists() else None,
-                "iso": f"exports/{iso.name}" if iso.exists() else None,
-                "top": f"exports/{top.name}" if top.exists() else None,
-                "front": f"exports/{front.name}" if front.exists() else None,
-                "shapes": f"exports/{shapes.name}" if shapes.exists() else None,
-              })
-
-          manifest = {"models": models}
-          with open("exports/models.json", "w") as f:
-            json.dump(manifest, f, indent=2)
-          print(f"Generated manifest with {len(models)} models")
-          EOF
-
-      - name: Upload exports
-        uses: actions/upload-artifact@v7
-        with:
-          name: exports
-          path: exports/
-          retention-days: 7
-
-  build-website:
-    name: Build Website
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download exports
-        uses: actions/download-artifact@v8
-        with:
-          name: exports
-          path: website/exports/
+      - name: Build web bundle (manifest + py-sources + copy render assets)
+        run: uv run python -c "import website; website.build_web_bundle()"
 
       - name: Upload website
         uses: actions/upload-artifact@v7
@@ -137,7 +55,7 @@ jobs:
   deploy:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
-    needs: build-website
+    needs: build
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     permissions:

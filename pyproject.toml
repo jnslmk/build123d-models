@@ -18,7 +18,6 @@ export = "export_model:main"
 render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
-tessellate = "tessellate_models:main"
 website = "website:main"
 
 [tool.uv]
