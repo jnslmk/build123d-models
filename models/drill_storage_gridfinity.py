@@ -137,16 +137,27 @@ DRILL_HEADROOM = 6.0  # clear space above the drill tip under the cap
 BORE_FLOOR_Z = BASE_TOTAL_H - BORE_DEPTH  # 6 mm above plate
 
 
-def cover_height_for(max_drill_len: float, headroom: float = DRILL_HEADROOM) -> float:
+def cover_height_for(
+    max_drill_len: float,
+    headroom: float = DRILL_HEADROOM,
+    bore_floor_z: float = BORE_FLOOR_Z,
+    foot_top: float = FOOT_TOP,
+) -> float:
     """Cover height whose *assembled* envelope is the smallest whole Gridfinity Z
     unit that still encloses a drill of ``max_drill_len`` standing on the bore
     floor, plus ``headroom`` under the cap. This is the "just fits, not longer"
     rule: the total assembled height quantises up to the next 7 mm unit, so a
     drill any longer would need one more unit.
+
+    ``bore_floor_z`` is where the bit's tail rests. It defaults to the standard
+    ``BORE_FLOOR_Z``, but a base with shallower bores (short bits, sunk only far
+    enough to leave a grip proud of the collar) stands its tools higher and must
+    pass its own floor. ``foot_top`` is the shoulder the cover seats on -- pass
+    it too whenever ``create_base`` gets a non-default one.
     """
-    cover_top_min = BORE_FLOOR_Z + max_drill_len + headroom + CAP_H
+    cover_top_min = bore_floor_z + max_drill_len + headroom + CAP_H
     total_assembled_h = math.ceil(cover_top_min / HEIGHT_UNIT) * HEIGHT_UNIT
-    return total_assembled_h - FOOT_TOP
+    return total_assembled_h - foot_top
 
 
 TOTAL_ASSEMBLED_H = (
@@ -598,7 +609,10 @@ def _face_frame(face: str, lateral: float, z: float):
 
 
 def _engrave_row_legend(
-    rows: list[list[str]], pos: dict[str, tuple[float, float]]
+    rows: list[list[str]],
+    pos: dict[str, tuple[float, float]],
+    z_center: float = WALL_LABEL_Z,
+    line_h: float | None = None,
 ) -> None:
     """Engrave the size legend into the front and back body walls.
 
@@ -613,11 +627,16 @@ def _engrave_row_legend(
     with the row nearest the wall at the bottom. A number is nudged inward only if
     it would otherwise run off the flat wall onto a rounded corner.
 
+    ``z_center`` is the vertical middle of the block of rows and ``line_h`` the
+    row pitch; a base with a shortened body (see ``create_base``'s ``foot_top``)
+    passes its own so the block still lands on the wall. The defaults suit the
+    standard 24 mm body.
+
     Call inside the active BuildPart.
     """
     n = len(rows)
-    line_h = WALL_LABEL_SIZE + 1.6
-    z_top = WALL_LABEL_Z + (n - 1) * line_h / 2
+    line_h = WALL_LABEL_SIZE + 1.6 if line_h is None else line_h
+    z_top = z_center + (n - 1) * line_h / 2
     flat_half = PAD / 2 - CORNER_R  # numbers must stay on the flat wall face
 
     def engrave(text: str, face: str, lateral: float, z: float) -> None:
@@ -766,6 +785,11 @@ def create_base(
     ribbed: bool = False,
     rows: list[list[str]] | None = None,
     hole_pos: dict[str, tuple[float, float]] | None = None,
+    bore_depth: float = BORE_DEPTH,
+    foot_top: float = FOOT_TOP,
+    collar_h: float = COLLAR_H,
+    label_z: float = WALL_LABEL_Z,
+    label_line_h: float | None = None,
 ) -> Part:
     """A Gridfinity 1x1 base: foot + body stepping to a collar, with drill bores.
 
@@ -790,50 +814,82 @@ def create_base(
     to nothing near the top as a lead-in. Ribbed bores need more room, so a
     tightly packed layout may need re-spacing.
 
+    ``bore_depth`` is how far every hole is sunk below the top face. The default
+    swallows a full-length drill; a set of *short* bits wants a shallower bore so
+    each bit still stands proud enough to pinch (see ``drill_storage_hex``).
+
+    ``foot_top`` (shoulder the cover seats on) and ``collar_h`` set how tall the
+    base is; together they are its total height, which the defaults put at 42 mm
+    (6U). Shallow bores don't need all that depth under them, so a short-bit
+    holder can drop to a smaller whole Gridfinity unit -- but keep ``foot_top``
+    tall enough for the wall legend and leave the collar comfortably above
+    ``SNAP_Z`` so the snap groove isn't at its rim. ``label_z`` / ``label_line_h``
+    re-centre and tighten that legend for a shortened body; the defaults suit the
+    standard 24 mm one.
+
     Every hole mouth (round *and* hex) gets a lead-in fillet of ``BORE_MOUTH_CHAMFER``.
     """
+    total_h = foot_top + collar_h
     with BuildPart() as base:
         add(_gridfinity_foot())
 
         # Full-width body from the pad top up to the shoulder.
         with BuildSketch(Plane.XY.offset(BASE_H)):
             RectangleRounded(PAD, PAD, CORNER_R)
-        extrude(amount=FOOT_TOP - BASE_H)
+        extrude(amount=foot_top - BASE_H)
         # Leave the body top a flat shoulder (no chamfer) so the cover's bottom
         # rim seats flush on it. The cover carries the matching bottom chamfer
         # (COVER_SEAT_CH) so it clears the body edge instead of overhanging it.
 
         # Collar that plugs into the cover.
-        with BuildSketch(Plane.XY.offset(FOOT_TOP)):
+        with BuildSketch(Plane.XY.offset(foot_top)):
             RectangleRounded(COLLAR_W, COLLAR_W, COLLAR_R)
-        extrude(amount=COLLAR_H)
+        extrude(amount=collar_h)
         # Snap groove around the collar (mates with the cover's internal bead).
         add(
-            _snap_ring(COLLAR_W, COLLAR_R, FOOT_TOP + SNAP_Z, SNAP_GROOVE_R),
+            _snap_ring(COLLAR_W, COLLAR_R, foot_top + SNAP_Z, SNAP_GROOVE_R),
             mode=Mode.SUBTRACT,
         )
 
         # Sink the graduated drill bores + hex socket and round every mouth.
-        cut_holes(bores, hex_bores, clearance, ribbed, BASE_TOTAL_H, BORE_DEPTH)
+        cut_holes(bores, hex_bores, clearance, ribbed, total_h, bore_depth)
 
         # Chamfer the collar's top outer rim (softer top edge + a lead-in for the
         # cover) via a boolean cut -- robust, unlike the flaky fillet op.
         add(
-            _rim_chamfer_tool(COLLAR_W, COLLAR_R, BASE_TOTAL_H, BASE_TOP_CHAMFER),
+            _rim_chamfer_tool(COLLAR_W, COLLAR_R, total_h, BASE_TOP_CHAMFER),
             mode=Mode.SUBTRACT,
         )
 
         # Engrave the size legend into the body walls (all four sides).
         if rows and hole_pos:
-            _engrave_row_legend(rows, hole_pos)
+            _engrave_row_legend(rows, hole_pos, label_z, label_line_h)
     return base.part
 
 
-def create_cover(label: str, cover_h: float = COVER_H) -> Part:
+def create_cover(
+    label: str,
+    cover_h: float = COVER_H,
+    label_size: float = LABEL_SIZE,
+    label_z: float = LABEL_Z,
+    label_horizontal: bool = False,
+) -> Part:
     """A tall rounded-square cover with a pillow top and an engraved label.
 
     ``cover_h`` sets the wall height; pass ``cover_height_for(max_drill_len)`` to
     size a cover to a specific drill set (the default clears ``MAX_DRILL_LEN``).
+
+    ``label_size`` / ``label_z`` set the glyph height and the vertical centre of
+    the engraving. The defaults suit a tall cover; a short one must move the
+    label down (and usually shrink it) or it lands off the part. ``label`` may
+    contain newlines -- two short lines fit a 42 mm face where one long one
+    doesn't.
+
+    The label reads *up* the face by default, which is what a tall tube wants: a
+    long word has the whole cover height to run along. ``label_horizontal`` turns
+    it a quarter so it reads across the face instead -- on a short cover that is
+    the only way to get a decent glyph size, since the face is then wider than it
+    is tall.
     """
     with BuildPart() as cover:
         with BuildSketch():
@@ -862,17 +918,20 @@ def create_cover(label: str, cover_h: float = COVER_H) -> Part:
         # slides on gently and clicks into the groove on the base collar.
         add(_snap_bead_ring(INNER_W, INNER_R, SNAP_Z))
 
-        # Engraved label, upright and reading up the +Y flat face. The glyphs
-        # are cut into the wall (durable, can't snag or shear off), shallower
-        # than the wall, and their mouths chamfered so they read crisply, print
-        # without a square overhang on the vertical wall, and take a paint-fill.
+        # Engraved label on the +Y flat face -- reading up it, or across it when
+        # ``label_horizontal``. The glyphs are cut into the wall (durable, can't
+        # snag or shear off), shallower than the wall, and their mouths chamfered
+        # so they read crisply, print without a square overhang on the vertical
+        # wall, and take a paint-fill. In both cases the in-plane x_dir is the
+        # reading direction as seen from *outside* the cover (looking in -Y, that
+        # is world -X across / world +Z up), so the text never comes out mirrored.
         text_plane = Plane(
-            origin=(0, COVER_W / 2, LABEL_Z),
-            x_dir=(0, 0, 1),
+            origin=(0, COVER_W / 2, label_z),
+            x_dir=(-1, 0, 0) if label_horizontal else (0, 0, 1),
             z_dir=(0, 1, 0),
         )
         with BuildSketch(text_plane):
-            Text(label, font_size=LABEL_SIZE)
+            Text(label, font_size=label_size)
         extrude(amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
         # Chamfer the engraved mouths: the glyph edges lying on the face, keeping
         # only the short ones so the cover's long face-boundary edges are left
