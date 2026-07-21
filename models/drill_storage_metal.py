@@ -33,8 +33,8 @@ LABEL = "Metal"  # material name embossed on the cover
 
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
 # or remove a size and the layout re-packs itself. Bores are ribbed: the ribs
-# grip a fixed *fraction* under each bit (see RIB_UNDERSIZE), so the grip is
-# proportional across sizes -- no per-bore clearance to set here.
+# grip a fixed absolute interference under every bit (see RIB_GRIP), and hold it
+# on the plain shank near the bore floor -- no per-bore clearance to set here.
 DRILL_DIAMS = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0]
 
 # 10 mm across-flats hex-shank tap: the shank drops straight into a hex socket.

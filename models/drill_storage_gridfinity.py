@@ -179,26 +179,93 @@ COVER_H = cover_height_for(MAX_DRILL_LEN)  # 123 mm default cover
 # Ribs stop RIB_TOP_GAP below the mouth so the opening stays clean for the lead-in
 # chamfer.
 RIB_COUNT = 3
-RIB_UNDERSIZE = 0.04  # rib faces sit this fraction of d inside the bit (grip) ...
-RIB_UNDERSIZE_MIN = 0.15  # ... but at least this, so small holes aren't too loose
-RIB_RELIEF_FRAC = 0.04  # rib protrusion past the valley, as a fraction of d ...
-RIB_RELIEF_MIN = 0.2  # ... but at least this, so the rib is a defined feature
-RIB_WIDTH_FRAC = 0.15  # rounded-bead diameter, as a fraction of d ...
-RIB_WIDTH_MIN = 0.8  # ... at least a nozzle-friendly width ...
-RIB_WIDTH_MAX = 1.5  # ... and no wider than this
+#
+# --- Why the grip law is shaped the way it is ---------------------------------
+# Two full sets were printed and both fought back, in opposite directions:
+#
+#   v1  grip = 0.04*d (min 0.15)  -> 9/10 mm too tight, 8 mm and under too loose
+#   v2  grip = 0.34 flat, falling -> 8/9/10 mm too loose, 6 mm and under too tight
+#
+# Those reports are consistent, and the reason is *not* the interference number.
+# It's that the ribs were never springs. The protrusion past the valley was only
+# RIB_RELIEF_MIN = 0.2 mm on the small bores while the bead was 0.8 mm wide, so
+# each "rib" was a shallow lens welded to the wall over nearly its full width --
+# it cannot deflect, it can only be crushed. v2 asked a 2 mm bore to squash 85%
+# of its rib away, and a 10 mm bore to engage only 25% of one. The whole usable
+# travel between "rattles" and "jams" was ~0.1 mm of radius, which is finer than
+# FDM's own run-to-run variation on a small hole. No constant could have worked.
+#
+# The fix is geometric, not numeric: give the rib a real compliant travel, then a
+# single absolute interference works for every size. The bead is now mostly
+# *proud* of the valley (RIB_RELIEF_FRAC_OF_WIDTH), so it meets the wall on a
+# narrow neck and behaves like a stub spring instead of a bump. With the rib
+# shape held proportional to the bore, its radial stiffness k ~ E*h*(width/relief)
+# is roughly constant across sizes -- so a constant deflection gives a constant
+# retention force, and grip becomes force-controlled rather than position-
+# controlled. That is what makes one number cover 2-10 mm.
+#
+RIB_GRIP = 0.30  # diametral interference at the rib faces -- ONE value, all sizes
+# The bead is now the SAME size in every bore rather than scaled to the bit. That
+# is the point: an identically-shaped rib has identical radial stiffness, so an
+# identical deflection gives an identical retention force from 2 mm to 10 mm. A
+# rib scaled to the bore is a stiffer spring in a big hole, which is how the old
+# law ended up needing a different number for every size.
+RIB_WIDTH = 0.9  # rounded-bead diameter (>= 2 perimeters at the neck)
+# Protrusion past the valley, as a fraction of the bead width. Must stay < 1.0 or
+# the bead never reaches the valley wall and prints as a floating pin. At 0.75 the
+# bead is mostly proud, giving 0.68 mm of travel on a 0.78 mm neck: the nominal
+# 0.15 mm radial crush is then only ~22% of the rib, well inside its elastic
+# range, where the old design asked for up to 85% (i.e. destruction).
+RIB_RELIEF_FRAC_OF_WIDTH = 0.75
 RIB_TAPER = 4.0  # height over which each rib ramps out to nothing near the top
+
+# Ribs grip only a band just above the bore floor, not the whole depth. Every bit
+# stands on the floor, so this band always lands on the *plain shank* -- a true
+# h8 cylinder with no cutting edges. Higher up sit the flutes, which are not a
+# cylinder at all (two narrow spiral margins at nominal diameter over a flute
+# void, plus body clearance/back taper), so ribs there grip intermittently and,
+# worse, the hardened tip spurs broach the ribs on the way past and the bore
+# loses interference permanently. That reaming is the best explanation for the
+# "tight going in, loose once seated" feel of the big bits. Bits therefore go in
+# SHANK-DOWN (flutes and tip up, under the cover).
+RIB_ZONE_H = 14.0  # rib band height above the bore floor (shank engagement)
+
+# Hex sockets used to get their grip from being cut *under* the nominal
+# across-flats, and that was the same mistake as the old bumpy ribs: flat-on-flat
+# against a solid wall has no compliance whatsoever, so the fit went from drop-in
+# (0.00, nominal 6.30) to jammed (0.15) over a tenth and a half. Nothing to tune.
+#
+# So the hex now works exactly like the round bores: the socket itself is cut
+# *over* size and simply guides the shank and stops it rotating, while the grip
+# comes from three compliant ribs in a band at the bottom, bearing on alternating
+# flats at the same RIB_GRIP interference as every drill. One calibration number
+# covers the whole tray. Within that band the socket opens out to a round relief
+# pocket (wide enough to swallow the hex corners) so the ribs have travel behind
+# them -- invisible from outside, where the mouth stays a clean hex.
+HEX_SLIP = 0.05  # across-flats clearance on the guide socket -- drops straight in
+HEX_RIB_ANGLE = 30.0  # flat centres sit at 30 deg + k*60 (vertices land on 0 deg)
 RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 
 
-def _rib_tip_r(d: float) -> float:
+def _rib_tip_r(d: float, grip: float = RIB_GRIP) -> float:
     """Radius of the rib faces (grip) for a bit of diameter ``d`` -- just inside
-    the bit so it's held by light interference."""
-    return (d - max(RIB_UNDERSIZE * d, RIB_UNDERSIZE_MIN)) / 2
+    the bit so it's held by light interference. ``grip`` is diametral."""
+    return (d - grip) / 2
 
 
-def _rib_relief(d: float) -> float:
-    """Radial protrusion of the ribs past the relieved valley for diameter ``d``."""
-    return max(RIB_RELIEF_FRAC * d, RIB_RELIEF_MIN)
+def _rib_width(d: float, grip: float = RIB_GRIP) -> float:
+    """Diameter of the rounded rib bead -- fixed, except on the tiniest bores
+    where it is capped so three beads can't choke the hole."""
+    return min(RIB_WIDTH, 1.4 * _rib_tip_r(d, grip))
+
+
+def _rib_relief(d: float, grip: float = RIB_GRIP) -> float:
+    """Radial protrusion of the ribs past the relieved valley for diameter ``d``.
+
+    Tied to the bead width (not to ``d``) because it is the ratio of the two that
+    decides whether the rib is a spring or a bump -- see the notes above.
+    """
+    return RIB_RELIEF_FRAC_OF_WIDTH * _rib_width(d, grip)
 
 
 def ribbed_valley_r(d: float) -> float:
@@ -671,6 +738,7 @@ def cut_holes(
     bore_depth: float,
     through: bool = False,
     undersize_frac: float = 0.0,
+    grip: float | None = None,
 ) -> None:
     """Sink drill bores + hex sockets into the active part and chamfer every mouth.
 
@@ -680,9 +748,10 @@ def cut_holes(
 
     Round ``bores`` are ``(diameter, x, y)`` sunk ``bore_depth`` down from
     ``top_z``. When ``ribbed`` each gets ``RIB_COUNT`` rounded ribs whose contact
-    edge sits ``RIB_UNDERSIZE`` (a *fraction* of the bit) inside it, so grip is
-    proportional across sizes; each rib tapers out to nothing over ``RIB_TAPER``
-    near the top as a lead-in. Plain (not ribbed) holes are sized ``clearance``
+    edge sits ``RIB_GRIP`` (one absolute interference, every size) inside it; the
+    ribs occupy only ``RIB_ZONE_H`` above the floor so they grip the bit's plain
+    shank, and each tapers out to nothing over ``RIB_TAPER`` as a lead-in. ``grip``
+    overrides ``RIB_GRIP`` for this call, which is how the fit tester sweeps it. Plain (not ribbed) holes are sized ``clearance``
     (mm) plus ``undersize_frac`` (a fraction of the bit) under -- the fractional
     part compensates the way small holes print tighter than large ones.
 
@@ -691,12 +760,13 @@ def cut_holes(
     note below). With ``through`` the bores punch out the bottom (no floor); the
     ribs still start at ``top_z - bore_depth``.
     """
+    grip = RIB_GRIP if grip is None else grip
     floor_z = top_z - bore_depth
     below = 1.0 if through else 0.0  # extend the cut past the bottom face
     for d, x, y in bores:
         if ribbed:
-            r_tip = _rib_tip_r(d)
-            relief = _rib_relief(d)
+            r_tip = _rib_tip_r(d, grip)
+            relief = _rib_relief(d, grip)
             r_valley = r_tip + relief
         else:
             r_tip = (d + clearance - undersize_frac * d) / 2
@@ -718,10 +788,11 @@ def cut_holes(
             # tapers the bead to nothing (apex at the wall, not free-floating), so
             # it ramps out into the wall as a lead-in instead of ending square.
             # Width scales with the hole (and is capped) so it can't choke a bore.
-            rib_h = bore_depth - RIB_TOP_GAP
-            width = min(
-                max(RIB_WIDTH_FRAC * d, RIB_WIDTH_MIN), RIB_WIDTH_MAX, 1.4 * r_tip
-            )
+            # The ribs occupy only a band above the floor (RIB_ZONE_H) so they
+            # grip the bit's plain shank and never the flutes -- but never more
+            # than the bore itself allows.
+            rib_h = min(RIB_ZONE_H, bore_depth - RIB_TOP_GAP)
+            width = _rib_width(d, grip)
             bead_r = width / 2
             center_r = r_tip + bead_r  # inner edge of the bead lands on r_tip
             body_h = rib_h - RIB_TAPER
@@ -743,12 +814,51 @@ def cut_holes(
                         )
 
     for af, x, y in hex_bores or []:
+        # Guide socket: cut oversize, so the shank drops straight in and is only
+        # kept from spinning. All the grip happens in the rib band below.
         with BuildSketch(Plane.XY.offset(top_z)) as hex_sk:
             with Locations((x, y)):
-                RegularPolygon(af / 3**0.5, 6)
+                RegularPolygon((af + HEX_SLIP) / 3**0.5, 6)
         # Pass the sketch explicitly: inside a helper the implicit "pending
         # sketch" lookup that a bare extrude() relies on doesn't resolve.
         extrude(hex_sk.sketch, amount=-(bore_depth + below), mode=Mode.SUBTRACT)
+
+        if not ribbed:
+            continue
+        # Same rib treatment as a round bore, with the across-flats standing in
+        # for the diameter: the rib faces land RIB_GRIP inside the flats, and the
+        # band is first opened out to a round relief pocket wide enough to
+        # swallow the hex corners so each bead has travel behind it.
+        r_tip = _rib_tip_r(af, grip)  # half the across-flats, less half the grip
+        width = _rib_width(af, grip)
+        r_valley = r_tip + _rib_relief(af, grip)
+        rib_h = min(RIB_ZONE_H, bore_depth - RIB_TOP_GAP)
+        bead_r = width / 2
+        body_h = rib_h - RIB_TAPER
+        with Locations((x, y, floor_z - below)):
+            Cylinder(
+                r_valley,
+                rib_h + below,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+        with Locations((x, y, floor_z)):
+            # Beads on alternating flats (every other one, so 3 of the 6).
+            with PolarLocations(r_tip + bead_r, RIB_COUNT, start_angle=HEX_RIB_ANGLE):
+                Cylinder(
+                    bead_r,
+                    body_h,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    mode=Mode.ADD,
+                )
+                with Locations((0, 0, body_h)):
+                    Cone(
+                        bead_r,
+                        0.0,
+                        RIB_TAPER,
+                        align=(Align.CENTER, Align.CENTER, Align.MIN),
+                        mode=Mode.ADD,
+                    )
 
     # Lead-in chamfer at every mouth, cut as a boolean 45-deg cone/frustum. We
     # deliberately avoid OCC's fillet op here: filleting a *ribbed* mouth is
@@ -767,7 +877,7 @@ def cut_holes(
                 mode=Mode.SUBTRACT,
             )
     for af, x, y in hex_bores or []:
-        rc = af / 3**0.5  # hex circumradius
+        rc = (af + HEX_SLIP) / 3**0.5  # hex circumradius, matching the guide socket
         with Locations((x, y, top_z - BORE_MOUTH_CHAMFER)):
             Cone(
                 rc,
@@ -809,9 +919,10 @@ def create_base(
     unaffected -- their across-flats already carries its own fit allowance.
 
     ``ribbed`` relieves each round bore and restores ``RIB_COUNT`` rounded ribs
-    whose contact edge sits ``RIB_UNDERSIZE`` (a fraction of the bit) inside it,
-    so the bit is held by a proportional light interference; each rib tapers out
-    to nothing near the top as a lead-in. Ribbed bores need more room, so a
+    whose contact edge sits ``RIB_GRIP`` inside it -- one absolute interference
+    for every size, which works because the ribs are identical compliant beads
+    rather than bumps scaled to the bore. They grip only the bottom
+    ``RIB_ZONE_H`` (the plain shank), and taper out near the top as a lead-in. Ribbed bores need more room, so a
     tightly packed layout may need re-spacing.
 
     ``bore_depth`` is how far every hole is sunk below the top face. The default

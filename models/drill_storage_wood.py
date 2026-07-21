@@ -31,8 +31,8 @@ LABEL = "Wood"  # material name embossed on the cover
 
 # Drill sizes in the set (mm). Positions are auto-placed below, so you can add
 # or remove a size and the layout re-packs itself. Bores are ribbed: the ribs
-# grip a fixed *fraction* under each bit (see RIB_UNDERSIZE), so the grip is
-# proportional across sizes -- no per-bore clearance to set here.
+# grip a fixed absolute interference under every bit (see RIB_GRIP), and hold it
+# on the plain shank near the bore floor -- no per-bore clearance to set here.
 DRILL_DIAMS = [2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
 
 # Longest brad-point drill in this set (the 10 mm), overall length in mm. The
@@ -49,7 +49,8 @@ COVER_H_WOOD = cover_height_for(MAX_WOOD_DRILL_LEN, headroom=COVER_TIP_CLEARANCE
 
 # 10 mm countersink on a 6.3 mm hex shank: the socket holds the shank while the
 # 10 mm head rests on the top face, so the packer reserves the head's footprint.
-CSK_HEX_AF = 6.3  # 6.3 mm shank, no clearance -> a tighter grip on the hex shank
+CSK_HEX_AF = 6.3  # measured across flats on the tool; the socket adds HEX_SLIP
+#                   on top of that and grips on ribs at the bottom instead
 CSK_HEAD_D = 10.0
 
 # Positions are solved by the shared ``layout_bores``: the CSK is packed by its
