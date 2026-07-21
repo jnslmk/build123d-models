@@ -204,7 +204,35 @@ RIB_COUNT = 3
 # retention force, and grip becomes force-controlled rather than position-
 # controlled. That is what makes one number cover 2-10 mm.
 #
-RIB_GRIP = 0.30  # diametral interference at the rib faces -- ONE value, all sizes
+# Calibrated on the printed grip sweep (``drill_fit_tester_sweep``): 0.22 was
+# judged right across 4-10 mm, and the hex wanted a little more, between 0.22 and
+# 0.30. So the compliant-rib premise holds -- one number really does cover the
+# round bores now -- but the hex gets its own, because it is not the same spring:
+# its beads bear on flats rather than on a curved wall, and the socket itself
+# still guides the shank, so it takes slightly more interference to feel equal.
+RIB_GRIP = 0.22  # diametral interference at the rib faces -- one value, all bores
+HEX_GRIP = 0.25  # ... a touch more for hex sockets (flats, not a curved wall)
+
+# Small-bore print compensation. On the same sweep, the 2 mm bit fell straight
+# through the 0.22 bar and only gripped on 0.46 -- yet the ribs were visibly
+# there, and ray-sampling the CAD confirms that bar's grip circle really is
+# 1.784 mm. So the ribs print, they just end up ~0.22 mm (diametral) further out
+# than modelled at that bore size. That is a toolpath artifact, not mechanics: a
+# 0.45 mm-radius convex bead tip traced out of a concave notch on a 1.5 mm-radius
+# wall is the tightest curvature anywhere in the part, and a 0.4 mm nozzle rounds
+# it off. The effect dies away as the bore opens up (4 mm needs no correction).
+#
+# So this is a *manufacturing* correction layered on the constant-force design,
+# not a return to the old size-scaled grip law -- the mechanics still want one
+# number; the printer just can't deliver it below ~4 mm.
+#
+# Anchored on two measured points (2 mm -> 0.46, 4 mm -> 0.22); 2.5/3/3.5 are
+# linearly interpolated and UNVERIFIED. Compensation only applies to the round
+# bores' default grip -- an explicit grip (i.e. the tester bars) stays raw, which
+# is what makes the sweep able to measure this in the first place.
+RIB_GRIP_SMALL_KNEE = 4.0  # bores below this need help
+RIB_GRIP_SMALL_SLOPE = 0.12  # extra grip per mm below the knee
+RIB_GRIP_SMALL_MAX = 0.24  # ... capped, so a sub-2 mm bore can't run away
 # The bead is now the SAME size in every bore rather than scaled to the bit. That
 # is the point: an identically-shaped rib has identical radial stiffness, so an
 # identical deflection gives an identical retention force from 2 mm to 10 mm. A
@@ -247,6 +275,14 @@ HEX_RIB_ANGLE = 30.0  # flat centres sit at 30 deg + k*60 (vertices land on 0 de
 RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 
 
+def grip_for(d: float) -> float:
+    """Production grip for a bore of diameter ``d``: the base interference plus
+    the small-bore print compensation (see ``RIB_GRIP_SMALL_*``)."""
+    return RIB_GRIP + min(
+        RIB_GRIP_SMALL_MAX, RIB_GRIP_SMALL_SLOPE * max(0.0, RIB_GRIP_SMALL_KNEE - d)
+    )
+
+
 def _rib_tip_r(d: float, grip: float = RIB_GRIP) -> float:
     """Radius of the rib faces (grip) for a bit of diameter ``d`` -- just inside
     the bit so it's held by light interference. ``grip`` is diametral."""
@@ -269,8 +305,13 @@ def _rib_relief(d: float, grip: float = RIB_GRIP) -> float:
 
 
 def ribbed_valley_r(d: float) -> float:
-    """Cut (valley) radius of a ribbed bore -- its footprint for layout/packing."""
-    return _rib_tip_r(d) + _rib_relief(d)
+    """Cut (valley) radius of a ribbed bore -- its footprint for layout/packing.
+
+    Uses the production grip (``grip_for``) so the packed footprint is the one
+    actually cut, rather than the uncompensated ``RIB_GRIP`` figure.
+    """
+    g = grip_for(d)
+    return _rib_tip_r(d, g) + _rib_relief(d, g)
 
 
 # Demo drill sets for the default holder -- just the sizes; ``layout_bores``
@@ -760,10 +801,15 @@ def cut_holes(
     note below). With ``through`` the bores punch out the bottom (no floor); the
     ribs still start at ``top_z - bore_depth``.
     """
-    grip = RIB_GRIP if grip is None else grip
+    # An explicit ``grip`` sweeps the round bores AND the hex together, raw (that
+    # is what the tester bars do). Left at None, each bore takes its own
+    # production value -- ``grip_for`` per diameter, ``HEX_GRIP`` for sockets.
+    hex_grip = HEX_GRIP if grip is None else grip
+    grip_override = grip
     floor_z = top_z - bore_depth
     below = 1.0 if through else 0.0  # extend the cut past the bottom face
     for d, x, y in bores:
+        grip = grip_for(d) if grip_override is None else grip_override
         if ribbed:
             r_tip = _rib_tip_r(d, grip)
             relief = _rib_relief(d, grip)
@@ -826,12 +872,12 @@ def cut_holes(
         if not ribbed:
             continue
         # Same rib treatment as a round bore, with the across-flats standing in
-        # for the diameter: the rib faces land RIB_GRIP inside the flats, and the
+        # for the diameter: the rib faces land HEX_GRIP inside the flats, and the
         # band is first opened out to a round relief pocket wide enough to
         # swallow the hex corners so each bead has travel behind it.
-        r_tip = _rib_tip_r(af, grip)  # half the across-flats, less half the grip
-        width = _rib_width(af, grip)
-        r_valley = r_tip + _rib_relief(af, grip)
+        r_tip = _rib_tip_r(af, hex_grip)  # half the across-flats, less half the grip
+        width = _rib_width(af, hex_grip)
+        r_valley = r_tip + _rib_relief(af, hex_grip)
         rib_h = min(RIB_ZONE_H, bore_depth - RIB_TOP_GAP)
         bead_r = width / 2
         body_h = rib_h - RIB_TAPER
