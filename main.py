@@ -7,6 +7,7 @@ from models.drill_fit_tester import create as create_drill_fit_tester
 from models.drill_fit_tester_plain import create as create_drill_fit_tester_plain
 from models.drill_fit_tester_taper import create as create_drill_fit_tester_taper
 from models.drill_storage_gridfinity import create as create_drill_storage_gridfinity
+from models.drill_storage_hex import create as create_drill_storage_hex
 from models.drill_storage_metal import create as create_drill_storage_metal
 from models.drill_storage_wood import create as create_drill_storage_wood
 from models.drill_storage_wood_assembly import (
@@ -27,6 +28,7 @@ BUILDERS = {
     "drill_fit_tester_plain": create_drill_fit_tester_plain,
     "drill_fit_tester_taper": create_drill_fit_tester_taper,
     "drill_storage_gridfinity": create_drill_storage_gridfinity,
+    "drill_storage_hex": create_drill_storage_hex,
     "drill_storage_metal": create_drill_storage_metal,
     "drill_storage_wood": create_drill_storage_wood,
     "drill_storage_wood_assembly": create_drill_storage_wood_assembly,

@@ -18,6 +18,7 @@ MODELS = [
     "drill_fit_tester_plain",
     "drill_fit_tester_taper",
     "drill_storage_gridfinity",
+    "drill_storage_hex",
     "drill_storage_metal",
     "drill_storage_wood",
     "drill_storage_wood_assembly",
