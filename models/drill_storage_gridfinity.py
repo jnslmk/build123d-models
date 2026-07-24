@@ -226,13 +226,60 @@ HEX_GRIP = 0.25  # ... a touch more for hex sockets (flats, not a curved wall)
 # not a return to the old size-scaled grip law -- the mechanics still want one
 # number; the printer just can't deliver it below ~4 mm.
 #
-# Anchored on two measured points (2 mm -> 0.46, 4 mm -> 0.22); 2.5/3/3.5 are
-# linearly interpolated and UNVERIFIED. Compensation only applies to the round
-# bores' default grip -- an explicit grip (i.e. the tester bars) stays raw, which
-# is what makes the sweep able to measure this in the first place.
-RIB_GRIP_SMALL_KNEE = 4.0  # bores below this need help
-RIB_GRIP_SMALL_SLOPE = 0.12  # extra grip per mm below the knee
-RIB_GRIP_SMALL_MAX = 0.24  # ... capped, so a sub-2 mm bore can't run away
+# The shape of that correction was then measured directly, with the offset
+# coupons in ``drill_fit_tester_small`` (each bar shifts the whole law by a fixed
+# amount). It is NOT the straight ramp originally assumed -- the correction is
+# nearly flat from 2 to 3 mm and then collapses over the next millimetre:
+#
+#   2.0 -> 0.46   (offset +0.00 on the coupons)
+#   3.0 -> 0.44   (+0.08 was "barely enough", 0.10 called right)
+#   3.5 -> 0.36   (+0.08)
+#   4.0 -> 0.22   (+0.00; meets the uncompensated RIB_GRIP, so the curve is
+#                  continuous and everything above 4 mm needs no correction)
+#
+# Slope between those points runs -0.02, -0.16 then -0.28 mm per mm: a knee just
+# under 3.5 mm, nothing like a constant ramp. Hence a table with linear
+# interpolation rather than a formula -- there is no tidy law here, only the
+# printer's behaviour, and pretending otherwise is how the first two versions
+# went wrong.
+#
+# 2.5 mm was never on a coupon and is interpolated (-> 0.45); it sits on the flat
+# part of the curve, so the guess is low-risk, but it is still a guess.
+#
+# Compensation applies only to the round bores' default grip -- an explicit grip
+# (i.e. the tester bars) stays raw, which is what lets the coupons measure it.
+#
+# Second round on the +0.00 bar: 2, 2.5 and 4 mm were right, 3 and 3.5 still too
+# loose. Raised to 0.48 / 0.42. Note this makes the table *non-monotonic* (3 mm
+# now wants more grip than 2.5 mm) even though the print artifact it corrects can
+# only shrink as the bore opens up. That is not a contradiction: "too loose" is a
+# judgement about retention *force*, and a 3 mm bit is heavier than a 2.5 mm one,
+# so it needs more force for the same feel. The table absorbs both effects at
+# once, which is exactly why it stays a table of measurements.
+#
+# Then 4 mm went too, on the same bar: "a little too loose" at 0.22, despite
+# having been judged right at 0.22 twice before (once on the flat sweep, once on
+# the +0.00 coupon). Raised to 0.28, with the ramp now landing on RIB_GRIP at
+# 5 mm instead of 4 so the curve stays continuous.
+#
+# Worth noting the pattern: EVERY size below 5 mm has now been revised upward at
+# least once, and 4 mm reversed a judgement it had already passed twice. That
+# suggests the 0.22 baseline itself may sit slightly low rather than the
+# compensation being wrong -- 6/8/10 mm have only ever been judged against flat
+# sweep bars at 0.14/0.22/0.30, where a true optimum of ~0.26 would still have
+# picked 0.22 as the winner. If the big bores ever read loose, raise RIB_GRIP
+# rather than extending this table further.
+#
+# 5 mm has never been on a coupon; it is the endpoint where the ramp meets
+# RIB_GRIP, so it inherits 0.22 by construction rather than by measurement.
+RIB_GRIP_SMALL = [
+    (2.0, 0.46),
+    (2.5, 0.45),
+    (3.0, 0.48),
+    (3.5, 0.42),
+    (4.0, 0.28),
+    (5.0, 0.22),
+]
 # The bead is now the SAME size in every bore rather than scaled to the bit. That
 # is the point: an identically-shaped rib has identical radial stiffness, so an
 # identical deflection gives an identical retention force from 2 mm to 10 mm. A
@@ -276,11 +323,19 @@ RIB_TOP_GAP = BORE_MOUTH_CHAMFER + 0.4  # ribs stop this far below the mouth
 
 
 def grip_for(d: float) -> float:
-    """Production grip for a bore of diameter ``d``: the base interference plus
-    the small-bore print compensation (see ``RIB_GRIP_SMALL_*``)."""
-    return RIB_GRIP + min(
-        RIB_GRIP_SMALL_MAX, RIB_GRIP_SMALL_SLOPE * max(0.0, RIB_GRIP_SMALL_KNEE - d)
-    )
+    """Production grip for a bore of diameter ``d``.
+
+    ``RIB_GRIP`` everywhere the printer can hold it, rising to the measured
+    small-bore values below 4 mm (``RIB_GRIP_SMALL``, linearly interpolated).
+    """
+    if d >= RIB_GRIP_SMALL[-1][0]:
+        return RIB_GRIP
+    if d <= RIB_GRIP_SMALL[0][0]:
+        return RIB_GRIP_SMALL[0][1]
+    for (d0, g0), (d1, g1) in zip(RIB_GRIP_SMALL, RIB_GRIP_SMALL[1:]):
+        if d0 <= d <= d1:
+            return g0 + (g1 - g0) * (d - d0) / (d1 - d0)
+    return RIB_GRIP
 
 
 def _rib_tip_r(d: float, grip: float = RIB_GRIP) -> float:
@@ -471,43 +526,45 @@ def pack_holes(
         qy = abs(py) - (collar_half - corner_r)
         return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - corner_r
 
-    def max_radius(i: int) -> float:
+    # Both helpers take the spoke angle rather than reading ``theta[i]``: a hole
+    # with no fixed spoke has angle None and never reaches them, but only the
+    # caller can see that, so passing the angle in keeps it out of their types.
+    def max_radius(i: int, a: float) -> float:
         # Largest radius on hole i's fixed spoke that still clears the collar
         # wall by ``collar_wall`` -- i.e. an exactly ``collar_wall`` margin.
         lo, hi = 0.0, collar_half
         for _ in range(28):
             m = (lo + hi) / 2.0
-            if (
-                -sdf(m * math.cos(theta[i]), m * math.sin(theta[i])) - r[i]
-                >= collar_wall
-            ):
+            if -sdf(m * math.cos(a), m * math.sin(a)) - r[i] >= collar_wall:
                 lo = m
             else:
                 hi = m
         return lo
 
-    def spoke(i: int, rho: float) -> list[float]:
-        return [rho * math.cos(theta[i]), rho * math.sin(theta[i])]
+    def spoke(a: float, rho: float) -> list[float]:
+        return [rho * math.cos(a), rho * math.sin(a)]
 
     # Pin perimeter holes to their max radius (uniform wall margin); seed the
     # rest inward to relax.
-    pos = [
-        [0.0, 0.0]
-        if theta[i] is None
-        else spoke(i, max_radius(i) if pinned[i] else seed[i])
-        for i in range(n)
-    ]
+    pos: list[list[float]] = []
+    for i in range(n):
+        a = theta[i]
+        if a is None:
+            pos.append([0.0, 0.0])
+        else:
+            pos.append(spoke(a, max_radius(i, a) if pinned[i] else seed[i]))
 
     def reproject(i: int) -> None:
         # Keep each hole on its fixed spoke: perimeter holes stay pinned at the
         # uniform wall margin; inner holes clamp to their max radius but are
         # otherwise free to relax inward.
-        if theta[i] is None:
+        a = theta[i]
+        if a is None:
             pos[i] = [0.0, 0.0]
         elif pinned[i]:
-            pos[i] = spoke(i, max_radius(i))
+            pos[i] = spoke(a, max_radius(i, a))
         else:
-            pos[i] = spoke(i, min(math.hypot(pos[i][0], pos[i][1]), max_radius(i)))
+            pos[i] = spoke(a, min(math.hypot(pos[i][0], pos[i][1]), max_radius(i, a)))
 
     for _ in range(iters):
         moved = 0.0

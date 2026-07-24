@@ -23,6 +23,8 @@ same file can be run in PLA/PETG and again in TPU to compare materials.
 Prints flat, bores-up, no supports.
 """
 
+from collections.abc import Callable
+
 from build123d import (
     Axis,
     BuildPart,
@@ -45,13 +47,23 @@ from models.drill_fit_tester import (
 )
 from models.drill_storage_gridfinity import (
     BASE_COLOR,
+    HEX_GRIP,
     RIB_GRIP,
+    grip_for,
     RIB_ZONE_H,
     _rib_tip_r,
     _rib_relief,
     cut_holes,
 )
 from models.drill_storage_wood import CSK_HEAD_D, CSK_HEX_AF
+
+# A bar's grip is either one flat interference for every bore, or a law that
+# varies it per diameter.
+GripLaw = float | Callable[[float], float]
+
+# Never cut a bore looser than this, whatever an offset would ask for -- below
+# it the ribs stop touching the bit at all and the coupon reads nothing.
+MIN_GRIP = 0.05
 
 # Representative sizes spanning the set. Both ends matter: the small bores are
 # where the old law went too tight and the big ones where it went too loose.
@@ -75,16 +87,50 @@ def _valley_r(d: float, grip: float) -> float:
     return _rib_tip_r(d, grip) + _rib_relief(d, grip)
 
 
-def create_bar(grip: float) -> Part:
-    """One coupon bored at ``grip`` (diametral interference), all sweep sizes."""
-    # Space the row on the sweep's *smallest* grip, which is its widest cut, so
-    # every bar shares one hole layout -- bars stay comparable and stack neatly.
-    layout_grip = min(SWEEP_GRIPS)
+def create_bar(
+    grip: GripLaw,
+    diams: list[float] | None = None,
+    layout_grip: GripLaw | None = None,
+    title: str | None = None,
+    label: str | None = None,
+    with_hex: bool | None = None,
+    hex_grip: float | None = None,
+) -> Part:
+    """One coupon of through-bored test holes.
+
+    ``grip`` is either a single diametral interference for every bore, or a
+    callable ``d -> grip`` when the bar tests a *law* rather than a flat value
+    (that is how the small-bore coupon varies grip per size). A callable has no
+    single number to stamp on the bar, so it needs an explicit ``title`` and
+    ``label``. ``layout_grip`` is the grip the hole spacing is computed from --
+    pass the loosest grip in the whole family so every bar shares one layout and
+    stays comparable.
+
+    ``hex_grip`` sets the socket on its own. Left None the hex takes the same
+    law as the round bores, which is what a flat sweep wants: one raw value
+    across every hole. A bar testing the *production* law must pass it, because
+    the socket's production value is ``HEX_GRIP``, not ``grip_for()``.
+    """
+    diams = SWEEP_DIAMS if diams is None else diams
+    with_hex = SWEEP_HEX if with_hex is None else with_hex
+    if callable(grip):
+        if title is None or label is None:
+            raise ValueError("a callable grip needs an explicit title and label")
+    else:
+        title = title or f"{grip:.2f}"
+        label = label or f"grip_{grip:.2f}".replace(".", "p")
+    grip_of = grip if callable(grip) else (lambda _d, _g=grip: _g)
+    if layout_grip is None:
+        layout_grip = min(SWEEP_GRIPS)
+    layout_of = (
+        layout_grip if callable(layout_grip) else (lambda _d, _g=layout_grip: _g)
+    )
+
     placed: list[list] = []
     c = 0.0
     prev_r = None
-    keys = [(f"{d:g}", d, _valley_r(d, layout_grip)) for d in SWEEP_DIAMS]
-    if SWEEP_HEX:
+    keys = [(f"{d:g}", d, _valley_r(d, layout_of(d))) for d in diams]
+    if with_hex:
         # Packed on the head, which overhangs the socket and rests on the face.
         keys.append(("hex", CSK_HEX_AF, CSK_HEAD_D / 2))
     for key, d, r in keys:
@@ -111,36 +157,107 @@ def create_bar(grip: float) -> Part:
         chamfer(bar.edges().group_by(Axis.Z)[-1], PLATE_CH)
 
         # Through-bored so a bit can be pushed back out from underneath, with the
-        # production rib geometry at this bar's grip.
-        cut_holes(
-            [(d, px, 0.0) for k, d, px, _ in placed if k != "hex"],
-            [(d, px, 0.0) for k, d, px, _ in placed if k == "hex"],
-            0.0,
-            True,
-            PLATE_H,
-            PLATE_H,
-            through=True,
-            grip=grip,
-        )
+        # production rib geometry at this bar's grip. cut_holes takes one grip
+        # per call, so a per-size law is cut one bore at a time.
+        for key, d, px, _ in placed:
+            is_hex = key == "hex"
+            bore_grip = hex_grip if is_hex and hex_grip is not None else grip_of(d)
+            cut_holes(
+                [] if is_hex else [(d, px, 0.0)],
+                [(d, px, 0.0)] if is_hex else None,
+                0.0,
+                True,
+                PLATE_H,
+                PLATE_H,
+                through=True,
+                grip=bore_grip,
+            )
 
         for key, d, px, _ in placed:
             _engrave(key, (px, -half_w, z_mid), (1, 0, 0), (0, -1, 0))
-        _engrave(f"{grip:.2f}", (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
+        _engrave(title, (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
 
-    bar.part.label = f"grip_{grip:.2f}".replace(".", "p")
+    bar.part.label = label
     bar.part.color = BASE_COLOR
     return bar.part
 
 
-def create() -> Compound:
-    """All sweep bars, laid out side by side (each exports as its own STL)."""
-    bars = [create_bar(g) for g in SWEEP_GRIPS]
+def lay_out(bars: list[Part], label: str) -> Compound:
+    """Stack bars side by side; each child exports as its own STL."""
     pitch = max(b.bounding_box().size.Y for b in bars) + BAR_GAP
     y0 = -pitch * (len(bars) - 1) / 2
     return Compound(
-        label="drill_fit_tester_sweep",
+        label=label,
         children=[Pos(0, y0 + i * pitch, 0) * b for i, b in enumerate(bars)],
     )
+
+
+def create() -> Compound:
+    """All sweep bars, laid out side by side (each exports as its own STL)."""
+    return lay_out([create_bar(g) for g in SWEEP_GRIPS], "drill_fit_tester_sweep")
+
+
+# --- Offset families ----------------------------------------------------------
+# A second style of coupon: instead of sweeping a flat grip value, shift the
+# *production law* by a fixed offset per bar. Once grip_for() stopped being a
+# constant, a flat sweep could no longer answer "is the law right?" -- only a
+# shifted law can. Used by drill_fit_tester_small and drill_fit_tester_full.
+
+
+def grip_shifted(offset: float) -> Callable[[float], float]:
+    """The round-bore production law, shifted by ``offset``, floored at MIN_GRIP."""
+    return lambda d: max(MIN_GRIP, grip_for(d) + offset)
+
+
+def hex_grip_shifted(offset: float) -> float:
+    """The hex socket's production grip, shifted by ``offset``.
+
+    The socket does NOT ride on ``grip_for()`` -- it has its own ``HEX_GRIP``
+    (flats, not a curved wall). Shifting the round-bore law instead would cut
+    every socket 0.03 loose, so the ``+0.00`` bar would really be a ``-0.03``
+    bar and reading it would push HEX_GRIP the wrong way.
+    """
+    return max(MIN_GRIP, HEX_GRIP + offset)
+
+
+def create_offset_bar(
+    offset: float, diams: list[float], offsets: list[float], with_hex: bool
+) -> Part:
+    """One coupon cut with the production law shifted by ``offset``."""
+    return create_bar(
+        grip_shifted(offset),
+        diams=diams,
+        # Space every bar on the family's loosest grip so they share one hole
+        # layout and stay directly comparable side by side.
+        layout_grip=grip_shifted(min(offsets)),
+        title=f"{offset:+.2f}",
+        label=f"off_{offset:+.2f}".replace(".", "p")
+        .replace("+", "p")
+        .replace("-", "m"),
+        with_hex=with_hex,
+        hex_grip=hex_grip_shifted(offset),
+    )
+
+
+def create_offset_family(
+    offsets: list[float], diams: list[float], with_hex: bool, label: str
+) -> Compound:
+    """A whole family of offset coupons, laid out side by side."""
+    return lay_out(
+        [create_offset_bar(o, diams, offsets, with_hex) for o in offsets], label
+    )
+
+
+def report_offsets(
+    diams: list[float], offsets: list[float], with_hex: bool = False
+) -> None:
+    """Print the grip each bar will cut at each size -- the coupon's key."""
+    for d in diams:
+        shifted = ", ".join(f"{o:+.2f}->{grip_shifted(o)(d):.2f}" for o in offsets)
+        print(f"{d:>5g} mm  production {grip_for(d):.2f}   bars: {shifted}")
+    if with_hex:
+        shifted = ", ".join(f"{o:+.2f}->{hex_grip_shifted(o):.2f}" for o in offsets)
+        print(f"{'hex':>5} mm  production {HEX_GRIP:.2f}   bars: {shifted}")
 
 
 def main() -> None:
