@@ -10,6 +10,7 @@ dependencies = [
     "ocp-tessellate>=3.3.0",
     "pygobject>=3.54.5",
     "pywebview>=6.1",
+    "mcp>=1.28.1",
 ]
 
 [project.scripts]
@@ -19,12 +20,15 @@ render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
 website = "website:main"
+sketch = "sketch.cli:main"
+sketch-mcp = "sketch.mcp_server:main"
+sketch-ui = "sketch.server:main"
 
 [tool.uv]
 package = true
 
 [tool.setuptools]
-packages = ["models"]
+packages = ["models", "sketch"]
 py-modules = ["fontfix", "show", "export_model", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 
 [dependency-groups]

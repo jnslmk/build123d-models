@@ -29,7 +29,33 @@ uv run ty check .
 
 # Query selection buffer (elements clicked in viewer)
 uv run selection                      # JSON output + human summary
+
+# Constraint-based sketch editor (sketch/ package)
+uv run sketch demo                    # create the example bracket sketch
+uv run sketch list                    # list sketches in sketches/
+uv run sketch show <name>             # print the document + solve status
+uv run sketch codegen <name>          # (re-solve and) write models/<name>.py
+uv run sketch-mcp                     # run the MCP server (stdio) standalone
 ```
+
+## Sketch Editor + MCP
+
+`sketch/` is a constraint-based 2D sketch editor. One JSON document per sketch in
+`sketches/<name>.sketch.json` is the single source of truth; `sketch/codegen.py`
+emits a real `models/<name>.py` in the `create()` builder-mode pattern.
+
+- **One mutation API** (`sketch/commands.py`) is called by *both* editors, so an
+  agent edit and a human edit are the same operation on the same file.
+- **Solver** (`sketch/solver.py`): pure-Python Levenberg-Marquardt over point
+  coordinates. Constraints: horizontal, vertical, coincident, distance, parallel,
+  perpendicular, equal, point_on, radius. Reports degrees of freedom
+  (well-/under-/over-constrained) after every edit.
+- **MCP** (`sketch/mcp_server.py`, registered in `.mcp.json`): 13 tools
+  (`create_sketch`, `add_rect`, `add_circle`, `add_constraint`, `set_dimension`,
+  `move_point`, `generate_model`, …). Each loads the JSON, mutates, re-solves,
+  saves — disk is the shared state, so agent and human edits interleave safely.
+  A parametric change is `set_dimension(constraint_id, value)` (e.g. "make the
+  slot 4 mm longer"). Run `uv run show <name>` after `generate_model` to preview.
 
 ## Post-Update Verification
 

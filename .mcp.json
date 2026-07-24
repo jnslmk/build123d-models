@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "sketch": {
+      "command": "uv",
+      "args": ["run", "sketch-mcp"],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sketch — build123d constraint canvas</title>
+<style>
+  /* ---- drafting-instrument palette; tokens drive both themes ---- */
+  :root {
+    --paper:#f5f7f9; --panel:#ffffff; --ink:#1a2129; --muted:#5b6875;
+    --line:#d8dee5; --grid:#e7ebef; --grid-major:#d2d9e0;
+    --geo:#0e8ea3; --geo-sel:#0b6f80; --dim:#c9820f; --cons:#6b72e0;
+    --hole:#c0503c; --anchor:#1a2129;
+    --ok:#2b9a5f; --warn:#c9820f; --info:#3b7dd8; --bad:#d8503c;
+    --shadow:0 1px 3px rgba(20,30,45,.10),0 4px 16px rgba(20,30,45,.06);
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b98a5;
+      --line:#232c36; --grid:#171d25; --grid-major:#20272f;
+      --geo:#2ec7dc; --geo-sel:#7fe3f0; --dim:#e3a94b; --cons:#8b91ee;
+      --hole:#e0715c; --anchor:#c9d4de;
+      --ok:#3fbf78; --warn:#e3a94b; --info:#5b9bf0; --bad:#f0715c;
+      --shadow:0 1px 3px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#f5f7f9; --panel:#ffffff; --ink:#1a2129; --muted:#5b6875;
+    --line:#d8dee5; --grid:#e7ebef; --grid-major:#d2d9e0;
+    --geo:#0e8ea3; --geo-sel:#0b6f80; --dim:#c9820f; --cons:#6b72e0;
+    --hole:#c0503c; --anchor:#1a2129;
+    --ok:#2b9a5f; --warn:#c9820f; --info:#3b7dd8; --bad:#d8503c;
+  }
+  :root[data-theme="dark"]{
+    --paper:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#8b98a5;
+    --line:#232c36; --grid:#171d25; --grid-major:#20272f;
+    --geo:#2ec7dc; --geo-sel:#7fe3f0; --dim:#e3a94b; --cons:#8b91ee;
+    --hole:#e0715c; --anchor:#c9d4de;
+    --ok:#3fbf78; --warn:#e3a94b; --info:#5b9bf0; --bad:#f0715c;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family:var(--ui);background:var(--paper);color:var(--ink);
+    display:grid;grid-template-rows:auto 1fr;height:100vh;overflow:hidden;
+  }
+  /* ---- header ---- */
+  header{
+    display:flex;align-items:center;gap:14px;padding:10px 16px;
+    background:var(--panel);border-bottom:1px solid var(--line);z-index:5;
+  }
+  .brand{font-weight:650;letter-spacing:.02em;display:flex;align-items:center;gap:9px}
+  .brand .mark{width:16px;height:16px;border:2px solid var(--geo);border-radius:3px;
+    position:relative}
+  .brand .mark::after{content:"";position:absolute;inset:3px;border-radius:50%;
+    border:2px solid var(--dim)}
+  .brand small{color:var(--muted);font-weight:450;font-size:12px}
+  header .spacer{flex:1}
+  select,button,input{font-family:var(--ui);font-size:13px;color:var(--ink)}
+  .field{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  select{background:var(--paper);border:1px solid var(--line);border-radius:7px;
+    padding:6px 9px}
+  button{background:var(--panel);border:1px solid var(--line);border-radius:7px;
+    padding:7px 11px;cursor:pointer;transition:background .12s,border-color .12s}
+  button:hover{border-color:var(--geo)}
+  button:focus-visible,select:focus-visible,input:focus-visible{
+    outline:2px solid var(--geo);outline-offset:1px}
+  button.primary{background:var(--geo);border-color:var(--geo);color:#fff;font-weight:600}
+  button.primary:hover{filter:brightness(1.06)}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);
+    font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);
+    background:var(--paper)}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+  .pill[data-s="well-constrained"] .dot{background:var(--ok)}
+  .pill[data-s="under-constrained"] .dot{background:var(--warn)}
+  .pill[data-s^="over"] .dot{background:var(--info)}
+  .pill[data-s="conflicting"] .dot{background:var(--bad)}
+  /* ---- main split ---- */
+  main{display:grid;grid-template-columns:60px 1fr 288px;min-height:0}
+  /* tool rail */
+  .rail{background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;
+    overflow-y:auto}
+  .rail .grp{width:100%;display:flex;flex-direction:column;align-items:center;gap:4px}
+  .rail hr{width:60%;border:none;border-top:1px solid var(--line);margin:6px 0}
+  .tool{width:40px;height:40px;padding:0;display:grid;place-items:center;
+    border-radius:9px;font-size:15px;position:relative}
+  .tool[aria-pressed="true"]{background:var(--geo);border-color:var(--geo);color:#fff}
+  .tool .cap{position:absolute;bottom:2px;right:4px;font-size:8px;color:var(--muted);
+    font-family:var(--mono)}
+  .tool[aria-pressed="true"] .cap{color:rgba(255,255,255,.8)}
+  /* canvas */
+  .stage{position:relative;min-width:0;background:var(--paper)}
+  canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .stage.select canvas{cursor:default}
+  .readout{position:absolute;left:12px;bottom:10px;font-family:var(--mono);
+    font-size:11px;color:var(--muted);background:color-mix(in srgb,var(--panel) 82%,transparent);
+    padding:4px 8px;border-radius:6px;border:1px solid var(--line);pointer-events:none}
+  .hint{position:absolute;left:50%;top:12px;transform:translateX(-50%);
+    font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--panel) 90%,transparent);
+    padding:6px 12px;border-radius:999px;border:1px solid var(--line);
+    pointer-events:none;max-width:80%;text-align:center}
+  .toast{position:absolute;right:12px;bottom:12px;background:var(--ink);color:var(--paper);
+    font-size:12px;padding:9px 13px;border-radius:8px;box-shadow:var(--shadow);
+    opacity:0;transform:translateY(6px);transition:.2s;font-family:var(--mono);max-width:340px}
+  .toast.show{opacity:1;transform:none}
+  /* right panel */
+  aside{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;
+    display:flex;flex-direction:column}
+  .sec{padding:13px 15px;border-bottom:1px solid var(--line)}
+  .sec h2{margin:0 0 9px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);font-weight:650}
+  .kv{font-family:var(--mono);font-size:12px;color:var(--ink)}
+  .selrow{display:flex;flex-wrap:wrap;gap:5px;min-height:22px}
+  .chip{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;
+    border:1px solid var(--line);background:var(--paper)}
+  .chip[data-k="points"]{color:var(--geo)}
+  .chip[data-k="segments"]{color:var(--ink)}
+  .chip[data-k="circles"]{color:var(--hole)}
+  .empty{color:var(--muted);font-size:12px}
+  .dim{display:flex;align-items:center;gap:8px;margin:6px 0}
+  .dim label{font-family:var(--mono);font-size:11px;color:var(--muted);flex:1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dim input{width:74px;background:var(--paper);border:1px solid var(--line);
+    border-radius:6px;padding:5px 7px;font-family:var(--mono);text-align:right}
+  .dim .tag{color:var(--dim);font-weight:600}
+  .dim .tag.r{color:var(--cons)}
+  .legend{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .legend i{width:16px;height:0;border-top:2px solid;display:inline-block}
+  kbd{font-family:var(--mono);font-size:10px;background:var(--paper);border:1px solid var(--line);
+    border-bottom-width:2px;border-radius:4px;padding:1px 5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark"></span>Sketch
+    <small>build123d constraint canvas</small></div>
+  <div class="field">doc
+    <select id="sketchSel" title="Open a sketch"></select>
+    <button id="newBtn" title="New sketch">+ new</button>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill" id="statusPill" data-s="under-constrained">
+    <span class="dot"></span><span id="statusText">—</span></span>
+  <button class="primary" id="genBtn" title="Write models/&lt;name&gt;.py">Generate .py</button>
+</header>
+
+<main>
+  <nav class="rail" id="rail">
+    <div class="grp">
+      <button class="tool" data-tool="select" aria-pressed="true" title="Select / drag / pan (V)"><span>➤</span><span class="cap">V</span></button>
+      <button class="tool" data-tool="line" title="Line (L)"><span>╱</span><span class="cap">L</span></button>
+      <button class="tool" data-tool="rect" title="Rectangle (R)"><span>▭</span><span class="cap">R</span></button>
+      <button class="tool" data-tool="circle" title="Circle (C)"><span>◯</span><span class="cap">C</span></button>
+      <button class="tool" data-tool="delete" title="Delete (X)"><span>⌫</span><span class="cap">X</span></button>
+    </div>
+    <hr>
+    <div class="grp" id="consGrp">
+      <button class="tool" data-cons="horizontal" title="Horizontal — pick 1 segment">H</button>
+      <button class="tool" data-cons="vertical" title="Vertical — pick 1 segment">V</button>
+      <button class="tool" data-cons="parallel" title="Parallel — pick 2 segments">∥</button>
+      <button class="tool" data-cons="perpendicular" title="Perpendicular — pick 2 segments">⟂</button>
+      <button class="tool" data-cons="equal" title="Equal length — pick 2 segments">=</button>
+      <button class="tool" data-cons="coincident" title="Coincident — pick 2 points">⌖</button>
+      <button class="tool" data-cons="point_on" title="Point on line — pick 1 point + 1 segment">•⁄</button>
+      <button class="tool" data-cons="distance" title="Distance — pick 2 points">↔</button>
+      <button class="tool" data-cons="radius" title="Radius — pick 1 circle">⌀</button>
+      <button class="tool" data-cons="fix" title="Anchor / release — pick 1 point">📌</button>
+    </div>
+  </nav>
+
+  <div class="stage select" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="hint" id="hint"></div>
+    <div class="readout" id="readout">—</div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <aside>
+    <div class="sec">
+      <h2>Solver</h2>
+      <div class="kv" id="solveInfo">—</div>
+    </div>
+    <div class="sec">
+      <h2>Selection</h2>
+      <div class="selrow" id="selRow"><span class="empty">Nothing selected</span></div>
+      <div style="margin-top:8px">
+        <label class="field"><input type="checkbox" id="roleHole" checked> new circles cut holes</label>
+      </div>
+    </div>
+    <div class="sec" style="flex:1">
+      <h2>Dimensions</h2>
+      <div id="dims"><span class="empty">No distance / radius constraints yet.</span></div>
+    </div>
+    <div class="sec">
+      <h2>Legend</h2>
+      <div class="legend">
+        <span><i style="border-color:var(--geo)"></i> geometry</span>
+        <span><i style="border-color:var(--hole)"></i> hole circle</span>
+        <span><i style="border-color:var(--cons);border-top-style:dashed"></i> constraint mark</span>
+        <span>◼ anchored point &nbsp; ● free point</span>
+        <span><kbd>Esc</kbd> cancel &nbsp; <kbd>Del</kbd> delete sel</span>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+// ============================ state ============================
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const stage = document.getElementById("stage");
+let S = null;                 // server state {points,segments,circles,constraints,solve}
+let name = null;              // current sketch name
+let tool = "select";
+let sel = [];                 // [{type,id}]
+const view = { scale: 7, ox: 120, oy: 400 };  // world→screen: sx=ox+wx*s, sy=oy-wy*s
+let pending = null;           // in-progress tool interaction
+let drag = null;              // {pid, inFlight, next}
+let lastDocJSON = "";         // to detect agent edits during polling
+
+// ============================ api ============================
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+const getState = n => api("/api/sketch/" + n);
+const listSketches = () => api("/api/sketches");
+function command(body) { // returns fresh state
+  return api("/api/sketch/" + name + "/command",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+}
+
+// ============================ transforms ============================
+const toS = (wx, wy) => [view.ox + wx * view.scale, view.oy - wy * view.scale];
+const toW = (sx, sy) => [(sx - view.ox) / view.scale, (view.oy - sy) / view.scale];
+const P = id => S.points.find(p => p.id === id);
+const SEG = id => S.segments.find(s => s.id === id);
+
+// ============================ rendering ============================
+function resize() {
+  const dpr = window.devicePixelRatio || 1, r = cv.getBoundingClientRect();
+  cv.width = r.width * dpr; cv.height = r.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+function draw() {
+  if (!S) return;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ctx.clearRect(0, 0, w, h);
+  drawGrid(w, h);
+  drawAxes(w, h);
+  // constraints (under geometry)
+  S.constraints.forEach(drawConstraint);
+  // circles
+  S.circles.forEach(drawCircle);
+  // segments
+  ctx.lineWidth = 2;
+  S.segments.forEach(s => {
+    const a = P(s.p), b = P(s.q);
+    const [ax, ay] = toS(a.x, a.y), [bx, by] = toS(b.x, b.y);
+    ctx.strokeStyle = isSel("segments", s.id) ? css("--geo-sel") : css("--geo");
+    ctx.lineWidth = isSel("segments", s.id) ? 3.5 : 2;
+    line(ax, ay, bx, by);
+  });
+  // preview
+  drawPreview();
+  // points on top
+  S.points.forEach(drawPoint);
+}
+function line(ax, ay, bx, by){ ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+
+function drawGrid(w, h) {
+  const step = niceStep();
+  const [x0, y1] = toW(0, 0), [x1, y0] = toW(w, h);
+  ctx.lineWidth = 1;
+  for (let gx = Math.ceil(x0 / step) * step; gx <= x1; gx += step) {
+    const [sx] = toS(gx, 0);
+    ctx.strokeStyle = Math.abs(gx) < 1e-6 ? css("--grid-major") : css("--grid");
+    line(sx, 0, sx, h);
+  }
+  for (let gy = Math.ceil(y0 / step) * step; gy <= y1; gy += step) {
+    const [, sy] = toS(0, gy);
+    ctx.strokeStyle = Math.abs(gy) < 1e-6 ? css("--grid-major") : css("--grid");
+    line(0, sy, w, sy);
+  }
+}
+function niceStep(){ // world mm per grid line, ~40-90px apart
+  const target = 60 / view.scale;
+  const pow = Math.pow(10, Math.floor(Math.log10(target)));
+  for (const m of [1, 2, 5, 10]) if (pow * m >= target) return pow * m;
+  return pow * 10;
+}
+function drawAxes(w, h){
+  const [ox, oy] = toS(0, 0);
+  ctx.strokeStyle = css("--grid-major"); ctx.lineWidth = 1.5;
+  if (oy > 0 && oy < h) line(0, oy, w, oy);
+  if (ox > 0 && ox < w) line(ox, 0, ox, h);
+}
+function drawPoint(p) {
+  const [x, y] = toS(p.x, p.y), s = isSel("points", p.id);
+  ctx.lineWidth = 1.5;
+  if (p.fixed) {
+    ctx.fillStyle = css("--anchor"); ctx.strokeStyle = css("--anchor");
+    ctx.beginPath(); ctx.rect(x - 4, y - 4, 8, 8); ctx.fill();
+  } else {
+    ctx.fillStyle = css("--panel"); ctx.strokeStyle = s ? css("--geo-sel") : css("--geo");
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  if (s) { ctx.strokeStyle = css("--geo-sel"); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.stroke(); }
+}
+function drawCircle(c) {
+  const ctr = P(c.c), [x, y] = toS(ctr.x, ctr.y), r = c.r * view.scale, s = isSel("circles", c.id);
+  ctx.strokeStyle = c.role === "hole" ? css("--hole") : css("--geo");
+  ctx.setLineDash(c.role === "hole" ? [5, 4] : []);
+  ctx.lineWidth = s ? 3 : 2;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+  ctx.setLineDash([]);
+}
+function drawConstraint(k) {
+  ctx.fillStyle = css("--cons"); ctx.font = "600 11px " + css("--mono");
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const glyph = { horizontal:"H", vertical:"V", parallel:"∥", perpendicular:"⟂",
+    equal:"=", coincident:"⌖", point_on:"•", distance:"", radius:"" }[k.type];
+  const at = (wx, wy, dx, dy, txt, col) => {
+    const [x, y] = toS(wx, wy); ctx.fillStyle = col || css("--cons");
+    ctx.fillText(txt, x + (dx||0), y + (dy||0));
+  };
+  if (k.seg) { const s = SEG(k.seg), a = P(s.p), b = P(s.q);
+    at((a.x+b.x)/2, (a.y+b.y)/2, 10, -10, glyph); }
+  else if (k.s1) { for (const sid of [k.s1, k.s2]) { const s = SEG(sid), a = P(s.p), b = P(s.q);
+    at((a.x+b.x)/2, (a.y+b.y)/2, 10, -10, glyph); } }
+  else if (k.type === "coincident") { const a = P(k.a); at(a.x, a.y, 12, -12, glyph); }
+  else if (k.type === "point_on") { const p = P(k.p); at(p.x, p.y, 12, -12, glyph); }
+  else if (k.type === "distance") { const a = P(k.a), b = P(k.b);
+    at((a.x+b.x)/2, (a.y+b.y)/2, 0, -12, "↔"+k.d, css("--dim")); }
+}
+function drawPreview() {
+  if (!pending || !pending.pts || !pending.cur) return;
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = css("--dim"); ctx.lineWidth = 1.5;
+  const [c] = pending.pts, cur = pending.cur;
+  if (tool === "line") { const [ax, ay] = toS(c.x, c.y), [bx, by] = toS(cur.x, cur.y); line(ax, ay, bx, by); }
+  if (tool === "rect") { const [ax, ay] = toS(c.x, c.y), [bx, by] = toS(cur.x, cur.y);
+    ctx.strokeRect(Math.min(ax,bx), Math.min(ay,by), Math.abs(bx-ax), Math.abs(by-ay)); }
+  if (tool === "circle") { const [ax, ay] = toS(c.x, c.y);
+    const r = Math.hypot(cur.x-c.x, cur.y-c.y) * view.scale;
+    ctx.beginPath(); ctx.arc(ax, ay, r, 0, 7); ctx.stroke(); }
+  ctx.setLineDash([]);
+}
+
+// ============================ hit testing ============================
+function hit(sx, sy) {
+  for (const p of S.points) { const [x, y] = toS(p.x, p.y);
+    if (Math.hypot(x-sx, y-sy) <= 8) return { type: "points", id: p.id }; }
+  for (const s of S.segments) { const a = P(s.p), b = P(s.q);
+    const [ax, ay] = toS(a.x, a.y), [bx, by] = toS(b.x, b.y);
+    if (distSeg(sx, sy, ax, ay, bx, by) <= 6) return { type: "segments", id: s.id }; }
+  for (const c of S.circles) { const ctr = P(c.c), [x, y] = toS(ctr.x, ctr.y);
+    if (Math.abs(Math.hypot(x-sx, y-sy) - c.r*view.scale) <= 6) return { type: "circles", id: c.id }; }
+  return null;
+}
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx-ax, dy = by-ay, L2 = dx*dx+dy*dy || 1;
+  let t = ((px-ax)*dx + (py-ay)*dy) / L2; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax+t*dx), py - (ay+t*dy));
+}
+function snapWorld(sx, sy) { // snap to existing point (weld) then to grid step/2
+  for (const p of S.points) { const [x, y] = toS(p.x, p.y);
+    if (Math.hypot(x-sx, y-sy) <= 11) return { x: p.x, y: p.y, snapped: p.id }; }
+  const [wx, wy] = toW(sx, sy), g = niceStep() / 2;
+  return { x: Math.round(wx/g)*g, y: Math.round(wy/g)*g };
+}
+const isSel = (type, id) => sel.some(e => e.type === type && e.id === id);
+
+// ============================ pointer interaction ============================
+function evPos(e){ const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+
+cv.addEventListener("pointerdown", e => {
+  const [sx, sy] = evPos(e); cv.setPointerCapture(e.pointerId);
+  if (tool === "select") {
+    const h = hit(sx, sy);
+    if (h && h.type === "points") { drag = { pid: h.id, inFlight: false, next: null }; return; }
+    if (h) { toggleSel(h); draw(); refreshPanels(); return; }
+    if (!e.shiftKey) { sel = []; refreshPanels(); }
+    pending = { pan: true, x: e.clientX, y: e.clientY, ox: view.ox, oy: view.oy };
+    return;
+  }
+  if (tool === "delete") { const h = hit(sx, sy); if (h) doDelete(h.id); return; }
+  // constructive tools: collect click points
+  const w = snapWorld(sx, sy);
+  if (!pending) pending = { pts: [w], cur: w };
+  else finishTool(w);
+});
+
+cv.addEventListener("pointermove", e => {
+  const [sx, sy] = evPos(e);
+  const [wx, wy] = toW(sx, sy);
+  document.getElementById("readout").textContent =
+    `x ${wx.toFixed(1)}  y ${wy.toFixed(1)}   ·   ${view.scale.toFixed(1)} px/mm   ·   ${tool}`;
+  if (drag) { const w = snapDragWorld(sx, sy); movePointLocal(drag.pid, w.x, w.y); pumpDrag(w); return; }
+  if (pending && pending.pan) {
+    view.ox = pending.ox + (e.clientX - pending.x); view.oy = pending.oy + (e.clientY - pending.y);
+    draw(); return;
+  }
+  if (pending && pending.pts) { pending.cur = snapWorld(sx, sy); draw(); }
+});
+
+cv.addEventListener("pointerup", e => {
+  if (drag) { const [sx, sy] = evPos(e); const w = snapDragWorld(sx, sy);
+    command({ command: "drag", pid: drag.pid, x: w.x, y: w.y }).then(applyState).catch(err);
+    drag = null; return; }
+  if (pending && pending.pan) pending = null;
+});
+
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const [sx, sy] = evPos(e), [wx, wy] = toW(sx, sy);
+  view.scale *= e.deltaY < 0 ? 1.1 : 1/1.1;
+  view.scale = Math.max(1, Math.min(80, view.scale));
+  view.ox = sx - wx * view.scale; view.oy = sy + wy * view.scale;
+  draw();
+}, { passive: false });
+
+function snapDragWorld(sx, sy){ const [wx, wy] = toW(sx, sy); const g = niceStep()/2;
+  return { x: Math.round(wx/g)*g, y: Math.round(wy/g)*g }; }
+function movePointLocal(pid, x, y){ const p = P(pid); if (p){ p.x = x; p.y = y; draw(); } }
+function pumpDrag(w){ // live solve, at most one request in flight
+  if (!drag) return;
+  if (drag.inFlight) { drag.next = w; return; }
+  drag.inFlight = true;
+  command({ command: "drag", pid: drag.pid, x: w.x, y: w.y }).then(st => {
+    if (drag) { applyStateKeepDrag(st); drag.inFlight = false;
+      if (drag.next) { const n = drag.next; drag.next = null; pumpDrag(n); } }
+  }).catch(e => { if (drag) drag.inFlight = false; err(e); });
+}
+
+// ============================ tool completion ============================
+function finishTool(w) {
+  const a = pending.pts[0];
+  if (tool === "line") command({ command: "add_line", x0: a.x, y0: a.y, x1: w.x, y1: w.y }).then(applyState).catch(err);
+  if (tool === "rect") { const x = Math.min(a.x, w.x), y = Math.min(a.y, w.y),
+    W = Math.abs(w.x - a.x), H = Math.abs(w.y - a.y);
+    if (W < .5 || H < .5) { pending = null; return draw(); }
+    command({ command: "add_rect", x, y, w: W, h: H }).then(applyState).catch(err); }
+  if (tool === "circle") { const r = Math.hypot(w.x - a.x, w.y - a.y);
+    if (r < .5) { pending = null; return draw(); }
+    const role = document.getElementById("roleHole").checked ? "hole" : "boss";
+    command({ command: "add_circle", cx: a.x, cy: a.y, r, role }).then(applyState).catch(err); }
+  pending = null;
+}
+function doDelete(id){ command({ command: "delete", eid: id }).then(applyState).catch(err); }
+
+// ============================ constraints from selection ============================
+function applyConstraint(type) {
+  const pts = sel.filter(e => e.type === "points").map(e => e.id);
+  const segs = sel.filter(e => e.type === "segments").map(e => e.id);
+  const circs = sel.filter(e => e.type === "circles").map(e => e.id);
+  let body = null, need = "";
+  if (type === "fix") { if (pts.length !== 1) return needMsg("Pick exactly 1 point to anchor.");
+    const p = P(pts[0]); return command({ command: "set_fixed", pid: pts[0], fixed: !p.fixed })
+      .then(after).catch(err); }
+  if (type === "horizontal" || type === "vertical") { if (segs.length !== 1) need = "1 segment";
+    else body = { command: "add_constraint", ctype: type, seg: segs[0] }; }
+  if (type === "parallel" || type === "perpendicular" || type === "equal") {
+    if (segs.length !== 2) need = "2 segments";
+    else body = { command: "add_constraint", ctype: type, s1: segs[0], s2: segs[1] }; }
+  if (type === "coincident") { if (pts.length !== 2) need = "2 points";
+    else body = { command: "add_constraint", ctype: "coincident", a: pts[0], b: pts[1] }; }
+  if (type === "point_on") { if (pts.length !== 1 || segs.length !== 1) need = "1 point + 1 segment";
+    else body = { command: "add_constraint", ctype: "point_on", p: pts[0], seg: segs[0] }; }
+  if (type === "distance") { if (pts.length !== 2) need = "2 points";
+    else { const a = P(pts[0]), b = P(pts[1]); const d = askNum("Distance (mm)", Math.hypot(a.x-b.x, a.y-b.y));
+      if (d == null) return; body = { command: "add_constraint", ctype: "distance", a: pts[0], b: pts[1], d }; } }
+  if (type === "radius") { if (circs.length !== 1) need = "1 circle";
+    else { const c = S.circles.find(x => x.id === circs[0]); const r = askNum("Radius (mm)", c.r);
+      if (r == null) return; body = { command: "add_constraint", ctype: "radius", circle: circs[0], r }; } }
+  if (need) return needMsg(`${type}: pick ${need}.`);
+  if (body) command(body).then(after).catch(err);
+  function after(st){ sel = []; applyState(st); }
+}
+const askNum = (label, def) => { const v = prompt(label, (+def).toFixed(2)); if (v == null) return null;
+  const n = parseFloat(v); return isFinite(n) ? n : null; };
+
+// ============================ selection & panels ============================
+function toggleSel(h){ const i = sel.findIndex(e => e.type === h.type && e.id === h.id);
+  if (i >= 0) sel.splice(i, 1); else sel.push(h); }
+function refreshPanels(){
+  const row = document.getElementById("selRow");
+  row.innerHTML = sel.length
+    ? sel.map(e => `<span class="chip" data-k="${e.type}">${e.id}</span>`).join("")
+    : `<span class="empty">Nothing selected</span>`;
+  // dimensions
+  const dims = S.constraints.filter(k => k.type === "distance" || k.type === "radius");
+  const dv = document.getElementById("dims");
+  dv.innerHTML = dims.length ? dims.map(k => k.type === "distance"
+    ? `<div class="dim"><span class="tag">↔</span><label title="${k.id}: |${k.a}–${k.b}|">${k.a}–${k.b}</label><input type="number" step="0.5" value="${k.d}" data-kid="${k.id}"></div>`
+    : `<div class="dim"><span class="tag r">⌀</span><label title="${k.id}: radius ${k.circle}">${k.circle}</label><input type="number" step="0.5" value="${k.r}" data-kid="${k.id}"></div>`
+  ).join("") : `<span class="empty">No distance / radius constraints yet.</span>`;
+  dv.querySelectorAll("input").forEach(inp => inp.addEventListener("change", () => {
+    const v = parseFloat(inp.value); if (!isFinite(v)) return;
+    command({ command: "set_dimension", kid: inp.dataset.kid, value: v }).then(applyState).catch(err);
+  }));
+}
+function refreshStatus(){
+  const s = S.solve; const pill = document.getElementById("statusPill");
+  pill.dataset.s = s.status;
+  document.getElementById("statusText").textContent = `${s.status} · dof ${s.dof}`;
+  document.getElementById("solveInfo").innerHTML =
+    `<div>status <b>${s.status}</b></div><div>free dof: ${s.dof}</div>` +
+    `<div>residual: ${s.residual.toExponential(2)}</div>` +
+    `<div>${S.points.length} pts · ${S.segments.length} seg · ${S.circles.length} circ · ${S.constraints.length} constr</div>`;
+}
+
+// ============================ apply server state ============================
+function applyState(st){ S = st; lastDocJSON = docJSON(st); draw(); refreshPanels(); refreshStatus(); }
+function applyStateKeepDrag(st){ S = st; lastDocJSON = docJSON(st); draw(); refreshStatus(); }
+const docJSON = st => JSON.stringify([st.points, st.segments, st.circles, st.constraints]);
+
+// ============================ toasts / errors ============================
+let toastT;
+function toast(msg, ms = 2600){ const t = document.getElementById("toast"); t.textContent = msg;
+  t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), ms); }
+function err(e){ toast("⚠ " + (e.message || e)); }
+function needMsg(m){ document.getElementById("hint").textContent = m;
+  clearTimeout(needMsg._t); needMsg._t = setTimeout(hintForTool, 2400); }
+
+// ============================ tool selection & hints ============================
+function setTool(t){ tool = t; pending = null; sel = [];
+  document.querySelectorAll("[data-tool]").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === t));
+  stage.classList.toggle("select", t === "select"); hintForTool(); draw(); refreshPanels(); }
+function hintForTool(){ const h = document.getElementById("hint");
+  h.textContent = {
+    select: "Click to select · drag a point to move (solver re-fits) · drag empty to pan · scroll to zoom",
+    line: "Click start, then end. Endpoints snap & weld to existing points.",
+    rect: "Click one corner, then the opposite. Stays rectangular via H/V constraints.",
+    circle: "Click centre, then edge. Toggle hole/boss at right.",
+    delete: "Click any element to delete it (points cascade)."
+  }[tool] || ""; }
+document.querySelectorAll("[data-tool]").forEach(b => b.addEventListener("click", () => setTool(b.dataset.tool)));
+document.querySelectorAll("[data-cons]").forEach(b => b.addEventListener("click", () => applyConstraint(b.dataset.cons)));
+
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  const map = { v:"select", l:"line", r:"rect", c:"circle", x:"delete" };
+  if (map[e.key]) setTool(map[e.key]);
+  if (e.key === "Escape") { pending = null; sel = []; draw(); refreshPanels(); }
+  if (e.key === "Delete" || e.key === "Backspace") {
+    if (sel.length) { const target = sel[0]; sel = []; doDelete(target.id); } }
+});
+
+// ============================ sketches: load / new / generate ============================
+async function refreshSketchList(selectName){
+  const { names } = await listSketches();
+  const selEl = document.getElementById("sketchSel");
+  selEl.innerHTML = names.map(n => `<option${n === selectName ? " selected" : ""}>${n}</option>`).join("")
+    || `<option value="">(none — click + new)</option>`;
+  if (selectName) name = selectName;
+  else if (names.length && !name) name = names[0];
+}
+async function open(n){ name = n; applyState(await getState(n)); fitView(); }
+function fitView(){ if (!S || !S.points.length) return;
+  const xs = S.points.map(p => p.x), ys = S.points.map(p => p.y);
+  S.circles.forEach(c => { const ct = P(c.c); xs.push(ct.x-c.r, ct.x+c.r); ys.push(ct.y-c.r, ct.y+c.r); });
+  const minx = Math.min(...xs), maxx = Math.max(...xs), miny = Math.min(...ys), maxy = Math.max(...ys);
+  const w = cv.clientWidth, h = cv.clientHeight, pad = 60;
+  const sc = Math.min((w-2*pad)/Math.max(maxx-minx, 1), (h-2*pad)/Math.max(maxy-miny, 1));
+  view.scale = Math.max(2, Math.min(40, sc));
+  view.ox = (w - (minx+maxx)*view.scale)/2; view.oy = (h + (miny+maxy)*view.scale)/2;
+  draw();
+}
+document.getElementById("sketchSel").addEventListener("change", e => open(e.target.value));
+document.getElementById("newBtn").addEventListener("click", async () => {
+  const n = prompt("New sketch name (letters, digits, _):", "part");
+  if (!n) return; const clean = n.trim().replace(/[^a-zA-Z0-9_]/g, "_");
+  const ex = prompt("Extrude depth (mm):", "3"); const extrude = parseFloat(ex) || 3;
+  try { const st = await api("/api/create", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: clean, extrude }) });
+    await refreshSketchList(clean); applyState(st); fitView(); toast("Created " + clean);
+  } catch (e) { err(e); }
+});
+document.getElementById("genBtn").addEventListener("click", async () => {
+  try { const r = await api("/api/sketch/" + name + "/generate", { method: "POST" });
+    toast("Wrote " + r.path + "  →  " + r.show_command, 5000);
+  } catch (e) { err(e); }
+});
+
+// ============================ agent-edit polling ============================
+setInterval(async () => {
+  if (!name || drag || (pending && pending.pts)) return; // don't clobber active editing
+  try { const st = await getState(name);
+    if (docJSON(st) !== lastDocJSON) { applyState(st); toast("↻ synced — edited on disk (agent/CLI)"); }
+  } catch (_) {}
+}, 1400);
+
+// ============================ boot ============================
+async function boot(){
+  await refreshSketchList();
+  if (name) { await open(name); }
+  else { S = { points:[], segments:[], circles:[], constraints:[], solve:{status:"under-constrained",dof:0,residual:0} };
+    draw(); refreshStatus(); }
+  hintForTool();
+}
+window.addEventListener("resize", resize);
+new ResizeObserver(resize).observe(stage);
+boot().then(resize);
+</script>
+</body>
+</html>
