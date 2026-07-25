@@ -72,11 +72,21 @@ SNAP_BEAD_Z = 7.0  # bead centre, measured down from the rim top
 SNAP_GROOVE_D = 0.6  # groove depth into the band's inner face
 SNAP_GROOVE_H = 3.0  # groove height (bead + 0.3 clearance each side)
 
-# --- Heat-set inserts (brass, standard M-series) -----------------------------
-# Blind pockets: nothing bores through into the sealed volume.
-INSERT_M3_D = 4.2
-INSERT_M3_L = 5.8
-BOSS_WALL = 2.5  # material around an insert pocket
+# --- PSU plate snap studs (no inserts, no screws -- none could be reached) ----
+# The PSU bolts to its plate from BELOW the plate, so that joint can only be
+# made on the bench -- and once it is, the PSU covers every boss position, so
+# no driver can reach a plate-to-tray screw either. The plate+PSU drops in as
+# one assembly and snaps onto four hollow split studs: a 1 mm walled tube cut
+# into two C-springs by a slot, with a 45 head that detents into the plate.
+# Ramps run both ways, so it clicks in on a press and releases on a hard pull.
+STUD_HOLE_D = 7.0  # plate through-hole
+STUD_TUBE_D = 6.7  # snap tube OD
+STUD_BORE_D = 4.7  # tube ID -> 1.0 mm spring wall
+STUD_SLOT_W = 1.0  # slot splitting tube + head into two halves
+STUD_HEAD_D = 8.0  # catch = (HEAD - HOLE) / 2 = 0.5 mm per side
+STUD_RECESS_D = 10.0  # pocket in the plate top hiding the head under the PSU
+STUD_RECESS_DEPTH = 2.2
+STUD_RING_ID = 8.5  # seat ring ID -- the gap the tube flexes into
 
 # --- Mean Well RSP-320-24 ----------------------------------------------------
 PSU_X = 215.0
@@ -96,8 +106,8 @@ PSU_PLATE_T = 4.0
 # Small on two counts: the plate must drop through the rim opening, and it must
 # stay clear of the low vent's inner reinforcing frame at x = +-109.
 PSU_PLATE_MARGIN = 0.5
-PSU_PLATE_BOSS_H = 6.0  # lifts the plate off the floor
-PSU_PLATE_BOSS_D = 11.0
+PSU_PLATE_BOSS_H = 6.0  # lifts the plate off the floor (seat ring top)
+PSU_PLATE_BOSS_D = 11.0  # seat ring OD around each snap stud
 
 # --- LXD-4P 4-way blade-fuse block -------------------------------------------
 FUSE_X = 86.2  # footprint including the mounting ears
@@ -238,6 +248,16 @@ def shelf_size() -> tuple[float, float]:
 def psu_plate_size() -> tuple[float, float]:
     """PSU mounting plate size (also limited by the rim opening)."""
     return (PSU_X + 2 * PSU_PLATE_MARGIN, PSU_Y + 2 * PSU_PLATE_MARGIN)
+
+
+def stud_peak_z() -> float:
+    """Z of the stud head's max diameter, in tray coordinates.
+
+    0.3 mm above the seated plate's recess floor, so the hole edge rests on
+    the lead cone with a light preload pressing the plate down onto the seat
+    ring instead of rattling on the neck.
+    """
+    return PSU_PLATE_BOSS_H + PSU_PLATE_T - STUD_RECESS_DEPTH + 0.3
 
 
 def shelf_ledge_z() -> float:

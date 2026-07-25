@@ -10,10 +10,11 @@ Shape decisions worth knowing before reading the code:
   groove on its inner face. The transition is a 45 taper cut by the cavity
   loft, not a ledge, so it prints without an overhang. There is NO outboard
   flange: the lid's sides sit flush with the walls.
-* **Nothing bores through the shell.** The PSU bolts to a plate that sits on
-  blind bosses, and the lid needs no fasteners at all -- it snaps into the
-  mouth. The only holes through the wall are the ones components deliberately
-  seal.
+* **Nothing bores through the shell.** The PSU bolts to a plate that snaps
+  onto four hollow split studs (no screw can reach that joint -- see
+  ``config``'s stud block), and the lid needs no fasteners at all -- it snaps
+  into the mouth. The only holes through the wall are the ones components
+  deliberately seal.
 """
 
 from __future__ import annotations
@@ -21,8 +22,10 @@ from __future__ import annotations
 from build123d import (
     Align,
     Axis,
+    Box,
     BuildPart,
     BuildSketch,
+    Cone,
     Cylinder,
     Locations,
     Mode,
@@ -40,8 +43,60 @@ from .util import top_chamfer_tool
 
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
-# The four pads the PSU mounting plate sits on.
+# The four snap studs the PSU mounting plate clicks onto.
 PLATE_BOSS_POS = [(sx * 100.0, sy * 48.0) for sx in (-1, 1) for sy in (-1, 1)]
+
+
+def _plate_stud(x: float, y: float) -> Part:
+    """One hollow split snap stud at (x, y) -- the plate detents onto this.
+
+    A thin-walled tube rises off a solid base block, split into two C-springs
+    by a slot; the 45 head compresses the springs as the plate's hole passes
+    and detents into the plate's recess. The seat ring around it carries the
+    plate at ``PSU_PLATE_BOSS_H`` and the gap between ring and tube is what
+    the springs flex into. Every ramp is 45 deg: it prints clean, clicks in
+    on a press, and releases on a straight pull.
+    """
+    peak = c.stud_peak_z()
+    ramp = (c.STUD_HEAD_D - c.STUD_TUBE_D) / 2  # 45 deg: rise == radial run
+    lead = peak - ramp
+    tip = 0.3  # entry chamfer on the stud top
+    top = peak + ramp + tip
+    with BuildPart() as bp:
+        with Locations((x, y, 0)):
+            Cylinder(c.PSU_PLATE_BOSS_D / 2, 1.0, align=MIN_Z)  # base block
+        with Locations((x, y, 1.0)):
+            Cylinder(
+                c.PSU_PLATE_BOSS_D / 2, c.PSU_PLATE_BOSS_H - 1.0, align=MIN_Z
+            )  # seat ring
+        with Locations((x, y, 1.0)):
+            Cylinder(
+                c.STUD_RING_ID / 2,
+                c.PSU_PLATE_BOSS_H - 0.9,
+                align=MIN_Z,
+                mode=Mode.SUBTRACT,
+            )  # the flex gap -- cut BEFORE the tube exists, or it eats the tube
+        with Locations((x, y, 1.0)):
+            Cylinder(c.STUD_TUBE_D / 2, lead - 1.0, align=MIN_Z)  # spring tube
+        with Locations((x, y, lead)):
+            Cone(c.STUD_TUBE_D / 2, c.STUD_HEAD_D / 2, ramp, align=MIN_Z)
+        with Locations((x, y, peak)):
+            Cone(c.STUD_HEAD_D / 2, c.STUD_TUBE_D / 2, ramp, align=MIN_Z)
+        with Locations((x, y, peak + ramp)):
+            Cone(c.STUD_TUBE_D / 2, c.STUD_TUBE_D / 2 - tip, tip, align=MIN_Z)
+        # Hollow the spring; everything stops at the base block, so the floor
+        # stays sealed. The slot also splits the seat ring into two arcs,
+        # which is cosmetic -- they seat the plate just the same.
+        with Locations((x, y, 1.0)):
+            Cylinder(c.STUD_BORE_D / 2, top - 0.9, align=MIN_Z, mode=Mode.SUBTRACT)
+            Box(
+                c.STUD_SLOT_W,
+                c.PSU_PLATE_BOSS_D + 2,
+                top - 0.9,
+                align=MIN_Z,
+                mode=Mode.SUBTRACT,
+            )
+    return bp.part
 
 
 def _chamfer_edge(builder: BuildPart, edge, size: float) -> None:
@@ -160,22 +215,13 @@ def create_tray() -> Part:
         # --- Internal features ----------------------------------------------
         add(_shelf_ledge(), mode=Mode.ADD)
 
-        # PSU-plate pads, with blind M3 insert pockets.
+        # PSU-plate snap studs (no screws: none could be reached -- see config).
         for x, y in PLATE_BOSS_POS:
-            with Locations((x, y, 0)):
-                Cylinder(c.PSU_PLATE_BOSS_D / 2, c.PSU_PLATE_BOSS_H, align=MIN_Z)
+            add(_plate_stud(x, y), mode=Mode.ADD)
 
         # --- Subtractive features -------------------------------------------
         add(_gasket_groove(), mode=Mode.SUBTRACT)
         add(_snap_groove(), mode=Mode.SUBTRACT)
-
-        # Blind M3 pockets in the PSU-plate pads.
-        pocket_z = c.PSU_PLATE_BOSS_H - c.INSERT_M3_L
-        for x, y in PLATE_BOSS_POS:
-            with Locations((x, y, pocket_z)):
-                Cylinder(
-                    c.INSERT_M3_D / 2, c.INSERT_M3_L, align=MIN_Z, mode=Mode.SUBTRACT
-                )
 
         # --- Edges ------------------------------------------------------------
         # Bottom exterior ring: 45 chamfer, doubling as elephant's-foot relief.

@@ -57,9 +57,7 @@ joint is a dust/splash seal, not an IP65 crush.
 | 1 | IP68 panel-mount RJ45 coupler | Ø22 panel hole |
 | 1 | Cable gland | **see the warning below** |
 | ~1 m | 3 mm silicone O-ring cord | butt-joined with CA, or a formed-in-place RTV bead |
-| 4 | M3 heat-set inserts (Ø4.2 × 5.8) | PSU plate, in the floor bosses |
 | 4 | M4 × 8 | PSU to plate — **no longer, see below** |
-| 4 | M3 × 12 | plate to floor |
 | 2 | M4 × 16 + nyloc | fuse block to shelf |
 | 2 | M3 × 16 + nyloc | controller to shelf |
 | 4 | M3 × 10 self-tapping | vent cartridges |
@@ -82,23 +80,27 @@ A longer screw will bottom out inside the power supply.
 
 ## Assembly order
 
-1. **Heat-set the inserts** — 4 × M3 in the floor bosses.
-2. **Bolt the PSU to `psu_plate`** from underneath, M4 × 8, countersunk side down.
-3. **Drop the plate in** onto the four floor bosses, M3 × 12.
-4. **Fit the wall parts** — 4 × SP1712 (flat side **up**), the RJ45 coupler and
+1. **Bolt the PSU to `psu_plate`** from underneath, M4 × 8, countersunk side down.
+   This is a bench job: the bolts only go in from below the plate, and once the
+   PSU is on it, the PSU covers every stud position — which is exactly why the
+   plate **snaps** to the tray instead of screwing.
+2. **Drop the plate+PSU assembly in** over the four snap studs and press
+   straight down until all four click. To remove, pull straight up — the 45°
+   head ramps release.
+3. **Fit the wall parts** — 4 × SP1712 (flat side **up**), the RJ45 coupler and
    the gland. The SP1712 pockets bring the local panel to 2.85 mm, inside the
    3 mm spec limit; the rear nuts tighten from inside.
-5. **Wire it** — mains in via the gland to PSU terminals 1/2/3 (L/N/FG); PSU
+4. **Wire it** — mains in via the gland to PSU terminals 1/2/3 (L/N/FG); PSU
    +V (7–9) to the fuse block feed; each fused output to one SP1712 pin; −V (4–6)
    common. The controller takes its DC from the PSU and drives the data pins.
-6. **Bolt the fuse block and controller to `shelf`**, then drop the shelf onto
+5. **Bolt the fuse block and controller to `shelf`**, then drop the shelf onto
    its ledge. It lifts straight back out to reach the PSU terminals and the
    `+V ADJ` trimmer.
-7. **Gasket** — press 3 mm silicone cord into the rim groove, cut to length,
+6. **Gasket** — press 3 mm silicone cord into the rim groove, cut to length,
    butt the ends with a drop of CA. (Or lay an RTV bead and let it cure against
    an oiled lid.)
-8. **Fit the vent blanks**, gasket side in, click, then two screws each.
-9. **Lid on** — press straight down around the perimeter until the snap bead
+7. **Fit the vent blanks**, gasket side in, click, then two screws each.
+8. **Lid on** — press straight down around the perimeter until the snap bead
    clicks. To open, pry gently at a corner and work along an edge.
 
 ## Print settings

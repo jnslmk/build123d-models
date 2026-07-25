@@ -81,21 +81,52 @@ def check_shell(tray: Part, r: Report) -> None:
     )
 
 
-def check_blind_pockets(tray: Part, r: Report) -> None:
-    """No insert pocket may break through into the sealed volume."""
-    r.section("blind inserts (nothing may pierce the shell)")
-    pocket_z = c.PSU_PLATE_BOSS_H - c.INSERT_M3_L
-    plate_blind = all(
-        is_solid_at(tray, x, y, pocket_z - 1.0) for x, y in _plate_boss_positions()
-    )
-    r.check(plate_blind, "PSU-plate insert pockets are blind")
+def check_plate_studs(tray: Part, r: Report) -> None:
+    """The snap studs are the only plate fixing -- and the floor stays sealed."""
+    r.section("PSU plate snap studs")
+    for x, y in _plate_boss_positions():
+        at = f"({x:+.0f}, {y:+.0f})"
+        r.check(is_solid_at(tray, x, y, -1.0), f"floor under the stud is sealed {at}")
+        r.check(is_solid_at(tray, x, y, 0.5), f"stud base block is solid {at}")
+        r.check(not is_solid_at(tray, x, y, 3.0), f"spring bore is open {at}")
+        r.check(is_solid_at(tray, x + 2.9, y, 3.0), f"spring wall is present {at}")
+        r.check(not is_solid_at(tray, x, y + 2.9, 3.0), f"split slot is open {at}")
+        r.check(is_solid_at(tray, x + 4.7, y, 3.0), f"seat ring is present {at}")
+        r.check(
+            not is_solid_at(tray, x + 3.8, y, 3.0),
+            f"flex gap between tube and seat ring {at}",
+        )
+        r.check(
+            is_solid_at(tray, x + 3.6, y, c.stud_peak_z()), f"snap head is present {at}"
+        )
 
-    # And the pockets actually exist (a pocket that failed to cut is worse).
-    opened = all(
-        not is_solid_at(tray, x, y, c.PSU_PLATE_BOSS_H - 1.0)
-        for x, y in _plate_boss_positions()
+    # Spring + catch arithmetic, with the same cantilever model as the vent latch.
+    wall = (c.STUD_TUBE_D - c.STUD_BORE_D) / 2
+    catch = (c.STUD_HEAD_D - c.STUD_HOLE_D) / 2
+    spring_len = c.stud_peak_z() - 1.0  # flexes from the base block to the peak
+    strain = 1.5 * wall * catch / spring_len**2
+    r.check(strain < 0.025, "stud snap strain is survivable", f"{strain * 100:.1f} %")
+    r.check(catch >= 0.4, "catch engagement holds the plate", f"{catch:.2f} mm/side")
+
+    head_top = c.stud_peak_z() + (c.STUD_HEAD_D - c.STUD_TUBE_D) / 2 + 0.3
+    plate_top = c.PSU_PLATE_BOSS_H + c.PSU_PLATE_T
+    r.check(
+        plate_top - head_top >= 0.5,
+        "stud head stays clear of the PSU bottom",
+        f"{plate_top - head_top:.2f} mm",
     )
-    r.check(opened, "PSU-plate insert pockets are actually open at the boss top")
+    r.check(
+        c.STUD_HEAD_D < c.STUD_RECESS_D,
+        "head turns inside the plate recess",
+        f"{c.STUD_HEAD_D:.1f} < {c.STUD_RECESS_D:.1f}",
+    )
+    gap = (c.STUD_RING_ID - c.STUD_TUBE_D) / 2
+    flex_at_ring = catch * (c.PSU_PLATE_BOSS_H - 1.0) / spring_len
+    r.check(
+        flex_at_ring < gap,
+        "tube flex does not rub the seat ring",
+        f"{flex_at_ring:.2f} < {gap:.2f} mm",
+    )
 
 
 def _plate_boss_positions() -> list[tuple[float, float]]:
@@ -289,7 +320,7 @@ def check_vents(tray: Part, r: Report) -> None:
     bottom = min(z - c.VENT_H / 2 - c.VENT_FRAME_MARGIN_Z for z, _ in pen.vent_ports())
     r.check(bottom > 0, "vent frames stay above the floor", f"bottom {bottom:.1f}")
     r.check(
-        c.VENT_W / 2 + c.VENT_SCREW_OFFSET + c.INSERT_M3_D
+        c.VENT_W / 2 + c.VENT_SCREW_OFFSET + 3.0  # M3 head radius
         < c.VENT_W / 2 + c.VENT_FRAME_MARGIN_Y,
         "cartridge screws land inside the frame, not past its edge",
     )
@@ -373,7 +404,7 @@ def run() -> Report:
     r = Report()
     tray = create_tray_finished()
     check_shell(tray, r)
-    check_blind_pockets(tray, r)
+    check_plate_studs(tray, r)
     check_gasket_groove(tray, r)
     check_shelf_ledge(tray, r)
     check_installability(r)

@@ -2,8 +2,11 @@
 
 Bolting the RSP-320 straight through the enclosure floor would put four leak
 paths in the bottom of a box that is supposed to be waterproof. Instead the PSU
-bolts to this plate, and the plate drops onto four blind bosses in the floor.
-Same trick as the mounting plate in a commercial IP enclosure.
+bolts to this plate, and the plate snaps onto four hollow split studs in the
+floor -- no screw can reach that joint: the PSU's own bolts only go in from
+below this plate (so they are done on the bench), and a mounted PSU covers
+every stud position, so nothing can be driven from above either. See the stud
+block in ``config``.
 
 Two constraints the geometry has to respect:
 
@@ -22,6 +25,7 @@ from build123d import (
     Align,
     BuildPart,
     BuildSketch,
+    Cone,
     Cylinder,
     Locations,
     Mode,
@@ -38,7 +42,6 @@ from .tray import PLATE_BOSS_POS
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
 BOLT_CLEAR = 4.5  # M4 clearance for the PSU bolts
-BOSS_CLEAR = 3.4  # M3 clearance where the plate screws to the floor bosses
 AIR_SLOT_W = 12.0
 AIR_SLOT_GAP = 14.0
 
@@ -60,11 +63,28 @@ def create_psu_plate() -> Part:
                 Cylinder(BOLT_CLEAR / 2, c.PSU_PLATE_T, align=MIN_Z, mode=Mode.SUBTRACT)
                 Cylinder(8.4 / 2, head_depth, align=MIN_Z, mode=Mode.SUBTRACT)
 
-        # Clearance holes where the plate screws down to the floor bosses.
+        # Snap detents: a through-hole for the stud neck, a recess hiding the
+        # stud head under the PSU, and an entry chamfer below so the hole
+        # centres itself on the stud tip during drop-in.
         for x, y in PLATE_BOSS_POS:
             with Locations((x, y, 0)):
-                Cylinder(BOSS_CLEAR / 2, c.PSU_PLATE_T, align=MIN_Z, mode=Mode.SUBTRACT)
-                Cylinder(6.4 / 2, 2.0, align=MIN_Z, mode=Mode.SUBTRACT)
+                Cylinder(
+                    c.STUD_HOLE_D / 2, c.PSU_PLATE_T, align=MIN_Z, mode=Mode.SUBTRACT
+                )
+                Cone(
+                    c.STUD_HOLE_D / 2 + 0.7,
+                    c.STUD_HOLE_D / 2,
+                    0.7,
+                    align=MIN_Z,
+                    mode=Mode.SUBTRACT,
+                )
+            with Locations((x, y, c.PSU_PLATE_T - c.STUD_RECESS_DEPTH)):
+                Cylinder(
+                    c.STUD_RECESS_D / 2,
+                    c.STUD_RECESS_DEPTH + 0.1,
+                    align=MIN_Z,
+                    mode=Mode.SUBTRACT,
+                )
 
         # Air slots: keep the floor connected to the low vent port instead of
         # turning the plate into a second floor.

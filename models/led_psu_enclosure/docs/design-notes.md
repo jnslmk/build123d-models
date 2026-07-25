@@ -77,8 +77,13 @@ Every fixing is either blind or outside the sealed volume:
 
 - **The lid needs no fasteners at all** — it snaps into the mouth.
 - **The PSU is not bolted through the floor** — that would be four leak paths in
-  the bottom of a waterproof box. It bolts to `psu_plate`, which sits on four
-  blind-insert bosses. Standard commercial-enclosure practice.
+  the bottom of a waterproof box. It bolts to `psu_plate`, which snaps onto four
+  hollow split studs in the floor. No screw can reach that joint in either
+  direction: the PSU's own bolts only go in from below the plate (a bench job),
+  and a mounted PSU covers every stud position, so nothing can be driven from
+  above either. The snap is the only fastening that assembles — 45° ramps both
+  ways, so it clicks on a press and releases on a straight pull. The studs are
+  hollow only down to a solid base block, so the floor stays sealed.
 - **Vent cartridge screws** are blind self-tapping pilots.
 
 The only holes through the wall are the ones a sealed component deliberately
