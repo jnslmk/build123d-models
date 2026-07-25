@@ -13,6 +13,7 @@ from models.drill_storage_wood import create as create_drill_storage_wood
 from models.drill_storage_wood_assembly import (
     create as create_drill_storage_wood_assembly,
 )
+from models.led_psu_enclosure import create as create_led_psu_enclosure
 from models.lens_cap import create as create_lens_cap
 from models.satellite_led import create as create_satellite_led
 from models.slotted_plate import create as create_slotted_plate
@@ -32,6 +33,7 @@ BUILDERS = {
     "drill_storage_metal": create_drill_storage_metal,
     "drill_storage_wood": create_drill_storage_wood,
     "drill_storage_wood_assembly": create_drill_storage_wood_assembly,
+    "led_psu_enclosure": create_led_psu_enclosure,
     "lens_cap": create_lens_cap,
     "satellite_led": create_satellite_led,
     "slotted_plate": create_slotted_plate,

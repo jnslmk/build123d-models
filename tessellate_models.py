@@ -22,6 +22,7 @@ MODELS = [
     "drill_storage_metal",
     "drill_storage_wood",
     "drill_storage_wood_assembly",
+    "led_psu_enclosure",
     "lens_cap",
     "satellite_led",
     "slotted_plate",
