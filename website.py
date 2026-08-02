@@ -33,17 +33,16 @@ WEBSITE_EXPORTS = WEBSITE_DIR / "exports"
 def _py_sources() -> dict[str, str]:
     """Source text the in-browser runtime needs to ``import models.<name>``.
 
-    Only the ``models`` package -- no ``create()`` path pulls in ``export.py``,
+    The whole ``models`` tree is bundled -- single-file models, packages like
+    ``led_psu_enclosure``, and the shared ``models.lib`` helpers they import --
+    but nothing outside it: no ``create()`` path pulls in ``export.py``,
     ``fontfix.py`` or ``tessellate_models.py`` (which would drag in ocp_vscode /
     ocp_tessellate that don't exist in Pyodide).
     """
-    sources: dict[str, str] = {}
-    init = MODELS_DIR / "__init__.py"
-    if init.exists():
-        sources["models/__init__.py"] = init.read_text()
-    for name in MODELS:
-        sources[f"models/{name}.py"] = (MODELS_DIR / f"{name}.py").read_text()
-    return sources
+    return {
+        str(py.relative_to(HERE)): py.read_text()
+        for py in sorted(MODELS_DIR.rglob("*.py"))
+    }
 
 
 def _manifest() -> dict:
