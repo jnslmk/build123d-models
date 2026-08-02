@@ -5,7 +5,7 @@ obvious from the geometry, and of things that were wrong first.
 
 ---
 
-## 1. The thermal problem, and why the vent is modular
+## 1. The thermal problem, and why the vent slides
 
 The RSP-320-24 is 89 % efficient at 321 W, so it sheds **~40 W**. It is also
 fan-cooled from its top cover and derates from 50 °C ambient down to 50 % load at
@@ -21,10 +21,35 @@ convection plus radiation off plastic is ~6–8 W/m²·K.
 | 100 % | ~40 W | ~30 K + internal gradient | ~60–65 °C — into the derating band |
 
 So sealed is genuinely fine up to about half load and gets marginal above it. For
-LED lighting, average load is usually well under half. Rather than pick one
-answer now, both end walls carry the **same** port and the decision stays a
-swappable cartridge: `vent_blank` (sealed), `vent_louvre` (~IP54 chevron
-labyrinth), `vent_fan` (40 mm forced).
+LED lighting, average load is usually well under half — but "usually" moves with
+the season and the install, which is the actual argument against deciding at
+print time.
+
+Both end walls therefore carry the **same** port with a **sliding shutter** in
+it: `vent_shutter` (a louvred panel, screwed in once) plus `vent_slider` (a
+slotted plate riding in a channel on its face). Down is open, up half a slot
+pitch is shut, and it is adjusted with a thumb on a closed box. This replaced the
+earlier swappable cartridge set, where changing your mind meant unscrewing a
+cartridge and fitting another one you had to have printed in advance.
+
+Three things fall out of the geometry and are worth stating:
+
+- **The slot tilt is the weatherproofing.** Slots are cut at 45° through the
+  3 mm panel, climbing *up-and-in*, so the offset across the panel (3 mm) is at
+  least the slot's own opening (3 mm) and no straight line runs from outside to
+  inside. 45° is also the steepest self-supporting overhang, so the same number
+  does both jobs. `checks.py` samples directly behind each opening to prove it.
+- **The slider is on the outside, not behind the louvre.** Behind it would be
+  tidier, but the PSU passes within 6.5 mm of these walls and the frame already
+  spends 5 of them — there is no room inward at the low port. Outside it costs
+  4 mm of proud panel, which a part you operate by hand wants anyway.
+- **Failure is toward open.** Shut is up, held by the top block; open is down,
+  where the slider rests on the detent rod. A slider that lost its friction would
+  sag *open*, which overheats nothing.
+
+Wide open is ~765 mm² of face opening per port (~540 mm² of throat, since a 45°
+slot's throat is its opening × cos 45°). `vent_blank` (fully sealed) and
+`vent_fan` (40 mm forced) still fit the same recess and the same two screws.
 
 Ports are placed **low at the terminal end, high over the PSU's top-cover fan**,
 so a fitted pair gives cross-flow. One port alone would do very little. The shelf
@@ -84,7 +109,7 @@ Every fixing is either blind or outside the sealed volume:
   above either. The snap is the only fastening that assembles — 45° ramps both
   ways, so it clicks on a press and releases on a straight pull. The studs are
   hollow only down to a solid base block, so the floor stays sealed.
-- **Vent cartridge screws** are blind self-tapping pilots.
+- **Vent shutter screws** are blind self-tapping pilots.
 
 The only holes through the wall are the ones a sealed component deliberately
 fills.
@@ -97,16 +122,33 @@ narrows the mouth to 221 × 121. A part sized to the 228 × 128 interior fits th
 into it*. `installable_x/y()` exists for this and every internal part is sized
 against it.
 
-**Vent cartridge screws could not use heat-set inserts.** Once the 3 mm flange
-recess is cut there is only 5.5 mm of material left, and the frame cannot grow
-inward because the PSU is 6.5 mm away. Self-tapping M3 into a 4 mm blind pilot,
-instead.
+**Vent screws could not use heat-set inserts.** Once the 3 mm flange recess is
+cut there is only 5.5 mm of material left, and the frame cannot grow inward
+because the PSU is 6.5 mm away. Self-tapping M3 into a 4 mm blind pilot, instead.
 
-**The latch had to move.** Two side latches fouled the PSU, and a cantilever only
-as long as the plug (5.5 mm) would need ~10 % strain to deflect 1 mm — it would
-snap, not click. One latch on the **top edge**, where both ports have clear air,
-with a 12.5 mm arm running past the hook: ~1.9 % strain, which ASA takes happily.
-The tail doubles as the release tab. `checks.py` asserts the strain figure.
+**The shutter has no snap latch, on purpose.** The cartridges have one (a top-edge
+cantilever with a 12.5 mm arm: ~1.9 % strain, which ASA takes happily — side
+latches fouled the PSU and a plug-length arm would have needed ~10 % strain to
+deflect 1 mm). A latch is what makes a part you *swap in the dark* click home.
+The shutter is fitted once and then adjusted in place, so it is held by the two
+screws that were always what compressed the gasket, and the cantilever goes away
+with the swapping it existed for. `checks.py` still asserts the strain figure for
+the cartridges.
+
+**The cartridge gasket groove was on the wrong face.** It was cut from local
+z = 0, which is the *outer* face — the weather side — so the cord had nothing to
+seal against and the flange met the recess floor bare. Both families now cut the
+groove on whichever face beds against the recess floor. The same pass opened up
+`vent_fan`'s flange, which was a solid plate: the fan had been blowing straight
+into it.
+
+**A slider needs somewhere to be inserted.** Both ends of the channel cannot be
+closed or the slider can never get in, and an open end at the top would let it be
+pushed out. Hence: solid block at the top (the shut stop), open at the bottom
+(insertion, and drainage for anything that gets past the slider), and a detent
+rod across the mouth that the slider clicks over once. The rod is the open stop,
+the click, and the retainer — the slider has to be lifted 0.4 mm out of plane to
+pass it, and it has 0.45 mm of slack in the channel to do that with.
 
 **OCC would not chamfer the old lid's perimeter** at any length once the 14
 countersinks existed on the same face, even though they were 5 mm clear of it.

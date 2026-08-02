@@ -188,13 +188,33 @@ VENT_SCREW_OFFSET = 9.0  # M3 screw centres, out from the aperture edge
 VENT_SCREW_PILOT_D = 2.5
 VENT_SCREW_PILOT_L = 4.0
 VENT_CLEAR = 0.35  # cartridge-to-aperture clearance
-VENT_LATCH_W = 12.0
-VENT_LATCH_H = 8.0
-VENT_BEAD = 1.2  # snap bead protrusion on the latch
 VENT_FAN_SIZE = 40.0  # optional 40 x 40 x 10 fan cartridge
 VENT_FAN_BOLT = 32.0
-VENT_LOUVRE_COUNT = 5
-VENT_LOUVRE_ANGLE = 45.0
+
+# --- Sliding shutter (what is actually fitted in both ports) ------------------
+# Screwed in once and adjusted in place, instead of swapping a blank for a louvre
+# whenever the load changes. The panel's slots are cut at VENT_SLOT_TILT, so they
+# climb up-and-in through the 3 mm panel: no straight-line path from outside, and
+# 45 is also the steepest self-supporting overhang. A slider rides in a T-channel
+# on the outer face -- down and its slots line up (open), up half a pitch and its
+# bars cover them (shut).
+VENT_SLOT_H = 3.0  # slot opening measured on the panel face
+VENT_SLOT_BAR = 3.8  # material between two slots; > SLOT_H so a shut slot overlaps
+VENT_SLOT_COUNT = 5
+VENT_SLOT_TILT = 45.0
+VENT_MULLION_W = 4.0  # centre post; halves the unsupported span of every bar
+VENT_RAIL_W = 2.5  # rail footprint each side of the channel
+VENT_LIP = 1.5  # how far the rail lip reaches back over the slider
+VENT_LIP_T = 1.2
+VENT_SLIDER_T = 2.4
+VENT_SLIDER_CLEAR = 0.3  # in-plane running clearance
+VENT_SLIDER_LIFT = 0.45  # out-of-plane slack -- the slider needs it to ride the detent
+VENT_DETENT = 0.4  # how far the detent rod stands above the channel floor
+VENT_DETENT_R = 0.8
+VENT_END_WALL = 2.6  # solid block closing the top of the channel = the shut stop
+VENT_TAB_W = 30.0  # thumb tab on the slider
+VENT_TAB_H = 3.6
+VENT_TAB_PROUD = 2.0
 
 
 # --- Derived -----------------------------------------------------------------

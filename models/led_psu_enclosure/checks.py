@@ -4,56 +4,27 @@ Ribs, wall gaps, blind pockets and fit clearances are invisible in a projection,
 so per the repo's house rule these get verified in code by point-sampling the
 solid rather than by eye.
 
+    uv run check led_psu_enclosure
     uv run python -m models.led_psu_enclosure.checks
 """
 
 from __future__ import annotations
 
-from build123d import Part
+from build123d import Part, Pos
 
-# OCP ships no stubs for these; they resolve fine at runtime.
-from OCP.BRepClass3d import BRepClass3d_SolidClassifier  # ty: ignore[unresolved-import]
-from OCP.gp import gp_Pnt  # ty: ignore[unresolved-import]
-from OCP.TopAbs import TopAbs_IN, TopAbs_ON  # ty: ignore[unresolved-import]
-
+# The instrument itself lives in models.lib.checks; re-exported under the old
+# names (the `X as X` form marks a deliberate re-export) so anything already
+# importing them from here keeps working.
+from ..lib.checks import (
+    TOL as TOL,
+    Report as Report,
+    is_solid_at as is_solid_at,
+)
 from . import config as c
 from . import mocks
 from . import penetrations as pen
 from .tray import create_tray_finished
-
-TOL = 1e-6
-
-
-def is_solid_at(part: Part, x: float, y: float, z: float) -> bool:
-    """True if (x, y, z) lies inside the material."""
-    clf = BRepClass3d_SolidClassifier(part.wrapped)
-    clf.Perform(gp_Pnt(x, y, z), TOL)
-    return clf.State() in (TopAbs_IN, TopAbs_ON)
-
-
-class Report:
-    """Collects pass/fail lines so one run shows every problem, not just the first."""
-
-    def __init__(self) -> None:
-        self.failures: list[str] = []
-        self.lines: list[str] = []
-
-    def check(self, ok: bool, label: str, detail: str = "") -> None:
-        mark = "PASS" if ok else "FAIL"
-        self.lines.append(f"  [{mark}] {label}{(' -- ' + detail) if detail else ''}")
-        if not ok:
-            self.failures.append(label)
-
-    def section(self, title: str) -> None:
-        self.lines.append(f"\n{title}")
-
-    def render(self) -> str:
-        tail = (
-            f"\n{len(self.failures)} FAILED: {', '.join(self.failures)}"
-            if self.failures
-            else "\nall checks passed"
-        )
-        return "\n".join(self.lines) + tail
+from .util import as_part
 
 
 def check_shell(tray: Part, r: Report) -> None:
@@ -331,14 +302,111 @@ def check_vents(tray: Part, r: Report) -> None:
     )
 
 
+def check_shutters(tray: Part, r: Report) -> None:
+    """The sliding shutter: it shuts, it opens, and no jet gets through it."""
+    from . import vent
+
+    r.section("vent shutter")
+    panel = vent.create_shutter()
+    slider = vent.create_slider()
+    face_z = vent.PANEL_T + c.VENT_SLIDER_T / 2
+
+    # The mechanism itself, sampled through the slider at the panel's own slot
+    # rows: shut must be solid at every one of them, open must be clear.
+    for state, cy, want in (
+        ("open", vent.OPEN_CENTER, False),
+        ("shut", vent.SHUT_CENTER, True),
+    ):
+        placed = as_part(Pos(0, cy, vent.PANEL_T) * slider)
+        hits = [
+            is_solid_at(placed, sx * vent.COL_X, y, face_z)
+            for y in vent.SLOT_ROWS
+            for sx in (-1, 1)
+        ]
+        r.check(all(h is want for h in hits), f"slider is {state} at every slot row")
+        r.check(
+            (placed & panel).volume < 0.01, f"slider runs free in the channel ({state})"
+        )
+
+    # The tilt is what keeps water out: solid directly behind every face opening,
+    # with the inner mouth SLOT_RISE further up the wall.
+    r.check(
+        all(
+            not is_solid_at(panel, vent.COL_X, y, vent.PANEL_T - 0.2)
+            for y in vent.SLOT_ROWS
+        ),
+        "louvre slots are open on the weather face",
+    )
+    r.check(
+        all(is_solid_at(panel, vent.COL_X, y, 0.2) for y in vent.SLOT_ROWS),
+        "no straight-line path through the louvre",
+        f"rise {vent.SLOT_RISE:.1f} >= slot {c.VENT_SLOT_H:.1f}",
+    )
+    r.check(
+        all(
+            not is_solid_at(panel, vent.COL_X, y + vent.SLOT_RISE, 0.2)
+            for y in vent.SLOT_ROWS
+        ),
+        "every slot does break through on the inside",
+    )
+
+    overlap = (c.VENT_SLOT_BAR - c.VENT_SLOT_H) / 2
+    r.check(
+        overlap >= 0.25, "shut bars overlap their slots", f"{overlap:.2f} mm a side"
+    )
+    grip = vent.SLIDER_W / 2 - (vent.CHANNEL_W / 2 - c.VENT_LIP)
+    r.check(grip >= 0.8, "rail lips hold the slider", f"{grip:.2f} mm engagement")
+    r.check(
+        c.VENT_DETENT < c.VENT_SLIDER_LIFT,
+        "slider has the slack to ride over the detent",
+        f"{c.VENT_DETENT} < {c.VENT_SLIDER_LIFT}",
+    )
+
+    # Rails sit on the flange land; over the gasket groove they would bridge a
+    # 1.5 mm void, and the panel has to hold them.
+    gasket_x = c.VENT_W / 2 + vent.GASKET_INSET - vent.GASKET_GROOVE_W / 2
+    rail_x = vent.CHANNEL_W / 2 + c.VENT_RAIL_W
+    r.check(
+        rail_x < gasket_x,
+        "rails stay inboard of the gasket groove",
+        f"{rail_x:.1f} < {gasket_x:.1f}",
+    )
+    r.check(
+        vent.CHANNEL_TOP + c.VENT_END_WALL < vent.FLANGE_Y / 2,
+        "the whole channel fits on the panel",
+    )
+    r.check(
+        vent.OPEN_AREA > 500.0,
+        "wide open is worth having",
+        f"{vent.OPEN_AREA:.0f} mm2 per port on the face",
+    )
+
+    # Fitted, in both positions: nothing fouls the shell or the contents.
+    comps = mocks.keepouts()
+    for shut in (False, True):
+        state = "shut" if shut else "open"
+        for part in vent.seated_shutters(shut=shut):
+            vol = (part & tray).volume
+            r.check(
+                vol < 5.0,
+                f"{part.label} ({state}) seats without fouling the shell",
+                f"{vol:.1f} mm3",
+            )
+            clash = [
+                (k.label, (part & k).volume) for k in comps if (part & k).volume > 1.0
+            ]
+            r.check(
+                not clash, f"{part.label} ({state}) clears the components", str(clash)
+            )
+
+
 def check_cartridges(tray: Part, r: Report) -> None:
-    """A fitted cartridge must clear the shell and everything inside it."""
+    """The optional blank/fan cartridges still have to fit the same port."""
     from . import vent
 
     r.section("vent cartridges")
-    blanks = vent.seated_blanks()
     comps = mocks.keepouts()
-    for b in blanks:
+    for b in vent.seated_blanks():
         vol = (b & tray).volume
         r.check(
             vol < 5.0, f"{b.label} seats without fouling the shell", f"{vol:.1f} mm3"
@@ -412,6 +480,7 @@ def run() -> Report:
     check_sp17_panels(tray, r)
     check_sp17_flat(tray, r)
     check_vents(tray, r)
+    check_shutters(tray, r)
     check_cartridges(tray, r)
     check_lid_and_deck(tray, r)
     check_interference(tray, r)

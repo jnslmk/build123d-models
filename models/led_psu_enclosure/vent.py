@@ -1,30 +1,49 @@
-"""Interchangeable vent cartridges -- the "click it on when the PSU runs hot" part.
+"""Vent ports -- a sliding shutter you can throttle without opening the box.
 
-Both end walls carry an identical 62 x 40 port. Three cartridges fit either one:
+Both end walls carry an identical 62 x 40 port, and what sits in it is a
+**sliding shutter**: screwed in once and adjusted in place, in two printed parts.
 
-``blank``   sealed plug. The default, and what makes the box a sealed box.
-``louvre``  chevron labyrinth: no straight-line path from outside to inside, so
-            water thrown at it cannot get through, but air can. ~IP54.
-``fan``     mount for a 40 x 40 x 10 fan behind a louvre, for forced cross-flow.
+``vent_shutter``  the fixed panel. It seats in the tray's recess on a gasket and
+                  two M3s hold it down. Its slot field is a louvre -- the slots
+                  climb up-and-in at ``VENT_SLOT_TILT`` through the 3 mm panel,
+                  so there is no straight-line path from outside to inside and
+                  thrown water has to run uphill to get in.
+``vent_slider``   a slotted plate riding in a T-channel on the panel's outer
+                  face. Let it down and its slots line up with the louvre (wide
+                  open); push it up half a pitch and its bars cover them (shut).
 
-Why this exists: the RSP-320-24 sheds ~40 W at full load and derates from 50 C
-ambient. Sealed, the box is comfortable up to roughly half rated load; past that
-it needs air. Rather than guess now, the port is built once and the decision
-stays swappable.
+Why sliding rather than a swapped cartridge: the RSP-320-24 sheds ~40 W at full
+load and derates from 50 C ambient, but the load that actually matters is the
+installation's, and it moves with the season. A shutter is a thumb push on a
+closed box; the old blank/louvre swap meant unscrewing a cartridge to change
+your mind about it.
 
-Retention is a **snap** -- one cantilever latch on the top edge that passes
-through the aperture and grabs the inner face -- **plus two M3 screws**. The latch
-makes it click in and hold itself; the screws are what actually compress the
-gasket. A snap alone cannot crush a gasket (the lid gets away with one because
-its joint only needs to be a splash seal), and screws alone would make swapping
-one in the dark annoying.
+The shutter is held by the two screws alone -- the old snap latch is gone with
+the cartridge it existed for. A latch made a part you swap in the dark click
+into place; a part you fit once and then never remove does not need one, and the
+screws were always what compressed the gasket.
 
-The latch is on the top edge only, and singular, because the PSU passes within
-6.5 mm of the end walls across z=10..42: side latches would foul it and a bottom
-latch has nowhere to go.
+Travel is bounded at both ends by the panel: the block closing the top of the
+channel is the shut stop, and a detent rod across the mouth is the open stop.
+The rod doubles as the retainer -- the slider has to be lifted ``VENT_DETENT``
+out of plane to pass it, which is a deliberate push, not something gravity does.
+Failure is toward *open*: shut is the position you have to push it into.
 
-All three are returned flange-down, which is their print pose: the flange face is
-the sealing face and wants to be the smooth first layer.
+Two optional cartridges still fit the same port and the same two screws:
+``vent_blank`` for a genuinely sealed box (a shut shutter is weather-tight, not
+airtight) and ``vent_fan`` for forced cross-flow above ~75 % load.
+
+**Frames.** Every part is authored in its own print pose, per the house rule,
+and the two families print opposite ways up:
+
+* the shutter panel and its slider print **outer face up**: local z = 0 is the
+  face that beds down (the panel's gasket face, the slider's running face) and
+  local +Z points *outward*, away from the box;
+* the blank/fan cartridges print **flange face down with the plug standing up**:
+  local z = 0 is the outer face and local +Z points *inward*, the way they insert.
+
+``seated_shutters()``/``seated_blanks()`` encode each mapping so no call site
+has to.
 """
 
 from __future__ import annotations
@@ -33,10 +52,11 @@ import math
 
 from build123d import (
     Align,
-    Compound,
+    Axis,
     Box,
     BuildPart,
     BuildSketch,
+    Compound,
     Cylinder,
     Locations,
     Mode,
@@ -46,6 +66,7 @@ from build123d import (
     RectangleRounded,
     Rotation,
     add,
+    chamfer,
     extrude,
 )
 
@@ -55,7 +76,7 @@ from .util import as_part
 
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
-FLANGE_T = c.VENT_RECESS_D  # fills the tray's recess, so the cartridge is flush
+FLANGE_T = c.VENT_RECESS_D  # fills the tray's recess, so the part is flush
 # Measured from the recess floor, not the outer face: the recess has already
 # eaten VENT_RECESS_D of wall. This lands the hook exactly on the frame's
 # inner face.
@@ -69,46 +90,256 @@ LATCH_OVERHANG = 1.0  # how far the hook grabs the frame's inner face
 # takes happily. The tail doubles as the finger tab for releasing it.
 LATCH_TAIL = 7.0
 
-# ONE latch, on the top edge only. The PSU passes within 6.5 mm of the end walls
-# and spans z=10..42, so side latches would foul it and a bottom latch has
-# nowhere to go. Above the aperture there is clear air in both ports.
 GASKET_GROOVE_W = 2.6  # for a 2 mm cord, or an RTV bead
 GASKET_GROOVE_D = 1.5
+GASKET_INSET = 4.0  # groove centre line, out from the aperture edge
 
 FLANGE_X = c.VENT_W + 2 * c.VENT_RECESS_MARGIN_Y - 0.6  # 0.3 clearance each side
 FLANGE_Y = c.VENT_H + 2 * c.VENT_RECESS_MARGIN_Z - 0.6
 PLUG_X = c.VENT_W - 2 * c.VENT_CLEAR
 PLUG_Y = c.VENT_H - 2 * c.VENT_CLEAR
 
+SCREW_CLEAR_D = 3.4
+SCREW_HEAD_D = 6.4
+SCREW_HEAD_DEPTH = 1.2
+
+# --- Sliding shutter, all derived from the slot pitch -------------------------
+
+PANEL_T = c.VENT_RECESS_D  # the panel IS the flange: 3 mm, flush in the recess
+PITCH = c.VENT_SLOT_H + c.VENT_SLOT_BAR
+TRAVEL = PITCH / 2  # open -> shut is exactly half a pitch, by definition
+
+FIELD_H = c.VENT_SLOT_COUNT * PITCH - c.VENT_SLOT_BAR  # slot field, top to bottom
+# One more bar than there are slots, so the slider still covers the field's top
+# and bottom edge after it has travelled.
+SLIDER_H = FIELD_H + 2 * c.VENT_SLOT_BAR
+
+# Rails land on the flange just outboard of the aperture, where the recess floor
+# is behind them -- not on the part of the panel that bridges the opening.
+CHANNEL_W = c.VENT_W - 2.0
+CHANNEL_D = c.VENT_SLIDER_T + c.VENT_SLIDER_LIFT
+FIELD_W = CHANNEL_W - 2 * c.VENT_LIP  # slots stop where the lips start
+SLIDER_W = CHANNEL_W - 2 * c.VENT_SLIDER_CLEAR
+COL_W = (FIELD_W - c.VENT_MULLION_W) / 2  # one of the two slot columns
+COL_X = (c.VENT_MULLION_W + COL_W) / 2
+# The slider's own columns are cut 0.5 mm short of the panel's at each side. The
+# strip left outside them is all that ties its bars together AND all the lip has
+# to hold, and at the panel's width that strip would be one lip's worth (1.2 mm)
+# of material. Half a millimetre of open area buys a 1.7 mm strip.
+SLIDER_COL_W = COL_W - 1.0
+
+# Where the detent rod breaks the surface of the channel floor. The slider rests
+# against that line, so the rod's *emergence* -- not its centre -- is what sets
+# the open position, and the channel is sized from it.
+DETENT_RISE = math.sqrt(c.VENT_DETENT_R**2 - (c.VENT_DETENT_R - c.VENT_DETENT) ** 2)
+CHANNEL_H = SLIDER_H + TRAVEL + c.VENT_DETENT_R + DETENT_RISE
+CHANNEL_TOP = CHANNEL_H / 2
+DETENT_Y = -CHANNEL_TOP + c.VENT_DETENT_R
+
+OPEN_BOTTOM = DETENT_Y + DETENT_RISE
+OPEN_CENTER = OPEN_BOTTOM + SLIDER_H / 2  # slider centre, wide open
+SHUT_CENTER = OPEN_CENTER + TRAVEL  # slider centre, shut against the top block
+
+# Slot centre lines on the panel's OUTER face -- the face the slider covers. The
+# cut climbs inward from there, so the inner opening sits PANEL_T * tan(tilt)
+# higher up.
+SLOT_ROWS = [
+    (i - (c.VENT_SLOT_COUNT - 1) / 2) * PITCH for i in range(c.VENT_SLOT_COUNT)
+]
+SLOT_RISE = PANEL_T * math.tan(math.radians(c.VENT_SLOT_TILT))
+# Wide open, per port, measured on the face: the slider's columns are the
+# narrower pair, so they are what the air actually gets through. The throat is
+# this times cos(tilt) -- a tilted slot is narrower than its opening.
+OPEN_AREA = c.VENT_SLOT_COUNT * c.VENT_SLOT_H * 2 * SLIDER_COL_W
+
+
+# --- Shared flange features ---------------------------------------------------
+
+
+def _gasket_groove(z: float) -> Part:
+    """Cord groove tool for the sealing face lying at ``z``, cutting upward.
+
+    The groove belongs on the face that beds against the recess floor -- put it
+    on the weather side and it seals nothing. (Which is what the cartridges used
+    to do: the groove was cut from z = 0, the *outer* face.)
+    """
+    half = GASKET_GROOVE_W / 2
+    with BuildPart() as bp:
+        with BuildSketch(Plane.XY.offset(z)):
+            RectangleRounded(
+                c.VENT_W + 2 * GASKET_INSET + 2 * half,
+                c.VENT_H + 2 * GASKET_INSET + 2 * half,
+                5.0,
+            )
+            RectangleRounded(
+                c.VENT_W + 2 * GASKET_INSET - 2 * half,
+                c.VENT_H + 2 * GASKET_INSET - 2 * half,
+                4.0,
+                mode=Mode.SUBTRACT,
+            )
+        extrude(amount=GASKET_GROOVE_D)
+    return bp.part
+
+
+def _screw_holes(head_z: float, through: float) -> Part:
+    """M3 clearance holes matching the tray's blind pilots, heads sunk at ``head_z``."""
+    with BuildPart() as bp:
+        for y, z in pen.vent_screw_positions(0.0):
+            with Locations((y, z, 0)):
+                Cylinder(SCREW_CLEAR_D / 2, through, align=MIN_Z)
+            # Shallow head recess so nothing stands proud in the weather.
+            with Locations((y, z, head_z - SCREW_HEAD_DEPTH)):
+                Cylinder(SCREW_HEAD_D / 2, SCREW_HEAD_DEPTH, align=MIN_Z)
+    return bp.part
+
+
+# --- The sliding shutter ------------------------------------------------------
+
+
+def create_shutter() -> Part:
+    """The fixed panel: louvre field, slider channel, gasket and screws.
+
+    Built in its print pose -- gasket face on the bed at z = 0, everything the
+    weather sees growing upward. The channel's lips are the only overhang and
+    they reach ``VENT_LIP`` (1.5 mm) off a rail, which is an anchored bridge, not
+    a droop.
+    """
+    tilt = c.VENT_SLOT_TILT
+    with BuildPart() as bp:
+        # The plate, chamfered top and bottom while it is still a plain prism --
+        # edge ops are reliable here and nowhere else on this part.
+        with BuildSketch(Plane.XY):
+            RectangleRounded(FLANGE_X, FLANGE_Y, 5.5)
+        extrude(amount=PANEL_T)
+        rings = bp.edges().group_by(Axis.Z)
+        saved = bp.part
+        try:
+            chamfer(rings[0] + rings[-1], length=0.5)
+        except Exception:  # pragma: no cover - geometry-dependent
+            bp.part = saved
+
+        add(_gasket_groove(0.0), mode=Mode.SUBTRACT)
+        add(_screw_holes(head_z=PANEL_T, through=PANEL_T), mode=Mode.SUBTRACT)
+
+        # Louvre slots. Each is a slab tilted about local X: rotating a +Z-long
+        # box by +tilt sends its axis to (0, -sin, cos), so the opening moves
+        # DOWN as it comes out through the weather face -- water would have to
+        # climb SLOT_RISE to get in.
+        w_perp = c.VENT_SLOT_H * math.cos(math.radians(tilt))
+        for y in SLOT_ROWS:
+            slab = Rotation(tilt, 0, 0) * Box(FIELD_W, w_perp, 60.0, mode=Mode.PRIVATE)
+            add(
+                as_part(Pos(0, y + SLOT_RISE / 2, PANEL_T / 2) * slab),
+                mode=Mode.SUBTRACT,
+            )
+
+        # Centre mullion, put back after the cuts: it halves every bar's span,
+        # and it sits behind the strip between the slider's two columns, so it
+        # costs no open area.
+        with Locations((0, 0, 0)):
+            Box(c.VENT_MULLION_W, FIELD_H + 4.0, PANEL_T, align=MIN_Z)
+
+        # Slider channel: two rails with lips reaching back over the plate.
+        for sx in (-1, 1):
+            with Locations((sx * (CHANNEL_W + c.VENT_RAIL_W) / 2, 0, PANEL_T)):
+                Box(
+                    c.VENT_RAIL_W,
+                    CHANNEL_H,
+                    CHANNEL_D + c.VENT_LIP_T,
+                    align=MIN_Z,
+                )
+            with Locations(
+                (
+                    sx * (CHANNEL_W - c.VENT_LIP) / 2,
+                    0,
+                    PANEL_T + CHANNEL_D,
+                )
+            ):
+                Box(c.VENT_LIP, CHANNEL_H, c.VENT_LIP_T, align=MIN_Z)
+
+        # Block closing the top of the channel -- the shut stop, and what ties
+        # the two rails together.
+        with Locations((0, CHANNEL_TOP + c.VENT_END_WALL / 2, PANEL_T)):
+            Box(
+                CHANNEL_W + 2 * c.VENT_RAIL_W,
+                c.VENT_END_WALL,
+                CHANNEL_D + c.VENT_LIP_T,
+                align=MIN_Z,
+            )
+
+        # Detent rod across the mouth: the open stop, the click, and the reason
+        # the slider cannot fall out of the open end of its own channel.
+        with Locations((0, DETENT_Y, PANEL_T - (c.VENT_DETENT_R - c.VENT_DETENT))):
+            Cylinder(c.VENT_DETENT_R, CHANNEL_W, rotation=(0, 90, 0))
+
+    part = bp.part
+    part.label = "vent_shutter"
+    return part
+
+
+def create_slider() -> Part:
+    """The plate that throttles the louvre.
+
+    Prints flat, tab up, no supports. Its slots are offset from its own centre by
+    ``OPEN_CENTER`` so that when it is sitting on the detent they land exactly on
+    the panel's slot rows.
+    """
+    with BuildPart() as bp:
+        with BuildSketch(Plane.XY):
+            RectangleRounded(SLIDER_W, SLIDER_H, 2.0)
+        extrude(amount=c.VENT_SLIDER_T)
+        # Relief on the running face, which is the bed face: a squashed first
+        # layer here would bind in the channel instead of sliding in it.
+        saved = bp.part
+        try:
+            chamfer(bp.edges().group_by(Axis.Z)[0], length=0.4)
+        except Exception:  # pragma: no cover - geometry-dependent
+            bp.part = saved
+
+        for y in SLOT_ROWS:
+            for sx in (-1, 1):
+                with Locations((sx * COL_X, y - OPEN_CENTER, 0)):
+                    Box(
+                        SLIDER_COL_W,
+                        c.VENT_SLOT_H,
+                        c.VENT_SLIDER_T,
+                        align=MIN_Z,
+                        mode=Mode.SUBTRACT,
+                    )
+
+        # Thumb tab, in the margin below the slots. It stands proud of the rail
+        # lips, which is what makes it findable without looking.
+        tab_y = -SLIDER_H / 2 + 0.6 + c.VENT_TAB_H / 2
+        with Locations((0, tab_y, c.VENT_SLIDER_T)):
+            Box(c.VENT_TAB_W, c.VENT_TAB_H, c.VENT_TAB_PROUD, align=MIN_Z)
+        # Grip grooves run across the tab, i.e. across the direction it is
+        # pushed, so a wet thumb has something to bite on.
+        for i in (-1, 0, 1):
+            with Locations((0, tab_y + i * 1.1, c.VENT_SLIDER_T + c.VENT_TAB_PROUD)):
+                Cylinder(
+                    0.5,
+                    c.VENT_TAB_W,
+                    rotation=(0, 90, 0),
+                    mode=Mode.SUBTRACT,
+                )
+
+    part = bp.part
+    part.label = "vent_slider"
+    return part
+
+
+# --- Optional cartridges (same port, same two screws) -------------------------
+
 
 def _flange() -> Part:
-    """Common flange: seats in the tray recess, carries the gasket and screws."""
+    """Cartridge flange: seats in the tray recess, carries the gasket and screws."""
     with BuildPart() as bp:
         with BuildSketch(Plane.XY):
             RectangleRounded(FLANGE_X, FLANGE_Y, 5.5)
         extrude(amount=FLANGE_T)
-
-        # Gasket groove on the sealing face, inboard of the screws.
-        half = GASKET_GROOVE_W / 2
-        inset = 4.0
-        with BuildSketch(Plane.XY):
-            RectangleRounded(
-                c.VENT_W + 2 * inset + half * 2, c.VENT_H + 2 * inset + half * 2, 5.0
-            )
-            RectangleRounded(
-                c.VENT_W + 2 * inset - half * 2,
-                c.VENT_H + 2 * inset - half * 2,
-                4.0,
-                mode=Mode.SUBTRACT,
-            )
-        extrude(amount=GASKET_GROOVE_D, mode=Mode.SUBTRACT)
-
-        # M3 clearance holes matching the tray's blind inserts.
-        for y, z in pen.vent_screw_positions(0.0):
-            with Locations((y, z, 0)):
-                Cylinder(3.4 / 2, FLANGE_T, align=MIN_Z, mode=Mode.SUBTRACT)
-                # Shallow head recess so nothing stands proud in the weather.
-                Cylinder(6.4 / 2, 1.2, align=MIN_Z, mode=Mode.SUBTRACT)
+        # Sealing face is the INNER one here -- these print outer-face-down.
+        add(_gasket_groove(FLANGE_T - GASKET_GROOVE_D), mode=Mode.SUBTRACT)
+        add(_screw_holes(head_z=SCREW_HEAD_DEPTH, through=FLANGE_T), mode=Mode.SUBTRACT)
     return bp.part
 
 
@@ -146,7 +377,7 @@ def _plug_body(open_center: bool) -> Part:
 
 
 def create_blank() -> Part:
-    """Sealed blanking plug. This is what ships in both ports by default."""
+    """Sealed blanking plug -- the only way to make a port genuinely airtight."""
     with BuildPart() as bp:
         add(_flange())
         add(_plug_body(open_center=False))
@@ -156,137 +387,121 @@ def create_blank() -> Part:
     return part
 
 
-def _louvre_blades() -> Part:
-    """The tilted blade stack, built in its own builder.
-
-    Built separately on purpose: creating a ``Box`` inside a ``Locations``
-    context of an open ``BuildPart`` places it at that location *first*, so a
-    subsequent ``Rotation * box`` would swing the already-translated blade about
-    the world origin and fling it out of the part.
-    """
-    n = c.VENT_LOUVRE_COUNT
-    ang = math.radians(c.VENT_LOUVRE_ANGLE)
-    pitch = (PLUG_Y - 6.0) / n
-    blade_w = pitch / math.cos(ang) + 1.2  # overlap so no line of sight remains
-    z_mid = FLANGE_T + PLUG_T / 2
-
-    with BuildPart() as bp:
-        for i in range(n):
-            y = -((n - 1) / 2 - i) * pitch
-            blade = Rotation(c.VENT_LOUVRE_ANGLE, 0, 0) * Box(
-                PLUG_X - 4.0,
-                blade_w,
-                1.6,
-                align=(Align.CENTER, Align.CENTER, Align.CENTER),
-                mode=Mode.PRIVATE,
-            )
-            add(as_part(Pos(0, y, z_mid) * blade), mode=Mode.ADD)
-    return bp.part
-
-
-def create_louvre() -> Part:
-    """Chevron labyrinth: air gets through, thrown water does not.
-
-    Each blade is set at ``VENT_LOUVRE_ANGLE`` and overlaps its neighbour in
-    projection, so there is no straight line from the outside to the inside. The
-    angle is also the print angle -- at 45 the blades self-support.
-    """
-    with BuildPart() as bp:
-        add(_flange())
-        add(_plug_body(open_center=True))
-        add(_louvre_blades(), mode=Mode.ADD)
-        # Trim the blades back to the plug envelope -- sideways and along the
-        # insertion axis. This must happen BEFORE the latches go on, or it would
-        # shear the hooks off (they deliberately stand proud of the plug).
-        with BuildSketch(Plane.XY.offset(FLANGE_T)):
-            RectangleRounded(PLUG_X + 60, PLUG_Y + 60, 1.0)
-            RectangleRounded(PLUG_X, PLUG_Y, 3.6, mode=Mode.SUBTRACT)
-        extrude(amount=PLUG_T, mode=Mode.SUBTRACT)
-        with Locations((0, 0, FLANGE_T + PLUG_T)):
-            Box(PLUG_X + 60, PLUG_Y + 60, 40.0, align=MIN_Z, mode=Mode.SUBTRACT)
-        add(_latches())
-
-    part = bp.part
-    part.label = "vent_louvre"
-    return part
-
-
 def create_fan() -> Part:
     """Mount for a 40 x 40 x 10 fan, for when convection is not enough."""
     bolt = c.VENT_FAN_BOLT / 2
+    guard = c.VENT_FAN_SIZE - 4.0
     with BuildPart() as bp:
         add(_flange())
         add(_plug_body(open_center=True))
         add(_latches())
+        # The flange has to be opened up or the fan blows against a solid plate.
+        # Two bars across it keep fingers out of the blades.
+        with BuildSketch(Plane.XY):
+            RectangleRounded(guard, min(guard, PLUG_Y - 2 * 2.4), 3.0)
+        extrude(amount=FLANGE_T, mode=Mode.SUBTRACT)
+        for sy in (-1, 1):
+            with Locations((0, sy * guard / 6, 0)):
+                Box(guard, 3.0, FLANGE_T, align=MIN_Z)
+
         # Fan bulkhead sitting just inside the plug mouth.
         plate_z = FLANGE_T + PLUG_T - 3.0
         with BuildSketch(Plane.XY.offset(plate_z)):
             RectangleRounded(PLUG_X, PLUG_Y, 3.6)
-            RectangleRounded(
-                c.VENT_FAN_SIZE - 4.0, c.VENT_FAN_SIZE - 4.0, 4.0, mode=Mode.SUBTRACT
-            )
+            RectangleRounded(guard, guard, 4.0, mode=Mode.SUBTRACT)
         extrude(amount=3.0)
         # Fan screw holes on the standard 32 mm pattern.
         for sx in (-1, 1):
             for sy in (-1, 1):
                 with Locations((sx * bolt, sy * bolt, plate_z)):
-                    Cylinder(3.4 / 2, 3.0, align=MIN_Z, mode=Mode.SUBTRACT)
+                    Cylinder(SCREW_CLEAR_D / 2, 3.0, align=MIN_Z, mode=Mode.SUBTRACT)
 
     part = bp.part
     part.label = "vent_fan"
     return part
 
 
+# --- Placement ----------------------------------------------------------------
+
+
 def cartridges() -> dict[str, Part]:
-    """All three cartridges, keyed by name, each in print pose."""
+    """Every printed vent part, keyed by name, each in print pose."""
     return {
+        "vent_shutter": create_shutter(),
+        "vent_slider": create_slider(),
         "vent_blank": create_blank(),
-        "vent_louvre": create_louvre(),
         "vent_fan": create_fan(),
     }
 
 
-def seated_blanks() -> list[Part]:
-    """A blank fitted in each port, for the closed assembly view.
+def _outward_frame(z: float, s: int) -> Plane:
+    """Frame for a part authored outer-face-up, sitting on the recess floor.
 
-    A bare ``Rotation`` will not do this: the cartridge's local X spans VENT_W
-    (which is the box's **Y**) and its local Y spans VENT_H (the box's **Z**),
-    while local +Z is the insertion direction. Naming the frame outright is far
-    less error-prone than composing two rotations and hoping.
+    Local +Z runs OUT of the box, local +Y is box +Z, local +X spans the port's
+    width. Naming the frame outright beats composing two rotations and hoping.
     """
-    from build123d import Plane
+    return Plane(
+        origin=(s * (c.INTERIOR_X / 2 + c.WALL - c.VENT_RECESS_D), 0.0, z),
+        x_dir=(0.0, float(s), 0.0),
+        z_dir=(float(s), 0.0, 0.0),
+    )
 
+
+def _inward_frame(z: float, s: int) -> Plane:
+    """Frame for a cartridge authored flange-down, inserting inward.
+
+    Origin is the flange's OUTER face, which sits flush with the wall -- local z
+    then runs inward through the recess and the aperture.
+    """
+    return Plane(
+        origin=(s * (c.INTERIOR_X / 2 + c.WALL), 0.0, z),
+        x_dir=(0.0, float(-s), 0.0),
+        z_dir=(float(-s), 0.0, 0.0),
+    )
+
+
+def seated_shutters(shut: bool = False) -> list[Part]:
+    """A shutter fitted in each port, sliders open (or shut), for the assembly."""
+    out: list[Part] = []
+    y = SHUT_CENTER if shut else OPEN_CENTER
+    for i, (z, s) in enumerate(pen.vent_ports()):
+        frame = _outward_frame(z, s)
+        panel = as_part(frame.location * create_shutter())
+        panel.label = f"vent_shutter_{i + 1}"
+        slider = as_part(frame.location * Pos(0, y, PANEL_T) * create_slider())
+        slider.label = f"vent_slider_{i + 1}"
+        out += [panel, slider]
+    return out
+
+
+def seated_blanks() -> list[Part]:
+    """A blanking plug fitted in each port -- the sealed configuration."""
     out: list[Part] = []
     for i, (z, s) in enumerate(pen.vent_ports()):
-        # Origin is the flange's OUTER face, which sits flush with the wall --
-        # local z then runs inward through the recess and the aperture.
-        frame = Plane(
-            origin=(s * (c.INTERIOR_X / 2 + c.WALL), 0, z),
-            x_dir=(0, -s, 0),  # local X -> box Y
-            z_dir=(-s, 0, 0),  # local Z -> inward, so local Y -> box +Z
-        )
-        placed = as_part(frame.location * create_blank())
+        placed = as_part(_inward_frame(z, s).location * create_blank())
         placed.label = f"vent_blank_{i + 1}"
         out.append(placed)
     return out
 
 
 def create() -> Compound:
-    """Entry point for ``uv run show led_psu_enclosure.vent`` -- all three."""
+    """Entry point for ``uv run show led_psu_enclosure.vent`` -- every vent part."""
     parts: list[Part] = []
     x = 0.0
     for part in cartridges().values():
         bb = part.bounding_box()
         parts.append(as_part(Pos(x - bb.min.X, 0, 0) * part))
         x += bb.size.X + 12.0
-    return Compound(label="vent_cartridges", children=parts)
+    return Compound(label="vent_parts", children=parts)
 
 
 __all__ = [
     "create",
+    "create_shutter",
+    "create_slider",
     "create_blank",
-    "create_louvre",
     "create_fan",
     "cartridges",
+    "seated_shutters",
     "seated_blanks",
 ]

@@ -4,11 +4,13 @@ A weatherproof enclosure for a complete 24 V addressable-LED driver stack: a
 Mean Well RSP-320-24, an Athom/IoTorero Ethernet WLED ESP32 controller, a 4-way
 blade-fuse block (one fuse per output) and four Weipu SP1712 output connectors.
 
-**Sealed by default, ventable on demand.** The RSP-320-24 sheds ~40 W at full
-load and derates from 50 °C ambient, so a permanently sealed box would be fine at
-half load and marginal above it. Rather than guess, both end walls carry an
-identical port: a blanking plug makes the box sealed, and a louvre or fan
-cartridge clicks into the same opening if the PSU runs hot in service.
+**Ventable with a thumb.** The RSP-320-24 sheds ~40 W at full load and derates
+from 50 °C ambient, so a permanently sealed box is fine at half load and marginal
+above it. Rather than guess at print time, both end walls carry an identical port
+with a **sliding shutter** in it: a louvred panel screwed in once, and a slotted
+slider that runs in a channel on its face. Let the slider down and the port is
+wide open; push it up half a slot pitch and it is shut. The louvre slots are cut
+at 45°, so there is no straight-line path from outside to inside even wide open.
 
 ```bash
 uv run show led_psu_enclosure                # closed assembly, contents visible
@@ -35,8 +37,9 @@ just the contents.
 | `lid` | 235 × 135 × 16 | ~218 g |
 | `psu_plate` | 216 × 116 × 4 | ~101 g |
 | `shelf` | 218 × 118 × 4 | ~92 g |
-| `vent_blank` ×2 | 89.4 × 55.4 × 15.5 | ~29 g ea |
-| `vent_louvre` / `vent_fan` | 89.4 × 55.4 × 15.5 | optional |
+| `vent_shutter` ×2 | 89.4 × 55.4 × 7.1 | ~14 g ea |
+| `vent_slider` ×2 | 59.4 × 37.8 × 4.4 | ~4 g ea |
+| `vent_blank` / `vent_fan` | 89.4 × 55.4 × 15.5 | optional |
 
 **~1.0 kg total.** Interior is 228 × 128 × 118 mm. The lid **snaps into the
 mouth** — no flange, no screws, sides flush with the walls. One perimeter bead
@@ -60,7 +63,7 @@ joint is a dust/splash seal, not an IP65 crush.
 | 4 | M4 × 8 | PSU to plate — **no longer, see below** |
 | 2 | M4 × 16 + nyloc | fuse block to shelf |
 | 2 | M3 × 16 + nyloc | controller to shelf |
-| 4 | M3 × 10 self-tapping | vent cartridges |
+| 4 | M3 × 10 self-tapping | vent shutters (2 per port) |
 | 1 | 40 × 40 × 10 fan (optional) | only for `vent_fan` |
 
 ### ⚠ Check your gland before ordering
@@ -99,7 +102,10 @@ A longer screw will bottom out inside the power supply.
 6. **Gasket** — press 3 mm silicone cord into the rim groove, cut to length,
    butt the ends with a drop of CA. (Or lay an RTV bead and let it cure against
    an oiled lid.)
-7. **Fit the vent blanks**, gasket side in, click, then two screws each.
+7. **Fit the vent shutters** — cord (or RTV bead) in the panel's groove, gasket
+   side in, two screws each. Then slide a `vent_slider` in at the **bottom** of
+   each panel's channel and push until it clicks past the detent rod. That click
+   is the open stop; it is also what stops the slider dropping back out.
 8. **Lid on** — press straight down around the perimeter until the snap bead
    clicks. To open, pry gently at a corner and work along an edge.
 
@@ -113,22 +119,28 @@ A longer screw will bottom out inside the power supply.
 - No supports needed anywhere — every overhang is 45° or a bridge by design.
 - The tray is a big ABS/ASA part: heated chamber, brim, and don't open the door.
 - Optional: a wipe of epoxy or acetone on the *outside* of the tray closes any
-  residual layer porosity. Do **not** acetone-smooth near the vent latches.
+  residual layer porosity. Do **not** acetone-smooth the shutter panels — it
+  closes the louvre slots and welds the slider into its channel.
 
 ## Print a test coupon first
 
 Before committing to a ~10 h tray print, print a small section carrying one
 SP1712 cutout with its counterbore, a piece of the rim with the gasket groove
-and snap bead, and one vent latch. That proves the connector fit, the panel thickness and the
-snap force for the cost of half an hour.
+and snap bead — and one `vent_shutter` + `vent_slider` pair, which is a 25 min
+print on its own. That proves the connector fit, the panel thickness and the
+slider's running fit for the cost of half an hour.
 
 ## Thermal guidance
 
 | Load | Roughly | Recommendation |
 |---|---|---|
-| ≤ 50 % (≤ 160 W) | ~20 W of heat | Sealed. Both blanks in. |
-| 50–75 % | ~30 W | Fit `vent_louvre` in both ports (≈ IP54). |
-| > 75 % | ~40 W | `vent_louvre` low + `vent_fan` high. |
+| ≤ 50 % (≤ 160 W) | ~20 W of heat | Both sliders shut. |
+| 50–75 % | ~30 W | Both sliders open (≈ 765 mm² a port, ≈ IP54). |
+| > 75 % | ~40 W | Sliders open, or swap the high port for `vent_fan`. |
+
+A shut slider is weather-tight, not airtight — it is a lapping plate, not a seal.
+For a genuinely sealed port (storage, a very wet site, no load) fit `vent_blank`
+instead: same recess, same two screws.
 
 The low port is at the terminal end and the high port is over the PSU's top-cover
 fan, so a fitted pair gives real cross-flow rather than one hole doing nothing.
@@ -155,4 +167,7 @@ verifies the SP1712 panel thickness against the 3 mm spec limit, that the D-flat
 is oriented up (so it prints as a bridge), that every insert pocket is blind,
 that the gasket groove is continuous, that the lid's snap bead engages the rim
 groove without welding, that every internal part fits *through the rim opening*,
-and that nothing collides with anything. Run it after any change to `config.py`.
+that the shutter's slider really covers every louvre slot when shut and clears
+every one when open (and that no straight line runs through the louvre either
+way), and that nothing collides with anything. Run it after any change to
+`config.py`.

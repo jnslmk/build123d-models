@@ -59,14 +59,14 @@ def _installed() -> list[Part]:
     shelf = shelf_mod.seated()
     shelf.color = DECK_COLOR
     vents = []
-    for part in vent_mod.seated_blanks():
+    for part in vent_mod.seated_shutters():
         part.color = VENT_COLOR
         vents.append(part)
     return [tray, plate, shelf, *vents, gasket_mod.seated()]
 
 
 def create() -> Compound:
-    """Closed-up assembly: shell, deck, blanked vents, lid and every component."""
+    """Closed-up assembly: shell, deck, open shutters, lid and every component."""
     lid = lid_mod.seated()
     lid.color = LID_COLOR
     return Compound(
