@@ -1152,6 +1152,15 @@ def create_cover(
         # Chamfer the engraved mouths: the glyph edges lying on the face, keeping
         # only the short ones so the cover's long face-boundary edges are left
         # alone. Best-effort -- the engraving stands on its own if it fails.
+        #
+        # Deliberately accepted False: OCC refuses this chamfer for Metal and
+        # Stone at every length (0.5/0.3/0.15 all fail), and the kernel is
+        # chaotic on the edge set ("Ston" chamfers where "Sto" doesn't), so
+        # per-glyph calls are no rescue either. Only Wood takes it. The boolean
+        # V-groove (lofted ring between the offset glyph and the glyph,
+        # subtracted) is the documented fix if paint-fill ever needs it, but at
+        # LABEL_SIZE=13 (~9.75 mm glyphs) the bevel is polish -- the 4 mm base
+        # wall numbers, where it pays off, are plain engraves.
         mouth = (
             cover.edges()
             .filter_by_position(Axis.Y, COVER_W / 2, COVER_W / 2)
