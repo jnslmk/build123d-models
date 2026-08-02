@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 show = "show:main"
 export = "export_model:main"
+check = "check:main"
 render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
@@ -24,8 +25,10 @@ website = "website:main"
 package = true
 
 [tool.setuptools]
-packages = ["models"]
-py-modules = ["fontfix", "show", "export_model", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
+# Subpackages are not implied by their parent -- list every one, or a built
+# wheel silently ships without it.
+packages = ["models", "models.lib", "models.led_psu_enclosure"]
+py-modules = ["fontfix", "show", "export_model", "check", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 
 [dependency-groups]
 dev = [
