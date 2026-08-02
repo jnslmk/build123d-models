@@ -53,6 +53,8 @@ from build123d import (
     sweep,
 )
 
+from .lib.edges import chamfer_edge
+
 # --- Gridfinity standard ------------------------------------------------------
 GRID = 42.0
 TOLERANCE = 0.5
@@ -1156,10 +1158,10 @@ def create_cover(
             .filter_by(lambda e: e.length < 30.0)
         )
         if mouth:
-            try:
-                chamfer(mouth, LABEL_CHAMFER)
-            except Exception:
-                pass
+            # Snapshot-restore rather than a bare try/except: a failed OCC
+            # chamfer leaves the builder corrupted, and this is the last
+            # operation before the part is returned.
+            chamfer_edge(cover, mouth, LABEL_CHAMFER)
     # Print orientation: flip the cover upside down (pillow top on the bed, open
     # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
     part = Rotation(180, 0, 0) * cover.part
