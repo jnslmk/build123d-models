@@ -6,8 +6,11 @@ output connectors, an M12 mains gland and an IP68 RJ45 bulkhead.
 
 Both end walls carry a sliding-shutter vent: a louvred panel with a slider you
 push shut or let open with a thumb, so the airflow is adjusted in service instead
-of being chosen at print time. See ``README.md`` and ``docs/`` for the design
-rationale and the researched component dimensions.
+of being chosen at print time. Above about half load that is not enough on its
+own -- convection through the ports is worth under 2 W of the PSU's 40 -- so the
+high port can also carry a 40 mm 24 V fan on a printed yoke, mounted *behind* the
+louvre so forced ventilation costs nothing in weatherproofing. See ``README.md``
+and ``docs/`` for the design rationale and the researched component dimensions.
 
     uv run show led_psu_enclosure           # assembled, contents visible
     uv run show led_psu_enclosure.tray      # a single part

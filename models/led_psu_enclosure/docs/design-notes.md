@@ -11,19 +11,29 @@ The RSP-320-24 is 89 % efficient at 321 W, so it sheds **~40 W**. It is also
 fan-cooled from its top cover and derates from 50 °C ambient down to 50 % load at
 70 °C. Those two facts fight the word "waterproof".
 
-Rough sums for a sealed box of this size: external surface ≈ 0.19 m², and natural
-convection plus radiation off plastic is ~6–8 W/m²·K.
+### The sealed-box sum, done properly
 
-| Load | Heat | ΔT over ambient | Internal at 25 °C ambient |
+An earlier version of this file counted only the outside of the box —
+40 W / (7 W/m²·K × 0.15 m²) ≈ 30 K — and concluded that sealed was comfortable
+to half load. That is optimistic by about a factor of two, because heat has to
+get *into* the wall before it can leave it. The three resistances in series, for
+the box as it now stands (0.147 m² of exterior, 3.5 mm ASA at k ≈ 0.17):
+
+| | R (K/W) |
+|---|---|
+| inside air → inner wall face (h ≈ 20, stirred by the PSU's own fan) | 0.34 |
+| through the wall | 0.14 |
+| outer wall face → ambient (h ≈ 7.5, natural + radiation) | 0.91 |
+| **total** | **1.39** |
+
+| Load | Heat | ΔT | Internal at 25 °C ambient |
 |---|---|---|---|
-| 50 % | ~20 W | ~15 K | ~40 °C — comfortable |
-| 75 % | ~30 W | ~22 K | ~47 °C — fine |
-| 100 % | ~40 W | ~30 K + internal gradient | ~60–65 °C — into the derating band |
+| 50 % | ~20 W | ~28 K | ~53 °C — at the derating knee |
+| 75 % | ~30 W | ~42 K | ~67 °C — well into it |
+| 100 % | ~40 W | ~56 K | ~81 °C — past the 70 °C limit |
 
-So sealed is genuinely fine up to about half load and gets marginal above it. For
-LED lighting, average load is usually well under half — but "usually" moves with
-the season and the install, which is the actual argument against deciding at
-print time.
+So a sealed box is fine for a lightly loaded install and genuinely not fine for a
+heavily loaded one, which is the argument against deciding at print time.
 
 Both end walls therefore carry the **same** port with a **sliding shutter** in
 it: `vent_shutter` (a louvred panel, screwed in once) plus `vent_slider` (a
@@ -32,7 +42,37 @@ pitch is shut, and it is adjusted with a thumb on a closed box. This replaced th
 earlier swappable cartridge set, where changing your mind meant unscrewing a
 cartridge and fitting another one you had to have printed in advance.
 
-Three things fall out of the geometry and are worth stating:
+### What opening the sliders is actually worth
+
+Less than it looks, and the arithmetic is worth keeping because it is what
+justifies the fan in §1a.
+
+Wide open, each port passes ~765 mm² measured on the face, ~540 mm² of throat
+(a 45° slot's throat is its opening × cos 45°). Buoyancy across the 30 mm height
+difference between the two ports, at a 30 K internal rise:
+
+    Δp = ρ·g·Δh·(ΔT/T) = 1.15 × 9.81 × 0.030 × (30/310) ≈ 0.033 Pa
+    v  = √(2Δp / ρK) with K ≈ 8 for two ports in series      ≈ 0.085 m/s
+    Q  = v × A                                               ≈ 0.046 L/s
+    P  = ρ·c_p·Q·ΔT                                          ≈ **1.6 W**
+
+**Under 2 W of the 40 W.** And the PSU's own fan does not make that up. It is a
+*recirculating* fan: the path from its outlet back to its inlet through the box
+interior has near-zero resistance, while the path out one port and in the other
+costs ~13 Pa at 1 L/s. Flow splits inversely with resistance, so essentially all
+of it short-circuits inside the box. The PSU fan stirs the air — which is worth
+real money, it is the h ≈ 20 in the table above — but it does not ventilate.
+
+Two consequences, and neither is obvious from looking at the box:
+
+- **The height difference between the ports earns almost nothing.** What earns
+  its keep is that they are at opposite *ends*, so a fan-driven flow sweeps the
+  PSU's whole length instead of looping in one corner. The low port is low
+  because that is where the PSU's own case louvres are, not to make a chimney.
+- **Convection alone will not cool this box at full load, vented or not.** Only
+  a fan in series with a port will — hence §1a.
+
+Three more things fall out of the geometry and are worth stating:
 
 - **The slot tilt is the weatherproofing.** Slots are cut at 45° through the
   3 mm panel, climbing *up-and-in*, so the offset across the panel (3 mm) is at
@@ -47,33 +87,91 @@ Three things fall out of the geometry and are worth stating:
   where the slider rests on the detent rod. A slider that lost its friction would
   sag *open*, which overheats nothing.
 
-Wide open is ~765 mm² of face opening per port (~540 mm² of throat, since a 45°
-slot's throat is its opening × cos 45°). `vent_blank` (fully sealed) and
-`vent_fan` (40 mm forced) still fit the same recess and the same two screws.
+`vent_blank` (fully sealed) still fits the same recess and the same two screws.
+So does `vent_fan`, the original wall-mounted 40 mm cartridge — kept, but no
+longer the recommended way to force air, because it replaces the louvre it sits
+in. See §1a.
 
 Ports are placed **low at the terminal end, high over the PSU's top-cover fan**,
 so a fitted pair gives cross-flow. One port alone would do very little. The shelf
 is slotted so the plenum under it stays connected to the high port.
 
-This also drives the material choice: at 55–65 °C internal, **PLA creeps and is
+This also drives the material choice: at 55–80 °C internal, **PLA creeps and is
 not an option**. ASA (or ABS if shaded) is the right answer; PETG is a distant
 third.
 
+## 1a. The internal fan, and why it decides how tall the box is
+
+§1 leaves one conclusion: nothing short of a fan in series with a port produces
+real through-flow. Carrying 40 W at a 15 K air rise needs ~2.3 L/s (~5 CFM),
+which a 40 mm 24 V fan reaches through a louvre and a 60 mm one reaches
+comfortably. The 24 V rail is already on the PSU's output terminals.
+
+It is mounted **inside, behind the high port's louvre**, on a printed yoke
+(`vent_fan_yoke`), rather than in the wall like `vent_fan`. That is the whole
+point: the tilted-slot labyrinth stays in front of the blades, so forced
+ventilation costs nothing in weatherproofing. Fitting it does mean the high port
+can no longer take a `vent_blank` — the plug body and the fan want the same
+volume, and `checks.py` asserts that mutual exclusion rather than treating the
+clash as a bug.
+
+**Only the high port can host it.** At the low port the PSU passes within 6.5 mm
+of the wall and the frame already spends 5 of them. The high port is above the
+PSU, which is the only place inside this box with 10 mm of depth to spare.
+
+### The depth budget, which is where it nearly did not fit
+
+    inner wall face                x = 114.0
+    fan, 40 × 40 × 10              x = 104.0 … 114.0   (face flush, blowing in)
+    yoke plate, 2.5 mm             x = 101.5 … 104.0
+    controller's mounting tab tip  x = 103.0           ← 1.0 mm
+
+The controller's tabs overhang its body by 8 mm at each end and are the furthest
+thing along X on the shelf. With 204.2 mm of component (fuse block 86.2 +
+controller 118) on a 215 mm shelf there is nowhere to move them to, so the layout
+works by a millimetre and by one deliberate trick: **the tab passes through the
+yoke's own throat.** The yoke's Ø38 bore is centred on the fan, the tab crosses
+it 8–11 mm below centre where the bore is still ~35 mm wide, and there is simply
+no plate there. `check_internal_fan()` samples the yoke at the tab's actual
+coordinates instead of trusting the arithmetic.
+
+### Why its screws are beside the fan, not above and below it
+
+The yoke's four M3s go into blind pilots in the frame's **side** bands, at the
+same radius as the shutter's own screws but offset 12 mm in Z (the two sets are
+driven into opposite faces of a 5.5 mm slab and would otherwise meet head-on).
+
+The obvious alternative — screws above and below the fan — costs about 7 mm of
+enclosure, and the chain is worth spelling out because it is not intuitive:
+
+1. The yoke's lowest edge hangs over the PSU's plan, so it cannot go below the
+   top cover. That fixes how low the high port can sit.
+2. The port's frame must finish below `rim_band_z()`, or it narrows the mouth.
+3. So `interior_z` ≥ port centre + aperture/2 + frame margin + rim band.
+
+Rails above and below the fan add ~7 mm to step 1 and therefore ~7 mm to the box.
+Rails at the sides add nothing. `config.interior_z()` computes all of this, so
+changing `VENT_FAN_SIZE` to 30 re-derives a box 5 mm shorter, and the trade is
+visible instead of buried.
+
 ## 2. The PSU nearly fills the box, and everything follows from that
 
-The PSU is 215 × 115 inside a 228 × 128 interior — **6.5 mm to every wall**. An
-SP1712 needs 19.7 mm behind the panel plus wire bend room, so *no wall at PSU
-height can host a connector*. This is the constraint that shapes the layout:
+The PSU is 215 × 115 inside a 228 × 125 interior — **6.5 mm to the end walls,
+5 mm to the front and back**. An SP1712 needs 19.7 mm behind the panel plus wire
+bend room, so *no wall at PSU height can host a connector*. This is the
+constraint that shapes the layout:
 
-- The shelf underside sits at **z = 63, i.e. 23 mm above the PSU**, not the naive
-  10 mm — the top-cover fan needs a plenum to breathe into.
-- The connectors go in the **front wall at z = 85**, in the space above the PSU.
+- The shelf underside sits **13 mm above the PSU** — the top-cover fan needs a
+  plenum to breathe into, and ~0.25 × D is the floor for a Ø50 fan.
+- The connectors go in the **front wall at z = 74**, in the space above the PSU.
 - Everything mounted on the shelf is held **36 mm back from the front wall**
   (`SHELF_FRONT_KEEPOUT`) so the connector bodies have somewhere to be. That
   number is set by the deepest intruder — the RJ45 coupler at 32 mm — not by the
   SP1712s at 19.7 mm.
 - The vent frames are capped at 5 mm thick because thicker would foul the PSU.
 - The PSU plate is only 0.5 mm bigger than the PSU, for the same reason.
+- **X is not compressible.** 215 mm of PSU plus 5 mm of vent frame plus 1.5 mm of
+  drop clearance at each end *is* the 228 mm interior.
 
 ## 3. The lid snaps in — the flange is gone
 
@@ -117,10 +215,19 @@ fills.
 ## 5. Things that fought back
 
 **The rim opening is not the interior.** The wall thickens inward over the top
-15 mm to give the rim ring enough width for the gasket and snap grooves, which
-narrows the mouth to 221 × 121. A part sized to the 228 × 128 interior fits the box but *cannot be got
-into it*. `installable_x/y()` exists for this and every internal part is sized
-against it.
+12 mm to give the rim ring enough width for the gasket and snap grooves, which
+narrows the mouth to 221 × 118. A part sized to the 228 × 125 interior fits the
+box but *cannot be got into it*. `installable_x/y()` exists for this and every
+internal part is sized against it.
+
+**...and the rim opening is not the narrowest point either.** The two vent
+frames stand 5 mm proud of the end walls, so the real clear opening in X is
+**218 mm**, not the mouth's 221. The shelf was sized as `installable_x() - 3`,
+which came out at exactly 218 — *zero clearance* against the frames it has to
+slide past, on the largest printed dimension in the box. It passed the old check
+because that check compared against the mouth with a `<=`. `drop_opening()` now
+returns the minimum of the two, every drop-in part is sized against it, and
+`check_installability()` demands a real ≥ 0.5 mm per side.
 
 **Vent screws could not use heat-set inserts.** Once the 3 mm flange recess is
 cut there is only 5.5 mm of material left, and the frame cannot grow inward
@@ -155,6 +262,52 @@ countersinks existed on the same face, even though they were 5 mm clear of it.
 Exactly the flakiness the repo's gotchas warn about. Both the lid and the tray
 rim now use a **boolean** chamfer (`util.top_chamfer_tool`) — an oversized slab
 minus a lofted keep-frustum, which cannot fail that way.
+
+## 5a. Making it smaller: what was there, and what was not
+
+The box was 235 × 135 × 121.5 (3.85 L). It is now **235 × 132 × 111.5 (3.46 L)**,
+about 10 % less, and the interesting part is where the millimetres came from —
+because most of the places that *look* like slack are not.
+
+**Taken:**
+
+| | | |
+|---|---|---|
+| Plenum over the PSU's fan | 23 → 13 mm | 0.25 × D is the published floor for a Ø50 fan; 23 was a guess |
+| Y clearance around the PSU | 6.5 → 5.0 mm a side | nothing lives there; the vent frames are on the X ends |
+| Rim band | 15 → 12 mm | it only has to swallow the 10 mm lid plug |
+| PSU-plate boss | 6 → 5 mm | see below — this one nearly was not available |
+| Connector row | z = 85 → 74 | it follows the shelf down |
+
+The rim band is worth 1:1 twice over, because the vent frame has to finish below
+it *and* the band sits on top of everything: 3 mm off the band is 3 mm off the
+box.
+
+**Refused:**
+
+- **The 10 mm under the PSU plate is not dead air — it is the snap studs' spring
+  length.** The C-spring tube runs from its base block to the head, and
+  cantilever strain goes as 1/L², so trimming the boss from 6 mm to 3 mm would
+  have taken the stud from 1.5 % strain to ~12 %: it would snap on the first
+  press instead of clicking. 6 → 5 mm was available (2.0 %, still inside the
+  2.5 % the check enforces); anything more was not. `PSU_PLATE_BOSS_H` now carries
+  a comment saying so, because it is the most obviously trimmable number in the
+  file and it is a trap.
+- **X, entirely.** 215 mm of PSU + 5 mm of vent frame + 1.5 mm of drop clearance
+  at each end is 228 mm. There is nothing to give unless the vents move off the
+  end walls, which would cost the cross-flow.
+- **A flat side-by-side layout** (PSU and electronics on one floor, ~235 × 208 ×
+  58) was costed and dropped. It is 2.86 L on paper, but the exterior surface
+  comes out at 0.150 m² against 0.147 — no thermal gain — the total shell area is
+  within 2 %, so it is the same print mass, and the footprint grows 55 %. A
+  quarter less volume for half again the bench space is not a trade worth a
+  redesign.
+
+**And one thing got bigger on purpose:** clearance over the fuse block went from
+9.3 mm to 10.3. At 9.3 you could not get a finger to an ATO fuse — changing one
+meant lifting the whole wired shelf out. It is now the chain that *sets* the box
+height (`config.interior_z()`), which is the right thing to be bound by: the box
+is as short as its tallest component plus room to service it.
 
 ## 6. Watertightness is not just geometry
 

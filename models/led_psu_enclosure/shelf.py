@@ -26,6 +26,7 @@ from build123d import (
     Part,
     Plane,
     Pos,
+    Rectangle,
     RectangleRounded,
     extrude,
 )
@@ -64,29 +65,54 @@ def _mount_points() -> list[tuple[float, float, float]]:
     return pts
 
 
+def _slot_row(y0: float, y1: float, x_max: float) -> list[tuple[float, float, float]]:
+    """(x, y centre, length) for a row of slots filling the band y0..y1."""
+    length = y1 - y0
+    if length < c.SHELF_VENT_SLOT_W:
+        return []
+    pitch = c.SHELF_VENT_SLOT_W + c.SHELF_VENT_SLOT_GAP
+    n = int((2 * x_max) // pitch)
+    return [(-((n - 1) / 2 - i) * pitch, (y0 + y1) / 2, length) for i in range(n)]
+
+
 def create_shelf() -> Part:
     """The shelf, in print pose (flat on the bed)."""
     sx, sy = c.shelf_size()
+    notch_x, notch_y = c.shelf_fan_notch()
+    high = c.vent_high_end()
 
     with BuildPart() as bp:
         with BuildSketch(Plane.XY):
             RectangleRounded(sx, sy, 5.0)
         extrude(amount=c.SHELF_T)
 
-        # Ventilation slots, kept clear of the component footprints so they are
-        # not blocked by the very parts they are meant to cool around.
-        pitch = c.SHELF_VENT_SLOT_W + c.SHELF_VENT_SLOT_GAP
-        slot_len = 46.0
-        y_front = -sy / 2 + 12.0  # ahead of the SHELF_FRONT_KEEPOUT line
-        n = int((sx - 30) // pitch)
-        for i in range(n):
-            x = -((n - 1) / 2 - i) * pitch
-            with BuildSketch(Plane.XY):
-                with Locations((x, y_front + slot_len / 2 - 6.0)):
-                    RectangleRounded(
-                        c.SHELF_VENT_SLOT_W, slot_len, c.SHELF_VENT_SLOT_W / 2 - 0.4
-                    )
-            extrude(amount=c.SHELF_T, mode=Mode.SUBTRACT)
+        # Ventilation. Two bands, in front of and behind the component
+        # footprints -- the old single field ran on under the fuse block and the
+        # controller, where a slot vents nothing. With the shelf now only 13 mm
+        # above the PSU's top-cover fan, the plenum needs every clear path it
+        # can get to the high port.
+        front = (-sy / 2 + 4.0, -c.INTERIOR_Y / 2 + c.SHELF_FRONT_KEEPOUT - 2.0)
+        back = (mocks.CTRL_Y_CENTER + c.CTRL_Y / 2 + 2.0, sy / 2 - 4.0)
+        for y0, y1 in (front, back):
+            for x, yc, length in _slot_row(y0, y1, sx / 2 - 15.0):
+                with BuildSketch(Plane.XY):
+                    with Locations((x, yc)):
+                        RectangleRounded(
+                            c.SHELF_VENT_SLOT_W,
+                            length,
+                            min(c.SHELF_VENT_SLOT_W, length) / 2 - 0.4,
+                        )
+                extrude(amount=c.SHELF_T, mode=Mode.SUBTRACT)
+
+        # The bite the internal fan takes out of the high port's edge. Without it
+        # the shelf goes in (the fan is fitted last) but can never come out
+        # again, and lifting it out is how the PSU's terminals are reached. It
+        # doubles as the plenum's shortest path to the exhaust.
+        notch_w = sx / 2 + 2.0 - notch_x
+        with BuildSketch(Plane.XY):
+            with Locations((high * (notch_x + notch_w / 2), 0)):
+                Rectangle(notch_w, 2 * notch_y)
+        extrude(amount=c.SHELF_T, mode=Mode.SUBTRACT)
 
         # Component fixings: plain clearance holes, screw + nut from underneath.
         # Deliberately not heat-set inserts -- a 4 mm deck cannot host one, and a

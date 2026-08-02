@@ -5,12 +5,21 @@ Mean Well RSP-320-24, an Athom/IoTorero Ethernet WLED ESP32 controller, a 4-way
 blade-fuse block (one fuse per output) and four Weipu SP1712 output connectors.
 
 **Ventable with a thumb.** The RSP-320-24 sheds ~40 W at full load and derates
-from 50 °C ambient, so a permanently sealed box is fine at half load and marginal
-above it. Rather than guess at print time, both end walls carry an identical port
-with a **sliding shutter** in it: a louvred panel screwed in once, and a slotted
-slider that runs in a channel on its face. Let the slider down and the port is
-wide open; push it up half a slot pitch and it is shut. The louvre slots are cut
-at 45°, so there is no straight-line path from outside to inside even wide open.
+from 50 °C ambient, so a permanently sealed box is comfortable at light load and
+not viable at heavy load. Rather than guess at print time, both end walls carry
+an identical port with a **sliding shutter** in it: a louvred panel screwed in
+once, and a slotted slider that runs in a channel on its face. Let the slider
+down and the port is wide open; push it up half a slot pitch and it is shut. The
+louvre slots are cut at 45°, so there is no straight-line path from outside to
+inside even wide open.
+
+**And a 24 V fan on the inside when that is not enough.** Convection through
+those ports is worth under 2 W of the 40 W — the arithmetic is in
+`docs/design-notes.md`, and it is the reason `vent_fan_yoke` exists: a printed
+carrier that holds a 40 × 40 × 10 mm 24 V fan *behind* the high port's louvre,
+so you get forced through-flow without giving up the labyrinth in front of it.
+It runs straight off the PSU's own output terminals. Optional — the box works
+without it, and the yoke is four screws.
 
 ```bash
 uv run show led_psu_enclosure                # closed assembly, contents visible
@@ -33,21 +42,39 @@ just the contents.
 
 | Part | Size (mm) | ASA |
 |---|---|---|
-| `tray` | 235 × 144 × 121.5 | ~496 g |
-| `lid` | 235 × 135 × 16 | ~218 g |
-| `psu_plate` | 216 × 116 × 4 | ~101 g |
-| `shelf` | 218 × 118 × 4 | ~92 g |
+| `tray` | 235 × 132 × 111.5 | ~446 g |
+| `lid` | 235 × 132 × 16 | ~213 g |
+| `psu_plate` | 216 × 116 × 4 | ~100 g |
+| `shelf` | 215 × 115 × 4 | ~89 g |
 | `vent_shutter` ×2 | 89.4 × 55.4 × 7.1 | ~14 g ea |
 | `vent_slider` ×2 | 59.4 × 37.8 × 4.4 | ~4 g ea |
+| `vent_fan_yoke` | 88 × 44 × 7.5 | ~11 g, optional |
 | `vent_blank` / `vent_fan` | 89.4 × 55.4 × 15.5 | optional |
 
-**~1.0 kg total.** Interior is 228 × 128 × 118 mm. The lid **snaps into the
-mouth** — no flange, no screws, sides flush with the walls. One perimeter bead
-cannot crush the gasket the way 14 screws did: behind the plug labyrinth the
-joint is a dust/splash seal, not an IP65 crush.
+**~880 g fitted** (tray, lid, plate, shelf, two shutters, two sliders, yoke).
+Outside is **235 × 132 × 111.5 mm**, interior 228 × 125 × 108. The lid **snaps
+into the mouth** — no flange, no screws, sides flush with the walls. One
+perimeter bead cannot crush the gasket the way 14 screws did: behind the plug
+labyrinth the joint is a dust/splash seal, not an IP65 crush.
 
 > **Printer:** everything is ≤ 235 mm across, so this fits the **Centauri
 > Carbon** (256 mm) now.
+
+### Where the size comes from
+
+Nothing in the vertical stack is a chosen number — `config.interior_z()` takes
+the tallest of three chains and rounds up, so the box is as short as its contents
+allow and the trade-offs are visible in code rather than folklore:
+
+| Chain | Height it demands |
+|---|---|
+| high vent port + internal fan → below the rim band | 105.0 |
+| shelf → fuse block (41.7 mm) → 10 mm of finger room | **107.7 ← binds** |
+| SP1712 counterbores → below the rim band | 101.5 |
+
+X is not compressible at all: 215 mm of PSU + 5 mm of vent frame + 1.5 mm of
+drop clearance at each end *is* the 228 mm interior. Setting `VENT_FAN_SIZE = 30`
+re-derives a box ~5 mm shorter at the cost of roughly half the forced airflow.
 
 ## Bought parts
 
@@ -64,7 +91,9 @@ joint is a dust/splash seal, not an IP65 crush.
 | 2 | M4 × 16 + nyloc | fuse block to shelf |
 | 2 | M3 × 16 + nyloc | controller to shelf |
 | 4 | M3 × 10 self-tapping | vent shutters (2 per port) |
-| 1 | 40 × 40 × 10 fan (optional) | only for `vent_fan` |
+| 1 | **40 × 40 × 10 mm 24 V fan** (optional) | for `vent_fan_yoke` — runs off the PSU output |
+| 4 | M3 × 10 self-tapping (optional) | yoke to the high port's frame |
+| 4 | M3 × 16 fan screws (optional) | through the yoke into the fan's own housing |
 
 ### ⚠ Check your gland before ordering
 
@@ -106,14 +135,30 @@ A longer screw will bottom out inside the power supply.
    side in, two screws each. Then slide a `vent_slider` in at the **bottom** of
    each panel's channel and push until it clicks past the detent rod. That click
    is the open stop; it is also what stops the slider dropping back out.
-8. **Lid on** — press straight down around the perimeter until the snap bead
+8. **Fit the fan, if you are fitting one** — bolt the 40 mm fan to
+   `vent_fan_yoke` with four M3 × 16, **blowing outward**, then screw the yoke to
+   the four blind pilots inside the high port's frame. Take its 24 V from the PSU
+   output terminals. This goes in *after* the shelf; see the note below.
+9. **Lid on** — press straight down around the perimeter until the snap bead
    clicks. To open, pry gently at a corner and work along an edge.
+
+### What comes out again, and in what order
+
+The fan assembly reaches inboard past both the shelf's and the PSU plate's edges,
+so it constrains disassembly — deliberately, and in the right direction:
+
+- **The shelf still lifts straight out with the fan fitted.** It has a notch in
+  its high-port edge exactly for this, because lifting the shelf is how the PSU's
+  terminal block and `+V ADJ` trimmer are reached. `check_internal_fan()` sweeps
+  the shelf upward through the fan and the yoke to prove it.
+- **The PSU plate does not.** Take the yoke out first (four screws). The plate is
+  fitted once and left alone, so this is the cheap side of the trade.
 
 ## Print settings
 
 - **ASA** (or ABS if it will be shaded — ASA holds up far better in UV). **Not
-  PLA**: internal air reaches ~55–65 °C at high load and PLA creeps. PETG is a
-  distant third.
+  PLA**: internal air reaches 55–80 °C at high load without a fan and PLA creeps.
+  PETG is a distant third.
 - **≥ 4 perimeters, ≥ 5 top/bottom.** Watertightness comes from wall count and
   good layer bonding, not from thickness alone.
 - No supports needed anywhere — every overhang is 45° or a bridge by design.
@@ -134,17 +179,30 @@ slider's running fit for the cost of half an hour.
 
 | Load | Roughly | Recommendation |
 |---|---|---|
-| ≤ 50 % (≤ 160 W) | ~20 W of heat | Both sliders shut. |
-| 50–75 % | ~30 W | Both sliders open (≈ 765 mm² a port, ≈ IP54). |
-| > 75 % | ~40 W | Sliders open, or swap the high port for `vent_fan`. |
+| ≤ 25 % (≤ 80 W) | ~10 W of heat | Both sliders shut. No fan needed. |
+| 25–50 % | ~20 W | Both sliders open (≈ 765 mm² a port, ≈ IP54). |
+| > 50 % (> 160 W) | 30–40 W | **Fit the fan.** Sliders open. |
+
+**Do not expect much from convection alone.** Buoyancy through two open ports
+30 mm apart in height moves ~0.05 L/s and carries **under 2 W** of the PSU's 40 —
+and the PSU's own top-cover fan does not help, because it recirculates inside the
+box rather than pumping through the ports. Opening the sliders on a hot box buys
+far less than it looks like it should. The full sums are in
+`docs/design-notes.md`; the practical upshot is that above about half load the
+24 V fan is the part doing the work, and the sliders are there so you can shut
+the box down for winter.
 
 A shut slider is weather-tight, not airtight — it is a lapping plate, not a seal.
 For a genuinely sealed port (storage, a very wet site, no load) fit `vent_blank`
-instead: same recess, same two screws.
+instead: same recess, same two screws. Note that a blank and the internal fan
+claim the same volume, so the high port takes one or the other.
 
 The low port is at the terminal end and the high port is over the PSU's top-cover
 fan, so a fitted pair gives real cross-flow rather than one hole doing nothing.
-The shelf is slotted so the plenum below it stays connected to the high port.
+What matters is that they are at opposite *ends* — the 30 mm height difference
+between them is worth almost nothing on its own. The shelf is slotted fore and
+aft of the components, and notched at the high port, so the plenum below it stays
+connected to the exhaust.
 
 ---
 
@@ -153,12 +211,18 @@ The shelf is slotted so the plenum below it stays connected to the high port.
 See `docs/design-notes.md` for the reasoning and `docs/part-data.md` for the
 researched component dimensions with sources. The short version:
 
-The PSU is 215 × 115 in a 228 × 128 interior — it comes within 6.5 mm of every
-wall, so **no wall at PSU height can host a connector** (an SP1712 needs 19.7 mm
-behind the panel). The whole layout follows from resolving that: the shelf sits
-25 mm above the PSU so the top-cover fan has a plenum, the connectors go in the
-front wall at shelf height, and everything mounted on the shelf is held 36 mm
-back from that wall so the connector bodies have somewhere to be.
+The PSU is 215 × 115 in a 228 × 125 interior — it comes within 6.5 mm of the end
+walls and 5 mm of the front and back, so **no wall at PSU height can host a
+connector** (an SP1712 needs 19.7 mm behind the panel). The whole layout follows
+from resolving that: the shelf sits 13 mm above the PSU so the top-cover fan has
+a plenum, the connectors go in the front wall above it, and everything mounted on
+the shelf is held 36 mm back from that wall so the connector bodies have
+somewhere to be.
+
+The tightest part of the box is the high port's end. A 118 mm controller and a
+40 mm fan share a 215 mm shelf with an 86 mm fuse block, and the controller's
+mounting tab ends up 1 mm from the fan — passing *through* the yoke's own throat
+to get there. `docs/design-notes.md` §1a has the depth budget.
 
 ## Verifying changes
 
@@ -166,8 +230,13 @@ back from that wall so the connector bodies have somewhere to be.
 verifies the SP1712 panel thickness against the 3 mm spec limit, that the D-flat
 is oriented up (so it prints as a bridge), that every insert pocket is blind,
 that the gasket groove is continuous, that the lid's snap bead engages the rim
-groove without welding, that every internal part fits *through the rim opening*,
-that the shutter's slider really covers every louvre slot when shut and clears
-every one when open (and that no straight line runs through the louvre either
-way), and that nothing collides with anything. Run it after any change to
-`config.py`.
+groove without welding, that every internal part fits *through the rim opening
+and past the vent frames*, that the shutter's slider really covers every louvre
+slot when shut and clears every one when open (and that no straight line runs
+through the louvre either way), that the internal fan's yoke clears the
+controller and that the shelf still lifts out past it, and that nothing collides
+with anything. Run it after any change to `config.py`:
+
+```bash
+uv run check led_psu_enclosure
+```

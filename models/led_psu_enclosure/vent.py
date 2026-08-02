@@ -29,9 +29,19 @@ The rod doubles as the retainer -- the slider has to be lifted ``VENT_DETENT``
 out of plane to pass it, which is a deliberate push, not something gravity does.
 Failure is toward *open*: shut is the position you have to push it into.
 
+``vent_fan_yoke``  the carrier for an internal 40 mm 24 V exhaust fan, screwed to
+                   the high port's frame from *inside*. This is the recommended
+                   way to force air: the fan sits behind the louvre, so forced
+                   ventilation costs nothing in weatherproofing. It is also the
+                   part that decides how tall the box is -- see the note on its
+                   screw positions in ``create_fan_yoke``.
+
 Two optional cartridges still fit the same port and the same two screws:
 ``vent_blank`` for a genuinely sealed box (a shut shutter is weather-tight, not
-airtight) and ``vent_fan`` for forced cross-flow above ~75 % load.
+airtight) and ``vent_fan``, the original wall-mounted fan cartridge. ``vent_fan``
+is superseded by the yoke -- it works, but it replaces the louvre it sits in --
+and a ``vent_blank`` cannot share the high port with the internal fan, since the
+plug body and the fan want the same volume.
 
 **Frames.** Every part is authored in its own print pose, per the house rule,
 and the two families print opposite ways up:
@@ -328,6 +338,88 @@ def create_slider() -> Part:
     return part
 
 
+# --- Internal fan yoke (high port only) ---------------------------------------
+
+YOKE_HALF_Y = c.vent_yoke_half_y()
+YOKE_HALF_Z = c.vent_yoke_half_z()
+YOKE_RAIL_H = c.vent_yoke_rail_h()
+
+
+def create_fan_yoke() -> Part:
+    """Carrier for the 40 x 40 x 10 24 V exhaust fan, inside the high port.
+
+    A plate that sits BEHIND the fan and stands off the vent frame's inner face
+    on two rails, so the fan's outer face ends up flush with the inner wall face,
+    blowing straight through the aperture and out through the louvre. That is the
+    point of mounting the fan inside rather than swapping in ``vent_fan``: the
+    tilted-slot labyrinth stays in front of the blades, so forced ventilation
+    costs nothing in weatherproofing.
+
+    Four M3 self-tappers hold the fan (into its own housing, as fan screws do)
+    and four more hold the yoke to the frame -- in the frame's *side* bands, at
+    the same radius as the shutter's own screws but offset in Z. Putting them
+    above and below the fan instead would push the port up about 7 mm, and the
+    port's height sets the height of the whole box (``config.interior_z``).
+
+    Printed plate-down, rails up: no overhangs, no supports.
+    """
+    total = c.VENT_YOKE_T + YOKE_RAIL_H
+    bolt = c.VENT_FAN_BOLT / 2
+    screw_y = c.vent_yoke_screw_y()
+
+    with BuildPart() as bp:
+        with BuildSketch(Plane.XY):
+            RectangleRounded(2 * YOKE_HALF_Y, 2 * YOKE_HALF_Z, 4.0)
+        extrude(amount=c.VENT_YOKE_T)
+        # Bed-face ring only: the rails have to seat flat on the other side.
+        saved = bp.part
+        try:
+            chamfer(bp.edges().group_by(Axis.Z)[0], length=0.5)
+        except Exception:  # pragma: no cover - geometry-dependent
+            bp.part = saved
+
+        # Rails: they bridge back to the frame's inner face and are what the
+        # yoke screws pass through, so they run the plate's full height.
+        for sx in (-1, 1):
+            with Locations((sx * screw_y, 0, c.VENT_YOKE_T)):
+                Box(c.VENT_YOKE_RAIL_W, 2 * YOKE_HALF_Z, YOKE_RAIL_H, align=MIN_Z)
+
+        # Throat. Sized to clear the blades while leaving the bolt pads solid --
+        # the 32 mm pattern sits at radius 22.6, outside this bore.
+        with Locations((0, 0, 0)):
+            Cylinder(
+                c.VENT_FAN_BORE_D / 2, c.VENT_YOKE_T, align=MIN_Z, mode=Mode.SUBTRACT
+            )
+
+        # Fan screws: clearance only, they thread into the fan's own housing.
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                with Locations((sx * bolt, sy * bolt, 0)):
+                    Cylinder(
+                        SCREW_CLEAR_D / 2,
+                        c.VENT_YOKE_T,
+                        align=MIN_Z,
+                        mode=Mode.SUBTRACT,
+                    )
+
+        # Yoke screws, through plate and rail into the frame's blind pilots.
+        # Heads are sunk so they do not eat into the controller's clearance.
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                with Locations((sx * screw_y, sy * c.VENT_YOKE_SCREW_DZ, 0)):
+                    Cylinder(SCREW_CLEAR_D / 2, total, align=MIN_Z, mode=Mode.SUBTRACT)
+                    Cylinder(
+                        SCREW_HEAD_D / 2,
+                        SCREW_HEAD_DEPTH,
+                        align=MIN_Z,
+                        mode=Mode.SUBTRACT,
+                    )
+
+    part = bp.part
+    part.label = "vent_fan_yoke"
+    return part
+
+
 # --- Optional cartridges (same port, same two screws) -------------------------
 
 
@@ -429,6 +521,7 @@ def cartridges() -> dict[str, Part]:
     return {
         "vent_shutter": create_shutter(),
         "vent_slider": create_slider(),
+        "vent_fan_yoke": create_fan_yoke(),
         "vent_blank": create_blank(),
         "vent_fan": create_fan(),
     }
@@ -474,6 +567,27 @@ def seated_shutters(shut: bool = False) -> list[Part]:
     return out
 
 
+def _yoke_frame(z: float, s: int) -> Plane:
+    """Frame for the fan yoke, authored plate-down with its rails facing the wall.
+
+    Origin is the plate's INBOARD face -- the deepest the fan assembly reaches
+    into the box -- so local +Z runs outward through the rails to the frame.
+    """
+    return Plane(
+        origin=(s * c.vent_yoke_back_x(), 0.0, z),
+        x_dir=(0.0, float(s), 0.0),
+        z_dir=(float(s), 0.0, 0.0),
+    )
+
+
+def seated_fan_yoke() -> Part:
+    """The fan yoke fitted in the high port, for the assembly and the checks."""
+    s = c.vent_high_end()
+    part = as_part(_yoke_frame(c.VENT_HIGH_Z, s).location * create_fan_yoke())
+    part.label = "vent_fan_yoke"
+    return part
+
+
 def seated_blanks() -> list[Part]:
     """A blanking plug fitted in each port -- the sealed configuration."""
     out: list[Part] = []
@@ -499,9 +613,11 @@ __all__ = [
     "create",
     "create_shutter",
     "create_slider",
+    "create_fan_yoke",
     "create_blank",
     "create_fan",
     "cartridges",
     "seated_shutters",
+    "seated_fan_yoke",
     "seated_blanks",
 ]

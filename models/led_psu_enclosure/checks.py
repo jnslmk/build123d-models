@@ -129,9 +129,9 @@ def check_gasket_groove(tray: Part, r: Report) -> None:
 def check_shelf_ledge(tray: Part, r: Report) -> None:
     r.section("shelf ledge")
     top = c.shelf_ledge_z()
-    # Sample the FRONT ledge: the end-wall ledges are deliberately interrupted by
-    # the vent apertures, which is fine (the shelf is carried front-to-back) and
-    # actually lets plenum air past the shelf edge.
+    # Sample the FRONT ledge: the end-wall runs are deliberately cut away by
+    # _vent_ledge_relief(), which is fine (the shelf is carried front-to-back)
+    # and actually lets plenum air past the shelf edge.
     inner_y = c.INTERIOR_Y / 2 - c.SHELF_LEDGE_W / 2
     r.check(
         is_solid_at(tray, 0, inner_y, top - 0.5), "ledge is solid just below its top"
@@ -147,27 +147,58 @@ def check_shelf_ledge(tray: Part, r: Report) -> None:
         is_solid_at(tray, 0, -inner_y, top - 0.5),
         "front ledge is present too (shelf is carried front-to-back)",
     )
+    # ...and the end-wall runs really are cut away. The docstring always said
+    # they were; until _vent_ledge_relief() existed they were not, and they sat
+    # exactly where the vent frame, the fan and its yoke's rails now live.
+    # Sampled inboard of the frame's face -- the relief deliberately stops there,
+    # because past it the "ledge" and the frame are the same material.
+    probe_x = c.INTERIOR_X / 2 - c.SHELF_LEDGE_W + 1.0
+    relief_y = c.VENT_W / 2 + c.VENT_FRAME_MARGIN_Y
+    for s in (-1, 1):
+        end = "+X" if s > 0 else "-X"
+        r.check(
+            not is_solid_at(tray, s * probe_x, 0, top - 0.5),
+            f"{end} end ledge is cut away across the port",
+        )
+        r.check(
+            not is_solid_at(tray, s * probe_x, relief_y - 1.0, top - 0.5),
+            f"{end} end ledge is cut out to the frame's full width",
+        )
+        # Positive control: beyond the relief the ledge is still there, so a
+        # cut that quietly took the whole ring would not read as a pass.
+        r.check(
+            is_solid_at(tray, s * probe_x, relief_y + 4.0, top - 0.5),
+            f"{end} end ledge survives outboard of the relief",
+        )
 
 
 def check_installability(r: Report) -> None:
-    """Every internal part must physically drop through the rim opening."""
+    """Every internal part must physically drop in past the rim AND the frames.
+
+    The rim mouth is not the narrowest thing on the way down: the two vent
+    frames stand ``VENT_FRAME_T`` proud of the end walls and take the clear
+    opening from 221 mm to 218. Checking against the mouth alone is how the
+    shelf came to be sized with exactly zero clearance at the frames.
+    """
     r.section("installability through the rim opening")
-    ox, oy = c.installable_x(), c.installable_y()
-    sx, sy = c.shelf_size()
-    px, py = c.psu_plate_size()
+    ox, oy = c.drop_opening()
+    mouth_x = c.installable_x()
     r.check(
-        sx <= ox and sy <= oy, "shelf fits", f"{sx:.1f}x{sy:.1f} <= {ox:.1f}x{oy:.1f}"
+        ox < mouth_x,
+        "the vent frames, not the rim, are the narrowest point in X",
+        f"{ox:.1f} < mouth {mouth_x:.1f}",
     )
-    r.check(
-        px <= ox and py <= oy,
-        "PSU plate fits",
-        f"{px:.1f}x{py:.1f} <= {ox:.1f}x{oy:.1f}",
-    )
-    r.check(
-        c.PSU_X <= ox and c.PSU_Y <= oy,
-        "PSU itself fits",
-        f"{c.PSU_X}x{c.PSU_Y} <= {ox:.1f}x{oy:.1f}",
-    )
+    for name, (px, py) in (
+        ("shelf", c.shelf_size()),
+        ("PSU plate", c.psu_plate_size()),
+        ("PSU itself", (c.PSU_X, c.PSU_Y)),
+    ):
+        gap = min((ox - px) / 2, (oy - py) / 2)
+        r.check(
+            gap >= 0.5,
+            f"{name} fits with clearance",
+            f"{px:.1f}x{py:.1f} in {ox:.1f}x{oy:.1f} ({gap:.1f} mm a side)",
+        )
 
 
 def check_interference(tray: Part, r: Report) -> None:
@@ -189,25 +220,83 @@ def check_interference(tray: Part, r: Report) -> None:
 
 
 def check_shelf_components(r: Report) -> None:
-    """The fuse block and controller must fit side by side on the shelf."""
+    """The fuse block and controller must fit side by side on the shelf.
+
+    Checked against where they are actually *placed*, not just their total
+    width: with 204.2 mm of component on a 215 mm shelf and a fan yoke claiming
+    one end, every margin here is single-digit millimetres.
+    """
     r.section("shelf packing")
     sx, sy = c.shelf_size()
-    total = c.FUSE_X + c.CTRL_TAB_X
+    high = c.vent_high_end()
+    notch_x, _ = c.shelf_fan_notch()
+
+    fuse_lo = mocks.FUSE_X_CENTER - c.FUSE_X / 2
+    fuse_hi = mocks.FUSE_X_CENTER + c.FUSE_X / 2
+    tab_lo = mocks.CTRL_X_CENTER - c.CTRL_TAB_X / 2
+    tab_hi = mocks.CTRL_X_CENTER + c.CTRL_TAB_X / 2
+
     r.check(
-        total < sx,
-        "fuse block + controller fit across the shelf",
-        f"{total:.1f} in {sx:.1f} ({sx - total:.1f} mm spare)",
+        fuse_lo > -sx / 2 + 1.0,
+        "fuse block sits on the shelf, not over its edge",
+        f"{fuse_lo:.1f} inside {-sx / 2:.1f} ({fuse_lo + sx / 2:.1f} mm)",
     )
-    depth = c.SHELF_FRONT_KEEPOUT + max(c.FUSE_Y, c.CTRL_Y)
     r.check(
-        depth < c.INTERIOR_Y,
-        "keep-out plus deepest component fits front-to-back",
-        f"{depth:.1f} in {c.INTERIOR_Y:.1f}",
+        tab_lo - fuse_hi >= 2.0,
+        "fuse block and controller do not touch",
+        f"{tab_lo - fuse_hi:.1f} mm gap",
+    )
+    # The controller's bolts go through the shelf, so they must land on shelf,
+    # not in the bite taken out of it for the fan -- and it is the HOLE EDGE that
+    # has to clear it, not the centre. Comparing centres left 0.3 mm of shelf
+    # between the hole and the notch and read as a comfortable pass.
+    from .shelf import CTRL_BOLT_CLEAR
+
+    bolt_edge = mocks.CTRL_X_CENTER + c.CTRL_BOLT_PITCH / 2 + CTRL_BOLT_CLEAR / 2
+    r.check(
+        high * bolt_edge < notch_x - 1.5,
+        "controller's outer bolt hole leaves shelf between it and the fan notch",
+        f"hole edge {bolt_edge:.1f}, notch at {high * notch_x:.1f}"
+        f" ({notch_x - high * bolt_edge:.1f} mm)",
+    )
+    r.check(
+        high * tab_hi < c.vent_fan_back_x() - 0.5,
+        "controller's tab tip clears the internal fan",
+        f"x {tab_hi:.1f} vs fan back at {high * c.vent_fan_back_x():.1f}",
+    )
+
+    depth = c.SHELF_FRONT_KEEPOUT + max(c.FUSE_Y, c.CTRL_Y)
+    usable = sy / 2 + c.INTERIOR_Y / 2
+    r.check(
+        depth < usable,
+        "keep-out plus deepest component fits front-to-back on the shelf",
+        f"{depth:.1f} in {usable:.1f}",
     )
     r.check(
         c.RJ45_BEHIND <= c.SHELF_FRONT_KEEPOUT,
         "deepest wall intruder clears the shelf components",
         f"RJ45 {c.RJ45_BEHIND} <= keepout {c.SHELF_FRONT_KEEPOUT}",
+    )
+
+
+def check_connector_row(r: Report) -> None:
+    """The whole front-wall row shares one Z, squeezed from both directions."""
+    r.section("connector row height")
+    # Below: the RJ45 is the widest pad and would otherwise pass through the
+    # shelf plate, which reaches all the way to the front wall.
+    pad_bottom = c.RJ45_Z - c.RJ45_PAD_D / 2
+    r.check(
+        pad_bottom > c.shelf_top_z(),
+        "RJ45 pad clears the shelf plate",
+        f"{pad_bottom:.1f} > {c.shelf_top_z():.1f}",
+    )
+    # Above: the SP1712 counterbores are cut into the plain wall, so they must
+    # finish before the wall thickens into the rim band.
+    bore_top = c.SP17_Z + c.SP17_COUNTERBORE_D / 2
+    r.check(
+        bore_top < c.rim_band_z(),
+        "SP1712 counterbores finish below the rim band",
+        f"{bore_top:.1f} < {c.rim_band_z():.1f}",
     )
 
 
@@ -400,12 +489,133 @@ def check_shutters(tray: Part, r: Report) -> None:
             )
 
 
+def _swept_up(part: Part, height: float) -> Part:
+    """The volume a prismatic drop-in part passes through on its way out.
+
+    Both the shelf and the PSU plate are plain extrusions, so sweeping the
+    bottom face upward is exact, not an approximation -- and it is the only way
+    to tell "fits where it sits" from "can actually be got in and out".
+
+    Sanity-checked against a negative control: the same sweep of a shelf without
+    its fan notch does hit the fan (~4.5 cm3) and the yoke (~6.6 cm3), so a
+    "0 mm3 in its path" pass means the notch works, not that the sweep is empty.
+    """
+    from build123d import Axis, BuildPart, add, extrude
+
+    # ty resolves Part.faces() to Mixin2D.faces and rejects the receiver; it is
+    # the right call at runtime.
+    face = part.faces().sort_by(Axis.Z).first  # ty: ignore[invalid-argument-type]
+    with BuildPart() as bp:
+        add(face)
+        extrude(amount=height)
+    return bp.part
+
+
+def check_internal_fan(tray: Part, r: Report) -> None:
+    """The 24 V exhaust fan, its yoke, and the millimetres they live on."""
+    from . import shelf as shelf_mod
+    from . import vent
+
+    r.section("internal fan + yoke")
+    s = c.vent_high_end()
+    yoke = vent.seated_fan_yoke()
+    fan = mocks.internal_fan()
+
+    r.check(
+        (yoke & tray).volume < 5.0,
+        "yoke seats on the frame without fouling the shell",
+        f"{(yoke & tray).volume:.1f} mm3",
+    )
+    clash = [
+        (m.label, (yoke & m).volume)
+        for m in mocks.keepouts()
+        if m.label != fan.label and (yoke & m).volume > 1.0
+    ]
+    r.check(not clash, "yoke clears every component", str(clash))
+
+    # The controller's mounting tab passes *through* the yoke's throat -- that
+    # is what lets a 118 mm controller and a 40 mm fan share one 215 mm shelf.
+    # Sampled at the tab, not inferred from the bore radius.
+    tab_z = c.shelf_top_z() + 1.5
+    for y in (mocks.CTRL_Y_CENTER - 8.0 + 1.0, mocks.CTRL_Y_CENTER + 8.0 - 1.0):
+        r.check(
+            not is_solid_at(
+                yoke, s * (c.vent_yoke_back_x() + c.VENT_YOKE_T / 2), y, tab_z
+            ),
+            f"yoke throat is open where the controller tab passes (y={y:+.1f})",
+        )
+
+    # Blind pilots, actually cut, and not meeting the shutter's own from outside.
+    inner = c.vent_frame_inner_x()
+    for dz in (-c.VENT_YOKE_SCREW_DZ, c.VENT_YOKE_SCREW_DZ):
+        z = c.VENT_HIGH_Z + dz
+        for y in (-c.vent_yoke_screw_y(), c.vent_yoke_screw_y()):
+            r.check(
+                not is_solid_at(tray, s * (inner + 1.0), y, z),
+                f"yoke pilot was cut (y={y:+.0f}, z={z:.0f})",
+            )
+            r.check(
+                is_solid_at(tray, s * (inner + c.VENT_SCREW_PILOT_L + 0.7), y, z),
+                f"yoke pilot is blind (y={y:+.0f}, z={z:.0f})",
+            )
+    # Yoke and shutter pilots share a Y and are driven into opposite faces of a
+    # slab only 5.5 mm thick -- two 4 mm pilots would meet head-on. What keeps
+    # them apart is the offset in Z, so that is what gets asserted.
+    slab = c.WALL + c.VENT_FRAME_T - c.VENT_RECESS_D
+    r.check(
+        2 * c.VENT_SCREW_PILOT_L > slab,
+        "the two pilot sets would meet if they shared a Z (hence the offset)",
+        f"2 x {c.VENT_SCREW_PILOT_L:.1f} through {slab:.1f} mm",
+    )
+    r.check(
+        c.VENT_YOKE_SCREW_DZ >= c.VENT_SCREW_PILOT_D + 2.0,
+        "yoke pilots stand clear of the shutter's in Z",
+        f"{c.VENT_YOKE_SCREW_DZ:.1f} mm apart, pilots are O{c.VENT_SCREW_PILOT_D:.1f}",
+    )
+
+    # The fan blows onto the louvre panel's inner face; that gap is what it has
+    # to spread through to reach the full width of the slot field.
+    gap = (c.INTERIOR_X / 2 + c.WALL - c.VENT_RECESS_D) - c.INTERIOR_X / 2
+    r.check(gap > 0.0, "fan face clears the shutter panel", f"{gap:.1f} mm")
+    r.check(
+        c.vent_yoke_rail_h() > 0.0,
+        "fan is thicker than the frame is proud (the yoke needs the difference)",
+        f"rail standoff {c.vent_yoke_rail_h():.1f} mm",
+    )
+    r.check(
+        c.VENT_FAN_SIZE <= c.VENT_H,
+        "fan fits the aperture it blows through",
+        f"{c.VENT_FAN_SIZE:.0f} <= {c.VENT_H:.0f}",
+    )
+
+    # And the whole point of the shelf's notch: the shelf still lifts out.
+    sweep = _swept_up(shelf_mod.seated(), c.INTERIOR_Z - c.shelf_ledge_z())
+    for obstacle in (fan, yoke):
+        vol = (sweep & obstacle).volume
+        r.check(
+            vol < 1.0,
+            f"shelf lifts straight out past the {obstacle.label}",
+            f"{vol:.1f} mm3 in its path",
+        )
+
+
 def check_cartridges(tray: Part, r: Report) -> None:
     """The optional blank/fan cartridges still have to fit the same port."""
     from . import vent
 
     r.section("vent cartridges")
-    comps = mocks.keepouts()
+    fan = mocks.internal_fan()
+    # A cartridge's plug body fills the aperture the internal fan noses into, so
+    # the two are mutually exclusive by construction: the high port carries a
+    # shutter + fan, or a blank, never both. Assert that rather than pretend the
+    # clash is a bug -- and keep checking the cartridges against everything else.
+    comps = [k for k in mocks.keepouts() if k.label != fan.label]
+    exclusive = [b for b in vent.seated_blanks() if (b & fan).volume > 1.0]
+    r.check(
+        len(exclusive) == 1,
+        "a blanking plug and the internal fan claim the same port",
+        f"{[b.label for b in exclusive]} -- fit one or the other",
+    )
     for b in vent.seated_blanks():
         vol = (b & tray).volume
         r.check(
@@ -477,9 +687,11 @@ def run() -> Report:
     check_shelf_ledge(tray, r)
     check_installability(r)
     check_shelf_components(r)
+    check_connector_row(r)
     check_sp17_panels(tray, r)
     check_sp17_flat(tray, r)
     check_vents(tray, r)
+    check_internal_fan(tray, r)
     check_shutters(tray, r)
     check_cartridges(tray, r)
     check_lid_and_deck(tray, r)

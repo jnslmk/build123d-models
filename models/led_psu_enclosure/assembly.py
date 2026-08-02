@@ -62,7 +62,9 @@ def _installed() -> list[Part]:
     for part in vent_mod.seated_shutters():
         part.color = VENT_COLOR
         vents.append(part)
-    return [tray, plate, shelf, *vents, gasket_mod.seated()]
+    yoke = vent_mod.seated_fan_yoke()
+    yoke.color = VENT_COLOR
+    return [tray, plate, shelf, *vents, yoke, gasket_mod.seated()]
 
 
 def create() -> Compound:

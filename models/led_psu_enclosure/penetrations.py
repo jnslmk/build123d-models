@@ -10,9 +10,15 @@ the box actually seals, and each one carries a spec constraint worth reading:
   inside takes the local wall down to ``SP17_PANEL_T`` and gives the rear nut a
   flat seat.
 * **Vent ports** -- one low at the cool end, one high over the PSU's top-cover
-  fan, so a fitted cartridge pair gives real cross-flow rather than one hole.
-  Each gets an inner reinforcing frame (the 3.5 mm wall is far too thin to host
-  an M3 insert) and an outer recess for the cartridge flange and its gasket.
+  fan, so a fitted pair gives real cross-flow rather than one hole. Each gets an
+  inner reinforcing frame (the 3.5 mm wall is far too thin to host an M3 insert)
+  and an outer recess for the cartridge flange and its gasket. The high port also
+  gets four blind pilots for the internal fan's yoke, driven into the frame's
+  side bands from the *inside* -- the shutter's own pilots come at the same slab
+  from the outside, and only the offset in Z keeps the two sets from meeting.
+* **Shelf-ledge relief** -- the ledge is built as a ring on all four walls, but
+  its end-wall runs sit exactly where the vent frames, the fan and the yoke's
+  rails live, so they are cut back to the frame's inner face.
 
 Bore mouths get **boolean** chamfers -- a subtracted ``Cone`` frustum -- rather
 than OCC edge ops, which are flaky on a rim beside other holes.
@@ -136,8 +142,8 @@ def _front_lead_in(dia: float, x: float, z: float) -> Part:
 
 def vent_ports() -> list[tuple[float, int]]:
     """(z, end_sign) for the two ports: low intake, high exhaust over the fan."""
-    fan_end = 1 if c.psu_fan_center_x() > 0 else -1
-    return [(c.VENT_LOW_Z, -fan_end), (c.VENT_HIGH_Z, fan_end)]
+    high = c.vent_high_end()
+    return [(c.VENT_LOW_Z, -high), (c.VENT_HIGH_Z, high)]
 
 
 def vent_screw_positions(z: float) -> list[tuple[float, float]]:
@@ -177,6 +183,50 @@ def _vent_aperture(z: float, s: int) -> Part:
         with BuildSketch(Plane.YZ.offset(off)):
             with Locations((0, z)):
                 RectangleRounded(c.VENT_W, c.VENT_H, 4.0)
+        extrude(amount=amt)
+    return bp.part
+
+
+def _vent_ledge_relief(s: int) -> Part:
+    """Clears the shelf ledge off an end wall, across the port's full width.
+
+    The ledge is built as a ring on all four walls, but the end-wall runs are in
+    the way: the vent frame, the internal fan and its yoke's rails all live in
+    that band. Cutting them out is what makes the shelf carried front-to-back --
+    which the ledge docstring already claimed and the geometry did not do.
+    """
+    # Stops at the frame's inner face, not the wall's: past that the ledge and
+    # the vent frame are the same material, and cutting to the wall would take
+    # the frame -- and the yoke's screw pilots -- with it.
+    inner = s * (c.INTERIOR_X / 2)
+    off, amt = _x_span(inner - s * (c.SHELF_LEDGE_W + 1.0), s * c.vent_frame_inner_x())
+    half_y = c.VENT_W / 2 + c.VENT_FRAME_MARGIN_Y
+    top = c.shelf_ledge_z() + 1.0
+    bot = c.shelf_ledge_z() - c.SHELF_LEDGE_W - 1.0
+    with BuildPart() as bp:
+        with BuildSketch(Plane.YZ.offset(off)):
+            with Locations((0, (top + bot) / 2)):
+                Rectangle(2 * half_y, top - bot)
+        extrude(amount=amt)
+    return bp.part
+
+
+def _vent_yoke_pilots(z: float, s: int) -> Part:
+    """Blind self-tapping pilots for the internal fan's yoke, entered inside.
+
+    Same 5.5 mm of material the shutter's screws bite into, approached from the
+    other face and offset in Z so the two sets never meet. They sit in the
+    frame's side bands rather than above and below the aperture -- see
+    ``VENT_YOKE_SCREW_DZ`` for why that decides the height of the whole box.
+    """
+    inner = s * c.vent_frame_inner_x()
+    off, amt = _x_span(inner, inner + s * c.VENT_SCREW_PILOT_L)
+    with BuildPart() as bp:
+        with BuildSketch(Plane.YZ.offset(off)):
+            for y in (-c.vent_yoke_screw_y(), c.vent_yoke_screw_y()):
+                for dz in (-c.VENT_YOKE_SCREW_DZ, c.VENT_YOKE_SCREW_DZ):
+                    with Locations((y, z + dz)):
+                        Circle(c.VENT_SCREW_PILOT_D / 2)
         extrude(amount=amt)
     return bp.part
 
@@ -244,10 +294,16 @@ def apply(tray: Part) -> Part:
             add(_front_lead_in(dia, x, z), mode=Mode.SUBTRACT)
 
         # Vent ports.
+        high_end = c.vent_high_end()
         for z, s in ports:
             add(_vent_aperture(z, s), mode=Mode.SUBTRACT)
             add(_vent_recess(z, s), mode=Mode.SUBTRACT)
             add(_vent_screw_pockets(z, s), mode=Mode.SUBTRACT)
+            add(_vent_ledge_relief(s), mode=Mode.SUBTRACT)
+            # Only the high port can host the internal fan: at the low port the
+            # PSU passes within 6.5 mm of the wall and the frame spends 5.
+            if s == high_end:
+                add(_vent_yoke_pilots(z, s), mode=Mode.SUBTRACT)
 
     part = bp.part
     part.label = "tray"

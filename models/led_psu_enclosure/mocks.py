@@ -41,9 +41,19 @@ GLAND_COLOR = Color(0.30, 0.30, 0.32, 0.70)
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
 
 # --- Component placement (the layout decision, in one place) -----------------
-PSU_Z0 = c.PSU_PLATE_BOSS_H + c.PSU_PLATE_T  # 10.0 -- PSU sits on its plate
-FUSE_X_CENTER = -62.0
-CTRL_X_CENTER = 46.0
+PSU_Z0 = c.PSU_PLATE_BOSS_H + c.PSU_PLATE_T  # PSU sits on its plate
+# Both moved 1 mm further from the high port than the components alone would
+# need. The binding constraint is not the controller's body or even its tabs but
+# its outer *bolt hole*, which has to keep a couple of millimetres of shelf
+# between its edge and the bite the fan takes out of that edge. Sliding the
+# controller inboard then squeezes it against the fuse block, so the fuse block
+# moves with it. check_shelf_packing() holds all four margins at once.
+FUSE_X_CENTER = -63.0
+# The tabs overhang the controller's body by 8 mm at each end and reach further
+# in X than anything else on the shelf. They stop 3 mm short of the internal fan
+# and pass *through* the yoke's throat to do it -- which is what makes a 118 mm
+# controller and a 40 mm fan share one 215 mm shelf at all.
+CTRL_X_CENTER = 42.0
 # Both are pushed back off the front wall so the connector bodies clear them.
 FUSE_Y_CENTER = -c.INTERIOR_Y / 2 + c.SHELF_FRONT_KEEPOUT + c.FUSE_Y / 2
 CTRL_Y_CENTER = -c.INTERIOR_Y / 2 + c.SHELF_FRONT_KEEPOUT + c.CTRL_Y / 2
@@ -88,7 +98,7 @@ def fuse_block() -> Part:
         # Body + clear fuse cover.
         Box(65.5, c.FUSE_Y, c.FUSE_Z, align=MIN_Z, mode=Mode.ADD)
 
-    part = Pos(FUSE_X_CENTER, FUSE_Y_CENTER, c.SHELF_TOP_Z) * bp.part
+    part = Pos(FUSE_X_CENTER, FUSE_Y_CENTER, c.shelf_top_z()) * bp.part
     part.label = "fuse_block_lxd4p"
     part.color = FUSE_COLOR
     return part
@@ -101,7 +111,7 @@ def controller() -> Part:
         # Mounting tabs overhanging each end of the long axis.
         Box(c.CTRL_TAB_X, 16.0, 3.0, align=MIN_Z, mode=Mode.ADD)
 
-    part = Pos(CTRL_X_CENTER, CTRL_Y_CENTER, c.SHELF_TOP_Z) * bp.part
+    part = Pos(CTRL_X_CENTER, CTRL_Y_CENTER, c.shelf_top_z()) * bp.part
     part.label = "controller_athom_eth"
     part.color = CTRL_COLOR
     return part
@@ -171,6 +181,27 @@ def rj45_coupler() -> Part:
     return part
 
 
+FAN_COLOR = Color(0.12, 0.12, 0.14, 0.75)
+
+
+def internal_fan() -> Part:
+    """The 40 x 40 x 10 24 V exhaust fan, nosed into the high port's aperture.
+
+    Modelled even though the fan is optional: it is the tightest thing in the
+    box (a millimetre from the controller's tabs, half a millimetre from the
+    shutter panel), so the interference check has to see it whether or not a
+    given build fits one.
+    """
+    s = c.vent_high_end()
+    with BuildPart() as bp:
+        Box(c.VENT_FAN_T, c.VENT_FAN_SIZE, c.VENT_FAN_SIZE)
+    x = s * (c.INTERIOR_X / 2 - c.VENT_FAN_T / 2)
+    part = as_part(Pos(x, 0, c.VENT_HIGH_Z) * bp.part)
+    part.label = "fan_40mm_24v"
+    part.color = FAN_COLOR
+    return part
+
+
 def keepouts() -> list[Part]:
     """Every component mock, for the assembly view and the interference check."""
     return [
@@ -180,4 +211,5 @@ def keepouts() -> list[Part]:
         *sp1712_sockets(),
         gland(),
         rj45_coupler(),
+        internal_fan(),
     ]
