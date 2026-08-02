@@ -45,6 +45,15 @@ INNER_HEIGHT = 20.0  # usable depth from the floor up
 BODY_WALL = 2.4  # box lower body wall (thick: carries the lip + lid + gap)
 LID_WALL = 1.2  # lid wall + top (thin: nests into the recess)
 FLOOR = 2.4  # box floor thickness
+# Radial gap between lip and lid inner wall -- diametral equivalent is 0.6 mm
+# (fits.py's classes are diametral; this one is per-side, so double it before
+# comparing). That is looser than fits.FREE (0.40 mm diametral, PETG
+# baseline), the nearest class. Deliberate, not an error: the joint is ~83 mm
+# across (out_r ~41.4 mm), near the scaling rule's +0.05 mm/100 mm threshold,
+# and the lid skirt must also flex enough to ride over the retaining bead
+# (BEAD, radial) on the way to snapping home -- the bead/SNAP pair sets true
+# centring and retention, so this gap only has to clear the lip without
+# binding, not locate anything precisely.
 CLEARANCE = 0.3  # radial gap between lip and lid inner wall
 # lip_wall = BODY_WALL - LID_WALL - CLEARANCE  (derived; keep it >= ~0.8)
 

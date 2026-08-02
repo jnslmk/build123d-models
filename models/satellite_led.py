@@ -63,8 +63,18 @@ DIFFUSER_WALL = 2.0
 DIFFUSER_INNER = DIFFUSER_OUTER - DIFFUSER_WALL * 2
 STEP_OVERLAP = 20.0
 STEP_OUTER = DIFFUSER_OUTER - 2.0
+# Radial gap between the top half's plug (STEP_OUTER) and the bottom half's
+# socket (STEP_INNER) it telescopes into over STEP_OVERLAP -- diametral
+# equivalent is 1.0 mm (STEP_INNER adds it twice, once per side, below). Not
+# a fits.py class: this isn't a located fit at all, it's a loose telescoping
+# lap joint between two thin-wall (2 mm) tubes roughly 300 mm and 265 mm
+# long, so the printed ovality/warp over that span swamps what a small-part
+# fit class assumes -- even fits.FREE (0.40 mm diametral), the nearest one,
+# is sized for stable small parts, not a long tube. The extra room is
+# deliberate: guarantee the two halves telescope together at all, since
+# nothing here needs precision location.
 STEP_CLEARANCE = 0.5
-STEP_INNER = STEP_OUTER + STEP_CLEARANCE * 2
+STEP_INNER = STEP_OUTER + STEP_CLEARANCE * 2  # diametral: +STEP_CLEARANCE per side
 CAP_RADIUS = DIFFUSER_OUTER / 2
 TOP_HALF_HEIGHT = 300.0
 BOTTOM_HALF_HEIGHT = 265.0

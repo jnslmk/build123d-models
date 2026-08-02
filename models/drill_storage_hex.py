@@ -49,6 +49,14 @@ from models.drill_storage_gridfinity import (
 # ribbed bores), so the fit lives entirely in this across-flats clearance: enough
 # that a bit drops in and lifts out one-handed, not so much that it rattles.
 HEX_SHANK_AF = 6.35  # nominal 1/4" across-flats
+# Diametral allowance (added straight across the flats, like a bore-diameter
+# formula -- not doubled, so it's already the total gap). Sits between
+# fits.SNUG (0.10 mm, PETG baseline) and fits.SLIDING (0.22 mm, PETG
+# baseline), closer to SNUG. Deliberately tighter than a round SLIDING bore
+# would need: a hex socket's flat sides don't suffer the concave-arc
+# undersizing a round bore does (fdm-fits-and-clearances Rule 4 -- the nozzle
+# dragging the inner perimeter inward is an arc effect), so less allowance
+# still drops a bit in and lifts it out one-handed without rattling.
 HEX_CLEARANCE = 0.15  # across-flats allowance -> slip fit
 HEX_AF = HEX_SHANK_AF + HEX_CLEARANCE
 
