@@ -5,6 +5,13 @@ description = "Collection of 3D printable models built with build123d"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    # Standard hardware (threads, fasteners, bearings) from build123d's official
+    # companion library. Capped below 0.3.0 on purpose: 0.3.0 requires
+    # build123d>=0.11.1, which drags the whole OCP stack from OCCT 7.8 to 7.9
+    # (cadquery-ocp -> cadquery-ocp-novtk + -proxy, vtk/matplotlib dropped) and
+    # would move every model's geometry. 0.2.x needs only build123d>=0.10.0 and
+    # adds zero transitive packages. Lift the cap together with build123d.
+    "bd-warehouse>=0.2.0,<0.3.0",
     "build123d>=0.10.0",
     "ocp-vscode>=3.4.0",
     "ocp-tessellate>=3.3.0",
