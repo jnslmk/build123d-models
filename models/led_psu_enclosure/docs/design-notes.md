@@ -123,5 +123,6 @@ glands, no fastener piercing the shell) gets you a sealed *design*; getting a se
 Treat the result as a solid IP54–IP65 in practice, not a certified IP67.
 
 Downward-facing cable exits would have been better still, but the floor is fully
-occupied by the PSU. The connectors are horizontal on the front wall with an
-integral rain hood above the row, which is what commercial boxes of this shape do.
+occupied by the PSU. The connectors are horizontal on the front wall; the row is
+bare (an integral rain hood over it was tried and dropped), so mount the box
+under cover or rely on the connectors' own IP68 seals for splash protection.

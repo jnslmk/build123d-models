@@ -9,8 +9,6 @@ the box actually seals, and each one carries a spec constraint worth reading:
   also refuses to mount through more than 3 mm of panel, so a counterbore on the
   inside takes the local wall down to ``SP17_PANEL_T`` and gives the rear nut a
   flat seat.
-* **Rain hood** -- an integral ledge over the connector row so water runs off the
-  wall instead of down onto the four mated plugs.
 * **Vent ports** -- one low at the cool end, one high over the PSU's top-cover
   fan, so a fitted cartridge pair gives real cross-flow rather than one hole.
   Each gets an inner reinforcing frame (the 3.5 mm wall is far too thin to host
@@ -133,25 +131,6 @@ def _front_lead_in(dia: float, x: float, z: float) -> Part:
     return as_part(Pos(x, FRONT_OUTER_Y, z) * Rotation(-90, 0, 0) * bp.part)
 
 
-def _rain_hood() -> Part:
-    """Drip ledge above the connector row, with a lip on its outer edge."""
-    xs = c.sp17_positions()
-    width = (xs[-1] - xs[0]) + c.SP17_FLANGE_D + 18.0
-    ledge_z = c.SP17_Z + c.SP17_FLANGE_D / 2 + 6.0
-    with BuildPart() as bp:
-        with BuildSketch(Plane.XZ.offset(-FRONT_OUTER_Y)):
-            with Locations((0, ledge_z)):
-                Rectangle(width, c.HOOD_T)
-        extrude(amount=c.HOOD_PROJ)
-        # Lip on the front edge so water breaks away instead of tracking back
-        # along the underside to the wall.
-        with BuildSketch(Plane.XZ.offset(-FRONT_OUTER_Y + c.HOOD_PROJ - c.HOOD_T)):
-            with Locations((0, ledge_z - c.HOOD_DROP / 2)):
-                Rectangle(width, c.HOOD_T + c.HOOD_DROP)
-        extrude(amount=c.HOOD_T)
-    return bp.part
-
-
 # --- End walls: vent ports ----------------------------------------------------
 
 
@@ -247,7 +226,6 @@ def apply(tray: Part) -> Part:
         add(tray)
 
         # Additive first, so the later cuts pass through the new material too.
-        add(_rain_hood(), mode=Mode.ADD)
         for z, s in ports:
             add(_vent_frame(z, s), mode=Mode.ADD)
 

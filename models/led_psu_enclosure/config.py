@@ -162,11 +162,6 @@ RJ45_BEHIND = 32.0  # needs a notch in the shelf's front edge
 RJ45_X = 92.0
 RJ45_Z = 85.0
 
-# --- Rain hood over the connector row ----------------------------------------
-HOOD_PROJ = 9.0  # how far the ledge overhangs the front wall
-HOOD_T = 3.0
-HOOD_DROP = 2.0  # drip lip on the outer edge
-
 # --- Vent ports (one low at -X, one high at +X, cross-flow over the PSU) -----
 VENT_W = 62.0
 VENT_H = 40.0
