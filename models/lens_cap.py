@@ -5,7 +5,6 @@ from build123d import (
     Mode,
     Part,
     Pos,
-    Rotation,
     chamfer,
     extrude,
     export_step,
@@ -101,9 +100,10 @@ def create(
             bottom_face = builder.faces().sort_by().first
             chamfer(bottom_face.edges(), length=chamfer_size)
 
-    # Print orientation: turn the cap upside down (closed top up, open mouth on
-    # the bed) and re-seat on z=0, so it exports in the pose it prints in.
-    part = Rotation(180, 0, 0) * builder.part
+    # Print orientation: the builder already sits closed-face-down, open mouth
+    # up — the closed disc becomes the smooth first layer on the bed instead of
+    # an unsupported bridge across the cavity. Just re-seat on z=0.
+    part = builder.part
     return Pos(0, 0, -part.bounding_box().min.Z) * part
 
 
