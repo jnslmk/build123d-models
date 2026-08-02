@@ -25,3 +25,6 @@ sketches/
 
 # Tool metadata
 .sisyphus/
+
+# implement-review ledger
+.implement-review/
