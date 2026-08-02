@@ -189,10 +189,18 @@ publishes a desktop-FDM-specific mortise-and-tenon clearance; it is sized to sit
 in the same band as this reference's other snug-sliding fits).
 
 Markforged publishes **0.08 mm per wall (0.16 mm diametral)** for a consistent
-sliding fit ([Markforged joinery][mj], [Composites design guide][mg]) — **do not
-port that number.** It is an industrial machine printing Onyx (chopped-carbon
-nylon) with far lower dimensional variation than a desktop FFF printer running
-PLA or PETG. Quoting it here produces a joint that will not go together.
+sliding fit on the Mark Two ([Markforged joinery][mj]: "a .08mm gap between each
+wall (.16mm diametrically) is enough to allow two pieces to consistently achieve
+a sliding fit" — the live page blocks automated fetches, confirmed instead via
+its [Wayback Machine
+archive](https://web.archive.org/web/20250628040449/https://markforged.com/resources/blog/joinery-onyx))
+— **do not port that number.** It is an industrial machine printing Onyx
+(chopped-carbon nylon) with far lower dimensional variation than a desktop FFF
+printer running PLA or PETG. Quoting it here produces a joint that will not go
+together. (The Composites Design Guide was also checked as a possible
+co-source for this figure; its content could not be retrieved this session —
+its portal page renders no text and its PDF didn't yield a matching passage —
+so it is not cited for this specific number.)
 
 - FDM shows visible stepping on the tenon's angled faces; the tenon usually needs
   a light clean-up pass, or design it with flat-to-the-bed faces
@@ -228,7 +236,9 @@ because a magnet, unlike a bearing race, tolerates a bit of play without losing
 function.
 
 Illustrative calculation only (not a published measurement): a 6 × 3 mm disc
-magnet at that allowance would want roughly a 6.2–6.3 × 3.1 mm pocket.
+magnet at that allowance would want roughly a 6.2–6.3 mm diameter × 3.0 mm deep
+pocket — the diameter gets the allowance, the depth stays at the magnet's own
+3.0 mm thickness, per the "not more" rule right below.
 
 - **Depth = the magnet's thickness, not more.** A deeper pocket lets the magnet
   sit proud-or-sunk unpredictably and kills the holding force, which falls off
@@ -262,10 +272,18 @@ Worked example: a **608 bearing (22 mm OD)** → a **~21.95 mm** pocket in PLA.
 - **Add ~+0.05 mm of clearance per 100 mm of part dimension** for thermal
   contraction. This is why a 30 mm dovetail at 0.25 mm works and the same
   clearance on a 150 mm one binds.
-- **Small features tolerate tighter fits than large ones.** Under 20 mm² of mating
-  area, 0.2 mm is enough; above it, plan on 0.4 mm ([Formlabs][fl]).
-- Apply both. They pull in opposite directions and a mid-size joint often lands
-  back where it started — which is fine; the point is to know why.
+- **Small features tolerate tighter fits than large ones — but this page's own
+  numbers are SLA/SLS, not FDM.** [Formlabs][fl] gives 0.2 mm (< 20 mm²) / 0.4 mm
+  (> 20 mm²) under an explicit "SLA / SLS Minimum Assembly Tolerance" heading,
+  and states plainly that FDM needs *more* clearance than SLA/SLS "because the
+  FDM printer has more dimensional variability" — its own FDM figure is ~0.5 mm,
+  not size-split at all. Use the SLA/SLS split only to see the *shape* of the
+  size effect (roughly 2× for a large feature); for an actual FDM number, scale
+  0.5 mm the same way, or use this reference's per-joint clearances above, which
+  are already FDM-sourced.
+- Apply both size adjustments together. They pull in opposite directions and a
+  mid-size joint often lands back where it started — which is fine; the point
+  is to know why.
 
 ## Minimum printable features
 
@@ -298,8 +316,13 @@ merges into solid, and a post under one extrusion width is skipped entirely.
 - [Formlabs — How to 3D print interlocking parts and assemblies][fl]
 - [Protolabs Network — How to design parts for FDM 3D printing][pl]
 - [Hydra Research — Design rules and best practices for FFF][hr]
-- [Markforged — Composites design guide][mg]
-- [Markforged — 3D printed joinery: simplifying assembly][mj]
+- [Markforged — Composites design guide][mg] — listed for completeness; its
+  content could not be retrieved this session (portal renders no text, PDF
+  extraction found no matching passage), so it is not cited as the source of
+  any specific figure in this document
+- [Markforged — 3D printed joinery: simplifying assembly][mj] — the 0.08 mm
+  figure is confirmed via this page's Wayback Machine archive (see Mortise-and-
+  tenon above)
 - [Creative3DP — Press-fit tolerances for 3D printing][c3]
 - [AON3D — Engineering fits: how to design for 3D printed assemblies][an]
 - [UAVMODEL — Print-in-place mechanism design: clearance tolerances, hinge geometry and joint guidelines][uv]

@@ -28,8 +28,10 @@ off the bed as a press fit.
 So:
 
 - **Add diametral clearance.** About **0.4–0.5 mm** for an easy drop-in tool fit.
-  That lands on [AON3D][an]'s rule of one extrusion width (~0.4 mm at a 0.4 mm
-  nozzle) for a sliding fit.
+  [AON3D][an] gives a range, not a single figure: **1–2× extrusion width** — 1×
+  (~0.4 mm at a 0.4 mm nozzle) for a tighter sliding fit, 2× (~0.8 mm) for a
+  free-running one. This section's 0.4–0.5 mm sits at the tight end of that
+  range, appropriate for a tool that should drop in without rattling.
 - **Wood and brad-point bits want the looser end**, because their spurs cut a wider
   circle than the shank behind them, so the widest part of the bit is not the part
   you measured.
@@ -135,9 +137,9 @@ in that table — including the note that the table is deliberately non-monotoni
 
 A hex socket has **no ribs to take up slack unless you give it some**, so a plain
 hex fit lives entirely in its across-flats clearance and is correspondingly fussy.
-`models/drill_storage_hex.py:51-53` does exactly that:
-`HEX_CLEARANCE = 0.15` on a nominal `HEX_SHANK_AF = 6.35` (1/4") shank — enough to
-drop in and lift out one-handed, not enough to rattle.
+`models/drill_storage_hex.py:51` (`HEX_SHANK_AF`) and `:60` (`HEX_CLEARANCE`)
+does exactly that: `HEX_CLEARANCE = 0.15` on a nominal `HEX_SHANK_AF = 6.35`
+(1/4") shank — enough to drop in and lift out one-handed, not enough to rattle.
 
 The ribbed variant splits the two jobs. The socket is cut **over** size
 (`HEX_SLIP = 0.05`, `:320`) so it only guides the shank and stops it rotating, and

@@ -99,9 +99,11 @@ Full table with ranges, taper angles, failure modes and a source URL per number:
   a pin that must be *round* wants its axis in Z. When those conflict, split the
   part in two and use a separate dowel.
 - **A post is not a beam.** Keep a printed post shorter than 5× its diameter or
-  it shears along the layer lines. Under 5 mm Ø, a printed pin is unreliable at
-  all — model a hole and use an off-the-shelf pin
-  ([Protolabs Network](https://www.hubs.com/knowledge-base/how-design-parts-fdm-3d-printing/)).
+  it shears along the layer lines (author's estimate — the source below doesn't
+  cover this ratio). Separately, [Protolabs
+  Network](https://www.hubs.com/knowledge-base/how-design-parts-fdm-3d-printing/)
+  does confirm that under 5 mm Ø a printed pin is unreliable at all — model a
+  hole and use an off-the-shelf pin instead.
 - **One big joint beats many small ones** (author's reasoning, not a sourced
   claim). A key joint spread across several mating pairs stacks each pair's
   tolerance and jams; a single dovetail carries the same load with one
@@ -115,9 +117,15 @@ Order of operations, once the joint type is chosen:
 
 1. **Start from `references/joints.md`** for that joint's per-face clearance.
 2. **Adjust for size.** Add roughly +0.05 mm per 100 mm of part dimension for
-   thermal contraction. Features under 20 mm² of mating area tolerate the tight
-   end of a range (0.2 mm) where large ones need the loose end (0.4 mm)
+   thermal contraction. Small features can tolerate a tighter fit than large
+   ones — but do not lift Formlabs' 0.2 mm (< 20 mm²) / 0.4 mm (> 20 mm²) split
+   as an FDM number: that table is explicitly **SLA/SLS** guidance on their page.
+   The same page states FDM needs *more* clearance than SLA/SLS, not the same
+   amount, and gives ~0.5 mm as its own general FDM figure
    ([Formlabs](https://formlabs.com/blog/how-to-3d-print-interlocking-joints/)).
+   Use the SLA/SLS split only to see the *shape* of the size effect (roughly 2×
+   more clearance for a large feature); anchor the actual FDM value to this
+   skill's per-joint table or to 0.5 mm, whichever is larger.
 3. **Adjust for material and process.** Per-material numbers, hole-shrink
    compensation and the underlying reasoning live in the
    `fdm-fits-and-clearances` skill — do not re-derive them here.
@@ -144,11 +152,12 @@ two, so the conservative column is what to build to on a 0.4 mm nozzle.
 | Wall left after a chamfer | 0.4 mm | 0.8 mm (2 perimeters) |
 | Gap between neighbouring bores | 0.8 mm | 1.2 mm |
 
-Floors from
-[Protolabs Network](https://www.hubs.com/knowledge-base/how-design-parts-fdm-3d-printing/);
-the ø1.8 mm pin / ø2 mm hole / 0.9 mm wall column from
-[Hydra Research](https://www.hydraresearch3d.com/design-rules). A gap under about
-0.3 mm does not slice as a wall at all — it simply merges.
+The "Build to" column's ø2 mm hole and 0.9 mm wall come from
+[Hydra Research](https://www.hydraresearch3d.com/design-rules) (its own pin figure
+is ø1.8 mm, close to the 1.6 mm floor below). **The "Absolute floor" column is not
+independently sourced** — no single page states all five of these together, so
+they carry no citation, same as the parallel table in `references/joints.md`. A
+gap under about 0.3 mm does not slice as a wall at all — it simply merges.
 
 ## Worked joints already in this repo
 
@@ -164,8 +173,9 @@ Read the real thing before inventing a new one.
 - **Telescoping tube into a shroud** — `models/wall_bar_lamp.py:36-37`.
   `SHROUD_BORE_DIAMETER = TUBE_OUTER_DIAMETER + 0.4` over a 40 mm tube: a clean
   +0.4 mm diametral slip fit, matching the table above.
-- **Hex socket slip fit** — `models/drill_storage_hex.py:51-53`.
-  `HEX_CLEARANCE = 0.15` across the flats on a 6.35 mm 1/4" shank, with the
+- **Hex socket slip fit** — `models/drill_storage_hex.py:51` (`HEX_SHANK_AF`),
+  `:60` (`HEX_CLEARANCE`). `HEX_CLEARANCE = 0.15` across the flats on a 6.35 mm
+  1/4" shank, with the
   comment explaining that the fit lives *entirely* in that number because a hex
   socket has no ribs to take up slack. The round bores next door do have ribs,
   and that is precisely why they need no such precision.
