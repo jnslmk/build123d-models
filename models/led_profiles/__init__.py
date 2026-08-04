@@ -5,9 +5,50 @@ endcaps, an internal ESP32 + power-distribution PCB, and industrial-style
 wiring throughout (SP16/SP17 connectors, LAPP ÖLFLEX CLASSIC 110 cable, M12
 glands). Native 24 V operation; USB-C PD is an optional standalone input.
 
-The system specification lives in ``README.md`` in this package. Model entry
-points are added here as the parts (endcaps, PCB mount, mounting hardware) get
-designed -- until then there is deliberately nothing to show or export.
+The system specification lives in ``README.md`` in this package. What exists so
+far is the hardware the printed parts have to fit: the aluminium profile, its
+snap-in diffuser and the COB strip, reconstructed from calipers in
+``config.py``. Printed parts (endcaps, PCB mount, mounting hardware) are added
+alongside as they get designed.
 
-    uv run show led_profiles            # once a create() exists
+    uv run show led_profiles                # the full 1.5 m lamp, caps on
+    uv run show led_profiles.printable      # every printed part, in print pose
+    uv run show led_profiles.corner         # one part; also .strap .stand .feet
+    uv run show led_profiles.assemblies     # triangle: 3 lamps, 3 corners, 12 straps
+    uv run export led_profiles.printable    # STLs for the slicer
+    uv run check led_profiles               # hold it all to its measurements
 """
+
+from . import config, mount_config
+from .assemblies import create_standing, create_suspended, create_triangle
+from .assembly import PARAMS, create, create_bare, create_print_layout, create_section
+from .corner import create_corner
+from .cradle import create_cradle
+from .endcap import create_endcap
+from .feet import create_eye_foot, create_wall_foot
+from .profile import create_diffuser, create_extrusion, create_strip
+from .stand import create_stand_hub
+from .strap import create_strap
+
+__all__ = [
+    "PARAMS",
+    "config",
+    "create",
+    "create_bare",
+    "create_corner",
+    "create_cradle",
+    "create_diffuser",
+    "create_endcap",
+    "create_extrusion",
+    "create_eye_foot",
+    "create_print_layout",
+    "create_section",
+    "create_stand_hub",
+    "create_standing",
+    "create_strap",
+    "create_strip",
+    "create_suspended",
+    "create_triangle",
+    "create_wall_foot",
+    "mount_config",
+]

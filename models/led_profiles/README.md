@@ -28,6 +28,144 @@ designed.
 - Internal PCB for ESP32 + power distribution
 - Input and output pigtails
 
+### Profile
+
+The extrusion, measured and reconstructed in `config.py` / `profile.py`. It is a
+stadium in section — two R13 half-circles joined by 4 mm straight flanks — not a
+circle and not an ellipse.
+
+| Dimension | Value | |
+|---|---|---|
+| Outer width × height | 26 × 30 mm | measured |
+| Wall thickness | 0.5 mm | measured |
+| Rim (aluminium stops, diffuser seats) | z = 16.8 | dialled |
+| Shallow recess | 19 mm wide × 1.4 mm deep | dialled |
+| Strip slot | 10 mm wide × 1.3 mm deep | measured |
+| Strip floor / cavity ceiling | z = 14.1 / z = 13.1 | dialled |
+| Endcap screw ports | 22 mm apart, 2 mm self-tappers, z = 14.7 | measured / dialled |
+| Diffuser | 26 mm outside, 25 mm inside, 1.0 mm at the crown | measured |
+| Length | 1500 mm | |
+
+The rim sits just below the top arc's centre, inside the straight band where the
+section is at its full 26 mm — which is why the diffuser measures 26 mm across
+and reads as an unbroken continuation of the outline. Its inner face is a
+separate circle rather than an offset of the outer one, so it is thinner at the
+rim than at the crown, as the real part measures.
+
+The LED channel is genuinely shallow — two steps totalling 2.7 mm. Nearly all
+of the tube is cavity: **~12.6 mm deep and ~25 mm wide below the strip floor**
+for the 1.5 mm² bus and the ESP32 PCB. The screw bosses straddle the shelf,
+hanging down into that cavity, which is what an endcap grabs.
+
+Those are the numbers the endcap gets designed against.
+
+```bash
+uv run show led_profiles                  # the full 1.5 m stick
+uv run check led_profiles                 # hold the section to its measurements
+```
+
+Values marked *assumed* in `config.py` are reconstructions the calipers did not
+pin down — check them before a printed part depends on one.
+
+### Endcap
+
+`endcap.py`. One design at both ends, since both carry a pigtail. Screws to the
+two ports with M2 × 12 pan-head self-tappers; the M12 × 1.5 gland thread is
+printed directly into the cap.
+
+Two facts about the extrusion dictate the design:
+
+- **The gland only just fits.** An M12 gland needs a ~12.3 mm bore and the
+  largest circle that fits in the wiring cavity is 12.6 mm. The bore is placed,
+  not centred — pushed up to z = 9.0 so it keeps 3.45 mm of plastic to the
+  outside while its axis still opens into the cavity. A gland locknut is not an
+  option at all (17 mm across, 12.6 mm of cavity), hence the printed thread.
+- **The ports sit 2 mm from the outer surface.** A recessed M2 head needs 4.6 mm
+  and would break out through the side. So the cap is a **0.6 mm proud collar**
+  rather than flush, and the screw heads sit on the face.
+
+| | |
+|---|---|
+| Collar | 27.2 × 31.2 mm, 0.8 chamfer |
+| Flange thickness | 12 mm |
+| Register lip | 6 mm deep, 1.2 wall, SLIDING fit in the cavity |
+| Gland | M12 × 1.5 printed female, 10.5 mm of thread on a 1.5 mm collar |
+| Screws | 2 × M2 × 12 pan-head, 22 mm apart |
+
+Prints outer-face-down: largest possible first layer, thread axis vertical, no
+overhangs. Layer height ≤ 0.25 mm (pitch / 6) or the thread staircases.
+
+### Mounting, standing and corners
+
+See `docs/design-notes.md` for the reasoning. The short version:
+
+Nothing wraps the tube. The stadium is at its full 26 mm from z = 13 to z = 17,
+so a **cradle** that stops at the rim (z = 16.8) has no undercut at all — the
+tube drops in sideways, the diffuser is never shadowed and never trapped, and a
+closed polygon can be taken apart. Every foot carries its cradle integrally; the
+only wrapping part is a shared 18 mm **strap**, two per station. No mount takes
+its load through the endcap, because two M2 self-tappers are the only thing
+holding that on.
+
+Corners stay coplanar, which costs ~126 mm of unlit tube per vertex — set by the
+two glands pointing at each other, not by the cable, because the jumper loop
+lives behind the form plane inside the corner's web. The stand is a light
+folding tripod after the Astera AX1‑STD; **~85 g of push at the top topples it**,
+which is what that class of stand is. `docs/design-notes.md` §4 has the sum.
+
+**This family prints in ASA, not PETG** — UV outdoors, and HDT against a tube
+that runs 40–60 °C. That changes the fits: `fits.SNUG` in ASA is −0.05 mm, an
+interference fit, so the cradle uses `for_material(SLIDING, "asa")` = 0.07.
+Outdoor handling is *drain, not seal* — no gaskets, no IP claim, A2 stainless
+throughout, and a drain out of every upward-facing pocket.
+
+| part | size | hardware |
+|---|---|---|
+| `strap` | 51 × 18 × 20 mm | 2 × M4 × 16 |
+| `cradle` | 60 × 51 × 21 mm | 4 × M4 heat-set inserts |
+| `corner 60°` | 167 × 140 × 29 mm | 8 × M4 inserts, 4 straps |
+| `stand hub` | 90 × 90 × 156 mm | 3 × M6 pivots, 6 × M4 inserts |
+| `eye foot` | 60 × 52 × 21 mm | 2 × M6 eye bolts + nyloc |
+| `wall foot` | 60 × 52 × 21 mm | 2 × M5 into the wall |
+
+Bought for the stand: three flat bars, 20 × 3 × 250 mm, Ø6.5 hole 12 mm from one
+end — stainless or galvanised, not plain mild steel if it lives outdoors.
+
+```bash
+uv run show led_profiles.printable      # every printed part, in print pose
+uv run show led_profiles.corner         # one part; also .strap .stand .feet
+uv run export led_profiles.printable    # STLs for the slicer
+```
+
+### Assemblies
+
+`assemblies.py` puts the mounting family to use: one or three lamps seated in
+the mounts above, each placed with that part's own `seated()` transform
+(`feet.seated`, `strap.seated`, `stand.seated`/`seated_legs`, `corner.seated`)
+rather than a re-derived one. The only new geometry is the triangle's vertex
+layout (`triangle_vertices`) and the stand's tube-to-vertical rotation.
+
+| view | shows |
+|---|---|
+| `create_triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
+| `create_standing` | 1 lamp vertical in the tripod hub, legs deployed, straps at all 3 stand stations, lower endcap on the seat |
+| `create_suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
+
+`create()`, the package's CLI entry point, aliases to `create_triangle`:
+
+```bash
+uv run show led_profiles.assemblies     # triangle: 3 lamps, 3 corners, 12 straps
+```
+
+`create_standing` and `create_suspended` aren't wired to a CLI target of their
+own (one `create()` per module) — import and call them directly, e.g.
+`from models.led_profiles import create_standing`.
+
+The triangle's 126 mm of unlit tube per vertex (noted above) is the visible
+consequence of staying coplanar — `docs/design-notes.md` §2 has the
+derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
+the top topples it (`docs/design-notes.md` §4).
+
 ### LED Strip
 
 Current target:
@@ -203,7 +341,14 @@ Only external connections required: **24 V, GND, DATA**.
 ## Status
 
 - [ ] System specification (this document)
-- [ ] Endcap design (profile interface, PCB mount, pigtail gland)
+- [x] Profile assembly (extrusion + diffuser + strip, the datum for everything else)
+- [x] Endcap (screws to the ports, printed M12 gland thread) — see below
+- [x] Mounting family designed — `docs/design-notes.md`
+- [x] Strap + cradle (the shared interface)
+- [x] Corner connector, parametric angle
+- [x] Folding tripod stand hub
+- [x] Suspension eye and wall feet
+- [ ] PCB mount inside the endcap
 - [ ] PCB (ESP32 Mini + power distribution + LED output)
 - [ ] Mounting hardware
 - [ ] Controller panel layout (4× SP16/17, fuse holders, USB-C, Ethernet)

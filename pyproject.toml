@@ -34,7 +34,7 @@ package = true
 [tool.setuptools]
 # Subpackages are not implied by their parent -- list every one, or a built
 # wheel silently ships without it.
-packages = ["models", "models.lib", "models.led_psu_enclosure"]
+packages = ["models", "models.lib", "models.led_profiles", "models.led_psu_enclosure"]
 py-modules = ["fontfix", "show", "export_model", "check", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 
 [dependency-groups]
