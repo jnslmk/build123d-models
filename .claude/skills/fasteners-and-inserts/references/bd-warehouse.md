@@ -202,6 +202,25 @@ argument instead.
   classes at all; `taper_angle` is only ever a possibility if you drop to the
   base `Thread` class directly, and even there it is unimplemented.
 
+### Two ways a thread silently eats the rest of your part
+
+Both are topological rather than API-level, so they are documented in full in
+the `build123d-geometry-ops` skill (`references/gotchas.md` §6 and §7). Know
+that they exist before you write the thread:
+
+1. **Cutting the bore mouth's lead-in cone into the thread's first turn makes
+   OCC's fuse return the thread alone** — no exception, no warning. Leave one
+   full pitch of plain bore between the lead-in and the start of the thread,
+   which the printed-thread rule in [threads.md](threads.md) asks for anyway.
+2. **The thread classes are `BasePartObject`s with `mode=Mode.ADD`, so
+   constructing one inside a `BuildPart` already adds it** — at the origin.
+   `add()`-ing it yourself then leaves a stray second copy there, which is
+   silently wrong on its own and collapses the entire part via trap 1 if the
+   origin is a bore mouth with a lead-in. Construct it outside the builder and
+   add it once.
+
+Worked example carrying both: `models/led_profiles/endcap.py`.
+
 ## Sources
 
 - Installed-package checks against `build123d` 0.10.0 in this repo's `.venv`

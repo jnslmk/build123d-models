@@ -9,6 +9,9 @@ Each entry is: the symptom you will actually observe, then the fix.
 - [3. `fillet`/`chamfer` are all-or-nothing over the edge set](#3-filletchamfer-are-all-or-nothing-over-the-edge-set)
 - [4. Stale edge references](#4-stale-edge-references)
 - [5. OCC ops are genuinely flaky](#5-occ-ops-are-genuinely-flaky)
+- [6. A `BasePartObject` built inside a builder is already added](#6-a-basepartobject-built-inside-a-builder-is-already-added)
+- [7. Fusing a thread whose lead-in cuts into it returns the thread alone](#7-fusing-a-thread-whose-lead-in-cuts-into-it-returns-the-thread-alone)
+- [8. A `BuildSketch` opened in a helper function does not reach the caller's `BuildPart`](#8-a-buildsketch-opened-in-a-helper-function-does-not-reach-the-callers-buildpart)
 
 ## 1. A failed fillet/chamfer corrupts the builder, and failures cascade
 
@@ -179,3 +182,198 @@ though the countersinks were 5 mm clear of the edge being chamfered. Recorded in
 
 **Rule of thumb.** Two failed attempts on an edge op is the signal to switch
 instruments, not to try a third size.
+
+## 6. A `BasePartObject` built inside a builder is already added
+
+**Symptom.** You construct a thread — `IsoThread`, `AcmeThread`,
+`TrapezoidalThread` — inside a `BuildPart`, then `add()` it at the position you
+want. Either the part comes out slightly too heavy for no reason you can name,
+or it is *only the thread*: the cap, the boss, everything else you built is
+gone. No exception either way. The severe form reads in the viewer as "my part
+disappeared", which points you at the boolean or the sketch, neither of which is
+at fault; the mild form does not read as anything at all.
+
+**Cause.** `bd_warehouse`'s thread classes are `BasePartObject` subclasses with
+`mode: Mode = Mode.ADD` (`thread.py:489`, `:611`, `:753`), and every
+`BasePartObject` **auto-adds itself to the enclosing builder at construction
+time, at the origin**. That is the same mechanism that makes `Box(10, 10, 10)`
+inside a `BuildPart` do something without an explicit `add`. So constructing the
+thread already dropped a copy at the origin, and your `add(thread)` puts a
+*second* one where you actually wanted it.
+
+What that costs you depends on what is at the origin. Measured on the endcap and
+on a minimal box, not inferred:
+
+| What sits at the origin | Result |
+| --- | --- |
+| Solid material, or nothing in particular | Part survives with a **stray thread fused in at the origin**. On the endcap, 7322 mm³ instead of 7254 — same bounding box, silently wrong geometry, nothing raised. |
+| A bore mouth that has a lead-in cone cut into it | **Part collapses to the thread alone.** The stray copy is then exactly the §7 case: 219 mm³ and a 12.7 x 12.7 bounding box where the real part is 10231 mm³ and 30 x 30. |
+
+The second row is why this is usually reported as "the whole part vanished" —
+the auto-added copy lands at `z = 0`, which on a bed-facing bore is precisely
+where the lead-in was cut. But the two traps are independent: the endcap's gland
+bore is off-origin, so a double-add there costs a stray thread rather than the
+part, while its collapse (§7) happens whether or not the construction was
+correct.
+
+Either way the fix is the same, and neither symptom announces itself.
+
+**Fix.** Construct the thread **outside** the `BuildPart`, then add it exactly
+once, where you want it:
+
+```python
+# Outside any builder: nothing auto-adds.
+thread = IsoThread(
+    major_diameter=GLAND_MAJOR_D,
+    pitch=GLAND_PITCH,
+    length=GLAND_THREAD_L,
+    external=False,
+    end_finishes=("fade", "fade"),
+)
+
+with BuildPart() as bp:
+    ...  # body, bore, lead-ins
+    with Locations((0, y, GLAND_COLLAR)):
+        add(thread)
+```
+
+That is `models/led_profiles/endcap.py:153-164` and `:215-216`, with the reason
+in an inline comment so it is not re-learned.
+
+The alternative — construct it inside the builder with `mode=Mode.PRIVATE` and
+never `add()` it — works too, but "build it outside, add it once" is the shape
+this repo uses: it keeps the one placement of the feature in one place.
+
+This generalises past threads. Any `BasePartObject` (and any `BaseSketchObject`
+in a `BuildSketch`) behaves this way. Treat "constructing it is adding it" as
+the default, and only reach for `add()` on objects you built somewhere else.
+
+## 7. Fusing a thread whose lead-in cuts into it returns the thread alone
+
+**Symptom.** The same disappearing act as §6, and the mechanism §6 bottoms out
+in — but reachable on its own, with the construction done correctly. You cut a
+`Cone` lead-in at the bore mouth, then fuse the thread at that same mouth, and
+the fuse returns only the thread. Again silent.
+
+**Cause.** The lead-in cone and the thread's first turn occupy the same region.
+Fusing a thread whose starting turns have been sliced into by a previous
+subtraction gives OCC a degenerate input, and its answer is the thread solid
+rather than the union. It does not raise.
+
+Isolated in a minimal case: an M12x1.5 internal thread fused into a bore through
+a 30 mm box gives the full part (10231 mm³) with no lead-in cut, and the thread
+alone (183 mm³) once a 0.8 mm `Cone` lead-in is cut at the same mouth. Nothing
+else changed between the two. Move the thread up one pitch and the full part
+comes back.
+
+The endcap behaves the same way: as shipped it is 7254 mm³ with a 27.2 x 31.2 x
+18 bounding box, and setting `GLAND_COLLAR = 0` so the lead-in reaches the
+thread drops it to 254 mm³ at 12.7 x 12.7 x 11.8. That is the whole cap gone,
+from one constant.
+
+**Fix, geometric, not parametric.** Keep the two features apart along the axis:
+give the bore **one full pitch of plain collar** below the thread, and cut the
+lead-in into that collar. The thread then starts above the cone and the two
+never meet:
+
+```python
+GLAND_COLLAR = GLAND_PITCH          # plain bore below the thread
+GLAND_THREAD_L = CAP_T - GLAND_COLLAR
+...
+with Locations((0, y, GLAND_COLLAR)):
+    add(thread)                     # sits on top of the collar
+```
+
+`models/led_profiles/endcap.py:96-101` and `:214-216`. The collar is not a
+workaround bolted on for OCC's sake — the printed-thread rule already says not
+to start a thread at `z = 0` (see the `fasteners-and-inserts` skill), so the
+same millimetre of plain bore satisfies both. Do not try to shrink the lead-in
+until the fuse happens to work; the failure is topological and has no reliable
+threshold.
+
+**Detection for both 6 and 7.** These are silent, so only a check catches them —
+and an ordinary check does, without being written for the purpose. A collapsed
+part fails an overall-size assertion instantly, because the thread's footprint is
+nothing like the body's:
+
+```python
+bb = cap.bounding_box()
+r.check(abs(bb.size.X - e.CAP_W) < 0.01 and abs(bb.size.Y - e.CAP_H) < 0.01, "collar size", ...)
+r.check(abs(bb.size.Z - (e.CAP_T + e.LIP_DEPTH)) < 0.01, "overall depth", ...)
+r.check(len(cap.solids()) == 1, "one solid", ...)
+```
+
+`models/led_profiles/checks.py:190-202`. Those three lines were written to check
+the collar, not to catch a fuse failure, but a 12.7 x 12.7 x 11.8 thread fails
+all three against a 27.2 x 31.2 x 18 cap. The stray-thread variant of §6 is the
+harder one — the bounding box is unchanged there, so it takes a volume
+comparison or a point sample at the origin
+(`references/verification.md`).
+
+The general rule: **assert the part's overall envelope in every model's checks.**
+It is one cheap line, and it is the only thing standing between a silent OCC
+boolean failure and a slicer.
+
+---
+
+## 8. A `BuildSketch` opened in a helper function does not reach the caller's `BuildPart`
+
+Factor a few sketch-and-extrude steps out into a helper, call it from inside an
+open `BuildPart`, and the extrude raises:
+
+```
+ValueError: A face or sketch must be provided
+```
+
+Minimal reproduction:
+
+```python
+def helper():
+    with BuildSketch(Plane.XY.offset(10)):
+        Circle(5)
+    extrude(amount=5)            # <-- raises
+
+with BuildPart() as bp:
+    Box(40, 40, 10)
+    helper()
+```
+
+**What makes it confusing is that object creation *does* cross the boundary.**
+The same helper written with `Locations` and a `Cylinder` works perfectly:
+
+```python
+def cut_holes():
+    with Locations((10, 0, 0), (-10, 0, 0)):
+        Cylinder(3, 20, mode=Mode.SUBTRACT)   # works, volume drops
+```
+
+So a file can have several helpers that all look alike, and only the ones that
+open a `BuildSketch` fail. It reads as an arbitrary error in one function.
+
+### The rule
+
+**Helpers return standalone parts; the function that owns the `BuildPart` does
+all the adding and subtracting.** Build them *before* the builder is opened, so
+a nested `BuildPart` cannot auto-add itself either (§6):
+
+```python
+def create_corner(angle: float = 60.0) -> Part:
+    bosses = _strap_boss_solid(angle, start)   # its own BuildPart, no parent
+    label = _label_solid(angle)
+
+    with BuildPart() as bp:
+        ...
+        add(bosses)
+        add(label, mode=Mode.SUBTRACT)
+```
+
+`models/led_profiles/corner.py` is written this way throughout, and its module
+docstring says so, because the file would otherwise look like it factors its
+helpers inconsistently. `models/led_profiles/cradle.py:add_drains` is the
+exception that proves the rule — it is `Cylinder`-only, so it may stay a helper,
+and its docstring notes that it cuts into the ambient builder.
+
+This is the same family as §6 and §7: build123d resolves the enclosing builder
+in a way that does not always follow the call stack, so **anything that has to
+reach the caller's builder should be a value you pass, not a side effect you
+rely on.**

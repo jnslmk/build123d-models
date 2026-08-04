@@ -1,6 +1,6 @@
 ---
 name: build123d-geometry-ops
-description: Guides build123d edge treatments and in-code geometry verification for this CAD repo. Covers choosing between an OCC edge fillet/chamfer and a boolean chamfer tool, isolating flaky OCC failures so they cannot cascade through a BuildPart, selecting the right edge, and asserting internal geometry by point-sampling the solid. Use when adding or debugging a fillet or chamfer, when an OCC fillet/chamfer raises or silently does nothing, when a lead-in is needed at a hole or bore mouth, when edge selection returns the wrong point (arc_center vs center), when ribs, wall thickness, clearances or print pose need verifying, or when writing a model's checks. Keywords: fillet, chamfer, OCC failure, edge selection, boolean chamfer, lead-in, verify geometry, point sampling, is_solid_at, build123d.
+description: Guides build123d edge treatments and in-code geometry verification for this CAD repo. Covers choosing between an OCC edge fillet/chamfer and a boolean chamfer tool, isolating flaky OCC failures so they cannot cascade through a BuildPart, selecting the right edge, and asserting internal geometry by point-sampling the solid. Use when adding or debugging a fillet or chamfer, when an OCC fillet/chamfer raises or silently does nothing, when a lead-in is needed at a hole or bore mouth, when edge selection returns the wrong point (arc_center vs center), when a part silently collapses to a single feature after adding a thread or other BasePartObject, when a fuse or boolean returns the wrong solid with no error, when ribs, wall thickness, clearances or print pose need verifying, or when writing a model's checks. Keywords: fillet, chamfer, OCC failure, edge selection, boolean chamfer, lead-in, verify geometry, point sampling, is_solid_at, part disappeared, silent collapse, BasePartObject auto-add, IsoThread, fuse, build123d.
 ---
 
 # build123d geometry ops
@@ -37,6 +37,25 @@ compromise — it is usually the shape you wanted.
 If you are unsure, pick the boolean. The failure mode of an unnecessary boolean is
 slightly more code; the failure mode of an unnecessary edge op is a silent cascade
 that removes every later chamfer in the same builder.
+
+## When the whole part vanishes
+
+A different silent failure, and one that reads as "my geometry disappeared" rather
+than "my chamfer is missing". Two known causes, both from `bd_warehouse` threads:
+
+- **Cutting the mouth's lead-in cone into the thread makes OCC's fuse return the
+  thread alone**, with no error. Keep one full pitch of plain bore between the
+  lead-in and the thread's first turn.
+- **Constructing a `BasePartObject` inside a builder already adds it.** A thread
+  built inside a `BuildPart` is auto-added *at the origin*, so `add()`-ing it
+  yourself leaves a second, stray copy down there — and if the origin is a bore
+  mouth with a lead-in, that stray copy is the case above and takes the whole
+  part with it. Build it outside the builder and add it once.
+
+Full symptoms, cause and the code: `references/gotchas.md` §6 and §7. Worked
+example in `models/led_profiles/endcap.py`. Because both are silent, they need a
+volume or point-sample check to catch — a collapsed part looks like a perfectly
+valid solid.
 
 ## Use the helpers that already exist
 
@@ -122,7 +141,7 @@ countersinks existed on the same face, 5 mm clear of it
 
 ## References
 
-- `references/gotchas.md` — the five OCC and edge-selection traps, each with the
-  symptom that identifies it and the fix.
+- `references/gotchas.md` — the eight OCC, edge-selection, silent-collapse and
+  builder-scope traps, each with the symptom that identifies it and the fix.
 - `references/verification.md` — point-sampling the solid with `is_solid_at`, the
   `Report` collector, the `uv run check` runner, and print-pose assertions.

@@ -125,7 +125,10 @@ be horizontal, double the clearance and expect to clean the thread up.
   nozzle drags it.
 - **Never start the thread at z = 0.** Leave at least **one full pitch of
   plain collar** below it, chamfered 0.5-1.0 mm. This is the repo's standard
-  bottom-ring chamfer doing double duty as a thread lead-in.
+  bottom-ring chamfer doing double duty as a thread lead-in. It is also what
+  keeps the mouth's lead-in cone from cutting into the thread's first turn —
+  cut the two into each other and OCC's fuse silently returns the thread alone
+  instead of the part (`build123d-geometry-ops`, `references/gotchas.md` §7).
 - **Crest and root flats >= one extrusion width (0.4 mm).** A crest narrower
   than the nozzle cannot be printed; the slicer either drops it or fattens it
   unpredictably.
