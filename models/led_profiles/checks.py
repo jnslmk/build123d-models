@@ -515,9 +515,9 @@ def check_assembly(r: Report) -> None:
     """Assembled, the whole thing is exactly the stadium it is supposed to be.
 
     ``glands=False`` on purpose: this measures what a *mount* has to bore for,
-    and a fitted gland is deliberately outside that stadium -- it hangs below
-    the tube's underside, which is what a corner's plinth exists to clear. The
-    gland's own reach is measured separately below, against the two numbers
+    and a fitted gland is not part of that stadium -- it hangs below the tube's
+    underside, which is what a corner's plinth exists to clear. The gland's own
+    reach is measured separately below, against the two numbers
     (``corner.GLAND_DROP``, ``gland.free_length``) that consume it.
     """
     r.section("Assembly")
@@ -539,23 +539,29 @@ def check_assembly(r: Report) -> None:
         f"{full.size.X:.1f} mm over a {c.SECTION_LENGTH:.0f} mm cut",
     )
 
-    # And now with the glands screwed in. Both numbers below are consumed
-    # elsewhere as constants -- corner.PLINTH_H is sized against the first and
-    # every mount's headroom against the second -- so measuring them off a
-    # placed gland is what stops the two sides drifting apart.
-    fitted = Compound(children=lamp_parts(c.SECTION_LENGTH)).bounding_box()
+    # And now the glands. Both numbers below are consumed elsewhere as
+    # constants -- corner.PLINTH_H is sized against the first, every mount's
+    # headroom against the second -- so measuring them off a *placed* gland is
+    # what stops the two sides drifting apart.
+    #
+    # The drop is read off the glands alone, not off the whole scene's box:
+    # since the fitting was measured it hangs 0.35 mm below the tube, less than
+    # the cap's own 0.6 mm collar, so the scene's lowest point is the cap and a
+    # bounding box of the lot would report the collar and call it the gland.
+    fitted = Compound(children=gland_mod.seated(cable=False)).bounding_box()
     drop = -fitted.min.Z  # tube-local z is 0 at the profile's underside
     r.check(
         abs(drop - corner_mod.GLAND_DROP) < 0.01,
         "a fitted gland hangs GLAND_DROP below the tube",
         f"{drop:.2f} mm, and corner.PLINTH_H is {corner_mod.PLINTH_H:.1f} mm",
     )
-    reach = fitted.size.X - c.SECTION_LENGTH - 2 * e.CAP_T
+    whole = Compound(children=lamp_parts(c.SECTION_LENGTH)).bounding_box()
+    reach = whole.size.X - c.SECTION_LENGTH - 2 * e.CAP_T
     r.check(
         abs(reach - 2 * gland_mod.free_length()) < 0.01,
         "...and it plus its first bend radius adds free_length at each end",
         f"{reach / 2:.1f} mm past each cap face "
-        f"({mc.GLAND_PROUD:.0f} gland + {gland_mod.CABLE_STUB:.0f} cable)",
+        f"({mc.GLAND_PROUD:.1f} gland + {gland_mod.CABLE_STUB:.0f} cable)",
     )
 
 
@@ -1212,7 +1218,7 @@ def check_corner(r: Report) -> None:
     r.check(
         corner_mod.PLINTH_H > corner_mod.GLAND_DROP,
         "plinth clears the gland hanging below the tube",
-        f"plinth {corner_mod.PLINTH_H} > drop {corner_mod.GLAND_DROP}",
+        f"plinth {corner_mod.PLINTH_H:.1f} > drop {corner_mod.GLAND_DROP:.2f}",
     )
     r.check(
         corner_mod.CHANNEL_W >= CAP_W + 1.0,
@@ -2008,25 +2014,32 @@ def check_stand_gland_cable(part: Part, r: Report) -> None:
     a placed gland against the built hub is what tests that, rather than
     re-reading the constants at each other.
 
-    The cable is the question nothing in this family had ever asked. It leaves
-    the gland's nose **along the gland's axis**, i.e. straight down, and
-    ``m.CABLE_BEND_R`` (26.8 mm, 4 x OD for a fixed installation) says it
-    cannot have turned out of that direction inside the next ~27 mm. The hub
-    offers ``SEAT_Z - FLANGE_T`` = 32 mm of in-line room from the cap's face to
-    the top of the flange, and the gland alone eats 30 of it. So there is no
-    room to bend in, and the exit that *is* provided -- the cable slot through
-    the pedestal -- sits at right angles to the gland, its centre line 3.35 mm
-    **above** the gland's own nose. See ``gland.free_length``.
+    The cable is the question nothing in this family had ever asked, and the
+    answer does not depend on the gland at all. ``SEAT_Z`` is
+    ``FLANGE_T + WELL_H`` and ``WELL_H`` is ``GLAND_PROUD + 2``, so the in-line
+    room from the cap's face to the top of the flange is *always* the gland
+    plus two millimetres, whatever the gland measures. The cable leaves the
+    nose **along the gland's axis**, i.e. straight down, and ``CABLE_BEND_R``
+    (26.8 mm, 4 x OD for a fixed installation) says it cannot have turned out
+    of that direction inside the next ~27 mm. So the shortfall is
+    ``CABLE_STUB - 2``, and measuring the gland -- which took ``GLAND_PROUD``
+    from an assumed 30 to 18.8 and shrank the well to match -- moved it not at
+    all. The exit that *is* provided, the cable slot through the pedestal, sits
+    at right angles to the gland with its centre line 3.35 mm **above** the
+    nose, and that gap is invariant for the same reason. See
+    ``gland.free_length``.
     """
     place = _gland_in_hub()
     gland = as_part(place * gland_mod.create_gland())
     cable = as_part(place * gland_mod.create_cable())
 
     # The mock is only worth intersecting if it is still the shape the mounts
-    # were cut for, so hold it to both numbers it stands in for. Across the
-    # hex's corners is the bounding box's own width (a hexagon drawn on its
-    # major radius is widest corner to corner), and the reach past the cap face
-    # is the same box measured from z=0 -- both read off the built solid.
+    # were cut for, so hold it to both numbers it stands in for. Neither is
+    # typed into gland.py: both fall out of the measured flats and lengths in
+    # mount_config, so these two assertions are what keeps a caliper reading
+    # and the geometry it implies from parting company. The widest hex is drawn
+    # unclocked, so across its corners is the bounding box's own width; the
+    # reach past the cap face is the same box measured from z=0.
     bb = gland_mod.create_gland().bounding_box()
     r.check(
         abs(bb.size.X - mc.GLAND_ENV_D) < 0.01,
@@ -2061,8 +2074,9 @@ def check_stand_gland_cable(part: Part, r: Report) -> None:
         in_line >= need,
         "the hub leaves the cable its bend radius in line with the gland",
         f"{in_line:.1f} mm from the seat to the flange, {need:.1f} mm needed "
-        f"({mc.GLAND_PROUD:.0f} gland + {gland_mod.CABLE_STUB:.0f} cable) "
-        f"-- short by {need - in_line:.1f} mm",
+        f"({mc.GLAND_PROUD:.1f} gland + {gland_mod.CABLE_STUB:.0f} cable) "
+        f"-- short by {need - in_line:.1f} mm, which is CABLE_STUB less the "
+        f"well's own 2 mm of slack whatever the gland measures",
     )
     struck = _shared_volume(cable, part)
     r.check(

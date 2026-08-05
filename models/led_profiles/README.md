@@ -107,7 +107,7 @@ only wrapping part is a shared 18 mm **strap**, two per station. No mount takes
 its load through the endcap, because two M2 self-tappers are the only thing
 holding that on.
 
-Corners stay coplanar, which costs ~126 mm of unlit tube per vertex — set by the
+Corners stay coplanar, which costs ~94 mm of unlit tube per vertex — set by the
 two glands pointing at each other, not by the cable, because the jumper loop
 lives behind the form plane inside the corner's web. The stand is a light
 folding tripod after the Astera AX1‑STD; **~85 g of push at the top topples it**,
@@ -125,8 +125,8 @@ corner somewhere sheltered. §5 has the depths.
 |---|---|---|
 | `strap` | 58 × 18 × 20 mm | 2 × M4 × 16 socket cap |
 | `cradle` | 60 × 58 × 21 mm | 4 × M4 heat-set inserts |
-| `corner 60°` | 172 × 141 × 29 mm | 8 × M4 inserts, 4 straps |
-| `stand hub` | 90 × 90 × 156 mm | 3 × M6 pivots, 6 × M4 inserts |
+| `corner 60°` | 156 × 127 × 29 mm | 8 × M4 inserts, 4 straps |
+| `stand hub` | 90 × 90 × 145 mm | 3 × M6 pivots, 6 × M4 inserts |
 | `eye foot` | 60 × 58 × 21 mm | 2 × M6 eye bolts + nyloc |
 | `wall foot` | 60 × 58 × 21 mm | 2 × M5 into the wall |
 
@@ -177,7 +177,7 @@ All three take a lamp `length` (the site exposes it as a slider) and are
 re-exported from the package, so `from models.led_profiles import
 create_standing` still works.
 
-The triangle's 126 mm of unlit tube per vertex (noted above) is the visible
+The triangle's 94 mm of unlit tube per vertex (noted above) is the visible
 consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
@@ -263,6 +263,21 @@ Benefits: easier installation, less stress on enclosure, easy replacement.
 
 Current choice: **M12, 3–7 mm range** — suitable for the 6.7 mm LAPP cable.
 Provides IP sealing and strain relief.
+
+Measured off the fitting in hand, because two of these numbers set the size of
+every corner in the family (`docs/design-notes.md` §2 and §8):
+
+| | |
+|---|---|
+| Body hex (against the cap's face) | 16.2 mm across flats, 4.4 mm long |
+| Compression nut | 16.1 mm across flats, 14.4 mm long (10 mm of it hex) |
+| Nut's outer end | a round-over, not a taper — R4.4, ending Ø7.3 on the cable |
+| Envelope, across corners (`GLAND_ENV_D`) | **18.71 mm** |
+| Protrusion past the cap face (`GLAND_PROUD`) | **18.8 mm** |
+
+They live in `mount_config.py`; `gland.py` draws the fitting from them, so every
+assembly view shows the real thing rather than a reserved hole. Both used to be
+assumed at 24 and 30 mm, which cost 32 mm of dark tube at every vertex.
 
 ## Controller
 

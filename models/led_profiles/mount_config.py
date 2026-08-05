@@ -127,14 +127,34 @@ STRAP_STATIONS = (STRAP_W / 2, CRADLE_LEN - STRAP_W / 2)
 
 # ------------------------------------------------------- gland envelope
 
-# ASSUMED, both of them, and both worth ~15 mm of dark run at every corner.
-# GLAND_ENV_D is the circle containing the fitted gland seen down the tube axis
-# -- across the corners of its hex, or the dome nut, whichever is bigger.
-# GLAND_PROUD is how far it stands out past the cap's outer face; it is not the
-# gland's overall length, since CAP_T of it is buried in the printed thread.
-# Measure both before printing a corner. A nylon M12 is ~17.3 across corners.
-GLAND_ENV_D = 24.0
-GLAND_PROUD = 30.0
+# MEASURED, with calipers, off the gland in hand. Both of the numbers derived
+# from them below used to be ASSUMED -- 24.0 and 30.0 -- with the file telling
+# whoever got there first to measure them before printing a corner. Doing that
+# took ~5 mm off the envelope and 11 mm off the protrusion, and since the two
+# together set every corner's setback, ~31 mm off the dark run at each vertex.
+#
+# A cable gland is two hexes. The **body** carries the male thread that goes
+# into the cap, and its flats are what a spanner holds while the gland is done
+# up, so they sit right against the cap's face. The **compression nut** screws
+# onto the body's other end and closes the seal onto the cable; its outer end
+# is not a taper but a round-over. ``gland.py`` draws all of it.
+GLAND_BODY_AF = 16.2  # across flats, the hex against the cap's face
+GLAND_BODY_H = 4.4  # and how much of the cap's face it stands on
+GLAND_NUT_AF = 16.1  # across flats, the compression nut
+GLAND_NUT_H = 14.4  # the nut's whole length ...
+GLAND_NUT_HEX_H = 10.0  # ... of which this much is hex
+GLAND_NUT_ROUND_H = GLAND_NUT_H - GLAND_NUT_HEX_H  # 4.4, the round-over
+
+_AF_TO_AC = 2 / sqrt(3)  # a hexagon is 2/sqrt(3) wider across corners than flats
+
+# The circle containing the fitted gland seen down the tube axis -- across the
+# corners of whichever of the two hexes is wider. 18.71 mm.
+GLAND_ENV_D = max(GLAND_BODY_AF, GLAND_NUT_AF) * _AF_TO_AC
+
+# How far it stands out past the cap's outer face: the body's hex plus the nut
+# that lands on it. Not the gland's overall length -- CAP_T of it is buried in
+# the printed thread, and the nut's own thread is buried in the body. 18.8 mm.
+GLAND_PROUD = GLAND_BODY_H + GLAND_NUT_H
 
 CABLE_OD = 6.7  # LAPP OLFLEX CLASSIC 110, 3x1.5 -- see README
 CABLE_BEND_R = 4 * CABLE_OD  # 26.8, fixed installation
@@ -150,7 +170,7 @@ def gland_setback(angle: float) -> float:
 
         a = r_gland / tan(angle / 2)
 
-    at 60 deg that is 20.8 mm, and the cap face follows at ``a + GLAND_PROUD``.
+    at 60 deg that is 16.2 mm, and the cap face follows at ``a + GLAND_PROUD``.
     """
     return GLAND_ENV_D / 2 / tan(radians(angle / 2)) + GLAND_PROUD
 

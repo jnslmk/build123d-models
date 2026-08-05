@@ -39,7 +39,7 @@ def triangle_vertices(
 
     Not a free choice. A corner's cradle begins ``corner.cradle_start(angle)``
     from its vertex (the gland setback plus the cap thickness -- the unlit run
-    corner.py's docstring prices at ~62.8 mm for a 60 deg corner), so one edge,
+    corner.py's docstring prices at ~47.0 mm for a 60 deg corner), so one edge,
     a full lamp long, reaches from ``start`` past its near vertex to
     ``side - start`` short of its far one. Closing the loop needs
 

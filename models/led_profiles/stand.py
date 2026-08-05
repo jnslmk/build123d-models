@@ -15,11 +15,15 @@ is; it gets sandbagged in use. ``checks.py`` recomputes it from the real part
 volume, so a change cannot quietly make it worse.
 
 **Open defect: the cable does not fit.** The well clears the gland and only the
-gland. In line with the gland's axis the hub offers ``SEAT_Z - FLANGE_T`` = 32 mm
-from the seat to the flange, the gland takes 30 of it, and ``CABLE_BEND_R`` is
-26.8 -- so the cable leaves the nose pointing at the flange with 2 mm to turn in,
-and the slot it is meant to leave by is at right angles and 3.35 mm *above* the
-nose. ``checks.check_stand_gland_cable`` fails on exactly that, by 28 mm, and
+gland, and it does so by exactly 2 mm however big the gland is: ``WELL_H`` is
+``GLAND_PROUD + 2``, so what the hub leaves in line with the gland's axis --
+``SEAT_Z - FLANGE_T``, which is ``WELL_H`` -- is always the gland plus two
+millimetres. ``CABLE_BEND_R`` is 26.8. So the cable leaves the nose pointing at
+the flange with 2 mm to turn in, and the slot it is meant to leave by is at
+right angles and 3.35 mm *above* the nose. Measuring the gland shrank the well
+(30 mm of protrusion became 18.8) and changed nothing about this: the shortfall
+is ``CABLE_STUB - 2``, 28 mm, and it is independent of the fitting.
+``checks.check_stand_gland_cable`` fails on exactly that, and
 ``uv run show led_profiles.assemblies.standing`` shows the stub running out
 through the flange. ``docs/design-notes.md`` section 10 has the four ways out.
 Nothing below is written as though this were solved.
@@ -591,9 +595,11 @@ def _socket_root(bp: BuildPart) -> ShapeList:
 
     * the pedestal's own rim, which is convex and gets a chamfer instead;
     * the gland well's mouth, which at this height is a ceiling over the well,
-      not a root -- the well reaches to within 0.03 mm of the socket's back wall
-      (``WELL_D / 2 + 9.0`` against ``SOCKET_HALF_H``), so its arc looks like a
-      root edge to any position test;
+      not a root -- its arc sits inside the socket's own footprint and so looks
+      like a root edge to any position test. It used to come within 0.03 mm of
+      the socket's back wall on the assumed Ø24 gland; on the measured one
+      (``WELL_D / 2 + 6.0`` = 16.36 against ``SOCKET_HALF_H`` 19.04) it clears
+      by 2.7 mm, which changes the margin and not the need to exclude it;
     * anything inside the collar bore. That bore clears the cap collar by 0.5 mm
       a side and its seat is already only ~0.6 mm wide at the narrowest, so a
       fillet at its root would stop the cap seating altogether.

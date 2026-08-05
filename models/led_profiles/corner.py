@@ -9,22 +9,26 @@ crosses on an external jumper, which is what pushes the tube ends back from the
 vertex: two glands pointing at each other are cylinders whose axes intersect, so
 the clearance condition is not "twice the radius" but
 
-    a         = (GLAND_ENV_D / 2) / tan(angle / 2)      20.8 mm at 60 deg
-    cap face  = a + GLAND_PROUD                         50.8 mm
-    aluminium = cap face + CAP_T                        62.8 mm
+    a         = (GLAND_ENV_D / 2) / tan(angle / 2)      16.2 mm at 60 deg
+    cap face  = a + GLAND_PROUD                         35.0 mm
+    aluminium = cap face + CAP_T                        47.0 mm
 
-and the unlit run at a 60 deg vertex is 2 x 62.8 = **126 mm**. That is the price
+and the unlit run at a 60 deg vertex is 2 x 47.0 = **94 mm**. That is the price
 of staying coplanar; ``docs/design-notes.md`` S2 records what was refused to
 avoid it, and ``checks.py`` reports the number so a change to the gland cannot
-make it worse quietly.
+make it worse quietly. It was 126 mm until the gland was measured rather than
+assumed -- both inputs came down (``mount_config``), and 32 mm of dark tube at
+every vertex came off with them.
 
 Shape: a V-shaped bar with a cradle at each end and an open channel down its
 middle, in which the two endcaps, their glands and the jumper loop all sit. Two
 numbers are not free choices:
 
-* ``PLINTH_H`` -- the gland axis is 6 mm *below* the tube axis, so a Ø24 gland
-  hangs 3 mm below the tube's underside and would cut straight through a 4 mm
-  cradle floor. The cradles therefore stand on a plinth.
+* ``PLINTH_H`` -- the gland axis is 6 mm *below* the tube axis, so the gland
+  hangs below the tube's underside and would cut into a 4 mm cradle floor. The
+  cradles therefore stand on a plinth. The drop is ``GLAND_DROP``, and measuring
+  the gland took it from 3.0 mm to 0.35 mm: the plinth is now generous rather
+  than tight, and could come down if the corner ever needs the height back.
 * ``ARM_WALL`` -- the channel has to clear the 27.2 mm cap collar, and a bar
   only as wide as the cradle would be left with 2.4 mm side walls. The arms are
   widened until the walls carry the out-of-plane load (see ``section_modulus``).
@@ -96,9 +100,12 @@ from .endcap import CAP_T, CAP_W
 
 # The gland's axis sits GLAND_Z above the tube's underside and it is
 # GLAND_ENV_D across, so it hangs this far below that underside.
-GLAND_DROP = m.GLAND_ENV_D / 2 - 9.0  # 3.0 -- endcap.GLAND_Z is 9.0
-PLINTH_H = 8.0  # > GLAND_DROP + a printable floor
+GLAND_DROP = m.GLAND_ENV_D / 2 - 9.0  # 0.35 -- endcap.GLAND_Z is 9.0
+PLINTH_H = 8.0  # > GLAND_DROP + a printable floor; see the docstring
 
+# The cap collar wins this by a wide margin now that the gland is measured
+# (27.2 against 18.71), so the max() is doing nothing today -- kept because it
+# is the condition, not the answer, and a fatter gland would take it back.
 CHANNEL_W = max(CAP_W, m.GLAND_ENV_D) + 2.0  # 29.2, clears the cap collar
 
 # The two corners where the channel's side wall meets its end wall are the one
@@ -273,9 +280,7 @@ def _is_vertical_corner(edge) -> bool:
     verticals inside a trough's stadium and around the engraved label, both of
     which must be left alone.
     """
-    return (
-        edge.length > 0.6 * TOP_Z and abs(edge.bounding_box().max.Z - TOP_Z) < 1e-6
-    )
+    return edge.length > 0.6 * TOP_Z and abs(edge.bounding_box().max.Z - TOP_Z) < 1e-6
 
 
 def _mouth_corners(bp: BuildPart, angle: float, start: float) -> ShapeList:
@@ -284,7 +289,7 @@ def _mouth_corners(bp: BuildPart, angle: float, start: float) -> ShapeList:
     Where the channel's side wall runs into its end wall, at the plane the
     tube's cradle begins. Selected in each arm's own frame -- ``start`` along
     the axis, ``CHANNEL_W / 2`` across it -- which is the only thing that
-    separates them from the other 20.8 mm verticals the channel has: its two
+    separates them from the channel's other full-depth verticals: its two
     ends out at the knuckle, and the notch where the two arms' channels cross.
 
     They take ``MOUTH_FILLET`` rather than ``EDGE_FILLET``; see that constant

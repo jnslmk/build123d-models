@@ -148,14 +148,20 @@ Both tubes keep their glanded endcaps and the jumper is external, so at a vertex
 two glands point at each other. They are cylinders whose axes intersect, not
 spheres, so the clearance condition is not "twice the radius":
 
-    a > r_gland / tan(angle/2) = 12 / tan 30°     = 20.8 mm
-    s = a + gland protrusion   = 20.8 + 30        = 50.8 mm
-    dark run = 2 × (s + CAP_T) = 2 × 62.8         = 126 mm
+    a > r_gland / tan(angle/2) = 9.35 / tan 30°   = 16.2 mm
+    s = a + gland protrusion   = 16.2 + 18.8      = 35.0 mm
+    dark run = 2 × (s + CAP_T) = 2 × 47.0         = 94 mm
 
-**126 mm of unlit tube at every vertex**, or about 8 % of an equilateral
+**94 mm of unlit tube at every vertex**, or about 6 % of an equilateral
 triangle's perimeter. The aluminium starts 12 mm behind the cap face, because
 `endcap.seated()` puts the flange *outside* the tube — forgetting that term is
 worth 24 mm and it is easy to do.
+
+Those were 20.8 / 50.8 / **126 mm** for as long as the gland's two numbers were
+assumed (§8). Measuring the fitting brought the envelope from 24 to 18.71 mm and
+the protrusion from 30 to 18.8, and took **32 mm of dark tube off every vertex**
+— and 31 mm off the triangle's side length, since the side is derived from the
+setback (`assemblies/triangle.triangle_vertices`).
 
 ### Why the cable does not set the setback, and how close it came to
 
@@ -167,12 +173,12 @@ A single arc filleting a 60° V at that radius touches each leg at
 
     26.8 / tan 30° = 46.4 mm
 
-which would push `s` to 76 mm and the dark run to **177 mm** — half again worse
+which would push `s` to 65 mm and the dark run to **154 mm** — two thirds worse
 than the glands demand. That is avoided by not routing the loop in the plane at
 all. The LEDs face out of the form, so the back is hidden: the pigtail loop and
 both SP16 barrels live **behind the form plane, inside the corner's own web**.
 The web has to be a box section for stiffness anyway (§3), so it is the cable
-tray as well, and the setback stays gland-limited at 51 mm.
+tray as well, and the setback stays gland-limited at 35 mm.
 
 ### Taken and refused
 
@@ -181,14 +187,14 @@ tray as well, and the setback stays gland-limited at 51 mm.
 | | |
 |---|---|
 | Coplanar corners | one true plane; the form reads as drawn |
-| Loop behind the plane | saves 51 mm of dark run per vertex for free |
+| Loop behind the plane | saves 30 mm of dark run per vertex for free |
 | Web doubles as cable tray | the stiffener had to exist regardless |
 
 **Refused:**
 
 - **A 36 mm out-of-plane stagger.** Offsetting the two tubes perpendicular to the
   form plane lets the glands pass in separate layers, collapsing the dark run
-  from 126 mm to ~24 mm — the lines can even overlap in projection, so visually
+  from 94 mm to ~24 mm — the lines can even overlap in projection, so visually
   there is no break at all. It is the strongest single idea in this file and it
   is refused on aesthetics: the form becomes two parallel planes 36 mm apart
   rather than one. If the dark corners turn out to look worse than the depth
@@ -263,10 +269,12 @@ washers. The tube sits in a vertical cradle; its lower endcap lands in a well
 with a side cable exit.
 
 **The gland is 6 mm off the tube axis** — `GLAND_Z` = 9.0 against a tube axis at
-15.0 — so the well is offset, not concentric. A Ø24 envelope at 6 mm offset
-reaches to z = −3 relative to the tube outline, i.e. it pokes *outside* the
-26 × 30 footprint at the bottom. A concentric well does not clear it, and this
-is the single easiest thing to get wrong in the part.
+15.0 — so the well is offset, not concentric. The measured Ø18.71 envelope at
+6 mm offset reaches to z = −0.35 relative to the tube outline: it still pokes
+*outside* the 26 × 30 footprint at the bottom, though it now stays inside the
+cap's own 0.6 mm collar. A concentric well still does not clear it — the offset
+is set by `GLAND_Z` against the axis, not by how fat the gland is — and this is
+the single easiest thing to get wrong in the part.
 
 ### The stability number, stated plainly
 
@@ -366,9 +374,9 @@ Two departures from the sketch above, both found while building:
   different feet; sharing them the way `profile.py` shares the extrusion's is
   cheaper than a constants file plus four copies.
 - **The corner's cable tray has no lid, and the cradles sit on a `PLINTH_H`
-  plinth.** The gland axis is 6 mm *below* the tube axis, so a Ø24 gland hangs
-  3 mm below the tube's underside and cuts straight through a 4 mm cradle floor.
-  Raising the cradles clears it. The channel then runs open from the vertex out
+  plinth.** The gland axis is 6 mm *below* the tube axis, so the gland hangs
+  below the tube's underside and cuts into a 4 mm cradle floor. Raising the
+  cradles clears it — by more than it needs to, now the gland is measured (§8). The channel then runs open from the vertex out
   to each cradle, holding both caps, both glands and the jumper loop — and the
   caps stand proud of it for most of its length, so a lid could only ever have
   covered the knuckle. It was dropped rather than half-built; the arm section is
@@ -429,20 +437,38 @@ real part volumes.
 
 ---
 
-## 8. Three numbers that are still assumed
+## 8. One number that is still assumed, and two that no longer are
 
-**`GLAND_ENV_D` — proposed, `mount_config.py`, assumed 24 mm.** The diameter of
-the circle containing the fitted gland seen down the tube axis — across the
-*corners* of its hex, or its dome nut, whichever is bigger. It sets the corner
-setback directly through `a > (GLAND_ENV_D/2) / tan(angle/2)`. A nylon M12 is
-~17.3 mm across corners, which is ~15 mm off the dark run at every vertex.
-*Measure:* calipers across the widest part of the fitted gland.
+### Measured, and what it bought
 
-**`GLAND_PROUD` — proposed, `mount_config.py`, assumed 30 mm.** How far the gland
-stands out past the endcap's outer face along the tube axis: cap face to the tip
-of the dome nut, ignoring the cable. Not the gland's overall length — 12 mm of it
-is buried in the cap's printed thread. It adds one-for-one to the setback, so it
-is the other ~15 mm per vertex. *Measure:* depth gauge from the cap face.
+`GLAND_ENV_D` and `GLAND_PROUD` sat here as *assumed* — 24 mm and 30 mm — with
+this section telling whoever got there first to put calipers on the gland. Doing
+it moved both, and both in the same direction:
+
+| | assumed | measured | |
+|---|---|---|---|
+| body hex, across flats | — | 16.2 mm | 4.4 mm long |
+| compression nut, across flats | — | 16.1 mm | 14.4 mm long, of which 10 hex |
+| `GLAND_ENV_D` (across corners) | 24.0 | **18.71** | the wider hex, × 2/√3 |
+| `GLAND_PROUD` | 30.0 | **18.8** | body hex + nut |
+
+They now live in `mount_config.py` as the four caliper readings with the two
+derived numbers falling out of them, and `gland.py` draws the fitting from the
+same block — so the corner's setback, the stand's well and the mock in every
+assembly view all move together or not at all. The nut's outer end is a
+**round-over, not a taper**: a quarter circle tangent to the flats and to the
+horizontal, ending at Ø7.30 on a Ø6.70 cable.
+
+What it bought: §2's dark run went from 126 mm to 94 mm per vertex, the
+triangle's side from 1625.6 to 1594.4 mm, and `corner.GLAND_DROP` from 3.0 mm to
+0.35 mm — which leaves `PLINTH_H` = 8.0 generous rather than tight, and free to
+come down if the corner ever wants the height back.
+
+Still assumed about the gland: `gland.THREAD_L` = 8 mm, the male thread's own
+length. Nothing is sized against it — `CAP_T` is 12 for the printed-thread
+engagement rule, not for this — so it is a mock detail, not a design input.
+
+### The one that is still assumed
 
 **`FLOOR_T` — exists, `config.py:58`, assumed 1.0 mm.** Not a gland number at
 all: the thickness of the horizontal aluminium web between the bottom of the
@@ -488,13 +514,20 @@ here points straight down at the flange, and `CABLE_BEND_R` is 26.8 mm
 (4 × 6.7, fixed installation) — so it cannot have turned out of that direction
 inside the next ~27 mm. What the hub offers in line with the gland is
 
-    SEAT_Z − FLANGE_T = 44 − 12 = 32 mm
+    SEAT_Z − FLANGE_T = FLANGE_T + WELL_H − FLANGE_T = WELL_H = GLAND_PROUD + 2
 
-of which the gland alone takes 30. **Two millimetres, against roughly thirty
-needed.** The exit that does exist — the cable slot through the pedestal — is at
-right angles to the gland, and its centre line sits 3.35 mm *above* the gland's
-own nose, so the cable would have to turn through 90° and climb, inside 2 mm, to
-reach it. It does not fit, and no clearance number fixes it.
+**Two millimetres, whatever the gland measures**, against roughly thirty needed.
+That identity is the whole of it, and it is why measuring the gland (§8) changed
+nothing here: the well shrank from 32 mm to 20.8 mm and the gland shrank from 30
+to 18.8 with it, leaving the same 2 mm. The shortfall is `CABLE_STUB − 2` = 28 mm
+and it is independent of the fitting.
+
+The exit that does exist — the cable slot through the pedestal — is at right
+angles to the gland, and its centre line sits 3.35 mm *above* the gland's own
+nose (also invariant: the nose lands at `FLANGE_T + 2` and the slot's centre at
+`FLANGE_T + 1 + CABLE_SLOT_W/2`). So the cable would have to turn through 90°
+and climb, inside 2 mm, to reach it. It does not fit, and no clearance number
+fixes it.
 
 `checks.check_stand_gland_cable` states both halves: the gland clears (PASS) and
 the cable does not (**FAIL**, by 28 mm). Those two failures are the defect, not a
