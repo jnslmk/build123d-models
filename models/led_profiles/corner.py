@@ -42,9 +42,13 @@ body's vertical corners (filleted at ``EDGE_FILLET`` -- arm ends, boss steps,
 the V's inner root, the channel's ends out at the knuckle), the whole rim at
 ``TOP_Z`` bar those insert mouths
 (chamfered -- outer silhouette, channel mouth, and both trough mouths, which is
-the tube's lead-in as it drops in sideways), and the bed face's outer wire. The
-drains get boolean cones instead, because their mouths share the bed face with
-the engraved label.
+the tube's lead-in as it drops in sideways), and the bed face's outer wire.
+
+The channel and both troughs carry **no drains**. Every other upward-facing
+pocket in this family has one (``docs/design-notes.md`` S5), so this corner is
+the family's one stated exception rather than an oversight: standing water sits
+in the channel with the glands and the jumper loop, and in each trough against
+the aluminium. Anywhere it can rain, that is the corner's own limitation.
 
 One build123d trap shapes how this file is written: **a ``BuildSketch`` opened
 inside a helper function does not attach to the caller's ``BuildPart``**, and
@@ -67,7 +71,6 @@ from build123d import (
     BuildSketch,
     Circle,
     Color,
-    Cone,
     Cylinder,
     FontStyle,
     Location,
@@ -229,7 +232,6 @@ def create_corner(angle: float = 60.0) -> Part:
 
         add(bosses)
         _drill_inserts(angle, start)
-        _add_drains(angle, start)
         add(label, mode=Mode.SUBTRACT)
 
         # Edge treatments, house rule: fillet vertical, chamfer horizontal.
@@ -382,87 +384,6 @@ def _drill_inserts(angle: float, start: float) -> None:
                         align=(Align.CENTER, Align.CENTER, Align.MAX),
                         mode=Mode.SUBTRACT,
                     )
-
-
-def _drain_stations(angle: float, start: float) -> list[tuple[float, float, float]]:
-    """Where every drain but the knuckle's own goes, in plan, tagged with its
-    distance ``d`` from the vertex.
-
-    ``d`` is what a drain's inside-mouth funnel needs: the ``start*0.55``
-    station is short of ``start``, so it opens into the channel's flat floor
-    like the knuckle drain does, and the other two are the tube's own cradle,
-    where the floor is the bore's curved underside instead.
-    """
-    out: list[tuple[float, float, float]] = []
-    for bearing in _axis_bearings(angle):
-        a = radians(bearing)
-        for d in (
-            start * 0.55,
-            start + m.CRADLE_LEN * 0.35,
-            start + m.CRADLE_LEN * 0.75,
-        ):
-            out.append((d * cos(a), d * sin(a), d))
-    return out
-
-
-def _drain_positions(angle: float, start: float) -> list[tuple[float, float]]:
-    """Where every drain but the knuckle's own goes, in plan."""
-    return [(x, y) for x, y, _d in _drain_stations(angle, start)]
-
-
-def _add_drains(angle: float, start: float) -> None:
-    """Drains out of the channel and both cradles -- see design-notes S5."""
-    stations = _drain_stations(angle, start)
-    with Locations((0, 0, 0)):
-        Cylinder(
-            m.DRAIN_D / 2,
-            PLINTH_H,
-            align=(Align.CENTER, Align.CENTER, Align.MIN),
-            mode=Mode.SUBTRACT,
-        )
-    for x, y, _d in stations:
-        with Locations((x, y, 0)):
-            Cylinder(
-                m.DRAIN_D / 2,
-                TOP_Z,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                mode=Mode.SUBTRACT,
-            )
-
-    # Lead-in at every drain's bed-face mouth. Cut as boolean cones rather than
-    # edge-chamfered: these mouths sit on the same face as the engraved label
-    # and the part's whole outer wire, which is the face OCC is least willing to
-    # work off. The taper also takes the elephant's foot off the first layer.
-    for x, y in [(0.0, 0.0), *_drain_positions(angle, start)]:
-        with Locations((x, y, 0)):
-            Cone(
-                bottom_radius=m.DRAIN_D / 2 + m.EDGE_CHAMFER,
-                top_radius=m.DRAIN_D / 2,
-                height=m.EDGE_CHAMFER,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                mode=Mode.SUBTRACT,
-            )
-
-    # And a funnel at every drain's *upper* mouth, where it actually drains
-    # from. The knuckle drain and the near arm station (``d < start``) open
-    # into the channel floor, which is flat -- a plain sketch cut straight up
-    # from PLINTH_H, same as the stand's gland well, so they take a plain cone
-    # (``arc_r=None``). The other two arm stations open into the cradle
-    # trough, whose floor is the bore's curved underside: there
-    # ``cradle.drain_funnel`` needs both the floor's height and the radius it
-    # curves to, so the funnel neither stops short of a banded floor nor
-    # misses the lip out on the flanks. Same call the cradle makes.
-    for x, y, d in [(0.0, 0.0, 0.0), *stations]:
-        if d < start:
-            cr.drain_funnel(x, y, PLINTH_H, None)
-        else:
-            offset = d - start
-            cr.drain_funnel(
-                x,
-                y,
-                PLINTH_H + cr.trough_floor_z(offset, m.CRADLE_LEN),
-                cr.trough_floor_arc_r(offset, m.CRADLE_LEN),
-            )
 
 
 def _label_solid(angle: float) -> Part:

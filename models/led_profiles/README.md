@@ -117,7 +117,9 @@ which is what that class of stand is. `docs/design-notes.md` §4 has the sum.
 that runs 40–60 °C. That changes the fits: `fits.SNUG` in ASA is −0.05 mm, an
 interference fit, so the cradle uses `for_material(SLIDING, "asa")` = 0.07.
 Outdoor handling is *drain, not seal* — no gaskets, no IP claim, A2 stainless
-throughout, and a drain out of every upward-facing pocket.
+throughout, and a drain out of every upward-facing pocket **except the
+corner's**, whose channel and troughs are undrained and hold water: mount a
+corner somewhere sheltered. §5 has the depths.
 
 | part | size | hardware |
 |---|---|---|

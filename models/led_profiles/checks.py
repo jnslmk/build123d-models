@@ -1295,7 +1295,7 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
             tag + "...and no further into the channel than that",
         )
 
-    check_corner_drain_funnels(part, r, angle)
+    check_corner_undrained(part, r, angle)
 
     # The raw-edge rule, made falsifiable, over the whole solid. Insert
     # mouths and the bore/wall's own cross-section seam are the same
@@ -1303,11 +1303,10 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     # corner-specific (a 0.6 mm bed-face pocket -- chamfering its glyph
     # outlines would destroy legibility).
     #
-    # Two known gaps used to sit here and neither does now, because both were
-    # geometry rather than exceptions: the curved-floor drains' funnel
-    # residual (``cradle.drain_funnel`` reaches the flanks now) and a residual
-    # by each arm's first strap boss whose cause the implementer could not
-    # trace. That second one was the channel's own end-wall fillet: R2.5 at a
+    # A known gap used to sit here and does not now, because it was geometry
+    # rather than an exception: a residual by each arm's first strap boss
+    # whose cause the implementer could not trace. It was the channel's own
+    # end-wall fillet: R2.5 at a
     # corner with only ``(CHANNEL_W - CAP_W) / 2`` of room rolled the wall
     # inward past the bore's mouth outline *and* into the endcap collar's
     # envelope. ``MOUTH_FILLET`` sizes that corner off the room it actually
@@ -1346,24 +1345,24 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     )
 
 
-def check_corner_drain_funnels(part: Part, r: Report, angle: float = 60.0) -> None:
-    """Every drain's *upper* mouth is funnelled too, not just the bed one.
+def check_corner_undrained(part: Part, r: Report, angle: float = 60.0) -> None:
+    """The corner is the one part in this family whose pockets do **not** drain.
 
-    Two floors, treated differently in ``corner._add_drains``: the knuckle
-    drain and the near arm station open into the channel floor, which is
-    flat, while the other two arm stations open into the cradle trough, whose
-    floor is the bore's curved underside -- and one of those two sits in the
-    relieved middle (a lower floor) while the other sits in a contact band (the
-    nominal one), so both regimes ``cradle.trough_floor_z`` has to tell
-    apart are exercised here.
+    This is the complement of the check it replaces, and it exists for the
+    same reason that one did: design-notes S5 promises "a drain out of every
+    upward-facing pocket", the corner is now the stated exception to it, and
+    an exception that is only *not tested* is indistinguishable from a
+    regression. So the floors are asserted solid at exactly the four stations
+    that used to be drilled -- if a drain comes back, this fails and whoever
+    put it there has to restate S5 rather than quietly re-diverge from it.
 
-    A curved-floor station gets a third sample the flat ones cannot need: out
-    on the flank, where the floor has already climbed away from the funnel's
-    lowest point. That is the sample the old cone failed -- see
-    ``check_cradle_edges`` for the same pair on the bare cradle.
+    It also reports the water each pocket now holds, computed from the same
+    floor geometry ``cradle.trough_floor_z`` gives the cradle: depth to the
+    channel's own rim at the trough mouth, and depth to the lowest lip of
+    each trough. Those numbers are the cost of the decision, so they belong
+    in ``uv run check`` output where they are read, not in a comment.
     """
     start = corner_mod.cradle_start(angle)
-    ch = mc.EDGE_CHAMFER
     bearing = corner_mod._axis_bearings(angle)[0]
     a = radians(bearing)
     tag = f"corner {angle:.0f}: "
@@ -1375,43 +1374,36 @@ def check_corner_drain_funnels(part: Part, r: Report, angle: float = 60.0) -> No
             z,
         )
 
-    def pair(label: str, d: float, floor_z: float) -> None:
-        r.check(
-            not is_solid_at(
-                part, *at(d, mc.DRAIN_D / 2 + 0.25 * ch, floor_z - 0.25 * ch)
-            ),
-            tag + label,
-            f"{ch} mm lead-in at floor z={floor_z:.2f}",
-        )
-        r.check(
-            is_solid_at(part, *at(d, mc.DRAIN_D / 2 + 1.5 * ch, floor_z - 0.25 * ch)),
-            tag + "..." + label + ": and no more than that",
-        )
+    # Mid-plinth: below any pocket floor, above the bed chamfer's run-out.
+    z_plinth = corner_mod.PLINTH_H / 2
 
-    # The knuckle drain, at the vertex -- the channel floor, flat.
-    pair("knuckle drain funnelled at the channel floor", 0.0, corner_mod.PLINTH_H)
-
-    # The near arm station (d < start): channel floor too.
-    pair(
-        "near arm drain funnelled at the channel floor",
-        start * 0.55,
-        corner_mod.PLINTH_H,
+    r.check(
+        is_solid_at(part, 0.0, 0.0, z_plinth),
+        tag + "knuckle plinth is solid -- no drain",
+        f"channel floor at z={corner_mod.PLINTH_H}, holds water",
     )
-
-    # The other two arm stations: the trough's curved floor, one in the
-    # relieved middle and one in a contact band.
-    for frac, region in ((0.35, "relieved"), (0.75, "banded")):
+    r.check(
+        is_solid_at(part, *at(start * 0.55, 0.0, z_plinth)),
+        tag + "near arm plinth is solid -- no drain",
+    )
+    for frac in (0.35, 0.75):
         d = start + mc.CRADLE_LEN * frac
-        offset = d - start
-        arc_r = trough_floor_arc_r(offset, mc.CRADLE_LEN)
-        floor_z = corner_mod.PLINTH_H + trough_floor_z(offset, mc.CRADLE_LEN)
-        pair(f"trough drain ({region}) funnelled at the curved floor", d, floor_z)
-        lip = arc_r - sqrt(arc_r**2 - (mc.DRAIN_D / 2) ** 2)
         r.check(
-            not is_solid_at(part, *at(d, mc.DRAIN_D / 2 + 0.05, floor_z + lip / 2)),
-            tag + f"...trough drain ({region}): broken on the flank too",
-            f"lip {lip:.3f} mm at the drain's own radius, on an R{arc_r:.3f} floor",
+            is_solid_at(part, *at(d, 0.0, z_plinth)),
+            tag + f"trough plinth is solid at {frac:.0%} of the cradle -- no drain",
         )
+
+    # What that costs, in standing water. The channel fills to its own mouth
+    # at the trough, since that is where its rim is lowest; a trough fills to
+    # the lowest point of its floor's lip, which is the relieved middle.
+    channel_depth = corner_mod.TOP_Z - corner_mod.PLINTH_H
+    trough_depth = mc.CRADLE_DEPTH - trough_floor_z(mc.CRADLE_LEN / 2, mc.CRADLE_LEN)
+    r.check(
+        True,
+        tag + "standing water, both pockets (the stated S5 deviation)",
+        f"channel up to {channel_depth:.1f} mm deep, trough up to "
+        f"{trough_depth:.1f} mm -- sheltered mounting only",
+    )
 
 
 def _tube_clears_corner(part: Part, angle: float) -> bool:

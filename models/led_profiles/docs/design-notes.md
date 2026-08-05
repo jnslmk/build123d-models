@@ -316,16 +316,24 @@ aluminium tube.
 ### The print poses create three water traps
 
 Every part in this family is posed to print without support, and in all three
-cases that means a pocket opening upward. Each one gets drains, and `checks.py`
-asserts a drain path from every enclosed pocket's lowest point:
+cases that means a pocket opening upward. Two of the three get drains, and
+`checks.py` asserts a drain path from their lowest point:
 
-1. **The corner's cable tray** — drain holes at its low corners, and the cover
-   **overlaps** the rim rather than sitting in a groove, so it sheds water
-   instead of channelling it inside.
-2. **The stand hub's gland well** — a cup directly under a vertical tube. Drain
+1. **The stand hub's gland well** — a cup directly under a vertical tube. Drain
    straight through the flange.
-3. **The cradle trough** — holds water whenever the LEDs face up. Slots in the
+2. **The cradle trough** — holds water whenever the LEDs face up. Slots in the
    floor.
+
+3. **The corner — the stated exception.** Its channel and both its troughs are
+   **undrained**. They were drilled at four stations (the knuckle, one short of
+   each cradle, and two out along each trough) and those drains have since been
+   removed, so the channel now holds water to the depth of its own mouth and
+   each trough to the lowest lip of its floor. `checks.py` reports both depths
+   and asserts the plinth is solid at every station that used to be drilled —
+   the exception is tested rather than merely written down, so re-drilling one
+   fails a check and forces this section to be restated. **A corner therefore
+   wants a sheltered mounting**, and a form that stands out in the rain wants
+   its drains back: the geometry is in this file's git history.
 
 ### The rest
 
@@ -415,7 +423,9 @@ sweep, so the parts print on either machine; the angle between the two cradle
 axes measured *from the geometry* rather than asserted from the input; mock gland
 envelopes proven non-intersecting at the computed setback, with the dark run
 reported as a check line so it is visible in `uv run check`; a drain path from
-every enclosed pocket; and the stand's `F_tip` computed from real part volumes.
+every enclosed pocket that has one, and solid plinth plus reported water depth
+at the corner's four undrained stations; and the stand's `F_tip` computed from
+real part volumes.
 
 ---
 
