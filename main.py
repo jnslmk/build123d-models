@@ -13,6 +13,13 @@ from models.drill_storage_wood import create as create_drill_storage_wood
 from models.drill_storage_wood_assembly import (
     create as create_drill_storage_wood_assembly,
 )
+from models.led_profiles import create as create_led_profiles
+from models.led_profiles.corner import create as create_led_profiles_corner
+from models.led_profiles.endcap import create as create_led_profiles_endcap
+from models.led_profiles.feet import create as create_led_profiles_feet
+from models.led_profiles.printable import create as create_led_profiles_printable
+from models.led_profiles.stand import create as create_led_profiles_stand
+from models.led_profiles.strap import create as create_led_profiles_strap
 from models.led_psu_enclosure import create as create_led_psu_enclosure
 from models.lens_cap import create as create_lens_cap
 from models.satellite_led import create as create_satellite_led
@@ -33,6 +40,16 @@ BUILDERS = {
     "drill_storage_metal": create_drill_storage_metal,
     "drill_storage_wood": create_drill_storage_wood,
     "drill_storage_wood_assembly": create_drill_storage_wood_assembly,
+    # The lamp system: the whole stick, every printed part in print pose, and
+    # each part on its own. Keys are module paths under ``models``, matching
+    # tessellate_models.MODELS -- see its comment.
+    "led_profiles": create_led_profiles,
+    "led_profiles.printable": create_led_profiles_printable,
+    "led_profiles.endcap": create_led_profiles_endcap,
+    "led_profiles.corner": create_led_profiles_corner,
+    "led_profiles.strap": create_led_profiles_strap,
+    "led_profiles.stand": create_led_profiles_stand,
+    "led_profiles.feet": create_led_profiles_feet,
     "led_psu_enclosure": create_led_psu_enclosure,
     "lens_cap": create_lens_cap,
     "satellite_led": create_satellite_led,

@@ -45,6 +45,35 @@ def _py_sources() -> dict[str, str]:
     }
 
 
+def _source_path(name: str) -> str:
+    """Where a model's own source lives, relative to the repo root.
+
+    A model name is a module path under ``models`` (``tessellate_models.MODELS``),
+    so the dots become directories: ``led_profiles.stand`` is
+    ``models/led_profiles/stand.py``. A package's own name resolves to its
+    ``__init__.py`` -- ``models/led_psu_enclosure.py`` has not existed since that
+    model became a package, and the page's Code panel has been showing "source
+    unavailable" for it ever since, because this is the key it looks up in
+    ``py-sources.json``.
+
+    Falls back to the flat ``models/<name>.py`` when neither exists, so a typo in
+    the roster shows up as an empty editor rather than an exception here.
+    """
+    flat = MODELS_DIR / f"{name.replace('.', '/')}.py"
+    if flat.exists():
+        return str(flat.relative_to(HERE))
+    package = MODELS_DIR / name.replace(".", "/") / "__init__.py"
+    if package.exists():
+        return str(package.relative_to(HERE))
+    return f"models/{name}.py"
+
+
+def _label(name: str) -> str:
+    """Human-readable name for the picker: ``led_profiles.stand`` -> the
+    package and the part, each read as words."""
+    return " / ".join(part.replace("_", " ").title() for part in name.split("."))
+
+
 def _manifest() -> dict:
     """Per-model metadata for the UI (labels, PARAMS, prebuilt-asset paths)."""
     models = []
@@ -56,9 +85,9 @@ def _manifest() -> dict:
         models.append(
             {
                 "name": name,
-                "label": name.replace("_", " ").title(),
+                "label": _label(name),
                 "params": model_params(name),
-                "source": f"models/{name}.py",
+                "source": _source_path(name),
                 "stl": f"exports/{name}.stl" if stl.exists() else None,
                 "step": f"exports/{name}.step" if step.exists() else None,
                 "glb": f"exports/{name}.glb" if glb.exists() else None,

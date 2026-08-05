@@ -14,8 +14,15 @@
 //                   cadMs, wallMs, cached}
 //   {type:"error", id?, message}
 // Protocol (main -> worker):
-//   {type:"generate", id, model, params}    // param build (cacheable)
-//   {type:"generate", id, model, source}    // live code edit (never cached)
+//   {type:"generate", id, model, sourcePath, params}    // param build (cacheable)
+//   {type:"generate", id, model, sourcePath, source}    // live code edit, never cached
+//
+// `model` is a module path under `models` (`led_profiles.stand`), and
+// `sourcePath` is where that module's file actually lives -- the manifest's own
+// `source` key. An edit has to be written back to that file, not to
+// `models/<model>.py`: a package's code is in its `__init__.py` and a
+// submodule's is a directory down, so writing the flat path would leave a stray
+// file and re-import the unedited module.
 
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.0a3/full/pyodide.js");
 
@@ -39,6 +46,13 @@ await micropip.install("cadquery-ocp")
 micropip.add_mock_package("cadquery-ocp-novtk", "7.9.3.0")
 print("installing build123d ...")
 await micropip.install(["build123d", "sqlite3"])
+# Standard hardware (bd_warehouse.thread's IsoThread, in led_profiles.endcap).
+# Pure Python on top of build123d, so it installs straight from PyPI -- but it
+# has to be here, not just in pyproject.toml: the endcap is imported by the
+# led_profiles package's own __init__, so without it every model in that
+# package fails to import in the browser while still building fine locally.
+print("installing bd_warehouse (standard threads/fasteners) ...")
+await micropip.install("bd_warehouse")
 
 import sys, types
 _stub = types.ModuleType("ocp_vscode")
@@ -71,9 +85,9 @@ def _apply_default_colors(part):
         if leaf.color is None:
             leaf.color = _DEFAULT_COLOR
 
-def _run(model, params_json, source):
+def _run(model, params_json, source, source_path):
     if source is not None:
-        with open("/models/" + model + ".py", "w") as f:
+        with open("/" + source_path, "w") as f:
             f.write(source)
         for k in [k for k in sys.modules if k == "models" or k.startswith("models.")]:
             del sys.modules[k]
@@ -99,7 +113,7 @@ def _run(model, params_json, source):
         print("step export skipped:", exc)
     return json.dumps({"cadMs": cad_ms, "glb": have_glb, "step": have_step})
 
-_run(MODEL, PARAMS_JSON, SOURCE)
+_run(MODEL, PARAMS_JSON, SOURCE, SOURCE_PATH)
 `;
 
 async function boot() {
@@ -160,6 +174,12 @@ self.onmessage = async (ev) => {
     pyodide.globals.set("MODEL", msg.model);
     pyodide.globals.set("PARAMS_JSON", isEdit ? "" : JSON.stringify(params));
     pyodide.globals.set("SOURCE", isEdit ? msg.source : null);
+    // Fall back to the flat path only for a message that predates sourcePath;
+    // every model the manifest describes carries its own.
+    pyodide.globals.set(
+      "SOURCE_PATH",
+      msg.sourcePath || "models/" + msg.model + ".py"
+    );
 
     const t0 = performance.now();
     const metaJson = await pyodide.runPythonAsync(DRIVER);

@@ -604,7 +604,12 @@ function sendJob(job) {
   setVStatus(job.payload.source !== undefined
     ? 'running edited code… (build123d is slow, up to ~20 s)'
     : 'building… (build123d is slow, up to ~20 s)');
-  worker.postMessage({ type: 'generate', id: ++reqId, model: job.model, ...job.payload });
+  // sourcePath rides along on every job: an edited model has to be written back
+  // to its own file, which for a package or a submodule is not models/<name>.py.
+  worker.postMessage({
+    type: 'generate', id: ++reqId, model: job.model,
+    sourcePath: current.source, ...job.payload,
+  });
 }
 
 let debounce = null;
