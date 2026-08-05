@@ -14,6 +14,7 @@ uv run show drill_fit_tester.taper    # slightly tapered, self-centring
 uv run show drill_fit_tester.sweep    # 5 flat grip values, all sizes on each
 uv run show drill_fit_tester.small    # the 2-5 mm compensation table
 uv run show drill_fit_tester.full     # the whole wood set, 5 offsets
+uv run show drill_fit_tester.land     # TPU: the flex cartridge's grip land, 5 offsets
 ```
 
 ## Two families, two questions
@@ -37,6 +38,7 @@ argued about.
 | `sweep.py` | A flat grip value: five bars at 0.14 → 0.46 mm, five representative sizes on each. |
 | `small.py` | An *offset applied to the production law*, across 2-5 mm — the span where the compensation table lives. |
 | `full.py` | The same offsets, but every hole the wood holder carries, hex socket included. |
+| `land.py` | **Print in TPU.** The short grip land `drill_storage.flex` holds a drill on, at five offsets. The only thing that settles `flex.config.LAND_FIT`, which currently ships uncalibrated. |
 
 The distinction matters. Once `grip_for()` stopped being a constant, a flat
 sweep could no longer answer "is the law right?" — only a shifted law can. Bar

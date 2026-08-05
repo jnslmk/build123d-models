@@ -31,6 +31,7 @@ MODELS = [
     "drill_fit_tester.sweep",
     "drill_fit_tester.small",
     "drill_fit_tester.full",
+    "drill_fit_tester.land",
     # One Gridfinity base/cover engine, one holder per tool set, plus the scene
     # that proves a drill fits inside.
     "drill_storage",
@@ -38,6 +39,9 @@ MODELS = [
     "drill_storage.metal",
     "drill_storage.hex",
     "drill_storage.assemblies.wood",
+    "drill_storage.flex",
+    "drill_storage.flex.shell",
+    "drill_storage.flex.insert",
     # The lamp system: the whole stick, the three ways it gets mounted, and
     # each printed part on its own in print pose.
     "led_profiles",

@@ -40,6 +40,7 @@ packages = [
     "models.drill_fit_tester",
     "models.drill_storage",
     "models.drill_storage.assemblies",
+    "models.drill_storage.flex",
     "models.led_profiles",
     "models.led_profiles.assemblies",
     "models.led_psu_enclosure",

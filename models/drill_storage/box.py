@@ -377,7 +377,7 @@ BASE_COLOR = Color(0.62, 0.64, 0.67)
 COVER_COLOR = Color(0.93, 0.93, 0.92)
 
 
-def _gridfinity_foot() -> Part:
+def gridfinity_foot() -> Part:
     """One 1x1 Gridfinity base foot; pad top lands at z=BASE_H."""
     bottom = PAD - 2 * (FOOT_C1 + FOOT_C3)
     mid = PAD - 2 * FOOT_C3
@@ -396,7 +396,7 @@ def _gridfinity_foot() -> Part:
     return foot.part
 
 
-def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
+def snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
     """A half-round bead ring: a circle of radius ``bead_r`` swept around a
     rounded-square perimeter of side ``size`` at height ``z``. Union it for a
     bead (protrudes inward), or subtract it for a groove."""
@@ -411,29 +411,48 @@ def _snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
     return ring.part
 
 
-def _snap_bead_ring(size: float, corner_r: float, z: float) -> Part:
+def snap_bead_ring(
+    size: float,
+    corner_r: float,
+    z: float,
+    protrusion: float = SNAP_PROTRUSION,
+    lead_in: float = SNAP_LEAD_IN,
+    back: float = SNAP_BACK,
+    tip_flat: float = SNAP_TIP_FLAT,
+    outward: bool = False,
+) -> Part:
     """A chamfered (asymmetric) bead ring for a smooth-engaging snap fit.
 
     Instead of a half-round bump, the cross-section is a quad that protrudes
-    ``SNAP_PROTRUSION`` inward from the wall and rises with a long, gentle
-    ``SNAP_LEAD_IN`` ramp on the insertion (lower) side and a shorter, steeper
-    ``SNAP_BACK`` retention face on the upper side, with a small ``SNAP_TIP_FLAT``
-    at the tip. Swept around the rounded-square perimeter of side ``size`` at
-    height ``z``; union it into the cover so the cover slides on progressively
-    yet still detents into the collar groove. The gentle ramp is the "chamber
-    that slides on"; the round groove (``_snap_ring``) forgivingly receives it.
+    ``protrusion`` from the wall and rises with a long, gentle ``lead_in`` ramp
+    on the insertion (lower) side and a shorter, steeper ``back`` retention face
+    on the upper side, with a small ``tip_flat`` at the tip. Swept around the
+    rounded-square perimeter of side ``size`` at height ``z``; union it into the
+    cover so the cover slides on progressively yet still detents into the collar
+    groove. The gentle ramp is the "chamfer that slides on"; the round groove
+    (``snap_ring``) forgivingly receives it.
+
+    ``outward=True`` mirrors the tip so the bead stands *out* of a plug rather
+    than *into* a bore -- the same profile seen from the other side of the joint,
+    for a compliant male part that detents into a groove in a rigid female one
+    (``drill_storage.flex.insert``). The ramp stays on the lower side either way,
+    because both parts are inserted downward.
+
+    The defaults reproduce the cover's bead exactly, so existing callers are
+    unaffected.
     """
     with BuildSketch(Plane.XY.offset(z)) as outline:
         RectangleRounded(size, size, corner_r)
     path = outline.faces()[0].outer_wire()
+    reach = -protrusion if outward else protrusion
     x_wall = size / 2  # bead base sits on the bore wall ...
-    x_tip = size / 2 - SNAP_PROTRUSION  # ... and its tip stands inward into the bore
-    # Local sketch coords on Plane.XZ: x -> radius, y -> height (matches _snap_ring).
+    x_tip = size / 2 - reach  # ... and its tip stands off it, into the joint
+    # Local sketch coords on Plane.XZ: x -> radius, y -> height (matches snap_ring).
     profile = [
-        (x_wall, z - SNAP_LEAD_IN),  # bottom of the gentle insertion ramp
-        (x_tip, z - SNAP_TIP_FLAT / 2),  # tip, lower
-        (x_tip, z + SNAP_TIP_FLAT / 2),  # tip, upper
-        (x_wall, z + SNAP_BACK),  # top of the steeper retention face
+        (x_wall, z - lead_in),  # bottom of the gentle insertion ramp
+        (x_tip, z - tip_flat / 2),  # tip, lower
+        (x_tip, z + tip_flat / 2),  # tip, upper
+        (x_wall, z + back),  # top of the steeper retention face
     ]
     with BuildPart() as ring:
         with BuildSketch(Plane.XZ):
@@ -442,7 +461,7 @@ def _snap_bead_ring(size: float, corner_r: float, z: float) -> Part:
     return ring.part
 
 
-def _rim_chamfer_tool(width: float, corner_r: float, top_z: float, ch: float) -> Part:
+def rim_chamfer_tool(width: float, corner_r: float, top_z: float, ch: float) -> Part:
     """A subtract tool that 45-deg-chamfers a rounded-square top outer rim.
 
     Built as booleans (an oversized slab minus the beveled keep-frustum) instead
@@ -722,6 +741,11 @@ def layout_bores(
     drill_diams: list[float],
     hex_tools: list[tuple[str, float, float]] | None = None,
     swap: list[tuple[str, str]] | None = None,
+    footprint_r=ribbed_valley_r,
+    half_w: float = COLLAR_W / 2,
+    corner_r: float = COLLAR_R,
+    hole_wall: float = HOLE_WALL,
+    wall_clearance: float = WALL_CLEARANCE,
 ) -> tuple[
     list[tuple[float, float, float]],
     list[tuple[float, float, float]],
@@ -736,8 +760,8 @@ def layout_bores(
     and the ``{key: (x, y)}`` map for the wall legend -- so a set is defined by
     just its sizes and the layout is solved, not hand-placed.
 
-    ``drill_diams`` are round ribbed bores; each is packed by its
-    ``ribbed_valley_r`` footprint and keyed by its ``{d:g}`` size string.
+    ``drill_diams`` are round bores; each is packed by its ``footprint_r(d)``
+    and keyed by its ``{d:g}`` size string.
     ``hex_tools`` are ``(label, across_flats, footprint_r)`` for hex-shank bits:
     the shank drops into an ``across_flats`` socket while ``footprint_r`` is the
     radius reserved during packing (a countersink's head is wider than its socket;
@@ -745,12 +769,20 @@ def layout_bores(
     positions of two keys after packing (e.g. move a countersink out to a row edge
     and give the centre slot to a same-size drill).
 
+    ``footprint_r`` is the *cut* radius each drill really occupies, which is not
+    its nominal diameter: the default ``ribbed_valley_r`` accounts for the relief
+    a ribbed bore needs. A variant whose bores are shaped differently passes its
+    own (``drill_storage.flex`` packs by its relieved bore). ``half_w`` /
+    ``corner_r`` / ``hole_wall`` / ``wall_clearance`` are the envelope packed
+    into; the defaults are the standard collar, so an existing caller sees no
+    change.
+
     Returns ``(drill_bores, hex_bores, rows, hole_pos)``.
     """
     hex_tools = hex_tools or []
-    items = [(f"{d:g}", ribbed_valley_r(d)) for d in drill_diams]
+    items = [(f"{d:g}", footprint_r(d)) for d in drill_diams]
     items += [(label, foot_r) for label, _af, foot_r in hex_tools]
-    pos, rows = pack_rows(items, COLLAR_W / 2, COLLAR_R, HOLE_WALL, WALL_CLEARANCE)
+    pos, rows = pack_rows(items, half_w, corner_r, hole_wall, wall_clearance)
     for a, b in swap or []:
         pos[a], pos[b] = pos[b], pos[a]
     drill_bores = [(d, pos[f"{d:g}"][0], pos[f"{d:g}"][1]) for d in drill_diams]
@@ -761,7 +793,7 @@ def layout_bores(
 # Outward-normal, upright (+Z up) text frames for each body face: (origin, x_dir,
 # z_dir) as a function of the in-face lateral offset and height. Used to engrave
 # the size legend into the base body's four walls.
-def _face_frame(face: str, lateral: float, z: float):
+def face_frame(face: str, lateral: float, z: float):
     half = PAD / 2
     return {
         "N": ((lateral, half, z), (-1, 0, 0), (0, 1, 0)),
@@ -771,7 +803,7 @@ def _face_frame(face: str, lateral: float, z: float):
     }[face]
 
 
-def _engrave_row_legend(
+def engrave_row_legend(
     rows: list[list[str]],
     pos: dict[str, tuple[float, float]],
     z_center: float = WALL_LABEL_Z,
@@ -806,7 +838,7 @@ def _engrave_row_legend(
         # Keep the (centre-aligned) glyphs clear of the rounded corners.
         limit = flat_half - 0.31 * WALL_LABEL_SIZE * len(text) - 0.3
         lateral = max(-limit, min(limit, lateral))
-        origin, x_dir, z_dir = _face_frame(face, lateral, z)
+        origin, x_dir, z_dir = face_frame(face, lateral, z)
         with BuildSketch(Plane(origin=origin, x_dir=x_dir, z_dir=z_dir)) as sk:
             Text(text, font_size=WALL_LABEL_SIZE, font_style=WALL_LABEL_STYLE)
         extrude(sk.sketch, amount=-WALL_LABEL_DEPTH, mode=Mode.SUBTRACT)
@@ -1043,7 +1075,7 @@ def create_base(
     """
     total_h = foot_top + collar_h
     with BuildPart() as base:
-        add(_gridfinity_foot())
+        add(gridfinity_foot())
 
         # Full-width body from the pad top up to the shoulder.
         with BuildSketch(Plane.XY.offset(BASE_H)):
@@ -1059,7 +1091,7 @@ def create_base(
         extrude(amount=collar_h)
         # Snap groove around the collar (mates with the cover's internal bead).
         add(
-            _snap_ring(COLLAR_W, COLLAR_R, foot_top + SNAP_Z, SNAP_GROOVE_R),
+            snap_ring(COLLAR_W, COLLAR_R, foot_top + SNAP_Z, SNAP_GROOVE_R),
             mode=Mode.SUBTRACT,
         )
 
@@ -1069,13 +1101,13 @@ def create_base(
         # Chamfer the collar's top outer rim (softer top edge + a lead-in for the
         # cover) via a boolean cut -- robust, unlike the flaky fillet op.
         add(
-            _rim_chamfer_tool(COLLAR_W, COLLAR_R, total_h, BASE_TOP_CHAMFER),
+            rim_chamfer_tool(COLLAR_W, COLLAR_R, total_h, BASE_TOP_CHAMFER),
             mode=Mode.SUBTRACT,
         )
 
         # Engrave the size legend into the body walls (all four sides).
         if rows and hole_pos:
-            _engrave_row_legend(rows, hole_pos, label_z, label_line_h)
+            engrave_row_legend(rows, hole_pos, label_z, label_line_h)
     return base.part
 
 
@@ -1128,7 +1160,7 @@ def create_cover(
             fillet(ceiling, CAP_FILLET)
         # Snap bead: a chamfered (ramped) ridge just inside the opening that
         # slides on gently and clicks into the groove on the base collar.
-        add(_snap_bead_ring(INNER_W, INNER_R, SNAP_Z))
+        add(snap_bead_ring(INNER_W, INNER_R, SNAP_Z))
 
         # Engraved label on the +Y flat face -- reading up it, or across it when
         # ``label_horizontal``. The glyphs are cut into the wall (durable, can't

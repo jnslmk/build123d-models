@@ -123,8 +123,8 @@ Packages — each has its own README with the full story:
 
 | Model | Description |
 |-------|-------------|
-| [`drill_storage`](models/drill_storage/README.md) | Gridfinity drill holders — one base/cover engine, one holder per tool set (`.wood`, `.metal`, `.hex`) |
-| [`drill_fit_tester`](models/drill_fit_tester/README.md) | Coupons that settle how a `drill_storage` bore grips a bit (`.plain`, `.taper`, `.sweep`, `.small`, `.full`) |
+| [`drill_storage`](models/drill_storage/README.md) | Gridfinity drill holders — one base/cover engine, one holder per tool set (`.wood`, `.metal`, `.hex`), plus a two-material ASA+TPU variant (`.flex`) |
+| [`drill_fit_tester`](models/drill_fit_tester/README.md) | Coupons that settle how a `drill_storage` bore grips a bit (`.plain`, `.taper`, `.sweep`, `.small`, `.full`, `.land`) |
 | [`led_profiles`](models/led_profiles/README.md) | Modular 24 V addressable COB linear lamp system: endcap, corner, strap, stand, feet, and three mounting scenes |
 | [`led_psu_enclosure`](models/led_psu_enclosure/README.md) | Weatherproof enclosure for a 24 V LED driver stack, with sliding-shutter vents and an optional fan yoke |
 
