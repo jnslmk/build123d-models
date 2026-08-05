@@ -125,7 +125,10 @@
   #vstatus { position: absolute; left: 12px; top: 10px; right: 12px; font-size: 12px; color: #cdd3db;
     background: rgba(20,23,28,.7); border: 1px solid #2a2f37; border-radius: 6px; padding: 5px 10px; z-index: 2; }
   #vstatus.err { color: #f0a5a5; border-color: #5c2f2f; }
-  #vstatus.hidden { display: none; }
+  /* Shared: the viewer's status line, and the download buttons an assembly
+     view does not offer. A class rather than the `hidden` attribute, because
+     both carry element rules that would otherwise have to be fought. */
+  .hidden { display: none; }
 
   /* Just-in-time opt-in card: shown the first time an action actually needs the
      WASM runtime, so a visitor who only browses and downloads never pays for it. */
@@ -640,6 +643,18 @@ function scheduleRegen() {
 // ---------------------------------------------------------------------------
 // Model selection
 // ---------------------------------------------------------------------------
+// Downloads are for parts you print. An assembly view is a scene -- parts in
+// their use pose, bought hardware among them -- so its STL is not a print job
+// and its STEP is not the geometry of record for any one part; the per-part
+// models beside it are what you download. The prebuilt files still exist (the
+// STL is the preview's fallback when a model has no GLB), the page just does
+// not offer them. Hidden, not disabled: a greyed-out button reads as "broken
+// here", and this is a deliberate absence.
+function showDownloads(on) {
+  el.btnStl.classList.toggle('hidden', !on);
+  el.btnStep.classList.toggle('hidden', !on);
+}
+
 function selectModel(name) {
   current = manifest.models.find((x) => x.name === name);
   if (!current) return;
@@ -650,6 +665,7 @@ function selectModel(name) {
   setEditorText(sources[current.source] || '# source unavailable');
   buildForm(current.params || []);
   lastStl = null; lastGlb = null; lastStep = null;
+  showDownloads(!current.assembly);
   el.btnStl.disabled = !current.stl;
   el.btnStep.disabled = !current.step;
   // Instant preview from the CI-rendered assets, whether or not the WASM runtime

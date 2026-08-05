@@ -15,6 +15,12 @@ from build123d import (
     loft,
 )
 
+# ``create()`` is the assembled sconce -- tubes, caps and mount in their use
+# pose -- so the website offers no STL/STEP for it (see
+# tessellate_models.model_is_assembly). ``create_print_layout()`` is the
+# printable counterpart.
+IS_ASSEMBLY = True
+
 # Diffuser tube
 TUBE_OUTER_DIAMETER = 40.0
 TUBE_WALL = 1.2

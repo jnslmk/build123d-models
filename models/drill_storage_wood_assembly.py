@@ -49,6 +49,12 @@ from models.drill_storage_wood import (
     _ROWS,
 )
 
+# "A display/verification model, not something to print" (above), which is
+# exactly what tessellate_models.model_is_assembly means: no STL/STEP download
+# on the website. The base and cover it shows are downloadable from
+# ``drill_storage_wood``.
+IS_ASSEMBLY = True
+
 # Overall length (mm) of each drill in the set. Graduated like a real brad-point
 # set -- small bits are short, the 10 mm is the longest at MAX_WOOD_DRILL_LEN so
 # the fit check is honest. Edit MAX_WOOD_DRILL_LEN in drill_storage_wood to drive

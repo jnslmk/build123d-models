@@ -20,6 +20,9 @@ from .. import mount_config as m
 from .. import strap as strap_mod
 from ..assembly import PARAMS, parts as lamp_parts
 
+# A scene, not a print job -- see tessellate_models.model_is_assembly.
+IS_ASSEMBLY = True
+
 # Airy/Bessel points: the two-point support that levels a simply-supported
 # beam's ends with its own midspan sag -- the standard way to rest or hang a
 # long, floppy thing (an optical flat, a surveyor's staff) without visible
@@ -71,6 +74,7 @@ def create(length: float = c.LENGTH) -> Compound:
 
 __all__ = [
     "BESSEL_FRACTION",
+    "IS_ASSEMBLY",
     "PARAMS",
     "bessel_points",
     "create",

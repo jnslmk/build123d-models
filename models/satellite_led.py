@@ -26,6 +26,11 @@ from build123d import (
 )
 from ocp_vscode import show
 
+# A scene: rod, strips, mirror and diffusers in their use pose. Not a print job
+# -- see tessellate_models.model_is_assembly, which is what drops the website's
+# STL/STEP download for it.
+IS_ASSEMBLY = True
+
 HEX_LENGTH = 495.0
 HEX_FLATS = 21.0
 HEX_APOTHEM = HEX_FLATS / 2

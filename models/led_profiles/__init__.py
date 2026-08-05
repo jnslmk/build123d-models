@@ -31,7 +31,15 @@ from .profile import create_diffuser, create_extrusion, create_strip
 from .stand import create_stand_hub
 from .strap import create_strap
 
+# ``create()`` is a finished lamp: bought aluminium, bought diffuser, the COB
+# strip, and both endcaps in place. Nothing about that mesh is a print job, so
+# the website offers no STL/STEP for it -- the printed parts have their own
+# models. Same for every scene under ``assemblies/``. See
+# tessellate_models.model_is_assembly.
+IS_ASSEMBLY = True
+
 __all__ = [
+    "IS_ASSEMBLY",
     "PARAMS",
     "config",
     "create",

@@ -18,4 +18,10 @@ and ``docs/`` for the design rationale and the researched component dimensions.
 
 from .assembly import create, create_mocks_only, create_print_layout
 
-__all__ = ["create", "create_print_layout", "create_mocks_only"]
+# ``create()`` is the enclosure with its contents mocked up inside, so it is a
+# scene, not a print job -- no STL/STEP download on the website (see
+# tessellate_models.model_is_assembly). The parts are downloadable one at a
+# time (``led_psu_enclosure.tray`` and friends).
+IS_ASSEMBLY = True
+
+__all__ = ["IS_ASSEMBLY", "create", "create_print_layout", "create_mocks_only"]

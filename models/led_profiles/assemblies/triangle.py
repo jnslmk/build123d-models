@@ -23,6 +23,9 @@ from .. import mount_config as m
 from .. import strap as strap_mod
 from ..assembly import PARAMS, parts as lamp_parts
 
+# A scene, not a print job -- see tessellate_models.model_is_assembly.
+IS_ASSEMBLY = True
+
 # The tube's underside, above a corner's own back face (z=0) -- see the
 # CONVENTIONS note this package works under: mount_config measures z from the
 # bed, a corner adds its plinth on top of that.
@@ -141,6 +144,7 @@ def create(length: float = c.LENGTH) -> Compound:
 
 __all__ = [
     "CORNER_TUBE_LIFT",
+    "IS_ASSEMBLY",
     "PARAMS",
     "create",
     "create_triangle",

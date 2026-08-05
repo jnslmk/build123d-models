@@ -21,6 +21,9 @@ from .. import strap as strap_mod
 from ..assembly import PARAMS, parts as lamp_parts
 from ..endcap import CAP_T
 
+# A scene, not a print job -- see tessellate_models.model_is_assembly.
+IS_ASSEMBLY = True
+
 # Rotates a tube-local part (config's own convention: x along the tube from
 # its near end, y = u, z = height from the underside, centred at HEIGHT / 2)
 # so the tube's length axis becomes vertical. Verified against unit vectors:
@@ -84,4 +87,4 @@ def create(length: float = c.LENGTH) -> Compound:
     return create_standing(length)
 
 
-__all__ = ["PARAMS", "STAND_UPRIGHT", "create", "create_standing"]
+__all__ = ["IS_ASSEMBLY", "PARAMS", "STAND_UPRIGHT", "create", "create_standing"]

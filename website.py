@@ -21,7 +21,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from tessellate_models import MODELS, model_params
+from tessellate_models import MODELS, model_is_assembly, model_params
 
 HERE = Path(__file__).parent.resolve()
 EXPORTS = HERE / "exports"
@@ -75,7 +75,13 @@ def _label(name: str) -> str:
 
 
 def _manifest() -> dict:
-    """Per-model metadata for the UI (labels, PARAMS, prebuilt-asset paths)."""
+    """Per-model metadata for the UI (labels, PARAMS, prebuilt-asset paths).
+
+    ``assembly`` is what the page's two download buttons key off: a scene has
+    no STL or STEP worth handing anyone (see
+    ``tessellate_models.model_is_assembly``), so the buttons are hidden rather
+    than offered on a mesh nobody can print.
+    """
     models = []
     for name in MODELS:
         stl = EXPORTS / f"{name}.stl"
@@ -87,7 +93,10 @@ def _manifest() -> dict:
                 "name": name,
                 "label": _label(name),
                 "params": model_params(name),
+                "assembly": model_is_assembly(name),
                 "source": _source_path(name),
+                # Kept even for an assembly, which offers no STL download: it is
+                # the preview's fallback when a model has no GLB.
                 "stl": f"exports/{name}.stl" if stl.exists() else None,
                 "step": f"exports/{name}.step" if step.exists() else None,
                 "glb": f"exports/{name}.glb" if glb.exists() else None,

@@ -63,6 +63,24 @@ def model_params(name: str) -> list[dict]:
     return list(getattr(_module(name), "PARAMS", []))
 
 
+def model_is_assembly(name: str) -> bool:
+    """True if this model is a *scene* rather than something you print.
+
+    An assembly view shows parts in their use pose, usually with bought
+    hardware among them -- the lamp in its tripod, the enclosure with its PSU
+    mocked up inside. Its mesh is not a print job and its B-rep is not the
+    geometry of record for any one part, so the website offers no STL/STEP
+    download for it; the per-part models next to it are what you download.
+
+    Declared per module as ``IS_ASSEMBLY = True``, the same way a parametric
+    model declares ``PARAMS``, so the fact lives with the model rather than in
+    a list here that would drift. Absent means a printable part -- the common
+    case, including multi-part *print layouts* like ``drill_storage_wood``
+    (base and cover, side by side on the bed), which are downloadable.
+    """
+    return bool(getattr(_module(name), "IS_ASSEMBLY", False))
+
+
 def get_part(name: str, params: dict | None = None):
     """Build a model part, optionally with parameters."""
     create = _module(name).create
