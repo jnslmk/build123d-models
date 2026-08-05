@@ -4,6 +4,7 @@
 
 - [Why the viewer is not verification](#why-the-viewer-is-not-verification)
 - [The instrument: `is_solid_at`](#the-instrument-is_solid_at)
+- [The angle instrument: `interior_angle` and `sharp_convex_edges`](#the-angle-instrument-interior_angle-and-sharp_convex_edges)
 - [The collector: `Report`](#the-collector-report)
 - [The runner: `uv run check`](#the-runner-uv-run-check)
 - [Print-pose assertions](#print-pose-assertions)
@@ -42,6 +43,53 @@ Boolean volume is the other useful probe, for interference rather than presence:
 `(a & b).volume` is the overlap between two parts. Used throughout
 `models/led_psu_enclosure/checks.py` to assert that a seated lid, a shelf or a
 component mock does not foul the shell.
+
+## The angle instrument: `interior_angle` and `sharp_convex_edges`
+
+`is_solid_at` answers questions about a point. Two more functions in
+`models/lib/checks.py` answer questions about an **edge**:
+
+- `interior_angle(part, edge, faces=None, probe=None) -> float | None` — the
+  dihedral angle *through the material* at an edge, in degrees: ~90 for a
+  square corner, ~135 for the two edges a 45° chamfer leaves, ~180 for a
+  tangent or filleted edge, ~270 for a concave step. `None` means the edge
+  could not be classified (a sliver, or not shared by exactly two faces).
+- `sharp_convex_edges(part, min_length=2.0, max_interior=120.0, allow=()) ->
+  ShapeList[Edge]` — every convex edge at least `min_length` long whose
+  interior angle is at most `max_interior`, i.e. sharp enough to want
+  breaking. The default `120` reports a raw 90° corner and passes the ~135°
+  a 45° chamfer leaves, so a treated part comes back clean. `allow` takes
+  `(predicate, reason)` pairs; anything a predicate matches is excluded, and
+  the reason is what the caller prints — turning "this edge happens to be
+  raw" into "this edge is raw *because*", which is the whole difference
+  between this check and the `AGENTS.md` prose it replaces
+  (`models/lib/checks.py:82-181`).
+
+Writing `interior_angle` surfaced two traps worth knowing before writing a
+similar check yourself, both silent:
+
+- **The intuitive convexity test is wrong, and it is wrong silently.**
+  Stepping out along the *sum* of the two adjacent faces' outward normals to
+  see whether you leave the solid looks like it should separate convex from
+  concave edges. It does not: a convex 90° edge and a concave 90° edge share
+  the exact same pair of outward normals. What differs between them is which
+  quadrant around the edge holds material, and the summed normal points into
+  the one empty quadrant *in both cases at once*. The test that actually
+  works probes the `n_b - n_a` quadrant instead, which is empty only when the
+  edge is convex (`models/lib/checks.py:90-114`).
+- **`Vector.get_angle` returns degrees, and so does the rest of build123d's
+  public API** — `Vector.rotate`, `Axis.angle_between`, `Rotation`, extrude's
+  `taper`, all of it. The trap is reaching for `math.degrees()` by reflex, as
+  if this one call were the radians exception to a radians library. It is
+  not, and there is no such exception to fall back on: wrap it anyway and it
+  silently double-converts, so every edge clears every threshold and the
+  check passes having verified nothing. `interior_angle` takes
+  `n_a.get_angle(n_b)` as already degrees, with a comment at the call site so
+  it is not re-"fixed."
+
+Both bugs are in the check itself, not the geometry, which is exactly why a
+new check needs to be shown failing on broken geometry before it is trusted —
+see "When to stop iterating" in `SKILL.md`.
 
 ## The collector: `Report`
 

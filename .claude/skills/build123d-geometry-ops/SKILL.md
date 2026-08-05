@@ -57,6 +57,28 @@ example in `models/led_profiles/endcap.py`. Because both are silent, they need a
 volume or point-sample check to catch — a collapsed part looks like a perfectly
 valid solid.
 
+## Selecting "the" face when there might be several
+
+A third silent failure, and the most common one across a family of near-identical
+parts: picking a single face or edge by **index** out of a sorted list —
+`faces().sort_by(Axis.Z)[0]` — when more than one member could tie for that
+position. It treats exactly one, and ties break in whatever order OCC's face list
+already happens to have, which is not specified.
+
+- **The naive form.** A bed with two or more coplanar faces (one per foot, one
+  per boss pad) and a single `sort_by(Axis.Z)[0]` treats one and ships the rest
+  untouched, identical in a projection.
+- **The second-order form.** Re-querying the list *between* passes avoids stale
+  references (`references/gotchas.md` §4) but does not restore identity: a
+  chamfer nudges the treated face's centroid enough to reorder the list, so
+  addressing members by index across passes can double-treat one and skip
+  another — with every call reporting success.
+
+Both are cured the same way: select by **predicate**, never by index into a
+sort — position, a purpose-built filter, or nearest-centroid matching against
+identity captured up front. Full worked examples, both from this repo:
+`references/gotchas.md` §9 and §10.
+
 ## Use the helpers that already exist
 
 `models/lib/edges.py`:
@@ -131,7 +153,20 @@ Stop when all of these hold. Not before, and — importantly — not after.
 - `uv run ruff check .` and `uv run ty check .` are clean.
 - The part is returned in print pose: flat on `z = 0`, print direction `+Z`. Assert
   it rather than eyeballing it (`part.bounding_box().min.Z`).
+- Run the `sharp_convex_edges` audit (`models/lib/checks.py`) and report the count
+  plus every allow-listed exception with its reason. Real parts have legitimate
+  square edges — sealing faces, thread flanks, heat-set insert mouths — and an
+  edge left raw is fine. An edge left raw **without a stated reason** is not: that
+  is the entire gap between this check and the `AGENTS.md` prose it replaces.
 - `uv run show <model>` has been run so the user can see the change live.
+
+**A new check must be demonstrated to fail on the pre-fix geometry before you
+trust it.** Monkeypatch the old constant back, or disable the treatment the check
+is meant to catch, and confirm it goes red. This costs about ten lines and is the
+only thing that separates a real check from a vacuous one: this family shipped
+185 passing assertions alongside a corner with one raw square edge
+(`models/lib/checks.py:16-18`), precisely because none of those assertions had
+ever been shown capable of failing against that defect.
 
 Do **not** keep tuning a chamfer length to coax an OCC edge op into working. Two
 failed lengths is the signal to switch to a boolean, not to try a third. The repo's
@@ -141,7 +176,9 @@ countersinks existed on the same face, 5 mm clear of it
 
 ## References
 
-- `references/gotchas.md` — the eight OCC, edge-selection, silent-collapse and
-  builder-scope traps, each with the symptom that identifies it and the fix.
-- `references/verification.md` — point-sampling the solid with `is_solid_at`, the
-  `Report` collector, the `uv run check` runner, and print-pose assertions.
+- `references/gotchas.md` — the ten OCC, edge-selection, silent-collapse,
+  builder-scope and list-identity traps, each with the symptom that identifies
+  it and the fix.
+- `references/verification.md` — point-sampling the solid with `is_solid_at`,
+  the dihedral-angle checks `interior_angle`/`sharp_convex_edges`, the `Report`
+  collector, the `uv run check` runner, and print-pose assertions.

@@ -12,6 +12,8 @@ Each entry is: the symptom you will actually observe, then the fix.
 - [6. A `BasePartObject` built inside a builder is already added](#6-a-basepartobject-built-inside-a-builder-is-already-added)
 - [7. Fusing a thread whose lead-in cuts into it returns the thread alone](#7-fusing-a-thread-whose-lead-in-cuts-into-it-returns-the-thread-alone)
 - [8. A `BuildSketch` opened in a helper function does not reach the caller's `BuildPart`](#8-a-buildsketch-opened-in-a-helper-function-does-not-reach-the-callers-buildpart)
+- [9. Indexing into a sorted face/edge list breaks the moment two are tied](#9-indexing-into-a-sorted-faceedge-list-breaks-the-moment-two-are-tied)
+- [10. Re-querying between chamfer passes reorders the list, so an index is not an identity](#10-re-querying-between-chamfer-passes-reorders-the-list-so-an-index-is-not-an-identity)
 
 ## 1. A failed fillet/chamfer corrupts the builder, and failures cascade
 
@@ -377,3 +379,95 @@ This is the same family as §6 and §7: build123d resolves the enclosing builder
 in a way that does not always follow the call stack, so **anything that has to
 reach the caller's builder should be a value you pass, not a side effect you
 rely on.**
+
+## 9. Indexing into a sorted face/edge list breaks the moment two are tied
+
+**Symptom.** You select "the" bottom face with `bp.faces().sort_by(Axis.Z)[0]`
+(or `.first`) and chamfer its `outer_wire()`. It works. Ship a second part in the
+same family that happens to have *two* faces at that same Z instead of one, and
+the selector still returns exactly one of them — the other is left with raw
+square edges, indistinguishable from the treated one in an SVG projection or a
+viewer screenshot.
+
+**Cause.** `sort_by` breaks ties in whatever order the underlying OCC face list
+already has, which is unspecified and not guaranteed stable across a rebuild.
+Indexing `[0]` after the sort silently assumes the key is unique among the
+faces present; nothing checks that assumption, and there is no error when it is
+false — only fewer edges getting treated than intended.
+
+Three real states of exactly this bug, all in `models/led_profiles`:
+
+- **The strap** used to chamfer its bed with this exact call. Both feet's bed
+  faces are coplanar at `z=0`, so it treated one foot and shipped the other
+  with four raw edges. Recorded, with the fix, in
+  `models/led_profiles/checks.py:773-780` and `strap.py:172-176` — the strap
+  now selects both bed faces by position (`_bed_edges`), never by index.
+- **The corner** (`models/led_profiles/corner.py:220-222`) still uses
+  `bp.faces().sort_by(Axis.Z)[0].outer_wire().edges()` today, against three
+  coplanar bed faces — confirmed by querying the built part:
+  `create_corner(60).faces().filter_by(Axis.Z).filter_by_position(Axis.Z,
+  -0.01, 0.01)` returns 3. It chamfers the right one only because today's
+  tie-break happens to favour it; nothing pins that down, and the call has no
+  way to notice if a future change adds a fourth bed face that sorts first.
+- **`endcap.py:224,228` and `stand.py:273`** use the same idiom and are safe
+  *today* only because each is called at a point in the build where exactly one
+  face sits at that extreme Z (verified: both parts currently have a single
+  face at their `sort_by(Axis.Z)[0]`/`[-1]` target). That is an invariant of
+  the current geometry, not something the call itself enforces — it is worth
+  re-checking whenever a caller adds a second boss, foot, or lip to either
+  part.
+
+**Fix.** Select by predicate over the *whole* set, never by position in a
+sorted list — by geometric position, by a purpose-built filter such as
+`cradle.bed_pads()` (`models/led_profiles/cradle.py:199-217`, which explicitly
+returns every bed pad rather than the lowest-indexed one), or by auditing the
+finished part with `models.lib.checks.sharp_convex_edges` to confirm nothing
+was left untreated.
+
+## 10. Re-querying between chamfer passes reorders the list, so an index is not an identity
+
+**Symptom.** The second-order form of §9, and harder to catch because the fix
+for stale references (§4) — re-query the live face list on every pass — is
+already in place. You collect "the four bed pads," then loop, re-querying and
+addressing each by index: `for i, pad in enumerate(bed_pads(bp)):
+chamfer_edge(bp, pad...)`. Every call returns `True`. One pad still comes out
+chamfered **twice** (1.6 mm off its footprint), and its mirror is left
+completely untreated.
+
+**Cause.** Re-querying fixes staleness, but a face list is not a stable
+identity across the operation that rebuilds it. Chamfering a pad insets its
+outline and nudges its centroid — enough to change where that pad falls in a
+`sort_by` ordering on the very next pass. An index that pointed at "pad 2"
+before the first chamfer can point at a *different* pad afterward, so
+addressing pads by index across passes silently double-treats one and skips
+another, and `chamfer_edge`'s return value cannot tell you this happened — it
+only reports whether the OCC call it was given succeeded, not whether that
+call targeted the right face.
+
+**Fix.** Capture identity *before* anything is touched — the pad centroids —
+then on each pass re-query the live list and match back to the **nearest**
+remaining centroid, never by index:
+
+```python
+for target in [face.center() for face in bed_pads(bp)]:
+    # Re-queried each pass, then matched back to where the pad *was* rather
+    # than by the index it had — chamfering moves a centroid by hundredths,
+    # and pads are tens of millimetres apart, so nearest-match is unambiguous
+    # even though the list order is not stable.
+    pad = min(bed_pads(bp), key=lambda f: (f.center() - target).length)
+    took.append(chamfer_edge(bp, pad.outer_wire().edges(), m.EDGE_CHAMFER))
+```
+
+`models/led_profiles/cradle.py:199-217` (`bed_pads`) and `:220-253`
+(`treat_edges`), with the regression recorded in both docstrings.
+
+**Detection.** A single sample per pad is not enough to catch this, and the
+obvious sample — diagonally out from the corner — is actively misleading:
+doubling a chamfer insets the flat face by 2x but barely moves the diagonal,
+so a diagonal-from-corner sample passes a footprint that has already lost
+1.6 mm. `models/led_profiles/checks.py:547-562` (`_chamfer_pair`) samples
+along one face instead, 1.5x the chamfer size in from the edge, which is what
+actually catches a double application; `check_boss_pad_edges`
+(`checks.py:565-571`) then runs that pair **per pad** rather than once for
+all four, because a single sample anywhere on the part would have passed
+regardless of which pad was wrong.

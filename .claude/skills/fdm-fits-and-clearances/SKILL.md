@@ -145,6 +145,37 @@ suspect, not the CAD
 
 Printer-specific baselines are in `references/printers.md`.
 
+## Rule 7 — a typed constant that equals a derived envelope dimension is the bug, not a coincidence
+
+If a clearance-adjacent constant matches another dimension in the same file to the
+decimal, that is not confirmation the number is right — it means nobody wrote the
+relationship down, so nobody could see it collide. Two real instances, both from
+`models/led_profiles`:
+
+- `mount_config.BOSS_U` was typed as `19.5`, which is `mount_config.ARCH_HALF_W`
+  (also `19.5`) exactly. The strap's bolt axis sat *on* its own arch flank: the
+  hole's mouth came out bisected by the arch springing and an M4 head fouled the
+  flank by 2.6 mm, so the strap could not be bolted down
+  (`models/led_profiles/mount_config.py:99-111`). `BOSS_U` is now
+  `arch_half_width(FOOT_H) + BOLT_HEAD_D / 2 + BOLT_HEAD_CLEAR` — derived from the
+  envelope it has to clear the flank by, not typed against it.
+- `feet.PAD_U_OUT` was `26.0`, which is `HOLE_U + EYE_CBORE_D / 2` (also `26.0`)
+  exactly. The eye foot's M6 nyloc pocket had a zero-thickness outboard wall, on
+  the one part in the family rated for 20 kg of shock, and the same tangency
+  stopped OCC chamfering that pad's rim at all (`models/led_profiles/feet.py:66-80`).
+  `PAD_U_OUT` is now `HOLE_U + max(EYE_CBORE_D, WALL_CBORE_D) / 2 + PAD_WALL`, with
+  `PAD_WALL` a named minimum wall rather than an accident of arithmetic.
+
+Same class both times: a constant that should have been written as an expression
+got typed as its evaluated result instead, so the relationship it depends on
+became invisible and free to drift the moment either end moved.
+
+**When a clearance-adjacent constant goes into a model, ask what it has to clear,
+and check whether that quantity is already a constant in the same file.** If the
+two match, write the dependent one as the derivation — even a one-line one — so
+the next person who moves the other end of that relationship gets a changed
+number instead of a silent collision.
+
 ## Procedure
 
 1. **State the requirement in words first.** "The lid must drop on and come off by hand

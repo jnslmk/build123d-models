@@ -2,9 +2,9 @@
 
 Two ways to put a chamfer on a part, and the choice is not stylistic:
 
-* ``chamfer_edge`` wraps the OCC edge op with snapshot/restore, so a failure is
-  isolated instead of corrupting the builder and silently killing every *later*
-  chamfer too.
+* ``chamfer_edge`` (and ``fillet_edge``) wrap the OCC edge op with
+  snapshot/restore, so a failure is isolated instead of corrupting the builder
+  and silently killing every *later* chamfer too.
 * ``top_chamfer_tool`` builds a **boolean** chamfer instead -- an oversized slab
   minus a lofted keep-frustum. Booleans cannot fail the way OCC edge ops do.
 
@@ -29,6 +29,7 @@ from build123d import (
     add,
     chamfer,
     extrude,
+    fillet,
     loft,
 )
 
@@ -57,6 +58,26 @@ def chamfer_edge(builder: BuildPart, edges, size: float) -> bool:
     except Exception as exc:  # noqa: BLE001 -- OCC edge ops are flaky
         builder.part = saved  # ty: ignore[invalid-assignment]
         print(f"warning: chamfer skipped ({exc})")
+        return False
+
+
+def fillet_edge(builder: BuildPart, edges, radius: float) -> bool:
+    """Fillet edges, isolating an OCC failure so it cannot cascade.
+
+    The companion to ``chamfer_edge``, for the vertical edges the house rule
+    wants rounded rather than chamfered. Same contract: returns True if it took,
+    and restores the builder if it did not, because OCC's fillet fails the same
+    all-or-nothing way -- and unlike a chamfer it also fails whenever the radius
+    does not fit the narrowest adjacent face, which is a size problem rather
+    than a topology one. Walk a decreasing ladder if the radius is negotiable.
+    """
+    saved = builder.part
+    try:
+        fillet(edges, radius=radius)
+        return True
+    except Exception as exc:  # noqa: BLE001 -- OCC edge ops are flaky
+        builder.part = saved  # ty: ignore[invalid-assignment]
+        print(f"warning: fillet skipped ({exc})")
         return False
 
 

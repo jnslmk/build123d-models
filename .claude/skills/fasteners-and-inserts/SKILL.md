@@ -131,6 +131,23 @@ table in [references/alternatives.md][r-alt].
 - **Verify boss geometry in code**, not in the viewer. Point-sample with
   `BRepClass3d_SolidClassifier` to confirm the boss wall is solid and the
   pocket depth is what the constant says.
+- **A fastener is not designed until head AND driver access is asserted** —
+  "the hole is the right size" and "the fastener fits" are different
+  questions, and only the second one means the part can be assembled. The
+  usual check, `BOLT_CLEAR_D < INSERT_D` ("the bolt cannot jack the insert
+  out"), is true and useless on its own: `models/led_profiles`'s strap had its
+  bolt axis sitting exactly on the arch's own flank, an M4 socket head fouled
+  that flank by 2.6 mm, and the strap could not be bolted down at all — while
+  `BOLT_CLEAR_D < INSERT_D` passed, right next to the failure, in
+  `models/led_profiles/checks.py:761-767`. Assert clearance for the head *and*
+  the driver with `models.lib.checks.fastener_clearance(part, at, head_d,
+  head_h, direction=None, driver_d=None, driver_len=0.0)`, which places a
+  cylinder (plus a driver-sized cylinder above it, if given) where the
+  fastener has to sit and returns the mm³ of the part's own material fouling
+  it — non-zero means it cannot be installed. `check_bolt_clears_arch`
+  (`models/led_profiles/checks.py:877-915`) predates this helper and
+  hand-rolls the same head-slug-intersected-with-the-part technique; reach for
+  `fastener_clearance` in new checks instead of re-deriving it.
 
 ## Quick numbers
 
