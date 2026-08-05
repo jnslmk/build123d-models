@@ -235,20 +235,37 @@ def fastener_clearance(
 
 
 class Report:
-    """Collects pass/fail lines so one run shows every problem, not just the first."""
+    """Collects pass/fail lines so one run shows every problem, not just the first.
+
+    Alongside the human-readable ``lines``/``failures`` this has always kept,
+    every ``check()`` call is also recorded in ``entries`` -- one dict per
+    assertion with its section, name, result and (free-text) measured/expected
+    detail. That is what lets ``uv run check <name> --json <path>`` (see
+    ``check.py``) hand back the whole run as structured data instead of only
+    its pass/fail lines, an idea adapted from cyberchitta/cad-khana's
+    ``mechanism.json`` (Apache-2.0) -- see ``check.py`` for the attribution.
+    ``entries`` is purely additive: nothing that reads ``lines``, ``failures``
+    or ``render()`` sees a difference.
+    """
 
     def __init__(self) -> None:
         self.failures: list[str] = []
         self.lines: list[str] = []
+        self.entries: list[dict] = []
+        self._section: str = ""
 
     def check(self, ok: bool, label: str, detail: str = "") -> None:
         mark = "PASS" if ok else "FAIL"
         self.lines.append(f"  [{mark}] {label}{(' -- ' + detail) if detail else ''}")
+        self.entries.append(
+            {"section": self._section, "name": label, "passed": ok, "detail": detail}
+        )
         if not ok:
             self.failures.append(label)
 
     def section(self, title: str) -> None:
         self.lines.append(f"\n{title}")
+        self._section = title
 
     def render(self) -> str:
         tail = (
@@ -257,3 +274,16 @@ class Report:
             else "\nall checks passed"
         )
         return "\n".join(self.lines) + tail
+
+    def to_dict(self) -> dict:
+        """The same run as JSON-serialisable data: every assertion, in order.
+
+        ``passed``/``failed`` are counts over ``entries``, not over ``lines``,
+        so they match ``entries`` exactly even though ``failures`` (kept for
+        backward compatibility) records only failing labels.
+        """
+        return {
+            "assertions": self.entries,
+            "passed": sum(1 for e in self.entries if e["passed"]),
+            "failed": sum(1 for e in self.entries if not e["passed"]),
+        }

@@ -23,6 +23,7 @@ dependencies = [
 show = "show:main"
 export = "export_model:main"
 check = "check:main"
+check-diff = "check_diff:main"
 render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
@@ -45,7 +46,7 @@ packages = [
     "models.led_profiles.assemblies",
     "models.led_psu_enclosure",
 ]
-py-modules = ["fontfix", "show", "export_model", "check", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
+py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 
 [dependency-groups]
 dev = [

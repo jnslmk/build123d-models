@@ -14,13 +14,27 @@ Discovery, in order:
    model.
 3. Neither -- say so plainly and exit 0. A model without checks is not a
    failure, and reporting it as one would train people to ignore this command.
+
+``--json <path>`` additionally writes every assertion -- its section, name,
+pass/fail and (free-text) measured/expected detail -- to ``path`` as JSON,
+alongside the usual printed output and exit code. The idea is adapted from
+cyberchitta/cad-khana (https://github.com/cyberchitta/cad-khana, Apache-2.0
+licensed), whose ``khana check`` writes a structured ``mechanism.json``
+reporting interferences, clearances and every assertion's result, diffable
+with ``khana diff <old> <new>``. ``check_diff.py`` is this repo's counterpart
+to that ``diff`` command, comparing two ``--json`` reports.
+
+Without ``--json``, behaviour is unchanged from before this was added: same
+discovery order, same stdout, same exit codes.
 """
 
 from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import sys
+from pathlib import Path
 from types import ModuleType
 
 
@@ -49,23 +63,107 @@ def _checks_submodule(module: ModuleType, name: str) -> ModuleType | None:
     return importlib.import_module(f"models.{name}.checks")
 
 
+def _write_json(path: str, payload: dict) -> None:
+    Path(path).write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def _run_package_checks_json(name: str, checks: ModuleType, json_path: str) -> None:
+    """``--json`` path for a package's ``checks`` submodule.
+
+    Prefers ``run() -> Report`` (both existing ``checks.py`` files split their
+    ``main()`` into exactly this plus printing + ``sys.exit``), which gives the
+    full per-assertion structure via ``Report.entries`` with no changes to the
+    model's own checks needed. A ``checks.py`` with only ``main()`` cannot be
+    captured this way; it still runs correctly, just without structured detail.
+    """
+    run_fn = getattr(checks, "run", None)
+    if callable(run_fn):
+        report = run_fn()
+        print(report.render())
+        _write_json(json_path, {"model": name, **report.to_dict()})
+        sys.exit(1 if report.failures else 0)
+
+    _write_json(
+        json_path,
+        {
+            "model": name,
+            "status": "unsupported",
+            "note": (
+                f"models.{name}.checks has main() but no run() -> Report, so "
+                "per-assertion detail could not be captured"
+            ),
+            "assertions": [],
+            "passed": 0,
+            "failed": 0,
+        },
+    )
+    checks.main()
+
+
+def _run_check_fn_json(name: str, fn, json_path: str) -> None:
+    """``--json`` path for a single-file model's ``check()``.
+
+    ``check()`` only ever reports one overall pass/fail (there is no ``Report``
+    instrumentation at this tier), so it is recorded as a single synthetic
+    assertion rather than nothing.
+    """
+    try:
+        result = fn()
+    except AssertionError as exc:
+        print(f"FAILED: {exc}")
+        entry = {"section": "", "name": "check()", "passed": False, "detail": str(exc)}
+        _write_json(
+            json_path, {"model": name, "assertions": [entry], "passed": 0, "failed": 1}
+        )
+        sys.exit(1)
+
+    ok = result is not False
+    entry = {"section": "", "name": "check()", "passed": ok, "detail": ""}
+    _write_json(
+        json_path,
+        {
+            "model": name,
+            "assertions": [entry],
+            "passed": 1 if ok else 0,
+            "failed": 0 if ok else 1,
+        },
+    )
+    sys.exit(0 if ok else 1)
+
+
 def main() -> None:
-    if len(sys.argv) < 2:
+    argv = sys.argv[1:]
+    json_path: str | None = None
+    if "--json" in argv:
+        i = argv.index("--json")
+        if i + 1 >= len(argv):
+            print("Usage: uv run check <name> [--json <path>]")
+            sys.exit(1)
+        json_path = argv[i + 1]
+        argv = argv[:i] + argv[i + 2 :]
+
+    if len(argv) < 1:
         print("Usage: uv run check <name>")
         print("Example: uv run check led_psu_enclosure")
         sys.exit(1)
 
-    name = sys.argv[1]
+    name = argv[0]
     module = _load_model(name)
 
     checks = _checks_submodule(module, name)
     if checks is not None and callable(getattr(checks, "main", None)):
+        if json_path is not None:
+            _run_package_checks_json(name, checks, json_path)
+            return
         # Its main() owns the exit code (it knows how many assertions failed).
         checks.main()
         return
 
     fn = getattr(module, "check", None)
     if callable(fn):
+        if json_path is not None:
+            _run_check_fn_json(name, fn, json_path)
+            return
         try:
             result = fn()
         except AssertionError as exc:
@@ -74,6 +172,17 @@ def main() -> None:
         sys.exit(1 if result is False else 0)
 
     print(f"Model '{name}' has no checks defined (no checks.main(), no check()).")
+    if json_path is not None:
+        _write_json(
+            json_path,
+            {
+                "model": name,
+                "status": "no_checks",
+                "assertions": [],
+                "passed": 0,
+                "failed": 0,
+            },
+        )
     sys.exit(0)
 
 
