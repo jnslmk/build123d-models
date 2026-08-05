@@ -583,6 +583,10 @@ function onWorkerMessage(ev) {
   else if (m.type === 'ready') {
     runtimeState = 'ready'; setRuntimePill();
     log('runtime ready — change a parameter or edit the code to rebuild live');
+    // Drop the last boot message ("Loading model sources…"): the pill already
+    // says ready, and an auto-started runtime has no queued job to overwrite it.
+    // drainPending() repaints the overlay itself when a job is waiting.
+    setVStatus('');
     drainPending();
   }
   else if (m.type === 'result') {
