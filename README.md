@@ -15,19 +15,23 @@ uv sync
 
 ## Viewing Models
 
-Start the transparent viewer:
-
 ```bash
-uv run viewer
+uv run show cube
 ```
 
-In another terminal, run a model:
+The viewer starts in the background on first use and stays open, so subsequent
+`uv run show` calls just swap the model in it.
+
+Models are addressed by **name**, and a name is a module path under `models/`
+with dots for directories:
 
 ```bash
-uv run model cube
+uv run show led_profiles                      # models/led_profiles/__init__.py
+uv run show led_profiles.stand                # models/led_profiles/stand.py
+uv run show led_profiles.assemblies.standing  # one directory deeper
 ```
 
-The model will appear in the viewer window.
+The same name works for `export`, `render`, `render-a4` and `check`.
 
 ## Rendering to SVG
 
@@ -50,13 +54,53 @@ uv run render-a4 cube
 uv run render-a4 door_latch exports/door_latch_views.pdf
 ```
 
-## Building All Models
+## Exporting
+
+A single model, to `exports/`:
+
+```bash
+uv run export cube                    # STL (+ per-child STLs, + GLB)
+uv run export cube --step             # also STEP
+```
+
+All of them:
 
 ```bash
 uv run python main.py
 ```
 
-Exports are saved to `exports/` as STEP and STL files.
+## Checking
+
+Ribs, wall gaps and fit clearances are invisible in a projection, so models
+verify themselves in code. `check` runs those assertions and exits non-zero when
+they fail:
+
+```bash
+uv run check led_psu_enclosure
+```
+
+## Repository Structure
+
+```text
+models/          the models — one file or one package each
+models/lib/      helpers shared across models (edges, checks, fits)
+exports/         generated STL / STEP / GLB / renders (untracked)
+website/         the static Pyodide site
+docs/plans/      design documents
+tests/           pytest suite
+```
+
+A model is either a **single file** (`models/cube.py`) or a **package**
+(`models/led_psu_enclosure/`) — nothing in between. Both expose a zero-arg
+`create()` returning the part in its print pose, which is the only thing every
+entry point needs. A package additionally carries its own `config.py`, one
+module per printable part, `checks.py`, a `README.md` and a `docs/` folder, and
+is the required shape as soon as a model grows a second part, a second view,
+measured hardware constants, or a sibling that imports from it.
+
+The full specification — the promotion rule, naming, where shared geometry goes,
+how a model gets registered, and the places the tree still deviates — is in
+[AGENTS.md](AGENTS.md#model-structure).
 
 ## CI/CD
 
@@ -71,6 +115,30 @@ View live at: https://jnslmk.github.io/build123d-models/
 
 ## Models
 
+Packages — each has its own README with the full story:
+
 | Model | Description |
 |-------|-------------|
-| `cube.py` | Simple 20mm cube |
+| [`led_profiles`](models/led_profiles/README.md) | Modular 24 V addressable COB linear lamp system: endcap, corner, strap, stand, feet, and three mounting scenes |
+| [`led_psu_enclosure`](models/led_psu_enclosure/README.md) | Weatherproof enclosure for a 24 V LED driver stack, with sliding-shutter vents and an optional fan yoke |
+
+Single-file models:
+
+| Model | Description |
+|-------|-------------|
+| `cube` | Simple parametric cube — the minimal example |
+| `door_latch` | Rounded L-shaped door latch that pivots around a screw hole |
+| `slotted_plate` | Door latch plate: slot with a tapered entry ramp |
+| `drill_storage_gridfinity` | Gridfinity drill storage tubes, square-base variant |
+| `drill_storage_wood` | Gridfinity storage for a 2–10 mm brad-point drill set |
+| `drill_storage_metal` | Gridfinity storage for a 1–10 mm HSS twist drill set |
+| `drill_storage_hex` | Gridfinity storage for a 16-piece 1/4" hex-shank bit set |
+| `drill_storage_wood_assembly` | Assembled view: base + drills + cover |
+| `drill_fit_tester` | Fit-test coupons for the `drill_storage_wood` bores |
+| `drill_fit_tester_plain` | Plain-hole fit-test coupon |
+| `drill_fit_tester_taper` | Tapered-hole fit-test coupon |
+| `lens_cap` | Parametric push-on lens cap |
+| `round_snap_box` | Round box with a snap-on lid that closes flush |
+| `satellite_led` | Hexagonal rod with WS2811 strips, parabolic mirror and diffuser |
+| `spiral_vase_lampshade` | Spiral-vase lampshade with twisted ribs and a breathing wave profile |
+| `wall_bar_lamp` | Wall-mounted linear bar lamp, double-ended tube sconce |

@@ -49,30 +49,134 @@ This opens the model in the 3D viewer so you can confirm geometry, orientation, 
 
 This is a collection of 3D printable models using build123d (Python CAD library).
 
-- `models/` - Individual model files, each with a `create_*()` function and `main()` for export
-- `exports/` - Generated STEP and STL files (not tracked in git)
-- `main.py` - Entry point that builds and exports all models
+- `models/` - The models themselves, one module or one package each (see **Model Structure**)
+- `models/lib/` - Helpers shared *across* models: `edges`, `checks`, `fits`
+- `exports/` - Generated STL / STEP / GLB / render assets (not tracked in git)
+- `main.py` - Builds and exports the whole roster; `BUILDERS` is its registry
+- `tessellate_models.py` - `MODELS`, the roster the website and CI read
+- `show.py` / `export_model.py` / `check.py` / `render_svg.py` - the `uv run` entry points
+- `website.py` - Builds the static site bundle from `MODELS`
 
-## Model Pattern
+Every entry point addresses a model by **name**, and a name is a *module path under
+`models`* with dots for directories: `cube` is `models/cube.py`,
+`led_profiles.stand` is `models/led_profiles/stand.py`,
+`led_profiles.assemblies.standing` is nested one deeper. They all do the same
+thing — import `models.<name>` and call its zero-arg `create()`. Nothing else is
+needed to make a model showable, exportable, renderable and downloadable.
 
-Each model file follows this structure using **builder mode**:
+## Model Structure
 
-```python
-from build123d import BuildPart, Box, Part, export_step, export_stl
-from ocp_vscode import show
+A model is either **one file** or **one package**. There is no third shape, and
+which one a model gets is decided by the promotion rule below, not by taste.
 
-def create_thing() -> Part:
-    with BuildPart() as builder:
-        # Build geometry here
-        Box(10, 10, 10)
-    return builder.part
+### Tier 1 — single-file model
 
-def main() -> None:
-    part = create_thing()
-    show(part)
-    export_step(part, "exports/thing.step")
-    export_stl(part, "exports/thing.stl")
+```text
+models/<name>.py
 ```
+
+For a model that is one part, built in one file, that nothing else imports. Keep
+it a single file for exactly as long as all of that stays true.
+
+### Tier 2 — model package
+
+```text
+models/<name>/
+  __init__.py      # headline create(), IS_ASSEMBLY, re-exports, the docstring people read first
+  config.py        # measured + derived numbers. No geometry.
+  <part>.py        # one printed part per module, each with its own create()
+  assemblies/      # scenes, one module each, each IS_ASSEMBLY = True
+  printable.py     # print layout for the slicer, when the headline view is a scene
+  checks.py        # geometry assertions, with a main() that owns the exit code
+  README.md        # what it is, what hardware it fits, how to print it
+  docs/            # design-notes.md, part-data.md, assets/ (datasheets, SVGs)
+```
+
+Not every package needs every entry — `config.py`, `assemblies/`, `printable.py`
+and `docs/` appear when the model earns them. `__init__.py`, `README.md` and
+`checks.py` are the floor.
+
+### The promotion rule
+
+Promote a single file to a package as soon as **any one** of these becomes true.
+Do not wait for the second one:
+
+1. **A sibling wants to import from it.** One model reaching into another
+   model's module is the signal that they are one family sharing one library.
+2. **It grows a second showable view or a second printable part.** Each of them
+   needs its own module to be addressable by name.
+3. **It needs measured hardware constants.** Those belong in a `config.py` next
+   to the geometry that consumes them, not scattered as module-level literals.
+4. **It earns geometry assertions or written design notes.** `checks.py`,
+   `README.md` and `docs/` are package furniture.
+
+The promotion is mechanical: `models/<name>.py` becomes
+`models/<name>/__init__.py`, the shared numbers move to `config.py`, each part
+moves to its own module, and the roster names gain a dot. The website resolves a
+package name to its `__init__.py` automatically (`website._source_path`), so the
+Code panel keeps working.
+
+### Rules that hold in both tiers
+
+- **`create()` is the contract.** Zero-arg (or all-defaulted), returns a `Part`
+  or `Compound` **already in print pose**. Every entry point calls exactly this.
+  Named builders (`create_endcap()`, `create_print_layout()`) are welcome
+  alongside it, but `create()` is what the tooling binds to.
+- **One model, one module.** If a view cannot be reached as
+  `models.<something>`, it is not a model — it cannot be shown, exported,
+  rendered or put on the site. Splitting a second scene into its own module
+  costs nothing and buys it a name.
+- **Never encode hierarchy in underscores.** A part of `drill_storage` is
+  `drill_storage.wood`, not `drill_storage_wood`; its assembled view is
+  `drill_storage.assemblies.wood`, not `drill_storage_wood_assembly`. Dots are
+  the hierarchy; underscores are only for multi-word single names.
+- **No private cross-module imports.** `from models.other_model import _helper`
+  means the two are one family: make it a package and make the helper public in
+  a shared module.
+- **Shared geometry goes down, not sideways.** Shared within one family →
+  a module in that package (`led_profiles.cradle`). Shared across families →
+  `models/lib/`, and only once it is genuinely needed twice.
+- **Declare what the model is.** `PARAMS` (list of dicts) makes it parametric on
+  the website; `IS_ASSEMBLY = True` marks a scene that is not a print job, so no
+  STL/STEP download is offered. Both live in the model, never in a list
+  elsewhere that would drift.
+- **Verify in code.** A package gets `checks.py` with a `main()`; a single-file
+  model gets a module-level `check()`. `uv run check <name>` finds either.
+- **No `main()` in a model.** Building and exporting is `main.py`'s and
+  `export_model.py`'s job, and a `main()` that re-implements the export paths
+  drifts from them. `uv run show/export/render/check <name>` is the interface.
+- **Docs live with the model.** A package: `README.md` plus `docs/`. A
+  single-file model: the module docstring, which should say what it is, what it
+  fits and how it prints.
+
+### Registering a model
+
+A model exists for the site and CI only once it is in **both** hand-written
+rosters, and they must stay in sync:
+
+- `tessellate_models.MODELS` — the source of truth the website and CI read.
+- `main.py:BUILDERS` — name → builder, for the build-everything pass.
+
+Only modules with a zero-arg `create()` belong there. The shared pieces a part is
+built from (`led_profiles.cradle`, `led_psu_enclosure.config`, `models/lib`) are
+not models. A new package also has to be added to `[tool.setuptools] packages` in
+`pyproject.toml` — subpackages are not implied by their parent.
+
+### Known deviations
+
+The tree does not fully match this spec yet. These are the outstanding gaps —
+read them as work to be done, not as patterns to copy:
+
+- `drill_storage_*` (5 flat modules, one of them 1200 lines and doubling as the
+  family's library) and `drill_fit_tester_*` (6 flat modules importing each
+  other's private helpers) should each be one package.
+- `round_snap_box`, `drill_fit_tester_full`, `drill_fit_tester_small`,
+  `drill_fit_tester_sweep` and the `led_psu_enclosure` part modules
+  (`.tray`, `.lid`, `.shelf`, `.plate`, `.vent`, `.gasket`, `.printable`) have a
+  `create()` but are in neither roster, so they are invisible to the site.
+- Several models still carry a legacy `main()`; most of them cannot even be run
+  as a script, because their imports only resolve from the repo root.
+- No single-file model has a `check()`.
 
 ## build123d Style
 
