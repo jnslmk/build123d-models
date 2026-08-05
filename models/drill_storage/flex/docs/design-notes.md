@@ -83,49 +83,66 @@ span wants a *rigid* wall; gripping it wants a *compliant* one. A block is a
 compromise at both, and an expensive one — 33 cm³ of slow filament.
 
 Splitting them costs nothing. The shell is solid ASA below the cavity and bored at
-`GUIDE_FIT` (free) for 24.8 mm, which is the guide. The TPU is a **collar** centred
+`GUIDE_FIT` (free) for 23.2 mm, which is the guide. The TPU is a **collar** centred
 on its own retention bead — it reaches exactly as far below the bead as it stands
-above it, which is what fixes its height at 12.4 mm — and it does nothing but grip,
+above it — and that reach is the longer of what it must contain (land plus lead-in,
+or the bead's own ramp), so the collar comes out 8.0 mm and does nothing but grip,
 over a 3.5 mm land.
 
 | | TPU | ASA |
 |---|---|---|
-| full-height block | 33.2 cm³ | 20.4 cm³ |
-| collar + bored shell | **11.3 cm³** | 43.1 cm³ |
+| full-height block, 42 mm base | 33.2 cm³ | 20.4 cm³ |
+| collar + bored shell, 42 mm base | 11.3 cm³ | 43.1 cm³ |
+| collar + bored shell, **36 mm base** | **7.4 cm³** | **40.3 cm³** |
 
-Total material is about the same; two thirds of the *slow* half went away, and the
-guiding got better rather than worse.
+Two thirds of the *slow* half went away and the guiding got better rather than
+worse. The base then came down as well — 42 → **36 mm** — because with the bores no
+longer sunk from the top face, the height above the cover seat only has to hold the
+collar. That is a free 6 mm: the cover's groove sits at `SHELL_FOOT_TOP + SNAP_Z`,
+so shortening *above* the seat costs the cover nothing.
+
+The seat itself deliberately did not move. `SHELL_FOOT_TOP` feeds
+`cover_height_for`, so lowering it to 18 would save another ~6 cm³ but mint a
+115 mm cover for this model alone and end the shared-cover property. `checks.py`
+asserts the seat is still where the PETG base's is, so that trade cannot be made by
+accident.
+
+The base is no longer a whole Gridfinity Z unit, and does not need to be — what has
+to quantise is the assembled envelope, still 19U / 133 mm.
 
 ### The cost: the land moved up, and the small sizes got tighter
 
 The land was at world z 6.0–9.5 — the very bottom of the bore, deep in the plain
-shank of every bit in the set. It is now at **30.8–34.3**, because that is where
-the bottom of a bead-centred collar lands. That is close to the flute boundary on
-the smallest drills, and how close depends on which bits you own:
+shank of every bit in the set. It is now at **29.2–32.7**, because that is where
+the bottom of a bead-centred collar lands. That is nearer the flute boundary on the
+smallest drills, and how near depends on which bits you own:
 
 | d | jobber shank top | margin | brad-point shank top | margin |
 |---|---|---|---|---|
-| 2 | 31.0 | **−3.3** | 42.0 | +7.7 |
-| 2.5 | 33.0 | **−1.3** | 38.0 | +3.7 |
-| 3 | 34.0 | **−0.3** | 39.0 | +4.7 |
-| 3.5 | 37.0 | +2.7 | 37.0 | +2.7 |
-| 10 | 52.0 | +17.7 | 40.0 | +5.7 |
+| 2 | 31.0 | **−1.7** | 42.0 | +9.3 |
+| 2.5 | 33.0 | +0.3 | 38.0 | +5.3 |
+| 3 | 34.0 | +1.3 | 39.0 | +6.3 |
+| 3.5 | 37.0 | +4.3 | 37.0 | +4.3 |
+| 10 | 52.0 | +19.3 | 40.0 | +7.3 |
 
-Against DIN 338 **jobber** lengths the 2, 2.5 and 3 mm drills would be gripped
-partly on their flutes — which `bores-and-ribs.md` warns is how a grip feature gets
-broached away permanently, and TPU is softer than the PETG that lesson was learned
-on. Against the **brad-point** lengths this set actually uses
-(`assemblies/wood.DRILL_LENGTHS`), every size clears by at least 2.7 mm.
+Against the **brad-point** lengths this set actually uses
+(`assemblies/wood.DRILL_LENGTHS`) every size clears by at least 4.3 mm. Against DIN
+338 **jobber** lengths only the 2 mm is still short, and by 1.7 mm rather than the
+3.3 it was before the base came down to 36 — shortening the base moves the land
+*down*, so it improves this margin rather than costing it. `bores-and-ribs.md` is
+where the flute warning comes from: hardened spurs broach a grip feature away
+permanently, and TPU is softer than the PETG that lesson was learned on.
 
-So it is fine for the wood set as specified and **not** obviously fine for a jobber
-twist set like `drill_storage.metal`. Neither table is measured off real bits; both
-are reference figures. Measure the shank on the smallest drill you own before
-printing a collar for a set other than this one.
+So it is fine for the wood set as specified and **marginal** for a jobber twist set
+like `drill_storage.metal`. Neither table is measured off real bits; both are
+reference figures. Measure the shank on the smallest drill you own before printing
+a collar for a set other than this one.
 
-Mitigations, if it bites: lower `BEAD_Z` (moves the whole collar down, but it has
-to stay clear of the cover's groove at z=30), or raise `GUIDE_FLOOR_Z` so the bits
-stand higher — which changes `bore_floor_z` and therefore the cover height, so it
-costs the cover interchangeability.
+Mitigations, if it bites: shorten `SHELL_COLLAR_H` further (the whole collar, and
+therefore the land, follows the rim down — but the bead has to stay clear of the
+cover's groove at z=30, and `GROOVE_SEPARATION` is down to 3.2 mm), or raise
+`GUIDE_FLOOR_Z` so the bits stand higher — which changes `bore_floor_z` and
+therefore the cover height, so it costs the shared cover.
 
 ## What the shell wall costs
 
@@ -197,7 +214,7 @@ under one and letting a drill fall through.
   unchanged, and `COVER_WALL = 1.2` was sized to flex in PETG. ASA is stiffer and
   more brittle; the bead may want less protrusion. Nothing here changes it, and
   nothing here has tested it.
-- **Does 24.8 mm of ASA guide plus a 3.5 mm land hold a drill straight enough?**
+- **Does 23.2 mm of ASA guide plus a 3.5 mm land hold a drill straight enough?**
   The guide is free-fit (+0.25 diametral) over a long span, which should be far
   better than the old all-TPU arrangement, but that is arithmetic, not a print.
 - **The bore layout is still cramped by the shell wall.** If it ever needs to give

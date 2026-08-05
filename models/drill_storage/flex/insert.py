@@ -2,8 +2,9 @@
 
 A **collar**, not a block: it reaches exactly as far below its retention bead as
 it stands above it, so the bead sits on its mid-plane and the whole part is
-12.4 mm of TPU. Everything under it is ASA, bored at a free fit. The shell guides
-a drill over 24.8 mm; this grips it over 3.5.
+8.0 mm of TPU -- and that reach is itself derived from what it has to contain, so
+the collar is as short as its own features allow. Everything under it is ASA,
+bored at a free fit. The shell guides a drill over 23.2 mm; this grips it over 3.5.
 
 Each bore is **plain and round -- no ribs**: TPU supplies the compliance the PETG
 base had to build out of three sprung beads. What it does *not* supply is a way

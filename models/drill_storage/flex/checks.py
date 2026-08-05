@@ -25,10 +25,11 @@ from ...lib.checks import Report as Report
 from ...lib.checks import is_solid_at as is_solid_at
 from ...lib.checks import sharp_convex_edges
 from ..box import (
-    BASE_TOTAL_H,
     COLLAR_W,
     FOOT_TOP,
+    HEIGHT_UNIT,
     PAD,
+    SNAP_GROOVE_R,
     SNAP_Z,
     cover_height_for,
 )
@@ -104,8 +105,8 @@ def check_envelope(shell: Part, insert: Part, r: Report) -> None:
     r.check(abs(sb.size.X - PAD) < 0.01 and abs(sb.size.Y - PAD) < 0.01,
             "shell footprint is one Gridfinity pad",
             f"{sb.size.X:.2f} x {sb.size.Y:.2f} mm")
-    r.check(abs(sb.size.Z - BASE_TOTAL_H) < 0.01,
-            "shell is 6 Gridfinity Z units tall", f"{sb.size.Z:.1f} mm")
+    r.check(abs(sb.size.Z - c.SHELL_TOTAL_H) < 0.01,
+            "shell is SHELL_TOTAL_H tall", f"{sb.size.Z:.1f} mm")
     r.check(abs(sb.min.Z) < 0.01, "shell sits on z=0 (print pose)",
             f"min z {sb.min.Z:.3f}")
 
@@ -128,29 +129,56 @@ def check_envelope(shell: Part, insert: Part, r: Report) -> None:
     r.check(abs(c.CART_H - 2 * c.CART_ABOVE_BEAD) < TOL,
             "collar height is exactly twice its above-bead reach",
             f"{c.CART_H:.2f} mm")
-    r.check(c.CART_H > c.LAND_H + c.LAND_LEAD_IN + c.BEAD_BACK,
-            "collar is still tall enough for land, lead-in and bead",
-            f"{c.CART_H:.2f} mm vs "
-            f"{c.LAND_H + c.LAND_LEAD_IN + c.BEAD_BACK:.2f} mm needed")
+    # The reach is derived from what it must contain, so check both halves of
+    # that derivation rather than just the total.
+    r.check(c.CART_BELOW_BEAD >= c.LAND_H + c.LAND_LEAD_IN - TOL,
+            "reach below the bead covers the land and its lead-in",
+            f"{c.CART_BELOW_BEAD:.2f} mm vs "
+            f"{c.LAND_H + c.LAND_LEAD_IN:.2f} mm needed")
+    r.check(c.CART_BELOW_BEAD >= c.BEAD_LEAD_IN - TOL,
+            "reach below the bead covers the bead's own insertion ramp",
+            f"{c.CART_BELOW_BEAD:.2f} mm vs {c.BEAD_LEAD_IN:.2f} mm needed")
+    r.check(c.CART_ABOVE_BEAD >= c.BEAD_BACK + c.CART_PROUD - TOL,
+            "reach above the bead covers its retention face and the grip lip",
+            f"{c.CART_ABOVE_BEAD:.2f} mm vs "
+            f"{c.BEAD_BACK + c.CART_PROUD:.2f} mm needed")
 
 
 def check_cover_interface(r: Report) -> None:
-    """The reason the collar was left alone: old covers still fit."""
+    """The seat is the one dimension that must NOT move.
+
+    ``SHELL_COLLAR_H`` came down from 18 to 12 and cost the cover nothing, because
+    the cover's groove sits at ``SHELL_FOOT_TOP + SNAP_Z``. Lowering the *seat*
+    would be a different matter: it feeds ``cover_height_for``, so this model would
+    mint its own taller cover and stop sharing the PETG one.
+    """
     r.section("cover interface")
-    h = cover_height_for(MAX_WOOD_DRILL_LEN, headroom=COVER_TIP_CLEARANCE)
+    h = cover_height_for(MAX_WOOD_DRILL_LEN, headroom=COVER_TIP_CLEARANCE,
+                         foot_top=c.SHELL_FOOT_TOP)
     r.check(abs(h - COVER_H_WOOD) < TOL,
             "an existing drill_storage.wood cover fits this shell",
             f"cover_height_for -> {h:.1f} mm, wood cover {COVER_H_WOOD:.1f} mm")
+    r.check(abs(c.SHELL_FOOT_TOP - FOOT_TOP) < TOL,
+            "the cover seat still sits where the PETG base's does",
+            f"{c.SHELL_FOOT_TOP:.1f} mm -- lower it and the shared cover is lost")
     r.check(abs(c.GUIDE_FLOOR_Z - 6.0) < TOL,
             "drills still bottom out at BORE_FLOOR_Z",
             f"{c.GUIDE_FLOOR_Z:.1f} mm")
-    # The two grooves must not thin the same ring of collar wall.
-    cover_groove_z = FOOT_TOP + SNAP_Z
-    sep = abs(c.BEAD_Z - cover_groove_z)
-    span = c.SHELL_GROOVE_R + max(c.BEAD_LEAD_IN, c.BEAD_BACK)
-    r.check(sep > span,
-            "cover groove and cartridge groove are vertically separated",
-            f"{sep:.1f} mm apart, profiles span {span:.1f} mm")
+    # The base itself need not be a whole Gridfinity unit; the assembled envelope
+    # must be, and that is what the cover is sized against.
+    assembled = c.SHELL_FOOT_TOP + h
+    r.check(abs(assembled % HEIGHT_UNIT) < TOL,
+            "assembled envelope is a whole Gridfinity Z unit",
+            f"{assembled:.0f} mm = {assembled / HEIGHT_UNIT:.0f}U "
+            f"(base itself is {c.SHELL_TOTAL_H:.0f} mm, deliberately not a unit)")
+
+    # The two grooves are cut into opposite faces of the same SHELL_WALL, so what
+    # matters is that the *grooves* do not overlap in z -- the bead's ramp is on
+    # the TPU and takes nothing out of the shell.
+    need = SNAP_GROOVE_R + c.SHELL_GROOVE_R
+    r.check(c.GROOVE_SEPARATION > need,
+            "cover groove and collar groove never thin the same wall",
+            f"{c.GROOVE_SEPARATION:.1f} mm apart, {need:.1f} mm required")
 
 
 def check_walls(shell: Part, r: Report) -> None:
@@ -172,7 +200,7 @@ def check_walls(shell: Part, r: Report) -> None:
     # Point-sample the shell where the two grooves are deepest, to confirm the
     # arithmetic above describes the solid that was actually built.
     mid = (COLLAR_W / 2 + c.CAVITY_W / 2) / 2
-    r.check(is_solid_at(shell, mid, 0.0, FOOT_TOP + SNAP_Z),
+    r.check(is_solid_at(shell, mid, 0.0, c.SHELL_FOOT_TOP + SNAP_Z),
             "shell is solid mid-wall at the cover groove", f"x={mid:.2f}")
     r.check(is_solid_at(shell, mid, 0.0, c.BEAD_Z),
             "shell is solid mid-wall at the cartridge groove", f"x={mid:.2f}")
@@ -317,7 +345,7 @@ def check_retention(r: Report) -> None:
     r.check(c.BEAD_LEAD_IN > c.BEAD_BACK,
             "insertion ramp is gentler than the retention face",
             f"lead-in {c.BEAD_LEAD_IN:.1f} vs back {c.BEAD_BACK:.1f} mm")
-    r.check(c.BEAD_Z + c.BEAD_BACK < BASE_TOTAL_H,
+    r.check(c.BEAD_Z + c.BEAD_BACK < c.SHELL_TOTAL_H,
             "bead seats below the shell rim", f"{c.BEAD_Z + c.BEAD_BACK:.1f} mm")
 
 
@@ -358,13 +386,14 @@ def check_sharp_edges(shell: Part, insert: Part, r: Report) -> None:
 
     def on_shoulder(e) -> bool:
         b = e.bounding_box()
-        return abs(b.min.Z - FOOT_TOP) < 0.05 and abs(b.max.Z - FOOT_TOP) < 0.05
+        return (abs(b.min.Z - c.SHELL_FOOT_TOP) < 0.05
+                and abs(b.max.Z - c.SHELL_FOOT_TOP) < 0.05)
 
     def on_a_groove(e) -> bool:
         b = e.bounding_box()
         if abs(b.max.Z - b.min.Z) > 0.05:
             return False
-        for z in (FOOT_TOP + SNAP_Z, c.BEAD_Z):
+        for z in (c.SHELL_FOOT_TOP + SNAP_Z, c.BEAD_Z):
             if abs(b.min.Z - (z - c.SHELL_GROOVE_R)) < 0.05:
                 return True
             if abs(b.min.Z - (z + c.SHELL_GROOVE_R)) < 0.05:

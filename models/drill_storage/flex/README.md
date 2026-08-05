@@ -6,8 +6,8 @@ half and a compliant half:
 
 | Part | Model | Material | Job |
 | --- | --- | --- | --- |
-| Shell | `drill_storage.flex.shell` | ASA | Gridfinity foot, collar, cover snap groove, engraved legend, **and the guide bores** (free fit, 24.8 mm). Keeps drills straight. |
-| Collar | `drill_storage.flex.insert` | TPU | A short 12.4 mm collar at the top. Grips, on a 3.5 mm land. Nothing else. |
+| Shell | `drill_storage.flex.shell` | ASA | Gridfinity foot, collar, cover snap groove, engraved legend, **and the guide bores** (free fit, 23.2 mm). Keeps drills straight. |
+| Collar | `drill_storage.flex.insert` | TPU | A short 8.0 mm collar at the top. Grips, on a 3.5 mm land. Nothing else. |
 | Cover | `drill_storage.wood` | ASA / PETG | Unchanged — see below. |
 
 `uv run show drill_storage.flex` shows all three assembled with the drill set in
@@ -43,7 +43,7 @@ So the bores are plain and round, and the **contact** is what got shortened: a
 full circle over 3.5 mm have comparable contact area.
 
 Guiding and gripping then split cleanly by material. The ASA below is bored
-**loose** (`GUIDE_FIT`, +0.25) over 24.8 mm and holds the drill upright; the TPU
+**loose** (`GUIDE_FIT`, +0.25) over 23.2 mm and holds the drill upright; the TPU
 collar above is cut **tight** (`LAND_FIT`, -0.10) over 3.5 mm and holds it in
 place. `checks.py` asserts that ordering, because a guide that gripped or a land
 that cleared would each defeat the split silently. Full argument, with the
@@ -71,11 +71,13 @@ holder generations printed before it were wrong.
 
 Both parts come off `create()` already in print pose. No supports anywhere.
 
-**Shell — ASA**, foot down, cavity up.
+**Shell — ASA**, foot down, cavity up. 36 mm tall (the PETG base is 42) — the
+bores no longer come down from the top face, so only the collar needs height above
+the cover seat. The seat stays at 24 mm, which is what keeps the cover shared.
 ASA wants an enclosure; a 42 mm footprint is not fussy, but a draught will still
 lift the foot's corners. ~20 cm³.
 
-**Collar — TPU**, flat bottom down, bores up. ~11 cm³ and 12.4 mm tall. Every bore
+**Collar — TPU**, flat bottom down, bores up. ~7 cm³ and 8.0 mm tall. Every bore
 is a through hole, so there is nothing to bridge and nothing to drain. Keep the
 perimeter count up: the grip land is a perimeter, and its diameter is the whole
 fit.
@@ -88,7 +90,7 @@ fit.
 2. Push it down until the retention bead clicks into the groove near the top.
    It takes a squeeze; TPU compresses 0.44 mm of engagement without complaint.
 3. Drills go in shank first, pass clean through the collar, and bottom out on the
-   shell's **ASA** floor 24.8 mm below — soft plastic creeps under a point load.
+   shell's **ASA** floor 23.2 mm below — soft plastic creeps under a point load.
 
 To swap sets, pinch the 1.2 mm of collar standing proud of the shell rim and pull.
 The bead is a rounded pocket designed to release. Note that the *guide* bores live

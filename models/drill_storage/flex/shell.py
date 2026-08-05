@@ -6,10 +6,14 @@ cavity the cartridge drops into, and the guide bores under it.
 
 The shell **guides**; the TPU collar **grips**. Those are different jobs wanting
 different stiffness, so they are in different parts and different materials: the
-guides are cut at ``GUIDE_FIT`` (free -- they hold a drill upright over 24.8 mm
+guides are cut at ``GUIDE_FIT`` (free -- they hold a drill upright over 23.2 mm
 and must not rub), and the collar's land is cut at interference. Changing drill
 sets is still only a cartridge reprint as far as the *grip* goes, but the guides
 live here, so a genuinely different set needs both halves.
+
+36 mm tall, not the PETG base's 42: the bores no longer come down from the top
+face, so the height above the cover seat only has to hold the collar. The seat
+itself stays at 24 mm, which is what keeps the PETG base's cover fitting.
 
 Printed foot-down, cavity up, in ASA, no supports. ASA wants an enclosure; a
 42 mm footprint is small enough that it is not fussy, but a draughty room will
@@ -37,12 +41,9 @@ from build123d import (
 
 from ..box import (
     BASE_H,
-    BASE_TOTAL_H,
-    COLLAR_H,
     COLLAR_R,
     COLLAR_W,
     CORNER_R,
-    FOOT_TOP,
     PAD,
     SNAP_GROOVE_R,
     SNAP_Z,
@@ -65,7 +66,7 @@ def cavity_mouth_tool() -> Part:
     reason ``rim_chamfer_tool`` is -- an edge op on this rim is unreliable, and a
     failed one corrupts the builder so every later one fails silently.
     """
-    z_top = c.BASE_TOTAL_H
+    z_top = c.SHELL_TOTAL_H
     ch = c.CAVITY_MOUTH_CH
     with BuildPart() as tool:
         with BuildSketch(Plane.XY.offset(z_top - ch)):
@@ -170,14 +171,14 @@ def create_shell(
         # on it -- box.py:1052-1054 has the argument.
         with BuildSketch(Plane.XY.offset(BASE_H)):
             RectangleRounded(PAD, PAD, CORNER_R)
-        extrude(amount=FOOT_TOP - BASE_H)
+        extrude(amount=c.SHELL_FOOT_TOP - BASE_H)
 
         # Collar that plugs into the cover, with the cover's snap groove.
-        with BuildSketch(Plane.XY.offset(FOOT_TOP)):
+        with BuildSketch(Plane.XY.offset(c.SHELL_FOOT_TOP)):
             RectangleRounded(COLLAR_W, COLLAR_W, COLLAR_R)
-        extrude(amount=COLLAR_H)
+        extrude(amount=c.SHELL_COLLAR_H)
         add(
-            snap_ring(COLLAR_W, COLLAR_R, FOOT_TOP + SNAP_Z, SNAP_GROOVE_R),
+            snap_ring(COLLAR_W, COLLAR_R, c.SHELL_FOOT_TOP + SNAP_Z, SNAP_GROOVE_R),
             mode=Mode.SUBTRACT,
         )
 
@@ -206,7 +207,7 @@ def create_shell(
         add(key_slot_tool(), mode=Mode.SUBTRACT)
         add(cavity_mouth_tool(), mode=Mode.SUBTRACT)
         add(
-            rim_chamfer_tool(COLLAR_W, COLLAR_R, BASE_TOTAL_H, c.SHELL_TOP_CHAMFER),
+            rim_chamfer_tool(COLLAR_W, COLLAR_R, c.SHELL_TOTAL_H, c.SHELL_TOP_CHAMFER),
             mode=Mode.SUBTRACT,
         )
 

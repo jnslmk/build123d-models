@@ -34,7 +34,7 @@ from ..assemblies.wood import (
     create_countersink,
     create_drill,
 )
-from ..box import BASE_TOTAL_H, FOOT_TOP, create_cover
+from ..box import create_cover
 from ..wood import COVER_H_WOOD, CSK_HEAD_D, LABEL
 from . import config as config
 from .insert import create as create_insert_part
@@ -75,14 +75,18 @@ def create_flex_assembly() -> Compound:
         csk = create_countersink(af, CSK_HEAD_D)
         csk.label = "countersink_10mm"
         csk.color = STEEL
-        # Head rests on the cartridge's top face, which stands CART_PROUD above
-        # the shell rim.
-        drills.append(Pos(x, y, BASE_TOTAL_H + config.CART_PROUD - 40.0) * csk)
+        # Shank-end on the shell floor, same as every drill. On the PETG base the
+        # head rested on the top face instead, because the socket was deeper than
+        # the shank; this base is 36 mm, so the socket is 31.2 mm and a 40 mm hex
+        # shank now bottoms out with its head standing proud. That is fine -- the
+        # collar still grips the shank, and the cover has room to spare -- but the
+        # tool sits higher than it used to.
+        drills.append(Pos(x, y, config.GUIDE_FLOOR_Z) * csk)
 
     # create_cover returns print pose (pillow on the bed, mouth up); flip it back
     # and seat it on the shoulder, translucent so the drills read through it.
     cover = Rotation(180, 0, 0) * create_cover(LABEL, cover_h=COVER_H_WOOD)
-    cover = Pos(0, 0, FOOT_TOP - cover.bounding_box().min.Z) * cover
+    cover = Pos(0, 0, config.SHELL_FOOT_TOP - cover.bounding_box().min.Z) * cover
     cover.label = "cover_wood"
     cover.color = COVER_GLASS
 

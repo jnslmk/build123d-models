@@ -10,27 +10,30 @@ The vertical stack, all in world z with the shell's foot on z=0::
 
     0.0  -  4.4   Gridfinity foot (BASE_H)
     4.4  -  6.0   shell floor -- drills bottom out here, on ASA, never on TPU
-    6.0  - 30.8   ASA guide bores, free fit -- hold the drill straight, no grip
-   24.0           FOOT_TOP, the shoulder the cover seats on
-   30.0           cover snap groove (FOOT_TOP + SNAP_Z)
-   30.8           CAVITY_FLOOR_Z -- the cartridge sits here
-   30.8 - 34.3   TPU grip land (LAND_H) -- the only thing that holds a drill
-   34.3 - 34.8   lead-in cone from the relief down onto the land
-   34.8 - 43.2   TPU relief bore, sliding fit -- clears the drill, grips nothing
-   37.0           cartridge retention bead / shell groove (BEAD_Z)
-   42.0           BASE_TOTAL_H, 6U -- shell top
-   43.2           cartridge top, standing CART_PROUD above it to be pinched out
+    6.0  - 29.2   ASA guide bores, free fit -- hold the drill straight, no grip
+   24.0           SHELL_FOOT_TOP, the shoulder the cover seats on
+   29.2           CAVITY_FLOOR_Z -- the collar sits here
+   29.2 - 32.7   TPU grip land (LAND_H) -- the only thing that holds a drill
+   30.0           cover snap groove (SHELL_FOOT_TOP + SNAP_Z)
+   32.7 - 33.2   lead-in cone from the relief down onto the land
+   33.2           collar retention bead / shell groove (BEAD_Z)
+   33.2 - 37.2   TPU relief bore, sliding fit -- clears the drill, grips nothing
+   36.0           SHELL_TOTAL_H -- shell top
+   37.2           collar top, standing CART_PROUD above it to be pinched out
 
 The cartridge is a **collar**, not a block: it reaches exactly as far below the
-retention bead as it stands above it (``CART_BELOW_BEAD == CART_ABOVE_BEAD``), so
-the bead sits on its mid-plane and the TPU is 12.4 mm rather than 37.2. Everything
-below that is ASA, bored at a free fit -- the shell guides, the collar grips, and
-the two jobs stop sharing a part.
+retention bead as it stands above it (``CART_BELOW_BEAD == CART_ABOVE_BEAD``), and
+that reach is the longer of what it has to contain -- land plus lead-in, or the
+bead's own ramp. So the TPU is 8.0 mm rather than 37.2, everything below it is ASA
+bored at a free fit, and the shell guides while the collar grips.
 
-Because the drill still stands on ``BORE_FLOOR_Z`` and the cover still seats on
-``FOOT_TOP``, ``cover_height_for`` returns the same answer it does for the PETG
-base -- so an already-printed ``drill_storage.wood`` cover fits this shell.
-``checks.py`` asserts that rather than trusting the coincidence.
+The base is 36 mm, not the PETG base's 42: its bores no longer come down from the
+top face, so the height above the cover seat only has to hold the collar. What did
+*not* move is ``SHELL_FOOT_TOP``. The seat feeds ``cover_height_for``, so lowering
+it would mint a taller cover for this model alone; leaving it at 24 means
+``cover_height_for`` returns the same 109 mm it does for the PETG base and an
+already-printed ``drill_storage.wood`` cover still fits. ``checks.py`` asserts that
+rather than trusting the coincidence.
 """
 
 from __future__ import annotations
@@ -40,12 +43,13 @@ from build123d import Color
 from ...lib import fits
 from ..box import (
     BASE_TOP_CHAMFER,
-    BASE_TOTAL_H,
     BORE_FLOOR_Z,
     BORE_MOUTH_CHAMFER,
     COLLAR_R,
     COLLAR_W,
+    FOOT_TOP,
     SNAP_GROOVE_R,
+    SNAP_Z,
 )
 
 # --- Materials ----------------------------------------------------------------
@@ -96,37 +100,35 @@ SHELL_TOP_CHAMFER = 0.4  # outer rim (BASE_TOP_CHAMFER is 1.0 on the solid base)
 CAVITY_MOUTH_CH = 0.4  # inner rim -- the cartridge's lead-in
 RIM_FLAT = SHELL_WALL - SHELL_TOP_CHAMFER - CAVITY_MOUTH_CH  # 0.8
 
-# --- Cartridge ----------------------------------------------------------------
-# Declared before the cartridge because the collar's height is *derived* from it:
-# the bead is the collar's mid-plane, so this one number places the TPU. The rest
-# of the retention geometry is further down, under "Retention".
-BEAD_Z = 37.0  # world z. Clear of the cover's groove at FOOT_TOP + SNAP_Z = 30,
-#                so the two never thin the same piece of collar wall.
+# --- Shell height -------------------------------------------------------------
+# The base does NOT inherit box.BASE_TOTAL_H. The PETG base is 42 mm because its
+# bores are sunk from the top face and need the depth; this one grips in a short
+# collar at the top and guides in ASA below, so it needs far less.
+#
+# Only ``SHELL_COLLAR_H`` comes down. ``SHELL_FOOT_TOP`` deliberately stays at
+# box.FOOT_TOP, because the seat height feeds ``cover_height_for``: lower it and
+# this model needs its own taller cover, and an already-printed
+# ``drill_storage.wood`` cover stops fitting. The collar is free -- the cover's
+# groove sits at ``FOOT_TOP + SNAP_Z`` either way, so shortening above that costs
+# the cover nothing. checks.py asserts both halves of that.
+#
+# 36 mm is not a whole Gridfinity Z unit, and does not need to be: what has to
+# quantise is the *assembled* envelope (19U / 133 mm), which is set by the seat
+# and the cover, not by how tall the base is.
+SHELL_FOOT_TOP = FOOT_TOP  # cover seat -- do not lower without a new cover
+SHELL_COLLAR_H = 12.0  # was 18.0; the floor is set by the bead, see CART_ABOVE_BEAD
+SHELL_TOTAL_H = SHELL_FOOT_TOP + SHELL_COLLAR_H  # 36.0
 
+# --- Cartridge ----------------------------------------------------------------
 CART_SLIP = fits.for_material(fits.SLIDING, CART_MATERIAL)  # sliding fit, TPU
 CART_W = CAVITY_W - CART_SLIP
 CART_R = CAVITY_R - CART_SLIP / 2  # uniform offset, so the corners fit too
 CART_WALL = 1.0  # min material between a bore and the outer face. Thin for a
 #                  rigid part; fine in TPU, which is meant to give.
 CART_PROUD = 1.2  # stands above the shell rim so it can be pinched back out
-CART_TOP_Z = BASE_TOTAL_H + CART_PROUD  # 43.2
-
-# The cartridge is a collar centred on its own retention bead: it reaches exactly
-# as far below the bead as it stands above it. That is what sets its height --
-# nothing else -- so moving BEAD_Z or CART_PROUD moves the whole collar rather
-# than silently stretching one side of it.
-#
-# The alternative was a full-height block filling the cavity to the shell floor,
-# 37.2 mm of TPU doing two jobs. Guiding a drill over a long span wants a rigid
-# wall and grip wants a compliant one, and the block was a compromise at both.
-# Splitting them costs nothing: the ASA below guides, the collar grips.
-CART_ABOVE_BEAD = CART_TOP_Z - BEAD_Z  # 6.2
-CART_BELOW_BEAD = CART_ABOVE_BEAD  # symmetric, by definition
-CART_H = CART_ABOVE_BEAD + CART_BELOW_BEAD  # 12.4
-
-CAVITY_FLOOR_Z = BEAD_Z - CART_BELOW_BEAD  # 30.8 -- the collar sits here
-CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 11.2
-GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 24.8 of ASA guide under the collar
+CART_TOP_Z = SHELL_TOTAL_H + CART_PROUD  # 37.2
+# (the collar's *height* is derived under "Collar height" below, once the
+# features it has to contain have been declared.)
 
 # --- The grip -----------------------------------------------------------------
 # This is the whole design argument, so it is written out rather than left to the
@@ -232,6 +234,35 @@ BEAD_TIP_FLAT = 0.3
 SHELL_GROOVE_R = SNAP_GROOVE_R  # same round pocket the cover's bead drops into
 BEAD_ENGAGEMENT = CART_BEAD - CART_SLIP / 2  # 0.44 mm of real overlap
 
+# --- Collar height ------------------------------------------------------------
+# The collar is centred on its own retention bead: it reaches exactly as far below
+# the bead as it stands above it. Everything here derives from that plus the
+# features the reach has to contain, so the collar comes out as short as it can
+# be rather than as tall as some number happens to say.
+#
+# What the reach must cover, below the bead:
+#   * the grip land and the cone that leads into it  (LAND_H + LAND_LEAD_IN)
+#   * the bead's own gentle insertion ramp           (BEAD_LEAD_IN)
+# whichever is longer. Above the bead the same reach comfortably covers
+# BEAD_BACK plus CART_PROUD. checks.py asserts all three.
+#
+# This is why shortening SHELL_COLLAR_H shortens the *collar* too: CART_TOP_Z
+# drops with the shell rim, BEAD_Z follows it down, and the cavity floor with it.
+# Nothing here is typed twice.
+CART_ABOVE_BEAD = max(LAND_H + LAND_LEAD_IN, BEAD_LEAD_IN)  # 4.0
+CART_BELOW_BEAD = CART_ABOVE_BEAD  # symmetric, by definition
+CART_H = CART_ABOVE_BEAD + CART_BELOW_BEAD  # 8.0
+
+BEAD_Z = CART_TOP_Z - CART_ABOVE_BEAD  # 33.2 world z
+CAVITY_FLOOR_Z = BEAD_Z - CART_BELOW_BEAD  # 29.2 -- the collar sits here
+CAVITY_H = SHELL_TOTAL_H - CAVITY_FLOOR_Z  # 6.8
+GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 23.2 of ASA guide under the collar
+
+# The two grooves cut into opposite faces of the same SHELL_WALL, so they must not
+# overlap in z or nothing is left between them. The cover's is at
+# SHELL_FOOT_TOP + SNAP_Z; this is the clearance the bead's groove keeps from it.
+GROOVE_SEPARATION = BEAD_Z - (SHELL_FOOT_TOP + SNAP_Z)  # 3.2, vs 1.6 required
+
 # --- Keying -------------------------------------------------------------------
 # The shell's engraved wall legend only tells the truth in one orientation, and a
 # rounded square goes in four ways. The key rib stands *outside* the cartridge
@@ -269,7 +300,7 @@ def relieved_bore_r(d: float) -> float:
 
 __all__ = [
     "BASE_TOP_CHAMFER",
-    "BASE_TOTAL_H",
+    "FOOT_TOP",
     "BEAD_BACK",
     "BEAD_ENGAGEMENT",
     "BEAD_LEAD_IN",
@@ -288,6 +319,7 @@ __all__ = [
     "CART_PROUD",
     "CART_R",
     "CART_SLIP",
+    "GROOVE_SEPARATION",
     "CART_TOP_Z",
     "CART_W",
     "CART_WALL",
@@ -319,9 +351,13 @@ __all__ = [
     "RELIEF_FIT",
     "RIM_FLAT",
     "SHELL_COLOR",
+    "SHELL_COLLAR_H",
+    "SHELL_FOOT_TOP",
     "SHELL_GROOVE_R",
     "SHELL_MATERIAL",
     "SHELL_TOP_CHAMFER",
+    "SHELL_TOTAL_H",
+    "SNAP_Z",
     "SHELL_WALL",
     "relieved_bore_r",
 ]
