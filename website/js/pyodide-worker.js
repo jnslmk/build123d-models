@@ -51,8 +51,14 @@ await micropip.install(["build123d", "sqlite3"])
 # has to be here, not just in pyproject.toml: the endcap is imported by the
 # led_profiles package's own __init__, so without it every model in that
 # package fails to import in the browser while still building fine locally.
+#
+# The cap is pyproject.toml's, for pyproject.toml's reason, and it matters more
+# here than it does there: 0.3.0 requires build123d>=0.11.1, so an unpinned
+# install would ask micropip to pull build123d forward from whatever version it
+# just resolved against this OCP.wasm build -- an upgrade nothing in the runtime
+# is pinned to survive. Lift the two caps together or not at all.
 print("installing bd_warehouse (standard threads/fasteners) ...")
-await micropip.install("bd_warehouse")
+await micropip.install("bd_warehouse>=0.2.0,<0.3.0")
 
 import sys, types
 _stub = types.ModuleType("ocp_vscode")
