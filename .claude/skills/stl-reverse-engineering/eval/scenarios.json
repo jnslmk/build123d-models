@@ -1,0 +1,31 @@
+{
+  "_comment": "Pinned round-trip baselines for the stl-reverse-engineering skill. Numbers here are measured, not aspirational -- see SKILL.md's round-trip table and eval/README.md for provenance. Do not edit these to make a run pass; a failing scenario means the tool regressed (or the environment changed in a way worth investigating), not that the pin is wrong.",
+  "swept_tolerance": 0.005,
+  "iou_tolerance": 0.01,
+  "scenarios": [
+    {
+      "id": "cube",
+      "model": "cube",
+      "baseline_swept_over_actual": 1.0,
+      "baseline_iou": 1.0,
+      "required_compare_exit_code": 0,
+      "note": "Clean extrusion, exact axis-aligned box. Expect a near-perfect reconstruction."
+    },
+    {
+      "id": "door_latch",
+      "model": "door_latch",
+      "baseline_swept_over_actual": 0.997,
+      "baseline_iou": 0.996,
+      "required_compare_exit_code": 0,
+      "note": "Clean extrusion with one hole; small deviation from simplify tolerance and fillets."
+    },
+    {
+      "id": "led_profiles.stand",
+      "model": "led_profiles.stand",
+      "baseline_swept_over_actual": 2.137,
+      "baseline_iou": 0.3891,
+      "required_compare_exit_code": 1,
+      "note": "REQUIRED NEGATIVE: not a clean extrusion (swept/actual far from 1.0). mesh_compare.py MUST refuse this reconstruction (exit 1, IoU well below the 95% pass bar). Asserting exit 1 here is the pass condition, not a bug."
+    }
+  ]
+}
