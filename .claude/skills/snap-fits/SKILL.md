@@ -1,6 +1,24 @@
 ---
 name: snap-fits
-description: Sizes and verifies a snap-fit joint for a 3D-printed build123d part — picks the family (cantilever arm, annular bead, or torsional bar), sizes the arm or bead against a material's permissible strain, and checks the resulting deflection and mating force. Carries the strain, secant-modulus and friction data and the Covestro cantilever/annular/torsional formulas that box-closures and part-joints reference by name instead of duplicating. Use when adding, sizing or debugging a snap fit, cantilever snap, snap bead, undercut, latch, catch, or hook; when a snap arm cracks, whitens, does not release, or feels too stiff or loose; when picking a lid's bead height or an arm's length, thickness, taper or root fillet; or when checking deflection, strain or mating force against a filament (PLA, PETG, ASA, PA12). Keywords: snap fit, cantilever, cantilever snap, annular snap, bead, undercut, latch, catch, hook, deflection, permissible strain, secant modulus, mating force, snap arm, torsional snap.
+description: >-
+  Sizes and verifies a snap-fit joint for a 3D-printed build123d part — picks the
+  family (cantilever arm, annular bead, or torsional bar), sizes the arm or bead
+  against a material's permissible strain, and checks the resulting deflection
+  and mating force. Carries the strain, secant-modulus and friction data and the
+  Covestro cantilever/annular/torsional formulas that box-closures and
+  part-joints reference by name instead of duplicating. Use when adding, sizing
+  or debugging a snap fit, cantilever snap, snap bead, undercut, latch, catch, or
+  hook; when a snap arm cracks, whitens, does not release, or feels too stiff or
+  loose; when picking a lid's bead height or an arm's length, thickness, taper or
+  root fillet; or when checking deflection, strain or mating force against a
+  filament (PLA, PETG, ASA, PA12). Keywords: snap fit, cantilever, cantilever
+  snap, annular snap, bead, undercut, latch, catch, hook, deflection, permissible
+  strain, secant modulus, mating force, snap arm, torsional snap. Load BEFORE
+  sizing a cantilever arm, snap bead or torsional bar, or before typing a strain
+  value — this is the one place the permissible-strain and force formulas live,
+  and `box-closures`/`part-joints` reference it by name rather than repeating it.
+  TRIGGER: about to compute an arm's length, thickness or taper, a bead height,
+  or check deflection, strain or mating force against a filament.
 ---
 
 # Snap fits

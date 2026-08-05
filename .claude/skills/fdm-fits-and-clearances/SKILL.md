@@ -1,6 +1,21 @@
 ---
 name: fdm-fits-and-clearances
-description: Chooses and records clearances for 3D-printable build123d models instead of re-guessing a number per part. Maps a mating requirement to a named fit class (press, snug, sliding, free) from models.lib.fits, adjusts it for material (PETG baseline, plus PLA, ABS, ASA, TPU), and compensates bores that FDM prints undersize. Use when picking a clearance, tolerance, gap or allowance between mating parts; sizing a bore, hole, shaft, socket, pocket or lid; deciding a press fit, interference fit, snug fit, sliding fit, running fit, free fit or snap fit; turning a nominal hardware dimension (bolt, magnet, bearing, heat-set insert, dowel) into a CAD dimension; or reasoning about shrinkage, warping, elephant's foot, minimum wall thickness, minimum feature size, overhang or bridging limits on the printers this repo targets.
+description: >-
+  Chooses and records clearances for 3D-printable build123d models instead of
+  re-guessing a number per part. Maps a mating requirement to a named fit class
+  (press, snug, sliding, free) from models.lib.fits, adjusts it for material
+  (PETG baseline, plus PLA, ABS, ASA, TPU), and compensates bores that FDM prints
+  undersize. Use when picking a clearance, tolerance, gap or allowance between
+  mating parts; sizing a bore, hole, shaft, socket, pocket or lid; deciding a
+  press fit, interference fit, snug fit, sliding fit, running fit, free fit or
+  snap fit; turning a nominal hardware dimension (bolt, magnet, bearing, heat-set
+  insert, dowel) into a CAD dimension; or reasoning about shrinkage, warping,
+  elephant's foot, minimum wall thickness, minimum feature size, overhang or
+  bridging limits on the printers this repo targets. Load BEFORE typing a bare
+  clearance number into a model — every clearance constant in this repo must
+  trace back to a named fit class here, not be guessed per part. TRIGGER: about
+  to write a hole, shaft, socket, pocket or lid dimension, or any diametral gap,
+  as a literal float instead of `fits.PRESS`/`SNUG`/`SLIDING`/`FREE`.
 ---
 
 # FDM fits and clearances

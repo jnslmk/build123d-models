@@ -4,15 +4,20 @@ description: >-
   Guides the choice and sizing of fasteners in 3D-printed parts: heat-set
   threaded inserts, hex nut traps and captive nuts, self-tapping screws into
   plastic bosses, cut/tapped threads, clearance holes, and printable male and
-  female threads. Use when a model needs a screw joint, a boss, an insert
-  pocket, a nut trap, a clearance or pilot hole, a tapped hole, or a printed
-  thread; when picking M2/M2.5/M3/M4/M5/M6/M8 hardware; when sizing an insert
-  pilot hole or boss outside diameter; or when deciding between an insert, a
-  captive nut, a self-tapper and a printed thread. Also covers the bd_warehouse
-  fastener and thread classes and their traps. Keywords - heat-set insert, heat
-  set insert, threaded insert, brass insert, boss, nut trap, captive nut, nut
-  pocket, self-tapping, screw, bolt, clearance hole, pilot hole, thread, tap,
-  tapped hole, printed thread, IsoThread, AcmeThread, M3, M4, M5.
+  female threads. Use when a model needs a screw joint, a boss, an insert pocket,
+  a nut trap, a clearance or pilot hole, a tapped hole, or a printed thread; when
+  picking M2/M2.5/M3/M4/M5/M6/M8 hardware; when sizing an insert pilot hole or
+  boss outside diameter; or when deciding between an insert, a captive nut, a
+  self-tapper and a printed thread. Also covers the bd_warehouse fastener and
+  thread classes and their traps. Keywords - heat-set insert, heat set insert,
+  threaded insert, brass insert, boss, nut trap, captive nut, nut pocket,
+  self-tapping, screw, bolt, clearance hole, pilot hole, thread, tap, tapped
+  hole, printed thread, IsoThread, AcmeThread, M3, M4, M5. Load BEFORE writing an
+  insert, boss, nut-trap, pilot-hole or clearance-hole dimension as a literal
+  number — the per-size tables and the fastener_clearance check below are not
+  restated elsewhere. TRIGGER: about to size a boss or pocket for M2-M8 hardware,
+  choose between an insert, captive nut, self-tapper and printed thread, or check
+  that a fastener's head and driver actually clear the part.
 ---
 
 # Fasteners and inserts

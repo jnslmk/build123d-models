@@ -1,6 +1,23 @@
 ---
 name: viewer-frontend
-description: Guides changes to the 3D CAD viewer's JavaScript frontend across the three sibling checkouts this project uses - build123d-models (the CAD models), vscode-ocp-cad-viewer (Python backend and VS Code extension) and three-cad-viewer (the Three.js frontend). Covers which repo a given change belongs in, the edit then npm run build then copy-the-bundle then uv run show test loop, and the fact that the JS and CSS under vscode-ocp-cad-viewer are gitignored build artifacts so frontend commits belong in three-cad-viewer instead. Use when modifying the viewer UI, adding or changing a viewer tool, rebuilding the viewer bundle, or when a frontend edit does not show up in the viewer. Keywords: viewer, three-cad-viewer, frontend, ocp-cad-viewer, bundle, npm build, rollup, UI tool, esm.js.
+description: >-
+  Guides changes to the 3D CAD viewer's JavaScript frontend across the three
+  sibling checkouts this project uses - build123d-models (the CAD models),
+  vscode-ocp-cad-viewer (Python backend and VS Code extension) and
+  three-cad-viewer (the Three.js frontend). Covers which repo a given change
+  belongs in, the edit then npm run build then copy-the-bundle then uv run show
+  test loop, and the fact that the JS and CSS under vscode-ocp-cad-viewer are
+  gitignored build artifacts so frontend commits belong in three-cad-viewer
+  instead. Use when modifying the viewer UI, adding or changing a viewer tool,
+  rebuilding the viewer bundle, or when a frontend edit does not show up in the
+  viewer. Keywords: viewer, three-cad-viewer, frontend, ocp-cad-viewer, bundle,
+  npm build, rollup, UI tool, esm.js. Load BEFORE editing
+  `ocp_vscode/static/js/three-cad-viewer.esm.js` or
+  `ocp_vscode/static/css/three-cad-viewer.css` directly — those two compiled
+  files are gitignored build artifacts, not source; the real source is
+  `three-cad-viewer/src/`, and an edit belongs there instead. TRIGGER: about to
+  add or change a viewer toolbar tool, run `npm run build`, copy a rebuilt
+  bundle, or a frontend edit is not appearing in `uv run show`.
 ---
 
 # Viewer frontend

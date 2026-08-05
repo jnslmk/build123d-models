@@ -1,6 +1,26 @@
 ---
 name: build123d-geometry-ops
-description: Guides build123d edge treatments and in-code geometry verification for this CAD repo. Covers choosing between an OCC edge fillet/chamfer and a boolean chamfer tool, isolating flaky OCC failures so they cannot cascade through a BuildPart, selecting the right edge, and asserting internal geometry by point-sampling the solid. Use when adding or debugging a fillet or chamfer, when an OCC fillet/chamfer raises or silently does nothing, when a lead-in is needed at a hole or bore mouth, when edge selection returns the wrong point (arc_center vs center), when a part silently collapses to a single feature after adding a thread or other BasePartObject, when a fuse or boolean returns the wrong solid with no error, when ribs, wall thickness, clearances or print pose need verifying, or when writing a model's checks. Keywords: fillet, chamfer, OCC failure, edge selection, boolean chamfer, lead-in, verify geometry, point sampling, is_solid_at, part disappeared, silent collapse, BasePartObject auto-add, IsoThread, fuse, build123d.
+description: >-
+  Guides build123d edge treatments and in-code geometry verification for this CAD
+  repo. Covers choosing between an OCC edge fillet/chamfer and a boolean chamfer
+  tool, isolating flaky OCC failures so they cannot cascade through a BuildPart,
+  selecting the right edge, and asserting internal geometry by point-sampling the
+  solid. Use when adding or debugging a fillet or chamfer, when an OCC
+  fillet/chamfer raises or silently does nothing, when a lead-in is needed at a
+  hole or bore mouth, when edge selection returns the wrong point (arc_center vs
+  center), when a part silently collapses to a single feature after adding a
+  thread or other BasePartObject, when a fuse or boolean returns the wrong solid
+  with no error, when ribs, wall thickness, clearances or print pose need
+  verifying, or when writing a model's checks. Keywords: fillet, chamfer, OCC
+  failure, edge selection, boolean chamfer, lead-in, verify geometry, point
+  sampling, is_solid_at, part disappeared, silent collapse, BasePartObject
+  auto-add, IsoThread, fuse, build123d. Load BEFORE calling
+  `.fillet(`/`.chamfer(` on non-trivial geometry or writing a model's `checks.py`
+  — the failure modes and verification pattern below are not restated in
+  `AGENTS.md`. TRIGGER: about to add or debug an edge treatment, select a face or
+  edge out of a sorted list, construct a `BasePartObject` (e.g. `IsoThread`)
+  inside a `BuildPart`, or a part, boolean or fuse silently produced the wrong
+  solid.
 ---
 
 # build123d geometry ops

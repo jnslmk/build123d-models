@@ -1,6 +1,22 @@
 ---
 name: viewer-inspection
-description: Explains how to identify a specific face, edge or vertex on a model with the CAD viewer's Element Picker and how to retrieve those picks in machine-readable form with `uv run selection`. Covers the click-to-select overlay and its toggle and clear behaviour, the exact JSON shape selection.py returns, its stdout and stderr split and exit code, how far to trust the suggested selector's confidence field, and turning a pick into a stable build123d selector expression. Use when the user points at geometry in the viewer and asks which face or edge it is, when a selector must be written for a particular hole, rim or wall, when `uv run selection` returns nothing, or when deciding which edge a fillet or chamfer should target. Keywords: element picker, select face, selection, pick edge, vertex, selector, which face, arc_center.
+description: >-
+  Explains how to identify a specific face, edge or vertex on a model with the
+  CAD viewer's Element Picker and how to retrieve those picks in machine-readable
+  form with `uv run selection`. Covers the click-to-select overlay and its toggle
+  and clear behaviour, the exact JSON shape selection.py returns, its stdout and
+  stderr split and exit code, how far to trust the suggested selector's
+  confidence field, and turning a pick into a stable build123d selector
+  expression. Use when the user points at geometry in the viewer and asks which
+  face or edge it is, when a selector must be written for a particular hole, rim
+  or wall, when `uv run selection` returns nothing, or when deciding which edge a
+  fillet or chamfer should target. Keywords: element picker, select face,
+  selection, pick edge, vertex, selector, which face, arc_center. Load BEFORE
+  running `uv run selection` or writing a build123d selector from a viewer click
+  — the JSON shape, the confidence field and its low-confidence caveat are not
+  documented anywhere else. TRIGGER: about to turn a picked face, edge or vertex
+  into a selector, `uv run selection` returns nothing or an unexpected shape, or
+  deciding which edge a fillet or chamfer should target.
 ---
 
 # Viewer inspection

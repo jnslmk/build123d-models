@@ -1,6 +1,22 @@
 ---
 name: part-joints
-description: Guides choosing and sizing a joint between two 3D-printed parts in this build123d repo — everything that is not a box lid (see box-closures) and not a threaded fastener (see fasteners-and-inserts). Covers dovetails, T-slots, tongue-and-groove, pin-and-socket and dowels, crush ribs, print-in-place knuckle hinges, mortise-and-tenon, cross-dowel barrel nuts, magnet and bearing pockets, telescoping tubes and collars, and ribbed bores for tool grip. Use when two parts must plug, slide, pivot, key, hinge or press together, when picking a clearance for a mating feature, when a printed joint jams or rattles, or when adding a lead-in to a mating mouth. Keywords: joint, dovetail, T-slot, tongue and groove, pin, socket, dowel, hinge, press fit, interference fit, slip fit, telescoping, magnet pocket, bearing pocket, crush rib, ribbed bore, alignment, lead-in, clearance.
+description: >-
+  Guides choosing and sizing a joint between two 3D-printed parts in this
+  build123d repo — everything that is not a box lid (see box-closures) and not a
+  threaded fastener (see fasteners-and-inserts). Covers dovetails, T-slots,
+  tongue-and-groove, pin-and-socket and dowels, crush ribs, print-in-place
+  knuckle hinges, mortise-and-tenon, cross-dowel barrel nuts, magnet and bearing
+  pockets, telescoping tubes and collars, and ribbed bores for tool grip. Use
+  when two parts must plug, slide, pivot, key, hinge or press together, when
+  picking a clearance for a mating feature, when a printed joint jams or rattles,
+  or when adding a lead-in to a mating mouth. Keywords: joint, dovetail, T-slot,
+  tongue and groove, pin, socket, dowel, hinge, press fit, interference fit, slip
+  fit, telescoping, magnet pocket, bearing pocket, crush rib, ribbed bore,
+  alignment, lead-in, clearance. Load BEFORE modelling any mating feature between
+  two non-lid, non-fastener parts — the lead-in and matching-geometry rules below
+  apply before any clearance number is picked. TRIGGER: about to design a
+  dovetail, T-slot, pin, socket, dowel, hinge, crush rib or telescoping joint, or
+  two parts need to plug, slide, pivot, key or press together.
 ---
 
 # Part joints

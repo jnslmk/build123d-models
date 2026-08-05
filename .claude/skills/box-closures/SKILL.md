@@ -1,6 +1,22 @@
 ---
 name: box-closures
-description: Chooses and sizes the closure for a 3D-printed box, enclosure, or container in this build123d repo. Covers ten closure types — friction lip, flush stepped rabbet, annular snap bead, screw-on thread, living hinge, sliding dovetail, bayonet twist-lock, magnets, screw-down with heat-set inserts, and gasket/O-ring seals — giving the clearance, wall budget and print pose each one needs, plus the house rules on print orientation and flat-on-flat mating faces. Use when designing or fixing a lid, cap or cover, when a lid must close flush, when a box rattles, jams, or pops open, when deciding between a snap, a screw, a magnet and a twist-lock, or when the joint has to seal. Keywords: lid, cap, cover, box, enclosure, closure, flush, rabbet, lip, snap lid, hinge, bayonet, twist-lock, dovetail, magnet, gasket, seal, O-ring.
+description: >-
+  Chooses and sizes the closure for a 3D-printed box, enclosure, or container in
+  this build123d repo. Covers ten closure types — friction lip, flush stepped
+  rabbet, annular snap bead, screw-on thread, living hinge, sliding dovetail,
+  bayonet twist-lock, magnets, screw-down with heat-set inserts, and
+  gasket/O-ring seals — giving the clearance, wall budget and print pose each one
+  needs, plus the house rules on print orientation and flat-on-flat mating faces.
+  Use when designing or fixing a lid, cap or cover, when a lid must close flush,
+  when a box rattles, jams, or pops open, when deciding between a snap, a screw,
+  a magnet and a twist-lock, or when the joint has to seal. Keywords: lid, cap,
+  cover, box, enclosure, closure, flush, rabbet, lip, snap lid, hinge, bayonet,
+  twist-lock, dovetail, magnet, gasket, seal, O-ring. Load BEFORE sizing a lid,
+  cap or cover's wall thickness — the closure choice fixes the wall budget before
+  any geometry is cut, and picking the wall first forecloses the good options.
+  TRIGGER: about to write a lid, rim or joint clearance as a literal number;
+  choose between a snap bead, screw, magnet, hinge, dovetail, bayonet or gasket;
+  or a box design mentions closing, sealing, rattling, jamming, or popping open.
 ---
 
 # Box closures

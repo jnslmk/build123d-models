@@ -1,6 +1,21 @@
 ---
 name: printed-text
-description: Sizes, places and verifies engraved or embossed text on FDM-printed build123d parts. Covers the minimum character height, stroke width and engrave depth a 0.4 mm nozzle can resolve, why build123d's Text(font_size=N) yields digits only ~0.75x N tall, when FontStyle.BOLD is the cheapest fix (it rescues a decimal point that would otherwise vanish), how the face's orientation changes legibility, aligning wall labels to the holes they name, and measuring real glyph geometry in code before trusting a font size. Use when adding a label, size number or lettering to a model, when picking a font size or style for Text(), when engraved text prints illegibly or a decimal point disappears, or when choosing between engraving and embossing. Keywords: engrave, emboss, label, text, font, glyph, lettering, numbers, FontStyle, Text, font_size.
+description: >-
+  Sizes, places and verifies engraved or embossed text on FDM-printed build123d
+  parts. Covers the minimum character height, stroke width and engrave depth a
+  0.4 mm nozzle can resolve, why build123d's Text(font_size=N) yields digits only
+  ~0.75x N tall, when FontStyle.BOLD is the cheapest fix (it rescues a decimal
+  point that would otherwise vanish), how the face's orientation changes
+  legibility, aligning wall labels to the holes they name, and measuring real
+  glyph geometry in code before trusting a font size. Use when adding a label,
+  size number or lettering to a model, when picking a font size or style for
+  Text(), when engraved text prints illegibly or a decimal point disappears, or
+  when choosing between engraving and embossing. Keywords: engrave, emboss,
+  label, text, font, glyph, lettering, numbers, FontStyle, Text, font_size. Load
+  BEFORE calling `Text(font_size=...)` — the nominal font size is not the glyph
+  height, and that gap is not documented anywhere else. TRIGGER: about to add a
+  label, size number or engraved/embossed lettering to a model, or a printed
+  decimal point or small glyph needs to survive.
 ---
 
 # Printed text

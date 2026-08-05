@@ -1,6 +1,28 @@
 ---
 name: stl-reverse-engineering
-description: Turns an STL or other triangle mesh into parametric build123d source in this repo. Analyses a mesh to find its extrusion axis, extracts the dominant cross-section, maps the model into feature zones, generates builder-mode build123d code, and grades the reconstruction against the original by intersection-over-union. Use when a downloaded, scanned or exported mesh must become editable CAD, when a model needs to be resized or refitted but only an STL exists, when an existing STL must be measured or its structure understood, when reconstructing a part from a mesh, or when checking how closely a rebuilt part matches the mesh it came from. Keywords - STL, mesh, reverse engineer, reconstruct, remodel, import STL, mesh to CAD, mesh to build123d, parametric from mesh, triangle mesh, 3MF, OBJ, PLY, IoU, accuracy, Thingiverse, Printables, downloaded model, scan.
+description: >-
+  Turns an STL or other triangle mesh into parametric build123d source in this
+  repo. Analyses a mesh to find its extrusion axis, extracts the dominant
+  cross-section, maps the model into feature zones, generates builder-mode
+  build123d code, and grades the reconstruction against the original by
+  intersection-over-union. Classifies through-holes, blind holes, counterbores,
+  countersinks and their grid, radial or linear patterns in mesh_zones.py, and
+  ships a reproducible eval harness under eval/ that pins the round-trip accuracy
+  claims to real script output rather than prose. Use when a downloaded, scanned
+  or exported mesh must become editable CAD, when a model needs to be resized or
+  refitted but only an STL exists, when an existing STL must be measured or its
+  structure understood, when reconstructing a part from a mesh, or when checking
+  how closely a rebuilt part matches the mesh it came from. Keywords - STL, mesh,
+  reverse engineer, reconstruct, remodel, import STL, mesh to CAD, mesh to
+  build123d, parametric from mesh, triangle mesh, 3MF, OBJ, PLY, IoU, accuracy,
+  Thingiverse, Printables, downloaded model, scan, hole feature, counterbore,
+  countersink, hole pattern, eval harness. Load BEFORE running `mesh_analyze.py`,
+  `mesh_zones.py` or `mesh_compare.py`, or before writing build123d code from a
+  mesh — the swept/actual pre-check decides whether reconstruction is even the
+  right move before any code is generated. TRIGGER: about to import or
+  reconstruct an STL/3MF/OBJ/PLY, measure an existing mesh's structure or hole
+  features, grade a rebuilt part's IoU against its source mesh, or run the eval
+  harness after changing the pipeline.
 ---
 
 # STL reverse engineering
