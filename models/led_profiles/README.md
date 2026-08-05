@@ -362,7 +362,10 @@ Only external connections required: **24 V, GND, DATA**.
 - [x] Mounting family designed — `docs/design-notes.md`
 - [x] Strap + cradle (the shared interface)
 - [x] Corner connector, parametric angle
-- [x] Folding tripod stand hub
+- [x] Folding tripod stand hub — **clears the gland, not the cable**; the well
+      leaves 2 mm in line with the gland's nose against a 26.8 mm bend radius,
+      so the cable has nowhere to turn. `checks.check_stand_gland_cable` fails
+      on it and `docs/design-notes.md` §10 lists the ways out.
 - [x] Suspension eye and wall feet
 - [ ] PCB mount inside the endcap
 - [ ] PCB (ESP32 Mini + power distribution + LED output)

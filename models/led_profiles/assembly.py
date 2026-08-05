@@ -17,6 +17,7 @@ from models.lib.edges import as_part
 
 from . import config as c
 from . import endcap as endcap_mod
+from . import gland as gland_mod
 from .profile import create_diffuser, create_extrusion, create_strip
 
 # UI schema for the parametric web app. See tessellate_models.model_params().
@@ -40,12 +41,40 @@ def hardware(length: float = c.LENGTH) -> list[Part]:
     return [create_extrusion(length), *create_strip(length), create_diffuser(length)]
 
 
-def parts(length: float = c.LENGTH) -> list[Part]:
-    """Everything in a finished lamp: the bought hardware plus both endcaps."""
+def parts(
+    length: float = c.LENGTH, cable: bool = True, glands: bool = True
+) -> list[Part]:
+    """Everything in a finished lamp: bought hardware, endcaps, glands, cable.
+
+    Two flags, each with exactly one caller, and neither is a style choice.
+
+    ``cable`` drops the cable stubs while keeping the glands. It is for the
+    triangle, where two caps face each other across a corner and their pigtails
+    are a *jumper loop* living in the corner's own channel (``corner.py``'s
+    docstring). A straight stub of a bend radius is the right mock for a run
+    leaving a lamp into open air and the wrong one for a cable that demonstrably
+    turns inside 40 mm -- there the two stubs would simply cross and report a
+    foul the design already answers. The glands stay in that view, because
+    clearing two of them nose to nose is what ``gland_setback`` sets the
+    corner's whole geometry from.
+
+    ``glands`` drops both. It is for ``checks.check_assembly``, which measures
+    what the *mounts* have to bore for -- the cap collar, the widest thing on
+    the tube. A fitted gland hangs ``corner.GLAND_DROP`` below the tube's
+    underside and so is outside that stadium by design; it is checked against
+    the plinth that clears it, not against the bore.
+    """
+    fitted: list[Part] = []
+    if glands:
+        fitted = [
+            *gland_mod.seated(length=length, cable=cable),
+            *gland_mod.seated(at_far_end=True, length=length, cable=cable),
+        ]
     return [
         *hardware(length),
         endcap_mod.seated(length=length),
         endcap_mod.seated(at_far_end=True, length=length),
+        *fitted,
     ]
 
 

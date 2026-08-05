@@ -14,6 +14,16 @@ plainly rather than hiding behind a tip *angle*:
 is; it gets sandbagged in use. ``checks.py`` recomputes it from the real part
 volume, so a change cannot quietly make it worse.
 
+**Open defect: the cable does not fit.** The well clears the gland and only the
+gland. In line with the gland's axis the hub offers ``SEAT_Z - FLANGE_T`` = 32 mm
+from the seat to the flange, the gland takes 30 of it, and ``CABLE_BEND_R`` is
+26.8 -- so the cable leaves the nose pointing at the flange with 2 mm to turn in,
+and the slot it is meant to leave by is at right angles and 3.35 mm *above* the
+nose. ``checks.check_stand_gland_cable`` fails on exactly that, by 28 mm, and
+``uv run show led_profiles.assemblies.standing`` shows the stub running out
+through the flange. ``docs/design-notes.md`` section 10 has the four ways out.
+Nothing below is written as though this were solved.
+
 Three things the endcap forces on the geometry:
 
 * The gland points straight down and stands ``GLAND_PROUD`` proud of the cap,

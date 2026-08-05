@@ -18,7 +18,16 @@ import sys
 from collections.abc import Callable
 from math import acos, cos, degrees, hypot, radians, sin, sqrt
 
-from build123d import Align, Compound, Cylinder, GeomType, Part, Pos, Rotation
+from build123d import (
+    Align,
+    Compound,
+    Cylinder,
+    GeomType,
+    Location,
+    Part,
+    Pos,
+    Rotation,
+)
 
 from models.lib import fits
 from models.lib.checks import Report, is_solid_at, sharp_convex_edges
@@ -29,10 +38,12 @@ from . import config as c
 from . import corner as corner_mod
 from . import endcap as e
 from . import feet as feet_mod
+from . import gland as gland_mod
 from . import mount_config as mc
 from . import stand as stand_mod
 from . import strap as strap_mod
-from .assembly import create_bare, create_section
+from .assembly import create_bare
+from .assembly import parts as lamp_parts
 from .endcap import CAP_W
 from . import cradle as cradle_mod
 from .cradle import (
@@ -53,10 +64,19 @@ ASA_DENSITY = 1.07e-3  # g/mm^3
 # Every bought part, in every assembly view, is labelled with one of these
 # prefixes (a suffix like " (lamp 0)" or " (near)" may follow, hence a prefix
 # match rather than an exact one). Everything else in a scene is a printed
-# mount -- endcap, strap, foot, corner, stand hub -- except a tripod's "leg N"
-# parts, which are bought hardware too, but `stand.create_leg` is explicit
-# that it is a mock standing in for one and must never be treated as printed.
+# mount -- endcap, strap, foot, corner, stand hub -- except the mocks listed in
+# MOCK_LABEL_PREFIXES, which are bought hardware too but stand in for it rather
+# than measure it.
 BOUGHT_LABEL_PREFIXES = ("aluminium profile", "diffuser", "COB strip", "COB emitter")
+
+# Bought hardware that is *mocked*, not reconstructed: a tripod leg
+# (``stand.create_leg``), and the gland and its cable (``gland.py``). Each of
+# those modules is explicit that its geometry is representative, so they belong
+# on neither side of the printed-vs-bought clearance check -- holding a printed
+# mount clear of a shape nobody has measured would be asserting the mock, not
+# the design. What the gland's envelope *does* have to clear is checked against
+# the numbers directly, in ``check_stand_gland_cable``.
+MOCK_LABEL_PREFIXES = ("leg ", "cable gland", "cable (")
 
 
 def check_outline(alu: Part, r: Report) -> None:
@@ -492,7 +512,14 @@ def check_cap_on_profile(r: Report) -> None:
 
 
 def check_assembly(r: Report) -> None:
-    """Assembled, the whole thing is exactly the stadium it is supposed to be."""
+    """Assembled, the whole thing is exactly the stadium it is supposed to be.
+
+    ``glands=False`` on purpose: this measures what a *mount* has to bore for,
+    and a fitted gland is deliberately outside that stadium -- it hangs below
+    the tube's underside, which is what a corner's plinth exists to clear. The
+    gland's own reach is measured separately below, against the two numbers
+    (``corner.GLAND_DROP``, ``gland.free_length``) that consume it.
+    """
     r.section("Assembly")
     bare = create_bare(c.SECTION_LENGTH).bounding_box()
     r.check(
@@ -500,7 +527,7 @@ def check_assembly(r: Report) -> None:
         "bought hardware envelope",
         f"{bare.size.Y:.2f} x {bare.size.Z:.2f} mm, want {c.WIDTH} x {c.HEIGHT}",
     )
-    full = create_section().bounding_box()
+    full = Compound(children=lamp_parts(c.SECTION_LENGTH, glands=False)).bounding_box()
     r.check(
         abs(full.size.Y - e.CAP_W) < 0.01 and abs(full.size.Z - e.CAP_H) < 0.01,
         "finished lamp envelope is the collar",
@@ -510,6 +537,25 @@ def check_assembly(r: Report) -> None:
         abs(full.size.X - (c.SECTION_LENGTH + 2 * e.CAP_T)) < 0.01,
         "caps add CAP_T at each end",
         f"{full.size.X:.1f} mm over a {c.SECTION_LENGTH:.0f} mm cut",
+    )
+
+    # And now with the glands screwed in. Both numbers below are consumed
+    # elsewhere as constants -- corner.PLINTH_H is sized against the first and
+    # every mount's headroom against the second -- so measuring them off a
+    # placed gland is what stops the two sides drifting apart.
+    fitted = Compound(children=lamp_parts(c.SECTION_LENGTH)).bounding_box()
+    drop = -fitted.min.Z  # tube-local z is 0 at the profile's underside
+    r.check(
+        abs(drop - corner_mod.GLAND_DROP) < 0.01,
+        "a fitted gland hangs GLAND_DROP below the tube",
+        f"{drop:.2f} mm, and corner.PLINTH_H is {corner_mod.PLINTH_H:.1f} mm",
+    )
+    reach = fitted.size.X - c.SECTION_LENGTH - 2 * e.CAP_T
+    r.check(
+        abs(reach - 2 * gland_mod.free_length()) < 0.01,
+        "...and it plus its first bend radius adds free_length at each end",
+        f"{reach / 2:.1f} mm past each cap face "
+        f"({mc.GLAND_PROUD:.0f} gland + {gland_mod.CABLE_STUB:.0f} cable)",
     )
 
 
@@ -1458,6 +1504,7 @@ def check_stand(r: Report) -> None:
     check_mount_basics(part, "stand hub", r)
     check_stand_edges(part, r)
     check_stand_gusset(part, r)
+    check_stand_gland_cable(part, r)
 
     hub_g = part.volume * ASA_DENSITY
     f_tip = stand_mod.tip_force(hub_g)
@@ -1934,6 +1981,97 @@ def check_stand_gusset(part: Part, r: Report) -> None:
     )
 
 
+def _gland_in_hub() -> Location:
+    """Where a lamp's lower gland sits in the stand hub's own frame.
+
+    ``stand.seated`` is the identity (the hub's print pose *is* its assembly
+    pose), so hub-local and standing-world coordinates are the same thing --
+    which is what lets this check place a gland without building the 1.5 m
+    scene. The axis is the well's: ``GLAND_OFFSET`` back from the hub's centre,
+    starting at the seat, pointing **down**. ``gland.py``'s local +Z is the
+    direction the gland points, so the rotation is a straight flip; the gland
+    is a solid of revolution about that axis, so its clocking carries nothing.
+    """
+    return Pos(0, stand_mod.GLAND_OFFSET, stand_mod.SEAT_Z) * Rotation(180, 0, 0)
+
+
+def check_stand_gland_cable(part: Part, r: Report) -> None:
+    """Does the tripod hub clear a fitted gland -- and then the cable?
+
+    Two different questions, and the stand answers them differently.
+
+    ``WELL_D`` and ``WELL_H`` are ``GLAND_ENV_D + 2`` and ``GLAND_PROUD + 2``,
+    so the well was cut for the gland by construction. What was never checked
+    is that the arithmetic survives contact with the *offset* -- the well is
+    9 mm off the hub's axis and the gland hangs off the tube's, and those two
+    only coincide because ``GLAND_OFFSET`` was set to make them. Intersecting
+    a placed gland against the built hub is what tests that, rather than
+    re-reading the constants at each other.
+
+    The cable is the question nothing in this family had ever asked. It leaves
+    the gland's nose **along the gland's axis**, i.e. straight down, and
+    ``m.CABLE_BEND_R`` (26.8 mm, 4 x OD for a fixed installation) says it
+    cannot have turned out of that direction inside the next ~27 mm. The hub
+    offers ``SEAT_Z - FLANGE_T`` = 32 mm of in-line room from the cap's face to
+    the top of the flange, and the gland alone eats 30 of it. So there is no
+    room to bend in, and the exit that *is* provided -- the cable slot through
+    the pedestal -- sits at right angles to the gland, its centre line 3.35 mm
+    **above** the gland's own nose. See ``gland.free_length``.
+    """
+    place = _gland_in_hub()
+    gland = as_part(place * gland_mod.create_gland())
+    cable = as_part(place * gland_mod.create_cable())
+
+    # The mock is only worth intersecting if it is still the shape the mounts
+    # were cut for, so hold it to both numbers it stands in for. Across the
+    # hex's corners is the bounding box's own width (a hexagon drawn on its
+    # major radius is widest corner to corner), and the reach past the cap face
+    # is the same box measured from z=0 -- both read off the built solid.
+    bb = gland_mod.create_gland().bounding_box()
+    r.check(
+        abs(bb.size.X - mc.GLAND_ENV_D) < 0.01,
+        "gland mock is GLAND_ENV_D across its corners",
+        f"{bb.size.X:.2f} mm against an envelope of {mc.GLAND_ENV_D:.1f}",
+    )
+    r.check(
+        abs(bb.max.Z - mc.GLAND_PROUD) < 0.01,
+        "...and stands GLAND_PROUD off the cap's face",
+        f"{bb.max.Z:.2f} mm against {mc.GLAND_PROUD:.1f}",
+    )
+
+    fouled = _shared_volume(gland, part)
+    r.check(
+        fouled < 0.01,
+        "the offset well clears a fitted gland",
+        f"{fouled:.3f} mm^3 shared with the hub",
+    )
+    r.check(
+        stand_mod.WELL_H - mc.GLAND_PROUD > 1.0,
+        "...with the well floor below its nose",
+        f"{stand_mod.WELL_H - mc.GLAND_PROUD:.1f} mm of slack at the bottom",
+    )
+
+    # And now the cable. Both of these fail today; they are the finding, not a
+    # tolerance to loosen. Fixing it is a change to the hub -- more room under
+    # the seat, or an exit in line with the gland instead of across it -- and
+    # these two go green when that lands.
+    in_line = stand_mod.SEAT_Z - stand_mod.FLANGE_T
+    need = gland_mod.free_length()
+    r.check(
+        in_line >= need,
+        "the hub leaves the cable its bend radius in line with the gland",
+        f"{in_line:.1f} mm from the seat to the flange, {need:.1f} mm needed "
+        f"({mc.GLAND_PROUD:.0f} gland + {gland_mod.CABLE_STUB:.0f} cable) "
+        f"-- short by {need - in_line:.1f} mm",
+    )
+    struck = _shared_volume(cable, part)
+    r.check(
+        struck < 0.01,
+        "...and the cable's first bend radius is clear of the hub",
+        f"{struck:.1f} mm^3 driven through the flange",
+    )
+
+
 def check_feet(r: Report) -> None:
     """Eye and wall feet: holes clear of the bore, on through-bolts."""
     r.section("Feet")
@@ -2001,14 +2139,15 @@ def check_feet(r: Report) -> None:
 
 
 def _classify_child(label: str) -> str:
-    """ "bought", "printed", or "leg" (a bought mock, neither side of the check).
+    """ "bought", "printed", or "mock" (bought, but neither side of the check).
 
-    See ``BOUGHT_LABEL_PREFIXES`` for why this is a prefix match.
+    See ``BOUGHT_LABEL_PREFIXES`` for why this is a prefix match, and
+    ``MOCK_LABEL_PREFIXES`` for what the third category is for.
     """
     if label.startswith(BOUGHT_LABEL_PREFIXES):
         return "bought"
-    if label.startswith("leg "):
-        return "leg"
+    if label.startswith(MOCK_LABEL_PREFIXES):
+        return "mock"
     return "printed"
 
 

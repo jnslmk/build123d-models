@@ -123,7 +123,11 @@ def create_triangle(length: float = c.LENGTH) -> Compound:
         bearing = degrees(atan2(v_to[1] - v_from[1], v_to[0] - v_from[0]))
         xform = _edge_xform(v_from, bearing, start)
 
-        for part in lamp_parts(length):
+        # cable=False: the pigtails at a corner are a jumper loop inside the
+        # corner's channel, not a straight run into open air -- see
+        # ``assembly.parts``. The glands themselves stay, since clearing two of
+        # them nose to nose is what sets this triangle's side length.
+        for part in lamp_parts(length, cable=False):
             moved = as_part(xform * part)
             moved.label = f"{part.label} (lamp {i})"
             moved.color = part.color

@@ -473,3 +473,50 @@ Can the corner-facing pigtails be re-terminated to ~60 mm? At 150 mm, the loop
 plus two SP16 barrels is most of what the corner tray has to swallow, and the
 tray is most of what sets the corner's size. Shortening them would make the whole
 part substantially smaller for no optical cost.
+
+---
+
+## 10. The stand does not fit the cable — open defect
+
+The stand's well was sized against the *gland* and nothing else, and it clears
+it correctly: `WELL_D` = `GLAND_ENV_D + 2` and `WELL_H` = `GLAND_PROUD + 2`, and
+`gland.py` now draws the fitting so a scene shows it sitting in there with 2 mm
+under its nose. That part is fine, offset and all.
+
+The cable is not. It leaves the gland's nose **along the gland's axis**, which
+here points straight down at the flange, and `CABLE_BEND_R` is 26.8 mm
+(4 × 6.7, fixed installation) — so it cannot have turned out of that direction
+inside the next ~27 mm. What the hub offers in line with the gland is
+
+    SEAT_Z − FLANGE_T = 44 − 12 = 32 mm
+
+of which the gland alone takes 30. **Two millimetres, against roughly thirty
+needed.** The exit that does exist — the cable slot through the pedestal — is at
+right angles to the gland, and its centre line sits 3.35 mm *above* the gland's
+own nose, so the cable would have to turn through 90° and climb, inside 2 mm, to
+reach it. It does not fit, and no clearance number fixes it.
+
+`checks.check_stand_gland_cable` states both halves: the gland clears (PASS) and
+the cable does not (**FAIL**, by 28 mm). Those two failures are the defect, not a
+tolerance to loosen — they go green when the hub changes. `led_profiles.gland`'s
+30 mm stub is what makes the failure visible in
+`uv run show led_profiles.assemblies.standing`: the cable runs out through the
+flange and below the floor.
+
+Directions, none of them chosen yet:
+
+- **Lengthen the pedestal.** Raising `SEAT_Z` by ~30 mm buys the room outright
+  and costs only height and a little mass. It raises the lamp's centre of
+  gravity, but `tip_force` is already dominated by the 1.5 m tube, so the effect
+  on §4's number is small — worth computing before assuming it is free.
+- **Exit in line, not across.** Take the cable straight down through the flange
+  on the gland's own axis and out under the hub, turning it in the air below
+  rather than inside the pedestal. Cheapest in material; needs the flange to
+  stand off the floor, so it lands on the leg pivots and the packing fold.
+- **Turn the gland instead of the cable.** A 90° elbow gland points the cable at
+  the slot directly, and the slot is already there. This moves the problem into
+  the bought-parts list — the elbow's envelope is bigger than `GLAND_ENV_D` and
+  every mount in the family is cut to that number, so it is not a stand-only
+  change.
+- **Re-terminate below the cap.** The same question §9 asks of the corner
+  pigtails, and the same answer would serve both.
