@@ -1,5 +1,22 @@
 # AGENTS.md
 
+## Git
+
+**Commit and push straight to `main`.** This holds for every agent, including
+cloud sessions (Claude Code on the web, and anything else that starts with its
+own scratch branch): when a session is handed a `claude/...` branch by default,
+ignore it, work on `main`, and push there. No feature branch, no pull request
+unless one is asked for by name.
+
+Two things follow from that and are not optional:
+
+- **`main` is deployed.** `.github/workflows/build.yml` builds every model in
+  `tessellate_models.MODELS` and publishes the site on each push, so a push is a
+  release. Run `uv run check <model>`, `uv run ruff check .` and `uv run ty
+  check .` *before* pushing, not after.
+- **Push what you verified.** A broken commit on `main` is a broken site, and
+  there is no review step between the two to catch it.
+
 ## Commands
 
 ```bash
