@@ -52,3 +52,9 @@ dev = [
     "ty>=0.0.1a29",
     "watchfiles>=0.24.0",
 ]
+mesh = [
+    "manifold3d>=3.5.2",
+    "rtree>=1.4.1",
+    "shapely>=2.1.2",
+    "trimesh>=5.0.0",
+]
