@@ -137,34 +137,43 @@ Bought for the stand: three flat bars, 20 × 3 × 250 mm, Ø6.5 hole 12 mm from 
 end — stainless or galvanised, not plain mild steel if it lives outdoors.
 
 ```bash
-uv run show led_profiles.printable      # every printed part, in print pose
 uv run show led_profiles.corner         # one part; also .strap .stand .feet
-uv run export led_profiles.printable    # STLs for the slicer
+uv run export led_profiles.corner       # its STL for the slicer
 ```
+
+Each printed part is its own model — `.endcap`, `.strap`, `.corner`, `.stand`,
+`.feet` — so the slicer gets them one at a time. `create_print_layout()` still
+spreads the whole set into one row, each in its print pose, for anyone who wants
+them in a single file (it is also the only way to reach the wall foot, which
+shares `feet`'s CLI target with the eye foot).
 
 ### Assemblies
 
-`assemblies.py` puts the mounting family to use: one or three lamps seated in
-the mounts above, each placed with that part's own `seated()` transform
-(`feet.seated`, `strap.seated`, `stand.seated`/`seated_legs`, `corner.seated`)
-rather than a re-derived one. The only new geometry is the triangle's vertex
-layout (`triangle_vertices`) and the stand's tube-to-vertical rotation.
+The `assemblies/` package puts the mounting family to use: one or three lamps
+seated in the mounts above, each placed with that part's own `seated()`
+transform (`feet.seated`, `strap.seated`, `stand.seated`/`seated_legs`,
+`corner.seated`) rather than a re-derived one. The only new geometry is the
+triangle's vertex layout (`triangle_vertices`) and the stand's tube-to-vertical
+rotation.
 
-| view | shows |
+One module per scene, so each is a model in its own right — showable,
+exportable, and on the generated website alongside the parts:
+
+| module | shows |
 |---|---|
-| `create_triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
-| `create_standing` | 1 lamp vertical in the tripod hub, legs deployed, straps at all 3 stand stations, lower endcap on the seat |
-| `create_suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
-
-`create()`, the package's CLI entry point, aliases to `create_triangle`:
+| `assemblies.triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
+| `assemblies.standing` | 1 lamp vertical in the tripod hub, legs deployed, straps at all 3 stand stations, lower endcap on the seat |
+| `assemblies.suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
 
 ```bash
-uv run show led_profiles.assemblies     # triangle: 3 lamps, 3 corners, 12 straps
+uv run show led_profiles.assemblies.triangle    # 3 lamps, 3 corners, 12 straps
+uv run show led_profiles.assemblies.standing    # upright in the tripod hub
+uv run show led_profiles.assemblies.suspended   # hung from two eye feet
 ```
 
-`create_standing` and `create_suspended` aren't wired to a CLI target of their
-own (one `create()` per module) — import and call them directly, e.g.
-`from models.led_profiles import create_standing`.
+All three take a lamp `length` (the site exposes it as a slider) and are
+re-exported from the package, so `from models.led_profiles import
+create_standing` still works.
 
 The triangle's 126 mm of unlit tube per vertex (noted above) is the visible
 consequence of staying coplanar — `docs/design-notes.md` §2 has the

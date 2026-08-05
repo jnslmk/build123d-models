@@ -14,10 +14,18 @@ from models.drill_storage_wood_assembly import (
     create as create_drill_storage_wood_assembly,
 )
 from models.led_profiles import create as create_led_profiles
+from models.led_profiles.assemblies.standing import (
+    create as create_led_profiles_standing,
+)
+from models.led_profiles.assemblies.suspended import (
+    create as create_led_profiles_suspended,
+)
+from models.led_profiles.assemblies.triangle import (
+    create as create_led_profiles_triangle,
+)
 from models.led_profiles.corner import create as create_led_profiles_corner
 from models.led_profiles.endcap import create as create_led_profiles_endcap
 from models.led_profiles.feet import create as create_led_profiles_feet
-from models.led_profiles.printable import create as create_led_profiles_printable
 from models.led_profiles.stand import create as create_led_profiles_stand
 from models.led_profiles.strap import create as create_led_profiles_strap
 from models.led_psu_enclosure import create as create_led_psu_enclosure
@@ -40,11 +48,13 @@ BUILDERS = {
     "drill_storage_metal": create_drill_storage_metal,
     "drill_storage_wood": create_drill_storage_wood,
     "drill_storage_wood_assembly": create_drill_storage_wood_assembly,
-    # The lamp system: the whole stick, every printed part in print pose, and
-    # each part on its own. Keys are module paths under ``models``, matching
-    # tessellate_models.MODELS -- see its comment.
+    # The lamp system: the whole stick, the three ways it gets mounted, and
+    # each printed part on its own in print pose. Keys are module paths under
+    # ``models``, matching tessellate_models.MODELS -- see its comment.
     "led_profiles": create_led_profiles,
-    "led_profiles.printable": create_led_profiles_printable,
+    "led_profiles.assemblies.triangle": create_led_profiles_triangle,
+    "led_profiles.assemblies.standing": create_led_profiles_standing,
+    "led_profiles.assemblies.suspended": create_led_profiles_suspended,
     "led_profiles.endcap": create_led_profiles_endcap,
     "led_profiles.corner": create_led_profiles_corner,
     "led_profiles.strap": create_led_profiles_strap,

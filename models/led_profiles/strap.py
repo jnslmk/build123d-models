@@ -83,6 +83,7 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
+    Color,
     Cone,
     Cylinder,
     Locations,
@@ -112,6 +113,12 @@ OUTER_Z = CROWN_Z + m.STRAP_T  # 19.7 -- overall height
 # -- the stadium is taller than it is wide, so its caps are half its width. That
 # is what the bore mouth's chamfer is selected by.
 BORE_HALF_W = (c.WIDTH + INNER_CLEAR) / 2  # 14.5
+
+# The family's printed grey, the same value corner.py, stand.py and feet.py each
+# declare for their own part (CORNER_COLOR / STAND_COLOR / FOOT_COLOR). Only
+# ``labelled`` below applies it: a strap on its own is shown as what comes off
+# the bed, and the grey only means something standing next to the aluminium.
+STRAP_COLOR = Color(0.30, 0.32, 0.36)
 
 
 def _big() -> float:
@@ -352,9 +359,25 @@ def seated(x: float = 0.0) -> Part:
     return placed
 
 
+def labelled(placed: Part, tag: str) -> Part:
+    """A strap already moved into place, labelled with ``tag`` and coloured.
+
+    Every assembly view stacks at least one more transform on top of
+    ``seated`` (onto the stand's vertical socket, out along a triangle's arm),
+    and ``Location * Part`` drops both the label and the colour, so this is
+    the one place that puts them back rather than repeating the two lines at
+    each of the family's dozen-odd strap placements. ``tag`` says *which*
+    strap -- which foot, which station, which edge -- because a scene holds up
+    to twelve of them and ``checks.py`` picks parts out of a scene by label.
+    """
+    placed.label = f"strap ({tag})"
+    placed.color = STRAP_COLOR
+    return placed
+
+
 def create() -> Part:
     """Entry point for ``uv run show led_profiles.strap``."""
     return create_strap()
 
 
-__all__ = ["arch_section", "create", "create_strap", "seated"]
+__all__ = ["arch_section", "create", "create_strap", "labelled", "seated"]

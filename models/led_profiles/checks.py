@@ -2032,7 +2032,7 @@ def _check_scene_clearance(
     summing per-bought-part intersects, at about half the cost. Each part is
     passed through an identity ``Pos`` first: ``Compound(children=...)``
     re-parents whatever shapes it is given, which would silently empty them
-    out of ``assembly.children`` -- the same trick ``assemblies.py`` uses
+    out of ``assembly.children`` -- the same trick ``assemblies/`` uses
     throughout to move a part *without* mutating the source is what keeps this
     a read of the scene instead of a rewrite of it.
 

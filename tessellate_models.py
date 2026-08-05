@@ -12,12 +12,13 @@ import importlib
 # The model roster the website + CI expose. Single source of truth; main.py's
 # BUILDERS mirrors this list.
 #
-# A name is a **module path under ``models``**, so a package's parts can be
-# listed individually: ``led_profiles`` is the whole lamp, ``led_profiles.stand``
-# is one printed part. Everything downstream derives from that -- ``_module``
-# imports it, ``website._manifest`` turns the dots into the source file's own
-# path, and the exports land under the dotted name. Only modules with a zero-arg
-# ``create()`` belong here; the shared pieces a part is built from
+# A name is a **module path under ``models``**, so a package's parts and scenes
+# can be listed individually: ``led_profiles`` is the whole lamp,
+# ``led_profiles.stand`` is one printed part, ``led_profiles.assemblies.standing``
+# is one way of mounting it. Everything downstream derives from that --
+# ``_module`` imports it, ``website._manifest`` turns the dots into the source
+# file's own path, and the exports land under the dotted name. Only modules with
+# a zero-arg ``create()`` belong here; the shared pieces a part is built from
 # (``led_profiles.cradle``, ``models.lib``) are not models.
 MODELS = [
     "cube",
@@ -31,7 +32,9 @@ MODELS = [
     "drill_storage_wood",
     "drill_storage_wood_assembly",
     "led_profiles",
-    "led_profiles.printable",
+    "led_profiles.assemblies.triangle",
+    "led_profiles.assemblies.standing",
+    "led_profiles.assemblies.suspended",
     "led_profiles.endcap",
     "led_profiles.corner",
     "led_profiles.strap",

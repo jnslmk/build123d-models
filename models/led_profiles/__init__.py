@@ -12,10 +12,11 @@ snap-in diffuser and the COB strip, reconstructed from calipers in
 alongside as they get designed.
 
     uv run show led_profiles                # the full 1.5 m lamp, caps on
-    uv run show led_profiles.printable      # every printed part, in print pose
     uv run show led_profiles.corner         # one part; also .strap .stand .feet
-    uv run show led_profiles.assemblies     # triangle: 3 lamps, 3 corners, 12 straps
-    uv run export led_profiles.printable    # STLs for the slicer
+    uv run show led_profiles.assemblies.triangle   # 3 lamps, 3 corners, 12 straps
+    uv run show led_profiles.assemblies.standing   # upright in the tripod hub
+    uv run show led_profiles.assemblies.suspended  # hung from two eye feet
+    uv run export led_profiles.corner       # STLs for the slicer, a part at a time
     uv run check led_profiles               # hold it all to its measurements
 """
 
