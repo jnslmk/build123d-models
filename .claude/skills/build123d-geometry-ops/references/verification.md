@@ -162,7 +162,7 @@ part = as_part(Pos(0, 0, -flipped.bounding_box().min.Z) * flipped)
 ```
 
 Same pattern in `models/round_snap_box.py:220`,
-`models/drill_storage_gridfinity.py:1166` and `models/lens_cap.py:107`. If you add
+`models/drill_storage/box.py:1162` and `models/lens_cap.py:104`. If you add
 a feature that hangs below the old minimum, the reseat handles it — but the
 assertion is what tells you the reseat is still there.
 

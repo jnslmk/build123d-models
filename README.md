@@ -98,6 +98,10 @@ module per printable part, `checks.py`, a `README.md` and a `docs/` folder, and
 is the required shape as soon as a model grows a second part, a second view,
 measured hardware constants, or a sibling that imports from it.
 
+`tessellate_models.MODELS` is the single roster: `main.py`, the website and CI
+all build from it, so adding a name there is the whole procedure for publishing
+a model.
+
 The full specification — the promotion rule, naming, where shared geometry goes,
 how a model gets registered, and the places the tree still deviates — is in
 [AGENTS.md](AGENTS.md#model-structure).
@@ -119,6 +123,8 @@ Packages — each has its own README with the full story:
 
 | Model | Description |
 |-------|-------------|
+| [`drill_storage`](models/drill_storage/README.md) | Gridfinity drill holders — one base/cover engine, one holder per tool set (`.wood`, `.metal`, `.hex`) |
+| [`drill_fit_tester`](models/drill_fit_tester/README.md) | Coupons that settle how a `drill_storage` bore grips a bit (`.plain`, `.taper`, `.sweep`, `.small`, `.full`) |
 | [`led_profiles`](models/led_profiles/README.md) | Modular 24 V addressable COB linear lamp system: endcap, corner, strap, stand, feet, and three mounting scenes |
 | [`led_psu_enclosure`](models/led_psu_enclosure/README.md) | Weatherproof enclosure for a 24 V LED driver stack, with sliding-shutter vents and an optional fan yoke |
 
@@ -129,14 +135,6 @@ Single-file models:
 | `cube` | Simple parametric cube — the minimal example |
 | `door_latch` | Rounded L-shaped door latch that pivots around a screw hole |
 | `slotted_plate` | Door latch plate: slot with a tapered entry ramp |
-| `drill_storage_gridfinity` | Gridfinity drill storage tubes, square-base variant |
-| `drill_storage_wood` | Gridfinity storage for a 2–10 mm brad-point drill set |
-| `drill_storage_metal` | Gridfinity storage for a 1–10 mm HSS twist drill set |
-| `drill_storage_hex` | Gridfinity storage for a 16-piece 1/4" hex-shank bit set |
-| `drill_storage_wood_assembly` | Assembled view: base + drills + cover |
-| `drill_fit_tester` | Fit-test coupons for the `drill_storage_wood` bores |
-| `drill_fit_tester_plain` | Plain-hole fit-test coupon |
-| `drill_fit_tester_taper` | Tapered-hole fit-test coupon |
 | `lens_cap` | Parametric push-on lens cap |
 | `round_snap_box` | Round box with a snap-on lid that closes flush |
 | `satellite_led` | Hexagonal rod with WS2811 strips, parabolic mirror and diffuser |

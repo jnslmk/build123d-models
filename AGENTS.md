@@ -52,8 +52,8 @@ This is a collection of 3D printable models using build123d (Python CAD library)
 - `models/` - The models themselves, one module or one package each (see **Model Structure**)
 - `models/lib/` - Helpers shared *across* models: `edges`, `checks`, `fits`
 - `exports/` - Generated STL / STEP / GLB / render assets (not tracked in git)
-- `main.py` - Builds and exports the whole roster; `BUILDERS` is its registry
-- `tessellate_models.py` - `MODELS`, the roster the website and CI read
+- `tessellate_models.py` - `MODELS`, the one roster the website, CI and `main.py` read
+- `main.py` - Builds and exports every model in `MODELS`
 - `show.py` / `export_model.py` / `check.py` / `render_svg.py` - the `uv run` entry points
 - `website.py` - Builds the static site bundle from `MODELS`
 
@@ -151,32 +151,22 @@ Code panel keeps working.
 
 ### Registering a model
 
-A model exists for the site and CI only once it is in **both** hand-written
-rosters, and they must stay in sync:
-
-- `tessellate_models.MODELS` — the source of truth the website and CI read.
-- `main.py:BUILDERS` — name → builder, for the build-everything pass.
+Add the name to **`tessellate_models.MODELS`**. That is the whole procedure —
+`main.py` builds straight from that list, the website reads it, CI reads it, so
+there is no second place to keep in sync and no way for them to disagree.
 
 Only modules with a zero-arg `create()` belong there. The shared pieces a part is
-built from (`led_profiles.cradle`, `led_psu_enclosure.config`, `models/lib`) are
-not models. A new package also has to be added to `[tool.setuptools] packages` in
-`pyproject.toml` — subpackages are not implied by their parent.
+built from (`drill_storage.box`, `led_profiles.cradle`, `led_psu_enclosure.config`,
+`models/lib`) are not models. A new package also has to be added to
+`[tool.setuptools] packages` in `pyproject.toml` — subpackages are not implied by
+their parent, so a missing line ships a wheel without that model.
 
 ### Known deviations
 
-The tree does not fully match this spec yet. These are the outstanding gaps —
-read them as work to be done, not as patterns to copy:
-
-- `drill_storage_*` (5 flat modules, one of them 1200 lines and doubling as the
-  family's library) and `drill_fit_tester_*` (6 flat modules importing each
-  other's private helpers) should each be one package.
-- `round_snap_box`, `drill_fit_tester_full`, `drill_fit_tester_small`,
-  `drill_fit_tester_sweep` and the `led_psu_enclosure` part modules
-  (`.tray`, `.lid`, `.shelf`, `.plate`, `.vent`, `.gasket`, `.printable`) have a
-  `create()` but are in neither roster, so they are invisible to the site.
-- Several models still carry a legacy `main()`; most of them cannot even be run
-  as a script, because their imports only resolve from the repo root.
-- No single-file model has a `check()`.
+- No single-file model has a `check()`, so `uv run check <flat-model>` prints
+  "no checks defined" for all of them. The two packages carry real `checks.py`.
+- `models/lens_cap.py` has no module docstring, which is the only documentation
+  a single-file model gets.
 
 ## build123d Style
 

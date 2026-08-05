@@ -9,28 +9,18 @@ Fine-tune per-printer with the slicer's X-Y hole compensation.
 
 from build123d import Part
 
-from models.drill_fit_tester import _coupon
-from models.drill_storage_gridfinity import cut_holes
+from ..drill_storage.box import cut_holes
+from .frame import coupon
 
 PLAIN_UNDERSIZE = 0.03  # holes this fraction of the bit under size -> light grip
 
 
 def create() -> Part:
     """Plain round holes, undersized a fixed % of the bit; no ribs, bored through."""
-    return _coupon(
+    return coupon(
         lambda b, h, tz, dp: cut_holes(
             b, h, 0.0, False, tz, dp, through=True, undersize_frac=PLAIN_UNDERSIZE
         ),
-        "drill_fit_tester_plain",
+        "drill_fit_tester.plain",
         "PLAIN",
     )
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_fit_tester_plain")
-
-
-if __name__ == "__main__":
-    main()

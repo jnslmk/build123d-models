@@ -32,10 +32,7 @@ from build123d import (
     SortBy,
     Torus,
     chamfer,
-    export_step,
-    export_stl,
 )
-from ocp_vscode import show
 
 # --- Box interior (the two numbers the user actually cares about) -----------
 INNER_DIA = 78.0  # ID of the box
@@ -242,18 +239,3 @@ def create(
     lid = create_lid(inner_dia, inner_height, body_wall, lid_wall, clearance, bead)
     gap = inner_dia + 2 * body_wall + 20
     return Compound(children=[box, Pos(gap, 0, 0) * lid])
-
-
-def main() -> None:
-    box = create_box()
-    lid = create_lid()
-    gap = INNER_DIA + 2 * BODY_WALL + 20
-    show(Compound(children=[box, Pos(gap, 0, 0) * lid]))
-    export_step(box, "exports/round_snap_box.step")
-    export_stl(box, "exports/round_snap_box.stl")
-    export_step(lid, "exports/round_snap_box_lid.step")
-    export_stl(lid, "exports/round_snap_box_lid.stl")
-
-
-if __name__ == "__main__":
-    main()

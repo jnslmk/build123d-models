@@ -1,6 +1,6 @@
 """Assembled view of the wood drill storage: base + brad-point drills + cover.
 
-A verification assembly for ``drill_storage_wood``. It drops a simple 3D model of
+A verification assembly for ``drill_storage.wood``. It drops a simple 3D model of
 every drill in the set into its own bore on the base, seats the labelled cover
 over the collar in its *use* pose, and makes the cover translucent so you can see
 the drills standing inside it. Its whole reason to exist is to eyeball one thing:
@@ -30,7 +30,7 @@ from build123d import (
     extrude,
 )
 
-from models.drill_storage_gridfinity import (
+from ..box import (
     BASE_COLOR,
     BASE_TOTAL_H,
     BORE_FLOOR_Z,
@@ -38,26 +38,26 @@ from models.drill_storage_gridfinity import (
     create_base,
     create_cover,
 )
-from models.drill_storage_wood import (
+from ..wood import (
     COVER_H_WOOD,
     CSK_HEAD_D,
     DRILL_BORES,
     HEX_BORES,
     LABEL,
     MAX_WOOD_DRILL_LEN,
-    _POS,
-    _ROWS,
+    POS,
+    ROWS,
 )
 
 # "A display/verification model, not something to print" (above), which is
 # exactly what tessellate_models.model_is_assembly means: no STL/STEP download
 # on the website. The base and cover it shows are downloadable from
-# ``drill_storage_wood``.
+# ``drill_storage.wood``.
 IS_ASSEMBLY = True
 
 # Overall length (mm) of each drill in the set. Graduated like a real brad-point
 # set -- small bits are short, the 10 mm is the longest at MAX_WOOD_DRILL_LEN so
-# the fit check is honest. Edit MAX_WOOD_DRILL_LEN in drill_storage_wood to drive
+# the fit check is honest. Edit MAX_WOOD_DRILL_LEN in drill_storage.wood to drive
 # the longest; the rest are just plausible display lengths.
 DRILL_LENGTHS = {
     2.0: 60.0,
@@ -116,7 +116,7 @@ def create_countersink(across_flats: float, head_d: float) -> Part:
     return csk.part
 
 
-def create() -> Compound:
+def create_wood_assembly() -> Compound:
     """The wood drill storage, fully assembled: base, every drill in its bore,
     and the translucent cover seated over the collar."""
     base = create_base(
@@ -124,8 +124,8 @@ def create() -> Compound:
         hex_bores=HEX_BORES,
         clearance=0.0,
         ribbed=True,
-        rows=_ROWS,
-        hole_pos=_POS,
+        rows=ROWS,
+        hole_pos=POS,
     )
     base.label = "base"
     base.color = BASE_COLOR
@@ -156,16 +156,14 @@ def create() -> Compound:
     cover.color = COVER_GLASS
 
     return Compound(
-        label="drill_storage_wood_assembly",
+        label="drill_storage.assemblies.wood",
         children=[base, *drills, cover],
     )
 
 
-def main() -> None:
-    from export import display_and_export
+def create() -> Compound:
+    """Model entry point -- see ``create_wood_assembly``."""
+    return create_wood_assembly()
 
-    display_and_export(create(), "drill_storage_wood_assembly")
 
-
-if __name__ == "__main__":
-    main()
+__all__ = ["IS_ASSEMBLY", "create", "create_wood_assembly"]

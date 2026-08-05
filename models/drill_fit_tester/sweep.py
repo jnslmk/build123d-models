@@ -9,7 +9,7 @@ Each bar carries the same representative drill sizes (``SWEEP_DIAMS``) bored wit
 the production rib geometry, but a *different* ``RIB_GRIP`` (``SWEEP_GRIPS``).
 The grip value is engraved on the back of each bar and the sizes on the front.
 Print the bars, drop the bits in, and pick the bar that feels right -- then set
-``RIB_GRIP`` in ``drill_storage_gridfinity`` to that number and the whole holder
+``RIB_GRIP`` in ``drill_storage.box`` to that number and the whole holder
 follows. If no single bar is right across all sizes, the *pattern* of which bar
 wins per size tells you whether the rib geometry (not the number) is still wrong.
 
@@ -37,25 +37,25 @@ from build123d import (
     extrude,
 )
 
-from models.drill_fit_tester import (
+from .frame import (
     EDGE,
     HOLE_WALL,
     LABEL_PITCH,
     PLATE_CH,
     PLATE_R,
-    _engrave,
+    engrave,
 )
-from models.drill_storage_gridfinity import (
+from ..drill_storage.box import (
     BASE_COLOR,
     HEX_GRIP,
     RIB_GRIP,
     grip_for,
     RIB_ZONE_H,
-    _rib_tip_r,
-    _rib_relief,
+    rib_tip_r,
+    rib_relief,
     cut_holes,
 )
-from models.drill_storage_wood import CSK_HEAD_D, CSK_HEX_AF
+from ..drill_storage.wood import CSK_HEAD_D, CSK_HEX_AF
 
 # A bar's grip is either one flat interference for every bore, or a law that
 # varies it per diameter.
@@ -84,7 +84,7 @@ BAR_GAP = 6.0  # spacing between bars when shown/exported as one assembly
 
 def _valley_r(d: float, grip: float) -> float:
     """Cut footprint of a bore at a given grip -- used for spacing the row."""
-    return _rib_tip_r(d, grip) + _rib_relief(d, grip)
+    return rib_tip_r(d, grip) + rib_relief(d, grip)
 
 
 def create_bar(
@@ -174,8 +174,8 @@ def create_bar(
             )
 
         for key, d, px, _ in placed:
-            _engrave(key, (px, -half_w, z_mid), (1, 0, 0), (0, -1, 0))
-        _engrave(title, (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
+            engrave(key, (px, -half_w, z_mid), (1, 0, 0), (0, -1, 0))
+        engrave(title, (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
 
     bar.part.label = label
     bar.part.color = BASE_COLOR
@@ -194,14 +194,14 @@ def lay_out(bars: list[Part], label: str) -> Compound:
 
 def create() -> Compound:
     """All sweep bars, laid out side by side (each exports as its own STL)."""
-    return lay_out([create_bar(g) for g in SWEEP_GRIPS], "drill_fit_tester_sweep")
+    return lay_out([create_bar(g) for g in SWEEP_GRIPS], "drill_fit_tester.sweep")
 
 
 # --- Offset families ----------------------------------------------------------
 # A second style of coupon: instead of sweeping a flat grip value, shift the
 # *production law* by a fixed offset per bar. Once grip_for() stopped being a
 # constant, a flat sweep could no longer answer "is the law right?" -- only a
-# shifted law can. Used by drill_fit_tester_small and drill_fit_tester_full.
+# shifted law can. Used by drill_fit_tester.small and drill_fit_tester.full.
 
 
 def grip_shifted(offset: float) -> Callable[[float], float]:
@@ -260,12 +260,6 @@ def report_offsets(
         print(f"{'hex':>5} mm  production {HEX_GRIP:.2f}   bars: {shifted}")
 
 
-def main() -> None:
-    from export import display_and_export
-
+def report() -> None:
+    """Print the coupon's key: which grip each bar is cut at."""
     print(f"grip sweep {SWEEP_GRIPS} (current RIB_GRIP = {RIB_GRIP})")
-    display_and_export(create(), "drill_fit_tester_sweep")
-
-
-if __name__ == "__main__":
-    main()

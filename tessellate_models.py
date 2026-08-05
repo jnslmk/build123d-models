@@ -9,8 +9,8 @@ import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
 
 import importlib
 
-# The model roster the website + CI expose. Single source of truth; main.py's
-# BUILDERS mirrors this list.
+# The model roster the website + CI expose. The **single** source of truth:
+# ``main.py`` builds straight from this list rather than keeping its own copy.
 #
 # A name is a **module path under ``models``**, so a package's parts and scenes
 # can be listed individually: ``led_profiles`` is the whole lamp,
@@ -19,18 +19,27 @@ import importlib
 # ``_module`` imports it, ``website._manifest`` turns the dots into the source
 # file's own path, and the exports land under the dotted name. Only modules with
 # a zero-arg ``create()`` belong here; the shared pieces a part is built from
-# (``led_profiles.cradle``, ``models.lib``) are not models.
+# (``led_profiles.cradle``, ``drill_storage.box``, ``models.lib``) are not models.
 MODELS = [
     "cube",
     "door_latch",
+    # Fit coupons: three ways of cutting a bore, then three sweeps that settle
+    # the number it is cut at. See models/drill_fit_tester/__init__.py.
     "drill_fit_tester",
-    "drill_fit_tester_plain",
-    "drill_fit_tester_taper",
-    "drill_storage_gridfinity",
-    "drill_storage_hex",
-    "drill_storage_metal",
-    "drill_storage_wood",
-    "drill_storage_wood_assembly",
+    "drill_fit_tester.plain",
+    "drill_fit_tester.taper",
+    "drill_fit_tester.sweep",
+    "drill_fit_tester.small",
+    "drill_fit_tester.full",
+    # One Gridfinity base/cover engine, one holder per tool set, plus the scene
+    # that proves a drill fits inside.
+    "drill_storage",
+    "drill_storage.wood",
+    "drill_storage.metal",
+    "drill_storage.hex",
+    "drill_storage.assemblies.wood",
+    # The lamp system: the whole stick, the three ways it gets mounted, and
+    # each printed part on its own in print pose.
     "led_profiles",
     "led_profiles.assemblies.triangle",
     "led_profiles.assemblies.standing",
@@ -40,8 +49,18 @@ MODELS = [
     "led_profiles.strap",
     "led_profiles.stand",
     "led_profiles.feet",
+    # The enclosure: the assembled scene, the slicer layout, and every printed
+    # part on its own.
     "led_psu_enclosure",
+    "led_psu_enclosure.printable",
+    "led_psu_enclosure.tray",
+    "led_psu_enclosure.lid",
+    "led_psu_enclosure.shelf",
+    "led_psu_enclosure.plate",
+    "led_psu_enclosure.vent",
+    "led_psu_enclosure.gasket",
     "lens_cap",
+    "round_snap_box",
     "satellite_led",
     "slotted_plate",
     "spiral_vase_lampshade",
@@ -75,7 +94,7 @@ def model_is_assembly(name: str) -> bool:
     Declared per module as ``IS_ASSEMBLY = True``, the same way a parametric
     model declares ``PARAMS``, so the fact lives with the model rather than in
     a list here that would drift. Absent means a printable part -- the common
-    case, including multi-part *print layouts* like ``drill_storage_wood``
+    case, including multi-part *print layouts* like ``drill_storage.wood``
     (base and cover, side by side on the bed), which are downloadable.
     """
     return bool(getattr(_module(name), "IS_ASSEMBLY", False))

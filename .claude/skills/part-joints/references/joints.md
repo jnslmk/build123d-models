@@ -141,7 +141,7 @@ the rib**, giving a transition or press fit without a plain interference fit.
   repeated assembly loses the grip. If the joint must come apart and back together,
   use compliant ribs sized for elastic deflection instead (see below).
 - **Same principle as this repo's ribbed bores**, generalised from tool grip to
-  press fits. `models/drill_storage_gridfinity.py` uses `RIB_COUNT = 3` beads
+  press fits. `models/drill_storage/box.py` uses `RIB_COUNT = 3` beads
   whose contact edge sits `RIB_GRIP = 0.22` mm (diametral) inside the tool, and
   its long design comment (`:183-214`) explains why an elastic rib and a crushable
   bump are different animals: the earlier bumps could only be crushed, not

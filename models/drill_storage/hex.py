@@ -1,7 +1,7 @@
 """Gridfinity storage for a 16-piece 1/4" hex-shank bit set -- 8 long + 8 short.
 
-A sibling of ``drill_storage_wood`` / ``drill_storage_metal`` built on the same
-square Gridfinity base/cover engine from ``drill_storage_gridfinity``, but every
+A sibling of ``drill_storage.wood`` / ``drill_storage.metal`` built on the same
+square Gridfinity base/cover engine from ``drill_storage.box``, but every
 hole is a hex socket rather than a round bore: the bits all share the same
 6.35 mm (1/4") across-flats shank, so they drop straight into a hex pocket and
 are held by the flats.
@@ -30,7 +30,7 @@ family's 42 mm, and leaves every bit standing well proud to pinch out:
 
 from build123d import BuildSketch, Compound, Pos, Text
 
-from models.drill_storage_gridfinity import (
+from .box import (
     BASE_COLOR,
     BASE_H,
     CORNER_R,
@@ -90,7 +90,7 @@ LEGEND_LINE_H = ((BASE_FOOT_TOP - BASE_H - 2 * LEGEND_MARGIN) - LEGEND_GLYPH_H) 
     LEGEND_ROWS - 1
 )
 
-# Pick each cover on the true minimum Gridfinity unit (see ``drill_storage_wood``):
+# Pick each cover on the true minimum Gridfinity unit (see ``drill_storage.wood``):
 # ask only for a tip clearance rather than the generic headroom, so the 7 mm
 # quantisation isn't pushed up a whole unit by slack it doesn't need.
 COVER_TIP_CLEARANCE = 1.0
@@ -193,14 +193,4 @@ def create() -> Compound:
 
         children += [Pos(x, -30, 0) * base, Pos(x, 30, 0) * cover]
 
-    return Compound(label="drill_storage_hex", children=children)
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_storage_hex")
-
-
-if __name__ == "__main__":
-    main()
+    return Compound(label="drill_storage.hex", children=children)

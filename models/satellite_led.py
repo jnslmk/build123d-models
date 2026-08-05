@@ -18,13 +18,10 @@ from build123d import (
     Rectangle,
     RectangleRounded,
     Vector,
-    export_step,
-    export_stl,
     extrude,
     loft,
     revolve,
 )
-from ocp_vscode import show
 
 # A scene: rod, strips, mirror and diffusers in their use pose. Not a print job
 # -- see tessellate_models.model_is_assembly, which is what drops the website's
@@ -333,14 +330,3 @@ def create() -> Compound:
         label="satellite_led",
         children=[rod] + strips + [mirror, diffuser_top, diffuser_bottom],
     )
-
-
-def main() -> None:
-    part = create()
-    show(part)
-    export_step(part, "exports/satellite_led.step")
-    export_stl(part, "exports/satellite_led.stl")
-
-
-if __name__ == "__main__":
-    main()

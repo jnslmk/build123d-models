@@ -2,7 +2,7 @@
 10 mm hex-shank countersink.
 
 A ready-to-print pair built on the square Gridfinity base/cover from
-``drill_storage_gridfinity``: a 1x1 base holding eleven graduated drills
+``drill_storage.box``: a 1x1 base holding eleven graduated drills
 (2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10 mm) plus a 10 mm countersink bit with a
 6.3 mm hex shank, and a matching labelled cover that snaps over it.
 
@@ -18,7 +18,7 @@ Change ``LABEL`` to relabel the cover for your material.
 
 from build123d import Compound, Pos
 
-from models.drill_storage_gridfinity import (
+from .box import (
     BASE_COLOR,
     COVER_COLOR,
     cover_height_for,
@@ -58,7 +58,7 @@ CSK_HEAD_D = 10.0
 # 10 mm drill so the CSK sits at a row edge while the 10 mm bore takes the centre
 # slot. Their footprints are within 0.2 mm (10 -> 5.2, CSK head -> 5.0), so the
 # trade keeps every wall clearance. Add/remove a size above and it re-packs.
-DRILL_BORES, HEX_BORES, _ROWS, _POS = layout_bores(
+DRILL_BORES, HEX_BORES, ROWS, POS = layout_bores(
     DRILL_DIAMS,
     hex_tools=[("CSK", CSK_HEX_AF, CSK_HEAD_D / 2)],
     swap=[("CSK", "10")],
@@ -72,8 +72,8 @@ def create() -> Compound:
         hex_bores=HEX_BORES,
         clearance=0.0,
         ribbed=True,
-        rows=_ROWS,
-        hole_pos=_POS,
+        rows=ROWS,
+        hole_pos=POS,
     )
     base.label = "base_2_10mm_csk"
     base.color = BASE_COLOR
@@ -83,16 +83,6 @@ def create() -> Compound:
     cover.color = COVER_COLOR
 
     return Compound(
-        label="drill_storage_wood",
+        label="drill_storage.wood",
         children=[Pos(-26, 0, 0) * base, Pos(26, 0, 0) * cover],
     )
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_storage_wood")
-
-
-if __name__ == "__main__":
-    main()

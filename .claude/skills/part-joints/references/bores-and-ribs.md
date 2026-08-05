@@ -37,7 +37,7 @@ So:
   you measured.
 - **Expose the clearance as a named constant, not a magic number.** In this repo
   it is `create_base(..., clearance=...)`, and the docstring at
-  `models/drill_storage_gridfinity.py:1018-1022` states the undersize reason
+  `models/drill_storage/box.py:1014-1018` states the undersize reason
   inline — copy that habit.
 - **Slicers already compensate a little**, inconsistently and differently per
   slicer. That is a reason to print a coupon, not a reason to skip the clearance.
@@ -86,28 +86,28 @@ Shape rules:
 
 ## The repo's implementation and its constants
 
-`models/drill_storage_gridfinity.py`, `cut_holes` (`:830`) and
-`create_base(ribbed=True)` (`:994`). Verified constants as of this writing:
+`models/drill_storage/box.py`, `cut_holes` (`:828`) and
+`create_base(ribbed=True)` (`:992`). Verified constants as of this writing:
 
 | Constant | Value | Line | Meaning |
 | --- | --- | --- | --- |
-| `RIB_COUNT` | `3` | `:181` | ribs per bore |
-| `RIB_GRIP` | `0.22` | `:213` | diametral interference at the rib faces, all bores |
-| `HEX_GRIP` | `0.25` | `:214` | same for hex sockets — flats, not a curved wall |
-| `RIB_WIDTH` | `0.9` | `:288` | rounded-bead diameter (≥ 2 perimeters at the neck) |
-| `RIB_RELIEF_FRAC_OF_WIDTH` | `0.75` | `:294` | protrusion past the valley, as a fraction of bead width |
-| `RIB_TAPER` | `4.0` | `:295` | height over which each rib ramps out to nothing |
-| `RIB_ZONE_H` | `14.0` | `:306` | rib band height above the bore floor |
-| `HEX_SLIP` | `0.05` | `:320` | across-flats clearance on the hex guide socket |
-| `RIB_TOP_GAP` | `BORE_MOUTH_CHAMFER + 0.4` = 1.2 | `:322` | how far below the mouth the ribs stop |
-| `BORE_MOUTH_CHAMFER` | `0.8` | `:107` | 45° lead-in depth at every mouth |
+| `RIB_COUNT` | `3` | `:185` | ribs per bore |
+| `RIB_GRIP` | `0.22` | `:217` | diametral interference at the rib faces, all bores |
+| `HEX_GRIP` | `0.25` | `:218` | same for hex sockets — flats, not a curved wall |
+| `RIB_WIDTH` | `0.9` | `:292` | rounded-bead diameter (≥ 2 perimeters at the neck) |
+| `RIB_RELIEF_FRAC_OF_WIDTH` | `0.75` | `:298` | protrusion past the valley, as a fraction of bead width |
+| `RIB_TAPER` | `4.0` | `:299` | height over which each rib ramps out to nothing |
+| `RIB_ZONE_H` | `14.0` | `:310` | rib band height above the bore floor |
+| `HEX_SLIP` | `0.05` | `:324` | across-flats clearance on the hex guide socket |
+| `RIB_TOP_GAP` | `BORE_MOUTH_CHAMFER + 0.4` = 1.2 | `:326` | how far below the mouth the ribs stop |
+| `BORE_MOUTH_CHAMFER` | `0.8` | `:111` | 45° lead-in depth at every mouth |
 
-Derived helpers, all at `:341-369`:
+Derived helpers, all at `:345-374`:
 
-- `_rib_tip_r(d, grip) = (d - grip) / 2` — the grip radius, just inside the tool.
-- `_rib_width(d, grip) = min(RIB_WIDTH, 1.4 * _rib_tip_r(d, grip))` — fixed bead,
+- `rib_tip_r(d, grip) = (d - grip) / 2` — the grip radius, just inside the tool.
+- `_rib_width(d, grip) = min(RIB_WIDTH, 1.4 * rib_tip_r(d, grip))` — fixed bead,
   capped on the tiniest bores so three beads cannot choke the hole.
-- `_rib_relief(d, grip) = RIB_RELIEF_FRAC_OF_WIDTH * _rib_width(d, grip)` — tied to
+- `rib_relief(d, grip) = RIB_RELIEF_FRAC_OF_WIDTH * _rib_width(d, grip)` — tied to
   the bead width, not to `d`, because it is the *ratio* of the two that decides
   whether the rib is a spring or a bump. Must stay below 1.0 or the bead never
   reaches the valley wall and prints as a floating pin (`:290-291`).
@@ -137,7 +137,7 @@ in that table — including the note that the table is deliberately non-monotoni
 
 A hex socket has **no ribs to take up slack unless you give it some**, so a plain
 hex fit lives entirely in its across-flats clearance and is correspondingly fussy.
-`models/drill_storage_hex.py:51` (`HEX_SHANK_AF`) and `:60` (`HEX_CLEARANCE`)
+`models/drill_storage/hex.py:51` (`HEX_SHANK_AF`) and `:60` (`HEX_CLEARANCE`)
 does exactly that: `HEX_CLEARANCE = 0.15` on a nominal `HEX_SHANK_AF = 6.35`
 (1/4") shank — enough to drop in and lift out one-handed, not enough to rattle.
 
@@ -181,7 +181,7 @@ twice for the round bores and once again for the small ones, with the whole trai
 kept in the source comments (`:183-274`). Two lessons transfer to any new
 interference feature:
 
-1. **Print a sweep coupon.** `drill_fit_tester_sweep` and `drill_fit_tester_small`
+1. **Print a sweep coupon.** `drill_fit_tester.sweep` and `drill_fit_tester.small`
    exist for exactly this; the latter offsets the whole grip law by a fixed amount
    per bar so the correction curve can be measured rather than assumed.
 2. **When one number cannot be made to work across sizes, the geometry is wrong,

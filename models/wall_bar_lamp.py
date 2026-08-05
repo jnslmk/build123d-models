@@ -197,13 +197,3 @@ def create_print_layout() -> Compound:
 def create() -> Compound:
     """Create the lamp arranged in its final assembled wall-sconce form."""
     return Compound(label="wall_bar_lamp", children=_assemble_components())
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "wall_bar_lamp")
-
-
-if __name__ == "__main__":
-    main()

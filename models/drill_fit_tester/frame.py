@@ -1,15 +1,19 @@
-"""Fit-test coupons for the ``drill_storage_wood`` bores.
+"""The shared coupon frame -- the strip, its hole layout, its engraving.
 
-A small flat, through-bored strip carrying every drill size (and the countersink
-hex socket) so you can dial in fit by printing just the coupon instead of the
-whole holder. Each hole is labelled (engraved) with its size and the coupon
-carries an engraved variant title.
+Not a model. A small flat, through-bored strip carrying every drill size (and the
+countersink hex socket) so you can dial in fit by printing just the coupon
+instead of the whole holder. Each hole is labelled (engraved) with its size and
+the coupon carries an engraved variant title.
 
-This module holds the shared ``_coupon`` frame plus the **ribbed** variant
-(``create``). Two siblings reuse the frame:
+``coupon(cut_fn, ...)`` builds the frame and hands the hole cutting to the
+variant, which is the only thing the three single-value coupons differ in:
 
-* ``drill_fit_tester_plain``  -- nominal holes, no ribs (tune via slicer comp).
-* ``drill_fit_tester_taper``  -- every hole slightly tapered (self-centring).
+* ``drill_fit_tester``        -- the holder's real ribbed geometry.
+* ``drill_fit_tester.plain``  -- nominal holes, no ribs (tune via slicer comp).
+* ``drill_fit_tester.taper``  -- every hole slightly tapered (self-centring).
+
+The sweep coupons (``.sweep``, ``.small``, ``.full``) build their own bars but
+reuse this module's spacing constants and ``engrave``.
 
 Prints flat, bores-up, no supports.
 """
@@ -27,13 +31,12 @@ from build123d import (
     extrude,
 )
 
-from models.drill_storage_gridfinity import (
+from ..drill_storage.box import (
     BASE_COLOR,
     BORE_MOUTH_CHAMFER,
-    cut_holes,
     ribbed_valley_r,
 )
-from models.drill_storage_wood import (
+from ..drill_storage.wood import (
     CSK_HEAD_D,
     CSK_HEX_AF,
     DRILL_DIAMS,
@@ -49,13 +52,13 @@ LABEL_DEPTH = 0.8  # engraved (recessed) -- raised thin text gets slicer-dropped
 LABEL_PITCH = 8.5  # min hole centre spacing so the size labels don't crowd
 
 
-def _layout_r(d: float) -> float:
+def layout_r(d: float) -> float:
     """Layout footprint radius per size -- the ribbed valley, so all three
     coupons share one hole layout regardless of how they cut the holes."""
     return ribbed_valley_r(d)
 
 
-def _engrave(text: str, origin, x_dir, z_dir) -> None:
+def engrave(text: str, origin, x_dir, z_dir) -> None:
     """Engrave ``text`` ``LABEL_DEPTH`` into the active part's face at ``origin``,
     reading along ``x_dir`` with outward face normal ``z_dir``."""
     with BuildSketch(Plane(origin=origin, x_dir=x_dir, z_dir=z_dir)) as sk:
@@ -63,13 +66,13 @@ def _engrave(text: str, origin, x_dir, z_dir) -> None:
     extrude(sk.sketch, amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
 
 
-def _coupon(cut_fn, part_label: str, title: str) -> Part:
+def coupon(cut_fn, part_label: str, title: str) -> Part:
     """Build a labelled, through-bored fit-test coupon.
 
     ``cut_fn(bores, hex_bores, top_z, depth)`` cuts the holes into the active
     part (each variant supplies its own); the frame, labels and title are shared.
     """
-    items = [(f"{d:g}", _layout_r(d)) for d in sorted(DRILL_DIAMS)]
+    items = [(f"{d:g}", layout_r(d)) for d in sorted(DRILL_DIAMS)]
     items.append(("hex", CSK_HEAD_D / 2))
 
     # Place hole centres left-to-right: at least a mouth-chamfer wall apart, and
@@ -112,28 +115,9 @@ def _coupon(cut_fn, part_label: str, title: str) -> Part:
 
         # Engraved (a recess always prints; thin raised text gets slicer-dropped).
         for text, lx in labels:
-            _engrave(text, (lx, -half_w, z_mid), (1, 0, 0), (0, -1, 0))
-        _engrave(title, (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
+            engrave(text, (lx, -half_w, z_mid), (1, 0, 0), (0, -1, 0))
+        engrave(title, (0, half_w, z_mid), (-1, 0, 0), (0, 1, 0))
 
     plate.part.label = part_label
     plate.part.color = BASE_COLOR
     return plate.part
-
-
-def create() -> Part:
-    """Ribbed variant -- the holder's real geometry (3 ribs grip the bit)."""
-    return _coupon(
-        lambda b, h, tz, dp: cut_holes(b, h, 0.0, True, tz, dp, through=True),
-        "drill_fit_tester",
-        "RIBBED",
-    )
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_fit_tester")
-
-
-if __name__ == "__main__":
-    main()

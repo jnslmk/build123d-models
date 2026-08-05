@@ -1,9 +1,12 @@
-"""Gridfinity drill storage tubes -- square-base variant of ``drill_storage``.
+"""The Gridfinity base/cover engine every drill holder in this package is cut from.
 
-Same two-part telescoping idea (a bored base + a tall labelled cover that
-friction-fits over it), but the round base is replaced by a **1x1 Gridfinity
-foot** so the holder drops into any Gridfinity baseplate, and the cover becomes
-a rounded-square tube whose flat face carries the embossed material label.
+Not a model -- the shared geometry, constants and packers. ``wood``, ``metal``,
+``hex`` and ``sampler`` each supply a drill list and a label and get a finished
+pair back; nothing here knows about a particular tool set.
+
+Two-part telescoping holder: a bored base and a tall labelled cover that
+friction-fits over it, on a **1x1 Gridfinity foot** so the holder drops into any
+Gridfinity baseplate.
 
 * Base  -- 42 mm Gridfinity footprint (41.5 mm pad, standard 0.7/1.8/1.9 mm
   foot profile), 42 mm tall (6U). A 41.5 mm body steps down to a 35 mm collar
@@ -29,7 +32,6 @@ from build123d import (
     BuildPart,
     BuildSketch,
     Color,
-    Compound,
     Cone,
     Cylinder,
     Circle,
@@ -53,7 +55,7 @@ from build123d import (
     sweep,
 )
 
-from .lib.edges import chamfer_edge
+from ..lib.edges import chamfer_edge
 
 # --- Gridfinity standard ------------------------------------------------------
 GRID = 42.0
@@ -206,7 +208,7 @@ RIB_COUNT = 3
 # retention force, and grip becomes force-controlled rather than position-
 # controlled. That is what makes one number cover 2-10 mm.
 #
-# Calibrated on the printed grip sweep (``drill_fit_tester_sweep``): 0.22 was
+# Calibrated on the printed grip sweep (``drill_fit_tester.sweep``): 0.22 was
 # judged right across 4-10 mm, and the hex wanted a little more, between 0.22 and
 # 0.30. So the compliant-rib premise holds -- one number really does cover the
 # round bores now -- but the hex gets its own, because it is not the same spring:
@@ -229,7 +231,7 @@ HEX_GRIP = 0.25  # ... a touch more for hex sockets (flats, not a curved wall)
 # number; the printer just can't deliver it below ~4 mm.
 #
 # The shape of that correction was then measured directly, with the offset
-# coupons in ``drill_fit_tester_small`` (each bar shifts the whole law by a fixed
+# coupons in ``drill_fit_tester.small`` (each bar shifts the whole law by a fixed
 # amount). It is NOT the straight ramp originally assumed -- the correction is
 # nearly flat from 2 to 3 mm and then collapses over the next millimetre:
 #
@@ -340,7 +342,7 @@ def grip_for(d: float) -> float:
     return RIB_GRIP
 
 
-def _rib_tip_r(d: float, grip: float = RIB_GRIP) -> float:
+def rib_tip_r(d: float, grip: float = RIB_GRIP) -> float:
     """Radius of the rib faces (grip) for a bit of diameter ``d`` -- just inside
     the bit so it's held by light interference. ``grip`` is diametral."""
     return (d - grip) / 2
@@ -349,10 +351,10 @@ def _rib_tip_r(d: float, grip: float = RIB_GRIP) -> float:
 def _rib_width(d: float, grip: float = RIB_GRIP) -> float:
     """Diameter of the rounded rib bead -- fixed, except on the tiniest bores
     where it is capped so three beads can't choke the hole."""
-    return min(RIB_WIDTH, 1.4 * _rib_tip_r(d, grip))
+    return min(RIB_WIDTH, 1.4 * rib_tip_r(d, grip))
 
 
-def _rib_relief(d: float, grip: float = RIB_GRIP) -> float:
+def rib_relief(d: float, grip: float = RIB_GRIP) -> float:
     """Radial protrusion of the ribs past the relieved valley for diameter ``d``.
 
     Tied to the bead width (not to ``d``) because it is the ratio of the two that
@@ -368,14 +370,8 @@ def ribbed_valley_r(d: float) -> float:
     actually cut, rather than the uncompensated ``RIB_GRIP`` figure.
     """
     g = grip_for(d)
-    return _rib_tip_r(d, g) + _rib_relief(d, g)
+    return rib_tip_r(d, g) + rib_relief(d, g)
 
-
-# Demo drill sets for the default holder -- just the sizes; ``layout_bores``
-# solves the positions (see ``create``). A small graduated set and a large-bit
-# set, to show both ends of the range.
-DEMO_DIAMS_SMALL = [3.0, 3.5, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 9.5]
-DEMO_DIAMS_LARGE = [6.0, 8.0, 10.0, 12.0]
 
 BASE_COLOR = Color(0.62, 0.64, 0.67)
 COVER_COLOR = Color(0.93, 0.93, 0.92)
@@ -870,8 +866,8 @@ def cut_holes(
     for d, x, y in bores:
         grip = grip_for(d) if grip_override is None else grip_override
         if ribbed:
-            r_tip = _rib_tip_r(d, grip)
-            relief = _rib_relief(d, grip)
+            r_tip = rib_tip_r(d, grip)
+            relief = rib_relief(d, grip)
             r_valley = r_tip + relief
         else:
             r_tip = (d + clearance - undersize_frac * d) / 2
@@ -934,9 +930,9 @@ def cut_holes(
         # for the diameter: the rib faces land HEX_GRIP inside the flats, and the
         # band is first opened out to a round relief pocket wide enough to
         # swallow the hex corners so each bead has travel behind it.
-        r_tip = _rib_tip_r(af, hex_grip)  # half the across-flats, less half the grip
+        r_tip = rib_tip_r(af, hex_grip)  # half the across-flats, less half the grip
         width = _rib_width(af, hex_grip)
-        r_valley = r_tip + _rib_relief(af, hex_grip)
+        r_valley = r_tip + rib_relief(af, hex_grip)
         rib_h = min(RIB_ZONE_H, bore_depth - RIB_TOP_GAP)
         bead_r = width / 2
         body_h = rib_h - RIB_TAPER
@@ -1032,7 +1028,7 @@ def create_base(
 
     ``bore_depth`` is how far every hole is sunk below the top face. The default
     swallows a full-length drill; a set of *short* bits wants a shallower bore so
-    each bit still stands proud enough to pinch (see ``drill_storage_hex``).
+    each bit still stands proud enough to pinch (see ``drill_storage.hex``).
 
     ``foot_top`` (shoulder the cover seats on) and ``collar_h`` set how tall the
     base is; together they are its total height, which the defaults put at 42 mm
@@ -1175,41 +1171,3 @@ def create_cover(
     # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
     part = Rotation(180, 0, 0) * cover.part
     return Pos(0, 0, -part.bounding_box().min.Z) * part
-
-
-def create() -> Compound:
-    """Full set: three labelled square covers with two Gridfinity bases."""
-    covers = []
-    for label, x in [("Metal", -52), ("Stone", 0), ("Wood", 52)]:
-        c = create_cover(label)
-        c.label = f"cover_{label.lower()}"
-        c.color = COVER_COLOR
-        covers.append(Pos(x, 30, 0) * c)
-
-    bores9, _, rows9, pos9 = layout_bores(DEMO_DIAMS_SMALL)
-    base9 = create_base(bores9, ribbed=True, rows=rows9, hole_pos=pos9)
-    base9.label = "base_9_bore"
-    base9.color = BASE_COLOR
-    bores4, _, rows4, pos4 = layout_bores(DEMO_DIAMS_LARGE)
-    base4 = create_base(bores4, ribbed=True, rows=rows4, hole_pos=pos4)
-    base4.label = "base_4_bore"
-    base4.color = BASE_COLOR
-
-    return Compound(
-        label="drill_storage_gridfinity",
-        children=[
-            *covers,
-            Pos(-26, -30, 0) * base9,
-            Pos(26, -30, 0) * base4,
-        ],
-    )
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_storage_gridfinity")
-
-
-if __name__ == "__main__":
-    main()

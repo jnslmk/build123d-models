@@ -1,6 +1,6 @@
 """Full-set fit coupons: every hole in the wood holder, at five grip offsets.
 
-``drill_fit_tester_small`` only carried 2-5 mm, because that is where the print
+``drill_fit_tester.small`` only carried 2-5 mm, because that is where the print
 compensation lives. But the calibration history says the *baseline* deserves a
 look too: every size below 5 mm has been revised upward at least once, and 4 mm
 reversed a judgement it had already passed twice. The 0.22 baseline for 6-10 mm
@@ -22,8 +22,8 @@ transfers. Bits go in SHANK first. Prints flat, bores-up, no supports.
 
 from build123d import Compound
 
-from models.drill_fit_tester_sweep import create_offset_family, report_offsets
-from models.drill_storage_wood import DRILL_DIAMS
+from ..drill_storage.wood import DRILL_DIAMS
+from .sweep import create_offset_family, report_offsets
 
 # Everything the wood base holds.
 FULL_DIAMS = sorted(DRILL_DIAMS)
@@ -37,16 +37,13 @@ FULL_OFFSETS = [-0.08, -0.04, 0.0, 0.04, 0.08]
 def create() -> Compound:
     """All offset bars, laid out side by side (each exports as its own STL)."""
     return create_offset_family(
-        FULL_OFFSETS, FULL_DIAMS, FULL_HEX, "drill_fit_tester_full"
+        FULL_OFFSETS, FULL_DIAMS, FULL_HEX, "drill_fit_tester.full"
     )
 
 
-def main() -> None:
-    from export import display_and_export
-
+def report() -> None:
+    """Print the coupon's key: the grip each bar cuts at each size."""
     report_offsets(FULL_DIAMS, FULL_OFFSETS, FULL_HEX)
-    display_and_export(create(), "drill_fit_tester_full")
 
 
-if __name__ == "__main__":
-    main()
+__all__ = ["FULL_DIAMS", "FULL_HEX", "FULL_OFFSETS", "create", "report"]

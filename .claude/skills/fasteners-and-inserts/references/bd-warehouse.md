@@ -66,7 +66,7 @@ What build123d *does* ship, and what a hand-rolled thread is built from
   screw, nut, washer or bearing in a `Compound` so the assembly view is
   honest about clearances and stack-up heights. This repo already hand-rolls
   hardware for exactly this purpose - see `create_countersink` in
-  `models/drill_storage_wood_assembly.py`, which builds a hex shank, a conical
+  `models/drill_storage/assemblies/wood.py`, which builds a hex shank, a conical
   head and a pilot tip by hand. That is a candidate for replacement.
 - **Fastener-driven holes.** `bd_warehouse.fastener` can generate the
   clearance hole, counterbore and countersink *from the fastener object*, so

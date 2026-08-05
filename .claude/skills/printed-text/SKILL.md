@@ -81,7 +81,7 @@ The same probe answers layout questions. Measure at a probe size, then scale:
 largest font that fits a face of width `W` is `W / run`. Glyph widths vary enough
 (a `1` against a `W`) that a characters-times-width rule of thumb either overflows
 the face or wastes it. See `_label_fit` in
-`models/drill_storage_hex.py`, which uses this to choose between reading up a
+`models/drill_storage/hex.py`, which uses this to choose between reading up a
 cover face and reading across it.
 
 ## Orientation is the biggest lever
@@ -101,7 +101,7 @@ the bigger minimums in the table above and cannot be paint-filled.
 **Engraved plus a wipe of paint or marker in the recess gives the best contrast
 for small labels**, which is why this repo engraves. For a crisper engraved edge,
 chamfer the glyph mouths into a continuous V-groove — see `LABEL_CHAMFER` in
-`models/drill_storage_gridfinity.py`.
+`models/drill_storage/box.py`.
 
 ## Aligning wall labels to holes
 
@@ -117,7 +117,7 @@ alignment worse — there is a real three-way tension between **text size, hole
 spread and alignment**, and it has to be resolved deliberately rather than
 discovered on the print.
 
-`_engrave_row_legend` in `models/drill_storage_gridfinity.py` implements this:
+`_engrave_row_legend` in `models/drill_storage/box.py` implements this:
 `flat_half = PAD / 2 - CORNER_R`, then a per-label
 `limit = flat_half - 0.31 * WALL_LABEL_SIZE * len(text) - 0.3` that the lateral
 position is clamped to.
@@ -132,6 +132,6 @@ label is gone.
 
 | File | What it shows |
 | --- | --- |
-| `models/drill_storage_gridfinity.py` | `_engrave_row_legend` — bold 4 mm wall numbers clamped off the rounded corners and aligned to hole world-x; constants `WALL_LABEL_SIZE`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_MAX_LAT`. Cover label with a chamfered V-groove mouth. |
-| `models/drill_storage_hex.py` | `_label_fit` — probe-measures the word to pick the largest font and the better reading direction for a cover face. |
-| `models/drill_fit_tester.py` | `_engrave` — the minimal sketch-on-a-plane, extrude-subtract engraving helper. |
+| `models/drill_storage/box.py` | `_engrave_row_legend` — bold 4 mm wall numbers clamped off the rounded corners and aligned to hole world-x; constants `WALL_LABEL_SIZE`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_MAX_LAT`. Cover label with a chamfered V-groove mouth. |
+| `models/drill_storage/hex.py` | `_label_fit` — probe-measures the word to pick the largest font and the better reading direction for a cover face. |
+| `models/drill_fit_tester/frame.py` | `engrave` — the minimal sketch-on-a-plane, extrude-subtract engraving helper. |

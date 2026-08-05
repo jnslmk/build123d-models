@@ -19,7 +19,7 @@ rationale:
 | `CLEARANCE` | `models/round_snap_box.py` | `0.3` |
 | `LID_PLUG_CLEAR` | `models/led_psu_enclosure/config.py` | `0.3` |
 | `VENT_CLEAR` | `models/led_psu_enclosure/config.py` | `0.35` |
-| `HEX_CLEARANCE` | `models/drill_storage_hex.py` | `0.15` |
+| `HEX_CLEARANCE` | `models/drill_storage/hex.py` | `0.15` |
 | `STEP_CLEARANCE` | `models/satellite_led.py` | `0.5` |
 
 Five numbers, five different intents, none of them stated. A later reader cannot tell

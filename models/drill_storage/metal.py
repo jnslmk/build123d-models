@@ -1,8 +1,8 @@
 """Gridfinity drill storage sized for a 1-10 mm metal (HSS twist) drill set plus
 a 10 mm hex-shank insert.
 
-A sibling of ``drill_storage_wood`` built on the very same square Gridfinity
-base/cover engine from ``drill_storage_gridfinity`` -- only the inputs differ: a
+A sibling of ``drill_storage.wood`` built on the very same square Gridfinity
+base/cover engine from ``drill_storage.box`` -- only the inputs differ: a
 1x1 base holding ten graduated drills (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10 mm)
 plus a 10 mm across-flats hex-shank insert dropping into a hex socket, and a
 matching labelled cover that snaps over it.
@@ -21,7 +21,7 @@ Change ``LABEL`` to relabel the cover for your material.
 
 from build123d import Compound, Pos
 
-from models.drill_storage_gridfinity import (
+from .box import (
     BASE_COLOR,
     COVER_COLOR,
     create_base,
@@ -45,7 +45,7 @@ HEX_LABEL = "TAP"  # wall legend for the hex socket
 
 # Positions are solved by the shared ``layout_bores``. The hex socket's footprint
 # is just its circumradius (af / sqrt(3)) -- there is no wider head resting on top,
-# unlike the countersink in ``drill_storage_wood``. Add/remove a size above and it
+# unlike the countersink in ``drill_storage.wood``. Add/remove a size above and it
 # re-packs.
 DRILL_BORES, HEX_BORES, _ROWS, _POS = layout_bores(
     DRILL_DIAMS,
@@ -71,16 +71,6 @@ def create() -> Compound:
     cover.color = COVER_COLOR
 
     return Compound(
-        label="drill_storage_metal",
+        label="drill_storage.metal",
         children=[Pos(-26, 0, 0) * base, Pos(26, 0, 0) * cover],
     )
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_storage_metal")
-
-
-if __name__ == "__main__":
-    main()

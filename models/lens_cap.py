@@ -7,10 +7,7 @@ from build123d import (
     Pos,
     chamfer,
     extrude,
-    export_step,
-    export_stl,
 )
-from ocp_vscode import show
 
 
 INNER_DIA = 51.0
@@ -105,14 +102,3 @@ def create(
     # an unsupported bridge across the cavity. Just re-seat on z=0.
     part = builder.part
     return Pos(0, 0, -part.bounding_box().min.Z) * part
-
-
-def main() -> None:
-    part = create()
-    show(part)
-    export_step(part, "exports/lens_cap.step")
-    export_stl(part, "exports/lens_cap.stl")
-
-
-if __name__ == "__main__":
-    main()

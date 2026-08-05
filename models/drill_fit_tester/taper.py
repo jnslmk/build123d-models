@@ -21,7 +21,7 @@ from build123d import (
     loft,
 )
 
-from models.drill_fit_tester import _coupon
+from .frame import coupon
 
 TAPER_TOP = 0.1  # diametral clearance at the top of each hole
 TAPER_BOTTOM = 0.1  # diametral undersize at the bottom of each hole
@@ -68,14 +68,4 @@ def _cut_tapered(bores, hex_bores, top_z: float, depth: float) -> None:
 
 def create() -> Part:
     """Tapered holes -- clearance at top, undersized at bottom; bored through."""
-    return _coupon(_cut_tapered, "drill_fit_tester_taper", "TAPER")
-
-
-def main() -> None:
-    from export import display_and_export
-
-    display_and_export(create(), "drill_fit_tester_taper")
-
-
-if __name__ == "__main__":
-    main()
+    return coupon(_cut_tapered, "drill_fit_tester.taper", "TAPER")

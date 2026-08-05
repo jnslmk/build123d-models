@@ -27,6 +27,12 @@ from . import config as c
 
 GASKET_COLOR = Color(0.12, 0.12, 0.14)  # black silicone
 
+# Bought cord, not a print job, so the website offers no STL/STEP for it -- the
+# same reason an assembly view offers none (see tessellate_models.model_is_assembly).
+# It is still a model worth showing: it is the record of what size cord the
+# groove was cut for.
+IS_ASSEMBLY = True
+
 
 def seated() -> Part:
     """The cord in the groove, compressed by the lid: flush with the rim top."""
@@ -64,4 +70,4 @@ def create() -> Part:
     return seated()
 
 
-__all__ = ["create", "seated"]
+__all__ = ["IS_ASSEMBLY", "create", "seated"]
