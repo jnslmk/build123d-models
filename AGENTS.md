@@ -17,6 +17,50 @@ Two things follow from that and are not optional:
 - **Push what you verified.** A broken commit on `main` is a broken site, and
   there is no review step between the two to catch it.
 
+### Build only what changed
+
+`uv run python main.py` builds and exports **every** model in the roster. That is
+many minutes of OCC work, and CI runs it on every push anyway, so spending it
+locally to re-export forty models you did not touch is wasted time.
+
+Default to the per-model commands — they take the same model names as everything
+else, so `uv run export drill_storage.flex.shell` builds exactly that part:
+
+```bash
+uv run check <model>     # geometry assertions
+uv run export <model>    # STL + STEP + GLB
+uv run render <model>    # SVG, no viewer needed
+```
+
+**Rebuild the model you changed *and everything that imports what you changed.***
+That second half is the part that bites, because most of this repo's models are
+cut from shared engines:
+
+- a change under `models/lib/` can reach **any** model;
+- `drill_storage/box.py` is the engine behind `drill_storage.*`,
+  `drill_storage.flex.*` and every `drill_fit_tester.*` coupon;
+- `led_profiles/config.py` and `led_psu_enclosure/config.py` likewise feed every
+  part and assembly in their packages.
+
+So: touching one model's own module means rebuilding that model. Touching a
+`box.py`, a `config.py`, or anything in `models/lib/` means rebuilding the family
+— and finding that family by `grep`, not from memory:
+
+```bash
+grep -rlE --include=*.py '(\.)+box import|drill_storage\.box' models/
+```
+
+Note the `--include=*.py` and the alternation. A narrower pattern like
+`from .box import` finds 5 files where the real answer is 17 — it misses both the
+`from ..box import` used one level down and the `from ..drill_storage.box import`
+that every `drill_fit_tester` coupon uses to reach across packages. Without
+`--include`, stale `__pycache__/*.pyc` inflate the count instead.
+
+Run the full `main.py` when the blast radius is genuinely wide (a `models/lib/`
+change, a rename across packages, a new entry in `tessellate_models.MODELS`) or
+when you want the same signal CI will give you before you push. Otherwise the
+per-model commands plus `ruff` and `ty` are enough, and CI is the backstop.
+
 ## Commands
 
 ```bash
@@ -39,7 +83,11 @@ uv run render cube out.svg --scale 2  # custom output and scale
 # Run a model's geometry assertions, exit non-zero on failure
 uv run check cube
 
-# Build all models
+# Build ONE model (this is the one to reach for -- see "Build only what changed")
+uv run export cube
+
+# Build all models -- slow (many minutes). CI does this on every push, so you
+# rarely need to; see "Build only what changed" for when you do.
 uv run python main.py
 
 # Lint
