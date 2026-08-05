@@ -58,9 +58,22 @@ def check_fits(r: Report) -> None:
     """Every clearance traces back to a named fit class, not a typed number."""
     r.section("fits")
     r.check(
-        c.LAND_FIT == fits.for_material(fits.PRESS, "tpu"),
-        "LAND_FIT is a press fit in TPU",
-        f"{c.LAND_FIT:.2f} mm (modelled nominal; FDM undersize is the interference)",
+        c.LAND_FIT == fits.for_material(fits.PRESS, "tpu") - c.LAND_EXTRA_GRIP,
+        "LAND_FIT is a press fit in TPU, tightened by LAND_EXTRA_GRIP",
+        f"{c.LAND_FIT:.2f} mm = {fits.for_material(fits.PRESS, 'tpu'):.2f} "
+        f"- {c.LAND_EXTRA_GRIP:.2f}",
+    )
+    r.check(
+        c.GUIDE_FIT == fits.for_material(fits.FREE, "asa"),
+        "GUIDE_FIT is a free fit in ASA",
+        f"{c.GUIDE_FIT:.2f} mm",
+    )
+    # The split only works if the two halves are cut on opposite sides of
+    # nominal. A guide that grips, or a land that clears, defeats it silently.
+    r.check(
+        c.LAND_FIT < 0.0 < c.GUIDE_FIT,
+        "the ASA guide clears and the TPU land interferes",
+        f"guide {c.GUIDE_FIT:+.2f} (loose) / land {c.LAND_FIT:+.2f} (tight)",
     )
     r.check(
         c.RELIEF_FIT == fits.for_material(fits.SLIDING, "tpu"),
@@ -108,6 +121,17 @@ def check_envelope(shell: Part, insert: Part, r: Report) -> None:
     r.check(c.CART_PROUD > 0.5,
             "cartridge stands proud enough to pinch out",
             f"{c.CART_PROUD:.1f} mm")
+    # The collar's defining property: symmetric about its own bead.
+    r.check(abs(c.CART_BELOW_BEAD - c.CART_ABOVE_BEAD) < TOL,
+            "collar reaches as far below the bead as it stands above it",
+            f"below {c.CART_BELOW_BEAD:.2f} mm, above {c.CART_ABOVE_BEAD:.2f} mm")
+    r.check(abs(c.CART_H - 2 * c.CART_ABOVE_BEAD) < TOL,
+            "collar height is exactly twice its above-bead reach",
+            f"{c.CART_H:.2f} mm")
+    r.check(c.CART_H > c.LAND_H + c.LAND_LEAD_IN + c.BEAD_BACK,
+            "collar is still tall enough for land, lead-in and bead",
+            f"{c.CART_H:.2f} mm vs "
+            f"{c.LAND_H + c.LAND_LEAD_IN + c.BEAD_BACK:.2f} mm needed")
 
 
 def check_cover_interface(r: Report) -> None:
@@ -117,9 +141,9 @@ def check_cover_interface(r: Report) -> None:
     r.check(abs(h - COVER_H_WOOD) < TOL,
             "an existing drill_storage.wood cover fits this shell",
             f"cover_height_for -> {h:.1f} mm, wood cover {COVER_H_WOOD:.1f} mm")
-    r.check(abs(c.CAVITY_FLOOR_Z - 6.0) < TOL,
+    r.check(abs(c.GUIDE_FLOOR_Z - 6.0) < TOL,
             "drills still bottom out at BORE_FLOOR_Z",
-            f"{c.CAVITY_FLOOR_Z:.1f} mm")
+            f"{c.GUIDE_FLOOR_Z:.1f} mm")
     # The two grooves must not thin the same ring of collar wall.
     cover_groove_z = FOOT_TOP + SNAP_Z
     sep = abs(c.BEAD_Z - cover_groove_z)
@@ -214,6 +238,52 @@ def check_land(insert: Part, r: Report) -> None:
             f"{c.EFFECTIVE_LAND_H:.1f} of {c.LAND_H:.1f} mm")
 
 
+def check_guides(shell: Part, r: Report) -> None:
+    """The ASA half of every hole: open top to bottom, loose, and coaxial with the
+    collar's land above it. A guide that is off-axis makes the land a cam."""
+    r.section("ASA guide bores")
+    z_mid = c.GUIDE_FLOOR_Z + c.GUIDE_H / 2
+
+    for d, x, y in DRILL_BORES:
+        gr = (d + c.GUIDE_FIT) / 2
+        ok = (
+            not is_solid_at(shell, x + gr - PROBE, y, z_mid)
+            and is_solid_at(shell, x + gr + PROBE, y, z_mid)
+        )
+        r.check(ok, f"{d:g} mm guide bored to {gr * 2:.2f} mm",
+                f"sampled at z={z_mid:.1f}")
+
+    # Open all the way down to the floor a drill rests on, and no further.
+    open_span = all(
+        not is_solid_at(shell, x, y, z)
+        for _d, x, y in DRILL_BORES
+        for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid, c.CAVITY_FLOOR_Z - 0.3)
+    )
+    r.check(open_span, "every guide is open from its floor to the cavity",
+            f"{len(DRILL_BORES)} bores sampled at 3 heights")
+    floor_intact = all(
+        is_solid_at(shell, x, y, c.GUIDE_FLOOR_Z - 0.3)
+        for _d, x, y in DRILL_BORES
+    )
+    r.check(floor_intact, "the shell floor under every guide is solid",
+            "a drill rests on ASA, not on air")
+
+    # Guide is loose, land is tight -- confirm on the built solids, not just the
+    # constants, since these are two separate parts that could drift apart.
+    tighter = all(
+        (d + c.LAND_FIT) / 2 < (d + c.GUIDE_FIT) / 2 for d, _x, _y in DRILL_BORES
+    )
+    r.check(tighter, "every land is narrower than the guide beneath it",
+            f"{(c.GUIDE_FIT - c.LAND_FIT):.2f} mm diametral step, all sizes")
+
+    hex_ok = all(
+        not is_solid_at(shell, x, y, z)
+        for _af, x, y in HEX_BORES
+        for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid)
+    )
+    r.check(hex_ok, "the hex guide is bored too", f"{len(HEX_BORES)} socket(s)")
+
+
 def check_through_bores(insert: Part, r: Report) -> None:
     """Drills must reach the shell's ASA floor, so every bore is a through hole."""
     r.section("through bores")
@@ -258,9 +328,15 @@ def check_key(shell: Part, insert: Part, r: Report) -> None:
     slot_floor = c.CAVITY_W / 2 + c.KEY_D
     r.check(rib_tip < slot_floor - TOL, "key rib clears the bottom of its slot",
             f"rib {rib_tip:.2f} < slot {slot_floor:.2f} mm")
-    z = c.CAVITY_FLOOR_Z + c.CAVITY_H / 2
+    # Sample low in the cavity, deliberately clear of the retention groove: the
+    # collar is short enough now that mid-cavity lands *inside* the groove at
+    # BEAD_Z, where the wall is legitimately void and proves nothing about the key.
+    z = c.CAVITY_FLOOR_Z + 2.0
+    clear_of_groove = abs(z - c.BEAD_Z) > c.SHELL_GROOVE_R + 0.5
+    r.check(clear_of_groove, "key probe height is clear of the retention groove",
+            f"z={z:.1f}, groove at {c.BEAD_Z:.1f}+/-{c.SHELL_GROOVE_R:.1f}")
     r.check(not is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0, z),
-            "shell has a slot on +X at mid-cavity", "")
+            "shell has a slot on +X in the cavity wall", f"z={z:.1f}")
     r.check(is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0 + c.KEY_W, z),
             "the slot is local, not a groove round the whole cavity",
             f"solid at y={c.KEY_W:.1f}")
@@ -313,7 +389,7 @@ def check_sharp_edges(shell: Part, insert: Part, r: Report) -> None:
 
 def run() -> Report:
     r = Report()
-    shell = create_shell(rows=ROWS, hole_pos=POS)
+    shell = create_shell(DRILL_BORES, hex_bores=HEX_BORES, rows=ROWS, hole_pos=POS)
     insert = create_insert(DRILL_BORES, hex_bores=HEX_BORES)
 
     check_fits(r)
@@ -321,6 +397,7 @@ def run() -> Report:
     check_cover_interface(r)
     check_walls(shell, r)
     check_bore_spacing(r)
+    check_guides(shell, r)
     check_land(insert, r)
     check_through_bores(insert, r)
     check_retention(r)

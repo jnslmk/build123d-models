@@ -6,8 +6,8 @@ half and a compliant half:
 
 | Part | Model | Material | Job |
 | --- | --- | --- | --- |
-| Shell | `drill_storage.flex.shell` | ASA | Gridfinity foot, collar, cover snap groove, engraved size legend. No bores. |
-| Cartridge | `drill_storage.flex.insert` | TPU | Every bore. Grips the drills. Nothing else. |
+| Shell | `drill_storage.flex.shell` | ASA | Gridfinity foot, collar, cover snap groove, engraved legend, **and the guide bores** (free fit, 24.8 mm). Keeps drills straight. |
+| Collar | `drill_storage.flex.insert` | TPU | A short 12.4 mm collar at the top. Grips, on a 3.5 mm land. Nothing else. |
 | Cover | `drill_storage.wood` | ASA / PETG | Unchanged — see below. |
 
 `uv run show drill_storage.flex` shows all three assembled with the drill set in
@@ -39,9 +39,14 @@ diametral, finer than FDM can hold. Where PETG had no number loose enough, TPU
 has no printable number tight enough.
 
 So the bores are plain and round, and the **contact** is what got shortened: a
-3.5 mm grip land at the bottom of each bore, with the rest relieved to a sliding
-fit and doing nothing but keeping the drill upright. Three ribs over 14 mm and one
-full circle over 3.5 mm have comparable contact area. Full argument, with the
+3.5 mm grip land, with everything else relieved. Three ribs over 14 mm and one
+full circle over 3.5 mm have comparable contact area.
+
+Guiding and gripping then split cleanly by material. The ASA below is bored
+**loose** (`GUIDE_FIT`, +0.25) over 24.8 mm and holds the drill upright; the TPU
+collar above is cut **tight** (`LAND_FIT`, -0.10) over 3.5 mm and holds it in
+place. `checks.py` asserts that ordering, because a guide that gripped or a land
+that cleared would each defeat the split silently. Full argument, with the
 numbers, in [`config.py`](config.py) and [`docs/design-notes.md`](docs/design-notes.md).
 
 ## ⚠ The grip is not calibrated yet
@@ -70,9 +75,8 @@ Both parts come off `create()` already in print pose. No supports anywhere.
 ASA wants an enclosure; a 42 mm footprint is not fussy, but a draught will still
 lift the foot's corners. ~20 cm³.
 
-**Cartridge — TPU**, flat bottom down, bores up. ~33 cm³ solid, so use sparse
-infill — it prints slowly and the block does not need to be dense. Every bore is
-a through hole, so there is nothing to bridge and nothing to drain. Keep the
+**Collar — TPU**, flat bottom down, bores up. ~11 cm³ and 12.4 mm tall. Every bore
+is a through hole, so there is nothing to bridge and nothing to drain. Keep the
 perimeter count up: the grip land is a perimeter, and its diameter is the whole
 fit.
 
@@ -83,11 +87,19 @@ fit.
    the shell's engraved legend is only true in one orientation.
 2. Push it down until the retention bead clicks into the groove near the top.
    It takes a squeeze; TPU compresses 0.44 mm of engagement without complaint.
-3. Drills go in shank first and bottom out on the shell's **ASA** floor, not on
-   the TPU — soft plastic creeps under a point load.
+3. Drills go in shank first, pass clean through the collar, and bottom out on the
+   shell's **ASA** floor 24.8 mm below — soft plastic creeps under a point load.
 
-To swap sets, pinch the 1.2 mm of cartridge standing proud of the shell rim and
-pull. The bead is a rounded pocket designed to release.
+To swap sets, pinch the 1.2 mm of collar standing proud of the shell rim and pull.
+The bead is a rounded pocket designed to release. Note that the *guide* bores live
+in the shell, so a genuinely different drill set needs both halves reprinted — the
+collar alone only re-does the grip.
+
+**Check the small drills first.** The land sits at world z 30.8–34.3. On the
+brad-point lengths this set assumes, every size grips plain shank with ≥ 2.7 mm to
+spare; on DIN 338 jobber lengths the 2, 2.5 and 3 mm bits would be gripped partly
+on their *flutes*, whose hardened spurs broach a grip feature away permanently.
+The table and what to do about it are in `docs/design-notes.md`.
 
 ## Why the bores are packed tighter than the PETG base's
 

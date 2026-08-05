@@ -10,14 +10,22 @@ The vertical stack, all in world z with the shell's foot on z=0::
 
     0.0  -  4.4   Gridfinity foot (BASE_H)
     4.4  -  6.0   shell floor -- drills bottom out here, on ASA, never on TPU
-    6.0  -  9.5   TPU grip land (LAND_H) -- the only thing that holds a drill
-    9.5  - 10.0   lead-in cone from the relief down onto the land
-   10.0  - 43.2   TPU relief bore, sliding fit -- guides the drill, grips nothing
+    6.0  - 30.8   ASA guide bores, free fit -- hold the drill straight, no grip
    24.0           FOOT_TOP, the shoulder the cover seats on
    30.0           cover snap groove (FOOT_TOP + SNAP_Z)
+   30.8           CAVITY_FLOOR_Z -- the cartridge sits here
+   30.8 - 34.3   TPU grip land (LAND_H) -- the only thing that holds a drill
+   34.3 - 34.8   lead-in cone from the relief down onto the land
+   34.8 - 43.2   TPU relief bore, sliding fit -- clears the drill, grips nothing
    37.0           cartridge retention bead / shell groove (BEAD_Z)
    42.0           BASE_TOTAL_H, 6U -- shell top
    43.2           cartridge top, standing CART_PROUD above it to be pinched out
+
+The cartridge is a **collar**, not a block: it reaches exactly as far below the
+retention bead as it stands above it (``CART_BELOW_BEAD == CART_ABOVE_BEAD``), so
+the bead sits on its mid-plane and the TPU is 12.4 mm rather than 37.2. Everything
+below that is ASA, bored at a free fit -- the shell guides, the collar grips, and
+the two jobs stop sharing a part.
 
 Because the drill still stands on ``BORE_FLOOR_Z`` and the cover still seats on
 ``FOOT_TOP``, ``cover_height_for`` returns the same answer it does for the PETG
@@ -66,8 +74,16 @@ CART_COLOR = Color(0.25, 0.55, 0.72)  # a distinctly different part, on purpose
 SHELL_WALL = 1.6
 CAVITY_W = COLLAR_W - 2 * SHELL_WALL  # 36.0 mm cartridge bore
 CAVITY_R = COLLAR_R - SHELL_WALL  # 1.9 -- a true inward offset of the collar
-CAVITY_FLOOR_Z = BORE_FLOOR_Z  # drills rest on ASA, and the cover math holds
-CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 36.0
+
+# --- ASA guide bores ----------------------------------------------------------
+# Everything below the cartridge is shell, and it is bored. The guide's whole job
+# is to hold a drill upright over a long span so the short TPU collar does not
+# have to; it must therefore grip nothing at all, which is what a free fit means.
+# Adjusted for ASA (-0.15 off the PETG baseline), not TPU -- this hole is cut in
+# the rigid part.
+GUIDE_FIT = fits.for_material(fits.FREE, SHELL_MATERIAL)  # free fit, ASA
+GUIDE_FLOOR_Z = BORE_FLOOR_Z  # drills rest on ASA, and the cover math holds
+GUIDE_MOUTH_CH = 0.5  # lead-in where a guide opens into the cavity floor
 
 # Both rims of the shell's top face are chamfered -- the outer one for looks and
 # to lead the cover on, the inner one to lead the cartridge in (part-joints rule
@@ -81,13 +97,36 @@ CAVITY_MOUTH_CH = 0.4  # inner rim -- the cartridge's lead-in
 RIM_FLAT = SHELL_WALL - SHELL_TOP_CHAMFER - CAVITY_MOUTH_CH  # 0.8
 
 # --- Cartridge ----------------------------------------------------------------
+# Declared before the cartridge because the collar's height is *derived* from it:
+# the bead is the collar's mid-plane, so this one number places the TPU. The rest
+# of the retention geometry is further down, under "Retention".
+BEAD_Z = 37.0  # world z. Clear of the cover's groove at FOOT_TOP + SNAP_Z = 30,
+#                so the two never thin the same piece of collar wall.
+
 CART_SLIP = fits.for_material(fits.SLIDING, CART_MATERIAL)  # sliding fit, TPU
 CART_W = CAVITY_W - CART_SLIP
 CART_R = CAVITY_R - CART_SLIP / 2  # uniform offset, so the corners fit too
 CART_WALL = 1.0  # min material between a bore and the outer face. Thin for a
 #                  rigid part; fine in TPU, which is meant to give.
 CART_PROUD = 1.2  # stands above the shell rim so it can be pinched back out
-CART_H = CAVITY_H + CART_PROUD
+CART_TOP_Z = BASE_TOTAL_H + CART_PROUD  # 43.2
+
+# The cartridge is a collar centred on its own retention bead: it reaches exactly
+# as far below the bead as it stands above it. That is what sets its height --
+# nothing else -- so moving BEAD_Z or CART_PROUD moves the whole collar rather
+# than silently stretching one side of it.
+#
+# The alternative was a full-height block filling the cavity to the shell floor,
+# 37.2 mm of TPU doing two jobs. Guiding a drill over a long span wants a rigid
+# wall and grip wants a compliant one, and the block was a compromise at both.
+# Splitting them costs nothing: the ASA below guides, the collar grips.
+CART_ABOVE_BEAD = CART_TOP_Z - BEAD_Z  # 6.2
+CART_BELOW_BEAD = CART_ABOVE_BEAD  # symmetric, by definition
+CART_H = CART_ABOVE_BEAD + CART_BELOW_BEAD  # 12.4
+
+CAVITY_FLOOR_Z = BEAD_Z - CART_BELOW_BEAD  # 30.8 -- the collar sits here
+CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 11.2
+GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 24.8 of ASA guide under the collar
 
 # --- The grip -----------------------------------------------------------------
 # This is the whole design argument, so it is written out rather than left to the
@@ -126,7 +165,19 @@ LAND_H = 3.5  # grip band height above the cartridge floor
 # fits; it does not model elastomer interference, and no TPU coupon has been
 # printed yet. Treat this as the centre of a sweep, not an answer -- print
 # ``drill_fit_tester.land`` and judge it, exactly as RIB_GRIP was settled.
-LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL)
+#
+# LAND_EXTRA_GRIP takes it *below* the ladder's tightest class, which is a thing
+# the ladder cannot express: PRESS is the bottom rung, and in TPU it lands on
+# nominal. The extra is deliberate interference on top of the print undersize,
+# and it is named rather than folded into a literal so the coupon can be read as
+# "how far from LAND_FIT", not "what absolute number was typed".
+#
+# It is also what makes the contrast the design depends on legible in one place:
+# the ASA guide below is cut LOOSE (GUIDE_FIT, +0.25) and the TPU collar TIGHT
+# (-0.10). checks.py asserts that ordering, because a guide that grips or a land
+# that clears would each quietly defeat the split.
+LAND_EXTRA_GRIP = 0.10
+LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP
 
 # Sliding fit, TPU -- the relief above the land. It carries no grip at all, only
 # guidance, so what it wants is to be as loose as the space allows: any drag up
@@ -174,8 +225,6 @@ EFFECTIVE_LAND_H = LAND_H - BORE_FOOT_RELIEF
 # The profile is box.snap_bead_ring's asymmetric ramp (outward=True), for the
 # reason recorded at box.py:81-89: a symmetric half-round bump fights the user
 # going on, because it rises as steeply as it protrudes.
-BEAD_Z = 37.0  # world z. Clear of the cover's groove at FOOT_TOP + SNAP_Z = 30,
-#                so the two never thin the same piece of collar wall.
 CART_BEAD = 0.6  # radial protrusion of the TPU bead
 BEAD_LEAD_IN = 2.4  # gentle insertion ramp below the tip
 BEAD_BACK = 1.1  # steeper retention face above it
@@ -229,13 +278,17 @@ __all__ = [
     "BORE_FLOOR_Z",
     "BORE_FOOT_RELIEF",
     "BORE_MOUTH_CHAMFER",
+    "CART_ABOVE_BEAD",
     "CART_BEAD",
+    "CART_BELOW_BEAD",
     "CART_COLOR",
     "CART_H",
+    "CART_MOUTH_CH",
     "CART_MATERIAL",
     "CART_PROUD",
     "CART_R",
     "CART_SLIP",
+    "CART_TOP_Z",
     "CART_W",
     "CART_WALL",
     "CAVITY_FLOOR_Z",
@@ -244,10 +297,18 @@ __all__ = [
     "CAVITY_R",
     "CAVITY_W",
     "EFFECTIVE_LAND_H",
+    "GUIDE_FIT",
+    "GUIDE_FLOOR_Z",
+    "GUIDE_H",
+    "GUIDE_MOUTH_CH",
     "HEX_LAND_FIT",
     "KEY_D",
+    "KEY_FILLET",
+    "KEY_LEAD_IN",
+    "KEY_ROOT",
     "KEY_SLIP",
     "KEY_W",
+    "LAND_EXTRA_GRIP",
     "LAND_FIT",
     "LAND_H",
     "LAND_LEAD_IN",

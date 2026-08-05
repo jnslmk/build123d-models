@@ -9,7 +9,8 @@ uv run show drill_storage.wood               # 2-10 mm brad-point set + counters
 uv run show drill_storage.metal              # 1-10 mm HSS twist set + hex tap
 uv run show drill_storage.hex                # 16-piece 1/4" hex-shank bit set
 uv run show drill_storage.assemblies.wood    # the wood set with drills standing in it
-uv run show drill_storage.flex               # ASA shell + TPU cartridge, same wood set
+uv run show drill_storage.flex               # ASA shell + TPU collar, same wood set
+uv run show drill_storage.assemblies.comparison  # both holders side by side
 uv run export drill_storage.wood             # STLs for the slicer (base + cover)
 ```
 
@@ -23,7 +24,8 @@ uv run export drill_storage.wood             # STLs for the slicer (base + cover
 | `metal.py` | `drill_storage.metal` — 1-10 mm HSS twist set plus a 10 mm hex tap. |
 | `hex.py` | `drill_storage.hex` — 16-piece ¼″ hex-shank bit set, 8 long + 8 short. |
 | `assemblies/wood.py` | `drill_storage.assemblies.wood` — a scene, not a print job: every drill standing in its bore under a translucent cover. |
-| [`flex/`](flex/README.md) | `drill_storage.flex` — the same wood set as a rigid **ASA shell** plus a compliant **TPU cartridge**. No ribs: TPU is the spring, so the grip is a short land instead. Reuses this engine's foot, collar, snap and cover. |
+| [`flex/`](flex/README.md) | `drill_storage.flex` — the same wood set as a rigid **ASA shell** (which guides) plus a short compliant **TPU collar** (which grips). No ribs: TPU is the spring, so the grip is a 3.5 mm land instead. Reuses this engine's foot, collar, snap and cover. |
+| `assemblies/comparison.py` | `drill_storage.assemblies.comparison` — the PETG ribbed holder and the ASA+TPU one side by side, sharing a cover. |
 
 A holder module supplies a drill list, a cover label and (for a short set) a
 cover height. Everything else — where the holes go, how big the ribs are, what

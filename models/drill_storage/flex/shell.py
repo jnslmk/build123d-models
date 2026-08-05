@@ -1,10 +1,15 @@
 """The rigid half: an ASA Gridfinity shell that holds a TPU cartridge.
 
 Everything that has to keep its shape lives here -- the Gridfinity foot, the
-body, the collar with the cover's snap groove, the engraved size legend and the
-cavity the cartridge drops into. It has no drill bores at all: gripping a drill
-is the cartridge's whole job, and the two are separated so that changing drill
-sets is a cartridge reprint rather than a whole base reprint.
+body, the collar with the cover's snap groove, the engraved size legend, the
+cavity the cartridge drops into, and the guide bores under it.
+
+The shell **guides**; the TPU collar **grips**. Those are different jobs wanting
+different stiffness, so they are in different parts and different materials: the
+guides are cut at ``GUIDE_FIT`` (free -- they hold a drill upright over 24.8 mm
+and must not rub), and the collar's land is cut at interference. Changing drill
+sets is still only a cartridge reprint as far as the *grip* goes, but the guides
+live here, so a genuinely different set needs both halves.
 
 Printed foot-down, cavity up, in ASA, no supports. ASA wants an enclosure; a
 42 mm footprint is small enough that it is not fussy, but a draughty room will
@@ -14,13 +19,17 @@ still lift the foot's corners.
 from __future__ import annotations
 
 from build123d import (
+    Align,
     BuildPart,
     BuildSketch,
+    Cone,
+    Cylinder,
     Locations,
     Mode,
     Part,
     Plane,
     RectangleRounded,
+    RegularPolygon,
     add,
     extrude,
     loft,
@@ -89,17 +98,67 @@ def key_slot_tool() -> Part:
     return tool.part
 
 
+def guide_bore_tool(d: float, x: float, y: float) -> Part:
+    """One ASA guide bore: a free-fit cylinder with a lead-in at its top mouth.
+
+    The guide grips nothing. Its only job is to hold a drill upright over
+    ``GUIDE_H`` so the short TPU collar above does not have to, which is why it is
+    cut at ``GUIDE_FIT`` (free) rather than anywhere near the collar's land.
+
+    Its mouth chamfer is ``GUIDE_MOUTH_CH``, not the base's 0.8 mm: this layout is
+    packed tighter than the PETG base's, and at 0.8 two neighbouring mouths would
+    intersect and leave a sharp sliver in the cavity floor.
+    """
+    r = (d + c.GUIDE_FIT) / 2
+    with BuildPart() as tool:
+        with Locations((x, y, c.GUIDE_FLOOR_Z)):
+            Cylinder(r, c.GUIDE_H, align=(Align.CENTER, Align.CENTER, Align.MIN))
+        with Locations((x, y, c.CAVITY_FLOOR_Z - c.GUIDE_MOUTH_CH)):
+            Cone(r, r + c.GUIDE_MOUTH_CH, c.GUIDE_MOUTH_CH,
+                 align=(Align.CENTER, Align.CENTER, Align.MIN))
+    return tool.part
+
+
+def hex_guide_tool(af: float, x: float, y: float) -> Part:
+    """The hex-shank equivalent of ``guide_bore_tool``.
+
+    The mouth is a lofted hex frustum rather than a cone: a round cone cut into a
+    hex hole only reaches the corners and leaves the flats unbevelled.
+    """
+    r = (af + c.GUIDE_FIT) / 3**0.5  # circumradius from across-flats
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY.offset(c.GUIDE_FLOOR_Z)):
+            with Locations((x, y)):
+                RegularPolygon(r, 6)
+        extrude(amount=c.GUIDE_H)
+        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z - c.GUIDE_MOUTH_CH)):
+            with Locations((x, y)):
+                RegularPolygon(r, 6)
+        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)):
+            with Locations((x, y)):
+                RegularPolygon(r + c.GUIDE_MOUTH_CH, 6)
+        loft(ruled=True)
+    return tool.part
+
+
 def create_shell(
+    bores: list[tuple[float, float, float]] | None = None,
+    hex_bores: list[tuple[float, float, float]] | None = None,
     rows: list[list[str]] | None = None,
     hole_pos: dict[str, tuple[float, float]] | None = None,
 ) -> Part:
-    """The ASA shell: Gridfinity foot, body, collar, and an open cartridge cavity.
+    """The ASA shell: Gridfinity foot, body, collar, guide bores, and the cavity.
+
+    ``bores`` / ``hex_bores`` are the same tuples the cartridge is built from, and
+    must be, because the guide below and the land above are one hole in two
+    materials. They are cut at ``GUIDE_FIT`` -- loose, on purpose: the shell is
+    the part that keeps a drill straight and the collar is the part that grips it,
+    and a guide that gripped would fight the collar for the fit.
 
     ``rows`` (hole keys per row, biggest row first) and ``hole_pos``
     (``{key: (x, y)}``) come straight from ``layout_bores`` and engrave the size
-    legend into the body walls, so the shell still tells you what is in each
-    column even though it holds none of the drills itself. The cartridge is keyed
-    so the legend can only ever be read against the layout it describes.
+    legend into the body walls. The cartridge is keyed so the legend can only ever
+    be read against the layout it describes.
 
     Returned in print pose: foot on ``z=0``, cavity mouth up.
     """
@@ -122,12 +181,19 @@ def create_shell(
             mode=Mode.SUBTRACT,
         )
 
-        # The cartridge cavity, open to the top. Its floor is BORE_FLOOR_Z, so a
-        # drill still bottoms out at the same height it does on the PETG base --
-        # on ASA, never on TPU, which would creep under a point load.
+        # The cartridge cavity -- only the top CAVITY_H, not the whole interior.
+        # The collar drops in here and everything below it stays solid ASA.
         with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)):
             RectangleRounded(c.CAVITY_W, c.CAVITY_W, c.CAVITY_R)
         extrude(amount=c.CAVITY_H, mode=Mode.SUBTRACT)
+
+        # Guide bores, sunk from the cavity floor down to GUIDE_FLOOR_Z. A drill
+        # still bottoms out at BORE_FLOOR_Z -- on ASA, never on TPU, which would
+        # creep under a point load -- so the cover math is untouched.
+        for d, x, y in bores or []:
+            add(guide_bore_tool(d, x, y), mode=Mode.SUBTRACT)
+        for af, x, y in hex_bores or []:
+            add(hex_guide_tool(af, x, y), mode=Mode.SUBTRACT)
 
         # Round groove that receives the cartridge's retention bead. Deliberately
         # far from the cover's groove (z=30) so the two never thin the same ring
@@ -166,7 +232,7 @@ DRILL_BORES, HEX_BORES, ROWS, POS = layout_bores(
 
 def create() -> Part:
     """Model entry point: the ASA shell for the wood drill set."""
-    shell = create_shell(rows=ROWS, hole_pos=POS)
+    shell = create_shell(DRILL_BORES, hex_bores=HEX_BORES, rows=ROWS, hole_pos=POS)
     shell.label = "shell_asa"
     shell.color = c.SHELL_COLOR
     return shell
@@ -180,5 +246,7 @@ __all__ = [
     "cavity_mouth_tool",
     "create",
     "create_shell",
+    "guide_bore_tool",
+    "hex_guide_tool",
     "key_slot_tool",
 ]

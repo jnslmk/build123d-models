@@ -1,15 +1,19 @@
-"""The compliant half: a TPU cartridge that carries every bore.
+"""The compliant half: a short TPU collar that grips, and grips only.
 
-Drops into the ASA shell from the top and is the only thing that touches a
-drill's shank. Each bore is **plain and round -- no ribs**: TPU supplies the
-compliance the PETG base had to build out of three sprung beads. What it does
-*not* supply is a way out of the friction that comes with it, so the grip is
-confined to a short land at the very bottom and the rest of the bore is relieved
-to a free fit. ``config.LAND_FIT`` carries the full argument.
+A **collar**, not a block: it reaches exactly as far below its retention bead as
+it stands above it, so the bead sits on its mid-plane and the whole part is
+12.4 mm of TPU. Everything under it is ASA, bored at a free fit. The shell guides
+a drill over 24.8 mm; this grips it over 3.5.
+
+Each bore is **plain and round -- no ribs**: TPU supplies the compliance the PETG
+base had to build out of three sprung beads. What it does *not* supply is a way
+out of the friction that comes with it, so the grip is confined to a short land at
+the very bottom of the collar and the rest of the bore is relieved.
+``config.LAND_FIT`` carries the full argument.
 
 Printed flat-bottom-down, bores up, in TPU, no supports. Every bore is a through
-hole -- drills pass clean through and rest on the shell's ASA floor -- so there
-is nothing to bridge and nothing to drain.
+hole -- drills pass clean through into the shell's guide below -- so there is
+nothing to bridge and nothing to drain.
 
 The land fit is **not calibrated**. Print ``drill_fit_tester.land`` and judge it
 before committing a whole cartridge; the three-round history in box.py:187-286 is
@@ -174,9 +178,10 @@ def create_insert(
     both in the shell's coordinates -- pass the same tuples ``create_shell`` was
     given its legend for, or the labels lie.
 
-    Returned in print pose, flat bottom on ``z=0``. The cartridge's own z=0 is
-    the shell's ``CAVITY_FLOOR_Z``, so a feature at world z appears here at
-    ``z - CAVITY_FLOOR_Z``.
+    Returned in print pose, flat bottom on ``z=0``. The collar's own z=0 is the
+    shell's ``CAVITY_FLOOR_Z`` (30.8), so a feature at world z appears here at
+    ``z - CAVITY_FLOOR_Z`` -- the bead included, which lands on ``CART_BELOW_BEAD``
+    and is therefore exactly halfway up.
     """
     with BuildPart() as cart:
         with BuildSketch(Plane.XY):

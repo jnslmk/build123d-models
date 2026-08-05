@@ -39,6 +39,7 @@ MODELS = [
     "drill_storage.metal",
     "drill_storage.hex",
     "drill_storage.assemblies.wood",
+    "drill_storage.assemblies.comparison",
     "drill_storage.flex",
     "drill_storage.flex.shell",
     "drill_storage.flex.insert",

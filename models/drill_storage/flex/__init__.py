@@ -49,12 +49,13 @@ IS_ASSEMBLY = True
 
 
 def create_flex_assembly() -> Compound:
-    """Shell, cartridge seated in it, every drill in its bore, cover on top.
+    """Shell, collar seated in it, every drill in its bore, cover on top.
 
-    The one view that shows the whole argument at once: the ASA shell is empty of
-    bores, every hole is in the TPU cartridge, and the drills stand on the shell's
-    floor rather than on the cartridge. The cover is the *existing* wood cover,
-    unmodified, which is the point of keeping the collar interface untouched.
+    The one view that shows the whole argument at once: the drills stand on the
+    shell's ASA floor and are guided by ASA for 24.8 mm, and only the short blue
+    TPU collar at the top touches them with any interference. The cover is the
+    *existing* wood cover, unmodified, which is the point of keeping the collar
+    interface untouched.
     """
     shell = create_shell_part()
     insert = Pos(0, 0, config.CAVITY_FLOOR_Z) * create_insert_part()
@@ -66,7 +67,9 @@ def create_flex_assembly() -> Compound:
         bit = create_drill(d, DRILL_LENGTHS.get(d, 80.0))
         bit.label = f"drill_{d:g}mm"
         bit.color = STEEL
-        drills.append(Pos(x, y, config.CAVITY_FLOOR_Z) * bit)
+        # GUIDE_FLOOR_Z, not CAVITY_FLOOR_Z: a drill drops through the collar and
+        # rests on the shell's ASA floor, 24.8 mm below where the collar sits.
+        drills.append(Pos(x, y, config.GUIDE_FLOOR_Z) * bit)
 
     for af, x, y in HEX_BORES:
         csk = create_countersink(af, CSK_HEAD_D)

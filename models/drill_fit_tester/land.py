@@ -1,11 +1,12 @@
 """TPU grip-land sweep -- the coupon that settles ``drill_storage.flex``.
 
-``flex`` grips a drill on a short plain land at the bottom of an otherwise
-relieved bore, and ``flex.config.LAND_FIT`` is currently **modelled nominal** on
-the argument that FDM's own hole undersize supplies the interference. That is a
-starting point, not a measurement: the fit ladder in ``models/lib/fits`` models
-rigid-plastic *clearance* fits and says nothing about an elastomer squeezing a
-steel shank.
+``flex`` grips a drill on a short plain land at the bottom of its TPU collar, and
+``flex.config.LAND_FIT`` is currently ``for_material(PRESS, "tpu") -
+LAND_EXTRA_GRIP`` -- i.e. 0.10 mm of modelled interference on top of whatever the
+printer's own hole undersize adds. That is an argument, not a measurement: the fit
+ladder in ``models/lib/fits`` models rigid-plastic *clearance* fits and says
+nothing about an elastomer squeezing a steel shank, and its tightest class lands
+on nominal in TPU, so the extra grip is off the end of the ladder entirely.
 
 So this prints the same land at a range of offsets and lets a hand decide, which
 is how ``RIB_GRIP`` was settled -- over three rounds, after two full holder
@@ -30,10 +31,11 @@ from ..drill_storage.flex import config as fc
 from .frame import PLATE_H, coupon
 from .sweep import BAR_GAP
 
-# Offsets applied to LAND_FIT, one bar each. Skewed loose because the tight side
-# is already covered by the printer: a bore modelled at nominal arrives 0.1-0.3 mm
-# undersize, so offset 0.00 is *already* a real interference fit and 0.00 is
-# expected to sit near the tight end of what is usable.
+# Offsets applied to LAND_FIT, one bar each -- so bar 0.00 *is* the collar. Skewed
+# loose because the tight side is already covered twice over: the printer puts
+# 0.1-0.3 mm of undersize on every bore, and LAND_EXTRA_GRIP adds 0.10 on top, so
+# the nominal bar is expected to sit at or past the tight end of what is usable.
+# In absolute terms these bars cut nominal -0.20 .. +0.20.
 LAND_OFFSETS = [-0.10, 0.00, 0.10, 0.20, 0.30]
 
 
