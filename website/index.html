@@ -360,7 +360,11 @@ const grid = new THREE.Mesh(
         // and turn into a flat wash. Fade it out there instead — this is what
         // keeps the far field, where perspective packs decades of cells into a
         // few pixels near the horizon, from hazing over.
-        return line * (1.0 - smoothstep(0.12, 0.45, max(w.x, w.y)));
+        // The ramp is deliberately wide — it spans ~30x in cell density, which
+        // in a shallow view is a large stretch of floor. A tight ramp puts the
+        // whole fade in a few pixels, and a lattice that ends on a line reads as
+        // the grid changing size at that line rather than receding.
+        return line * (1.0 - smoothstep(0.02, 0.6, max(w.x, w.y)));
       }
 
       void main() {
