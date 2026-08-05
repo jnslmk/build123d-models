@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>build123d models — parametric, in your browser</title>
 <style>
   :root { color-scheme: dark; }
@@ -14,20 +14,26 @@
        ratio — can't drive the whole row (and the viewer) taller than the
        viewport. Without the 0 minimum the row's auto minimum is its tallest
        cell's min-content, which overflows the page. */
-    grid-template: "bar bar bar" auto
-                   "side edit view" minmax(0, 1fr)
-                 / 300px minmax(320px, 1fr) minmax(360px, 1.25fr);
-    height: 100vh;
+    grid-template-areas: "bar  bar  bar"
+                         "side view edit";
+    grid-template-rows: auto minmax(0, 1fr);
+    /* The code column is 0-wide until .code-open. The editor is hidden by
+       default on every viewport: it is the most expensive thing on the page
+       (CodeMirror is only fetched when the panel first opens) and the least
+       often wanted. */
+    grid-template-columns: 300px minmax(320px, 1fr) 0;
+    /* dvh, not vh: on mobile browsers the collapsing URL bar makes 100vh taller
+       than the visible viewport, which clips the bottom of the page. */
+    height: 100dvh;
+    overflow: hidden;
   }
   #bar {
-    grid-area: bar; display: flex; align-items: center; gap: 12px;
+    grid-area: bar; display: flex; align-items: center; gap: 10px;
     padding: 8px 14px; border-bottom: 1px solid #2a2f37; background: #171b21;
+    padding-top: calc(8px + env(safe-area-inset-top));
   }
   #bar h1 { font-size: 15px; margin: 0; white-space: nowrap; font-weight: 600; }
   #bar .spacer { flex: 1; }
-  #runtime { font-size: 11px; color: #8b93a1; border: 1px solid #2a2f37; border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
-  #runtime.ready { color: #7fd18a; border-color: #2f5c37; }
-  #runtime.err { color: #e88; border-color: #5c2f2f; }
   button {
     padding: 6px 12px; border: 1px solid #333a44; border-radius: 6px; font-weight: 600;
     cursor: pointer; background: #232a33; color: #cdd3db; font-size: 13px;
@@ -35,10 +41,22 @@
   button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
   button:disabled { opacity: .45; cursor: not-allowed; }
   button:not(:disabled):hover { border-color: #4a90ff; }
+  button.on { border-color: #4a90ff; color: #e6e8eb; }
 
-  #side { grid-area: side; overflow-y: auto; padding: 14px; border-right: 1px solid #2a2f37; }
-  #edit { grid-area: edit; display: flex; flex-direction: column; border-right: 1px solid #2a2f37; min-width: 0; }
+  /* The runtime pill is a button, not a label: tapping it is how you opt in to
+     (or out of) the ~40 MB Python + OpenCASCADE download. */
+  #runtime {
+    font-size: 11px; color: #8b93a1; background: none; border: 1px solid #2a2f37;
+    border-radius: 999px; padding: 4px 10px; white-space: nowrap; font-weight: 500;
+  }
+  #runtime.ready { color: #7fd18a; border-color: #2f5c37; }
+  #runtime.err { color: #e88; border-color: #5c2f2f; }
+
+  #side { grid-area: side; overflow-y: auto; overscroll-behavior: contain; padding: 14px; border-right: 1px solid #2a2f37; }
+  #edit { grid-area: edit; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+  body.code-open #edit { border-left: 1px solid #2a2f37; }
   #view { grid-area: view; position: relative; min-width: 0; min-height: 0; }
+  #tabs { display: none; }
 
   label.fld { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #9aa4b2; margin: 0 0 5px; }
   select {
@@ -58,39 +76,140 @@
   .muted { color: #8b93a1; font-size: 12px; }
   #noparams { font-size: 12px; color: #8b93a1; font-style: italic; }
 
+  #logbox { margin-top: 20px; }
+  #logbox summary {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #9aa4b2;
+    cursor: pointer; padding: 4px 0;
+  }
   #log {
-    margin-top: 16px; font: 11px/1.4 ui-monospace, "SF Mono", monospace; color: #8b93a1;
-    white-space: pre-wrap; max-height: 220px; overflow-y: auto; word-break: break-word;
-    background: #0f1216; border: 1px solid #262b33; border-radius: 6px; padding: 8px;
+    margin-top: 8px; font: 11px/1.4 ui-monospace, "SF Mono", monospace; color: #8b93a1;
+    white-space: pre-wrap; max-height: 220px; overflow-y: auto; overscroll-behavior: contain;
+    word-break: break-word; background: #0f1216; border: 1px solid #262b33; border-radius: 6px; padding: 8px;
   }
 
   #edit .ehead { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2a2f37; background: #171b21; }
-  #edit .ehead .t { font-size: 12px; color: #9aa4b2; flex: 1; font-family: ui-monospace, monospace; }
+  #edit .ehead .t { font-size: 12px; color: #9aa4b2; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
   #edit .cm { flex: 1; overflow: hidden; min-height: 0; }
   .cm-editor { height: 100%; }
   .cm-scroller { font: 13px/1.5 ui-monospace, "SF Mono", monospace; }
+  #cm-loading { padding: 14px; font-size: 12px; color: #8b93a1; }
 
   /* Absolutely positioned so the canvas's intrinsic aspect ratio (derived from its
      drawing-buffer width/height attributes) can't feed back into the grid track's
      min-content height. Otherwise growing the window after a resize blows the
-     "view" row out to width×(oldH/oldW) and the page overflows vertically. */
-  canvas#viewer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+     "view" row out to width×(oldH/oldW) and the page overflows vertically.
+     touch-action:none hands every touch gesture to OrbitControls — without it the
+     browser steals one-finger drags for page scrolling and the model won't rotate. */
+  canvas#viewer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #vinfo { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: #6b7280; pointer-events: none; }
+  #vinfo .touch { display: none; }
   #vstatus { position: absolute; left: 12px; top: 10px; right: 12px; font-size: 12px; color: #cdd3db;
     background: rgba(20,23,28,.7); border: 1px solid #2a2f37; border-radius: 6px; padding: 5px 10px; }
   #vstatus.err { color: #f0a5a5; border-color: #5c2f2f; }
   #vstatus.hidden { display: none; }
+
+  /* Just-in-time opt-in card: shown the first time an action actually needs the
+     WASM runtime, so a visitor who only browses and downloads never pays for it. */
+  #optin {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(340px, calc(100% - 32px)); background: #1b2027; border: 1px solid #333a44;
+    border-radius: 10px; padding: 16px; box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  }
+  #optin[hidden] { display: none; }
+  #optin h3 { margin: 0 0 8px; font-size: 14px; }
+  #optin p { margin: 0 0 14px; }
+  #optin .row { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* ---------------------------------------------------------------------- */
+  /* Desktop: opening the code panel gives it a real column.                  */
+  /* ---------------------------------------------------------------------- */
+  @media (min-width: 901px) {
+    body.code-open { grid-template-columns: 300px minmax(320px, 1fr) minmax(360px, .95fr); }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Mobile / narrow: one column. The viewer is the hero, and a tab strip     */
+  /* swaps a single drawer between the model panel and the code panel (or     */
+  /* collapses it entirely to hand the whole screen to the model).            */
+  /* ---------------------------------------------------------------------- */
+  @media (max-width: 900px) {
+    body {
+      grid-template-areas: "bar" "view" "tabs" "drawer";
+      grid-template-rows: auto minmax(140px, 1fr) auto minmax(0, 1fr);
+      grid-template-columns: 100%;
+    }
+    #side, #edit { grid-area: drawer; border: 0; border-top: 1px solid #2a2f37; }
+    body:not(.code-open) #edit { display: none; }
+    body.code-open #side { display: none; }
+    body.drawer-closed { grid-template-rows: auto minmax(140px, 1fr) auto 0; }
+    body.drawer-closed #side, body.drawer-closed #edit { display: none; }
+
+    #tabs {
+      grid-area: tabs; display: flex; gap: 6px; padding: 6px 10px;
+      background: #171b21; border-top: 1px solid #2a2f37;
+    }
+    #tabs button { flex: 1; min-height: 40px; }
+    #tabs button:last-child { flex: 0 0 48px; }
+    #tabs button[aria-selected="true"] { background: #2b3441; border-color: #4a90ff; color: #fff; }
+
+    #bar { gap: 8px; padding: 8px 10px; }
+    #bar h1 { font-size: 14px; }
+    #bar .long { display: none; }          /* "Download STL" -> "STL" */
+    #btn-code { display: none; }           /* the tab strip owns this on mobile */
+
+    /* 44px-ish touch targets, and 16px form text — anything smaller makes iOS
+       Safari zoom the page in on focus. */
+    #bar button, #edit .ehead button { min-height: 38px; padding: 8px 12px; font-size: 13px; }
+    select, .prow input[type=number] { font-size: 16px; padding: 8px; }
+    .prow input[type=number] { width: 92px; }
+    .prow input[type=range] { height: 28px; margin-top: 10px; }
+    .prow { margin-bottom: 18px; }
+
+    #side, #edit { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+    #vinfo { display: none; }
+  }
+
+  @media (pointer: coarse) {
+    #vinfo .mouse { display: none; }
+    #vinfo .touch { display: inline; }
+  }
 </style>
 
 <div id="bar">
-  <h1>build123d ⋅ models</h1>
-  <span id="runtime">Python: booting…</span>
+  <h1>build123d</h1>
+  <button id="runtime" title="In-browser rebuilds are off — tap to enable">Python: off</button>
   <div class="spacer"></div>
-  <button id="btn-run" disabled title="Run the edited code">Run code ▶</button>
-  <button id="btn-revert" disabled title="Restore the original source">Revert</button>
-  <button id="btn-stl" class="primary" disabled>Download STL</button>
-  <button id="btn-step" disabled>Download STEP</button>
+  <button id="btn-code" title="Show the model's source">Code</button>
+  <button id="btn-stl" class="primary" disabled><span class="long">Download </span>STL</button>
+  <button id="btn-step" disabled><span class="long">Download </span>STEP</button>
 </div>
+
+<section id="view">
+  <div id="vstatus" class="hidden" aria-live="polite"></div>
+  <canvas id="viewer"></canvas>
+  <div id="vinfo">
+    <span class="mouse">drag = rotate · scroll = zoom · right-drag = pan</span>
+    <span class="touch">drag = rotate · pinch = zoom · two-finger drag = pan</span>
+  </div>
+  <div id="optin" hidden>
+    <h3>Rebuild in your browser?</h3>
+    <p class="muted">
+      Changing parameters or running edited code needs Python + OpenCASCADE compiled
+      to WebAssembly — a ~40&nbsp;MB download, cached afterwards. Browsing models and
+      downloading STL/STEP work without it.
+    </p>
+    <div class="row">
+      <button id="optin-no">Not now</button>
+      <button id="optin-yes" class="primary">Enable</button>
+    </div>
+  </div>
+</section>
+
+<nav id="tabs">
+  <button id="tab-side" aria-selected="true">Model</button>
+  <button id="tab-edit" aria-selected="false">Code</button>
+  <button id="tab-hide" title="Collapse the panel" aria-label="Collapse the panel">▾</button>
+</nav>
 
 <aside id="side">
   <label class="fld" for="model">Model</label>
@@ -100,22 +219,20 @@
   <div id="params"></div>
   <div id="noparams" hidden>No parameters — edit the code to change this model.</div>
 
-  <h2 class="sec">Log</h2>
-  <div id="log"></div>
+  <details id="logbox">
+    <summary>Log</summary>
+    <div id="log"></div>
+  </details>
 </aside>
 
 <section id="edit">
   <div class="ehead">
     <span class="t" id="edit-file">models/…</span>
     <span class="muted" id="edit-dirty"></span>
+    <button id="btn-run" disabled title="Run the edited code">Run ▶</button>
+    <button id="btn-revert" disabled title="Restore the original source">Revert</button>
   </div>
-  <div class="cm" id="cm"></div>
-</section>
-
-<section id="view">
-  <div id="vstatus" class="hidden"></div>
-  <canvas id="viewer"></canvas>
-  <div id="vinfo">drag = rotate · scroll = zoom · right-drag = pan</div>
+  <div class="cm" id="cm"><div id="cm-loading" hidden>loading editor…</div></div>
 </section>
 
 <script type="importmap">
@@ -130,16 +247,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { EditorView, basicSetup } from 'https://esm.sh/codemirror@6.0.1';
-import { python } from 'https://esm.sh/@codemirror/lang-python@6.1.6';
-import { oneDark } from 'https://esm.sh/@codemirror/theme-one-dark@6.1.2';
+
+// CodeMirror is deliberately NOT imported here — see ensureEditor().
 
 // ---------------------------------------------------------------------------
 // Three.js viewer (Z-up, grid on XY — build123d's convention)
 // ---------------------------------------------------------------------------
 const canvas = document.getElementById('viewer');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+// Clamp to 2: phones report devicePixelRatio 3+, which is 9x the fragments for
+// no visible gain and enough GPU load to make the device throttle.
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1e24);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 20000);
@@ -232,15 +350,21 @@ const el = {
   log: document.getElementById('log'),
   runtime: document.getElementById('runtime'),
   vstatus: document.getElementById('vstatus'),
+  optin: document.getElementById('optin'),
   editFile: document.getElementById('edit-file'),
   editDirty: document.getElementById('edit-dirty'),
+  cm: document.getElementById('cm'),
+  cmLoading: document.getElementById('cm-loading'),
+  btnCode: document.getElementById('btn-code'),
   btnRun: document.getElementById('btn-run'),
   btnRevert: document.getElementById('btn-revert'),
   btnStl: document.getElementById('btn-stl'),
   btnStep: document.getElementById('btn-step'),
+  tabSide: document.getElementById('tab-side'),
+  tabEdit: document.getElementById('tab-edit'),
+  tabHide: document.getElementById('tab-hide'),
 };
 function log(m) { el.log.textContent += m + '\n'; el.log.scrollTop = el.log.scrollHeight; }
-function setRuntime(text, cls) { el.runtime.textContent = text; el.runtime.className = cls || ''; }
 function setVStatus(text, isErr) {
   if (!text) { el.vstatus.classList.add('hidden'); return; }
   el.vstatus.textContent = text; el.vstatus.classList.remove('hidden');
@@ -250,10 +374,11 @@ function setVStatus(text, isErr) {
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
+const LS_RUNTIME = 'b123d.runtime';   // 'on' once the visitor has opted in
+
 let manifest = null;         // { models: [...] }
 let sources = {};            // { "models/cube.py": "<text>" }
 let current = null;          // current model manifest entry
-let workerReady = false;
 let firstFrameForModel = true;
 let editorDirty = false;
 let lastStl = null;          // Uint8Array from the worker (live geometry)
@@ -261,26 +386,78 @@ let lastGlb = null;          // ArrayBuffer from the worker (colour render), or 
 let lastStep = null;         // ArrayBuffer from the worker, or null
 
 // ---------------------------------------------------------------------------
-// CodeMirror editor
+// Code panel — hidden by default, and CodeMirror is only fetched when it opens.
+// Until then `editorText` is the source of truth for what the panel would show,
+// so selectModel() can run long before (or without) the editor ever existing.
 // ---------------------------------------------------------------------------
-const dirtyWatcher = EditorView.updateListener.of((u) => { if (u.docChanged) markDirty(); });
-const editor = new EditorView({
-  parent: document.getElementById('cm'),
-  extensions: [basicSetup, python(), oneDark, dirtyWatcher, EditorView.lineWrapping],
-});
-function setEditor(text) {
-  editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } });
+let editor = null;
+let editorLoading = null;
+let editorText = '';
+
+function currentSource() { return editor ? editor.state.doc.toString() : editorText; }
+function setEditorText(text) {
+  editorText = text;
+  if (editor) editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } });
+}
+async function ensureEditor() {
+  if (editor) return editor;
+  if (editorLoading) return editorLoading;
+  el.cmLoading.hidden = false;
+  editorLoading = (async () => {
+    const [cm, langPy, theme] = await Promise.all([
+      import('https://esm.sh/codemirror@6.0.1'),
+      import('https://esm.sh/@codemirror/lang-python@6.1.6'),
+      import('https://esm.sh/@codemirror/theme-one-dark@6.1.2'),
+    ]);
+    const { EditorView, basicSetup } = cm;
+    el.cmLoading.hidden = true;
+    editor = new EditorView({
+      parent: el.cm,
+      doc: editorText,
+      extensions: [
+        basicSetup, langPy.python(), theme.oneDark, EditorView.lineWrapping,
+        EditorView.updateListener.of((u) => { if (u.docChanged) markDirty(); }),
+      ],
+    });
+    return editor;
+  })().catch((e) => {
+    el.cmLoading.hidden = false;
+    el.cmLoading.textContent = 'could not load the editor: ' + e;
+    editorLoading = null;
+    throw e;
+  });
+  return editorLoading;
 }
 function markDirty() {
   if (!current) return;
   const pristine = sources[current.source] || '';
-  const nowDirty = editor.state.doc.toString() !== pristine;
+  const nowDirty = currentSource() !== pristine;
   if (nowDirty === editorDirty) return;
   editorDirty = nowDirty;
   el.editDirty.textContent = nowDirty ? '● edited' : '';
   el.btnRevert.disabled = !nowDirty;
   el.params.classList.toggle('disabled', nowDirty);
 }
+
+// ---------------------------------------------------------------------------
+// Panel / tab plumbing. One `code-open` class drives both layouts: on desktop it
+// widens the third grid column, on mobile it swaps which panel fills the drawer.
+// ---------------------------------------------------------------------------
+function showCode(open) {
+  document.body.classList.toggle('code-open', open);
+  document.body.classList.remove('drawer-closed');
+  el.btnCode.classList.toggle('on', open);
+  el.tabSide.setAttribute('aria-selected', String(!open));
+  el.tabEdit.setAttribute('aria-selected', String(open));
+  if (open) ensureEditor().catch(() => {});
+}
+el.btnCode.addEventListener('click', () => showCode(!document.body.classList.contains('code-open')));
+el.tabSide.addEventListener('click', () => showCode(false));
+el.tabEdit.addEventListener('click', () => showCode(true));
+el.tabHide.addEventListener('click', () => {
+  const closed = document.body.classList.toggle('drawer-closed');
+  el.tabHide.textContent = closed ? '▴' : '▾';
+});
 
 // ---------------------------------------------------------------------------
 // Parameter form
@@ -314,19 +491,70 @@ function readParams() {
 }
 
 // ---------------------------------------------------------------------------
-// Worker (Pyodide + build123d) — one job in flight, newest job coalesced
+// Worker (Pyodide + build123d) — created lazily, one job in flight, newest
+// job coalesced. Nothing here runs until the visitor opts in: the ~40 MB
+// OpenCASCADE WASM download buys live rebuilds only, and browsing models plus
+// downloading the CI-built STL/STEP works entirely without it.
 // ---------------------------------------------------------------------------
-const worker = new Worker('./js/pyodide-worker.js');
+let worker = null;
+let runtimeState = 'off';    // off | booting | ready | error
+let optInJob = null;         // the job that triggered the opt-in card
+let optInDismissed = false;  // "Not now" — don't re-prompt on every slider nudge
 let reqId = 0, busy = false, pending = null;
 
-worker.onmessage = (ev) => {
+function setRuntimePill() {
+  const text = { off: 'Python: off', booting: 'Python: booting…', ready: 'Python: ready', error: 'Python: failed' }[runtimeState];
+  el.runtime.textContent = text;
+  el.runtime.className = { ready: 'ready', error: 'err' }[runtimeState] || '';
+  el.runtime.title = runtimeState === 'off'
+    ? 'In-browser rebuilds are off — tap to enable (~40 MB download)'
+    : 'In-browser rebuilds';
+}
+function startRuntime() {
+  if (worker) return;
+  runtimeState = 'booting'; setRuntimePill();
+  try { localStorage.setItem(LS_RUNTIME, 'on'); } catch { /* private mode */ }
+  worker = new Worker('./js/pyodide-worker.js');
+  worker.onmessage = onWorkerMessage;
+}
+function showOptIn() { el.optin.hidden = false; }
+function hideOptIn() { el.optin.hidden = true; }
+
+// Gate every path that needs Python. Returns true when the job may proceed
+// (the worker is up or on its way), false when the visitor has to decide first.
+function requestRuntime(job) {
+  if (runtimeState === 'ready' || runtimeState === 'booting') return true;
+  if (runtimeState === 'error') { setVStatus('the in-browser runtime failed to start — see the log', true); return false; }
+  optInJob = job || null;
+  if (optInDismissed) {
+    setVStatus('in-browser rebuilds are off — tap “Python: off” to enable', false);
+    return false;
+  }
+  showOptIn();
+  return false;
+}
+el.runtime.addEventListener('click', () => {
+  if (runtimeState !== 'off') return;
+  hideOptIn(); optInDismissed = false;
+  startRuntime();
+  sendJob(optInJob || { model: current.name, payload: { params: readParams() } });
+});
+document.getElementById('optin-yes').addEventListener('click', () => {
+  hideOptIn();
+  startRuntime();
+  if (optInJob) { const j = optInJob; optInJob = null; sendJob(j); }
+});
+document.getElementById('optin-no').addEventListener('click', () => {
+  hideOptIn(); optInDismissed = true; optInJob = null;
+  setVStatus('in-browser rebuilds are off — showing the prebuilt model', false);
+});
+
+function onWorkerMessage(ev) {
   const m = ev.data;
-  if (m.type === 'status') { setRuntime('Python: ' + shortStatus(m.text)); log(m.text); }
+  if (m.type === 'status') { el.runtime.textContent = 'Python: ' + shortStatus(m.text); log(m.text); }
   else if (m.type === 'log') { log(m.text); }
   else if (m.type === 'ready') {
-    workerReady = true;
-    setRuntime('Python: ready', 'ready');
-    el.btnRun.disabled = false;
+    runtimeState = 'ready'; setRuntimePill();
     log('runtime ready — change a parameter or edit the code to rebuild live');
     drainPending();
   }
@@ -347,17 +575,19 @@ worker.onmessage = (ev) => {
     busy = false;
     setVStatus('live rebuild failed — showing prebuilt model (see log)', true);
     log('ERROR: ' + m.message);
-    if (m.id === undefined) setRuntime('Python: boot failed', 'err');
+    if (m.id === undefined) { runtimeState = 'error'; setRuntimePill(); }
     drainPending();
   }
-};
+}
 function shortStatus(t) { return t.length > 34 ? t.slice(0, 33) + '…' : t; }
 
 function drainPending() {
   if (pending && !busy) { const p = pending; pending = null; sendJob(p); }
 }
 function sendJob(job) {
-  if (!workerReady) { pending = job; return; }
+  if (!job || !current) return;
+  if (!requestRuntime(job)) return;
+  if (runtimeState !== 'ready') { pending = job; return; }
   if (busy) { pending = job; setVStatus('queued — waiting for current build…'); return; }
   busy = true;
   setVStatus(job.payload.source !== undefined
@@ -383,13 +613,13 @@ function selectModel(name) {
   editorDirty = false; el.editDirty.textContent = ''; el.btnRevert.disabled = true;
   el.params.classList.remove('disabled');
   el.editFile.textContent = current.source;
-  setEditor(sources[current.source] || '# source unavailable');
+  setEditorText(sources[current.source] || '# source unavailable');
   buildForm(current.params || []);
   lastStl = null; lastGlb = null; lastStep = null;
   el.btnStl.disabled = !current.stl;
   el.btnStep.disabled = !current.step;
-  // Instant preview from the CI-rendered assets while Pyodide is (or gets) ready.
-  // Prefer the colour-carrying GLB; fall back to the colourless STL.
+  // Instant preview from the CI-rendered assets, whether or not the WASM runtime
+  // is running. Prefer the colour-carrying GLB; fall back to the colourless STL.
   const previewUrl = current.glb || current.stl;
   if (previewUrl) {
     setVStatus('loading prebuilt preview…');
@@ -413,10 +643,10 @@ function selectModel(name) {
 // ---------------------------------------------------------------------------
 el.model.addEventListener('change', () => selectModel(el.model.value));
 el.btnRun.addEventListener('click', () => {
-  sendJob({ model: current.name, payload: { source: editor.state.doc.toString() } });
+  sendJob({ model: current.name, payload: { source: currentSource() } });
 });
 el.btnRevert.addEventListener('click', () => {
-  setEditor(sources[current.source] || '');
+  setEditorText(sources[current.source] || '');
   markDirty();
   scheduleRegen();
 });
@@ -442,6 +672,7 @@ el.btnStep.addEventListener('click', async () => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+setRuntimePill();
 (async function boot() {
   try {
     [manifest, sources] = await Promise.all([
@@ -459,5 +690,10 @@ el.btnStep.addEventListener('click', async () => {
   const start = manifest.models.find((x) => x.name === wanted) ? wanted : manifest.models[0].name;
   el.model.value = start;
   selectModel(start);
+  el.btnRun.disabled = false;
+  // A visitor who has opted in before shouldn't have to ask twice.
+  let remembered = null;
+  try { remembered = localStorage.getItem(LS_RUNTIME); } catch { /* private mode */ }
+  if (remembered === 'on') startRuntime();
 })();
 </script>
