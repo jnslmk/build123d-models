@@ -136,8 +136,22 @@ def _create_foot(hole_d: float, cbore_d: float, label: str) -> Part:
             # first-layer hole would otherwise carry an elephant's foot) and the
             # counterbore floor (where the bolt has to find the hole blind, from
             # inside the pocket). Same instrument and same size as the strap's.
+            #
+            # The two mouths open opposite ways, so each cone has to widen the
+            # way its own mouth faces: down at the bed, up into the pocket. The
+            # floor one used to sit *above* the floor, wide end up -- entirely
+            # inside the counterbore's own void, where a boolean subtract has
+            # nothing to remove. The pocket floor therefore kept a square 90 deg
+            # shoulder right round the hole (the raw-edge audit's "counterbore
+            # floor step"), and the check meant to catch that sampled a point in
+            # the same empty pocket, so it passed either way. It does not now.
+            #
+            # Neither cone widens to the full counterbore: the flat left between
+            # it and the counterbore wall is what an M5/M6 nyloc and its washer
+            # bear on, and a bolt rated for 20 kg of shock wants that seat flat.
             for z, up in ((0.0, False), (m.CRADLE_DEPTH - CBORE_DEPTH, True)):
-                with Locations((mid, side * HOLE_U, z)):
+                base = z - m.BOLT_LEAD_IN if up else z
+                with Locations((mid, side * HOLE_U, base)):
                     Cone(
                         bottom_radius=hole_d / 2 + (0.0 if up else m.BOLT_LEAD_IN),
                         top_radius=hole_d / 2 + (m.BOLT_LEAD_IN if up else 0.0),

@@ -34,7 +34,13 @@ from . import stand as stand_mod
 from . import strap as strap_mod
 from .assembly import create_bare, create_section
 from .endcap import CAP_W
-from .cradle import create_cradle, outer_half_width, trough_floor_lift
+from . import cradle as cradle_mod
+from .cradle import (
+    create_cradle,
+    outer_half_width,
+    trough_floor_arc_r,
+    trough_floor_z,
+)
 from .profile import _loc, create_diffuser, create_extrusion, create_strip
 
 # Sample well inside the ends, so a face never lands on a sample point.
@@ -730,10 +736,12 @@ def check_cradle_edges(
     # And the drain's *other* mouth, where it actually drains from: the
     # trough's own floor, the bore's curved underside. x_drain (CRADLE_LEN/3,
     # the default station) falls in the relieved middle, so its floor sits
-    # BAND_RELIEF below the nominal one -- trough_floor_lift is what a raw
-    # TUBE_UNDER_Z would get wrong here, the same way it would if this station
-    # ever moved into a contact band instead.
-    floor_z = mc.TUBE_UNDER_Z - trough_floor_lift(x_drain, mc.CRADLE_LEN)
+    # BAND_RELIEF below the nominal one and curves to a wider radius --
+    # trough_floor_z/trough_floor_arc_r are what a raw TUBE_UNDER_Z would get
+    # wrong here, the same way it would if this station ever moved into a
+    # contact band instead.
+    floor_z = trough_floor_z(x_drain, mc.CRADLE_LEN)
+    arc_r = trough_floor_arc_r(x_drain, mc.CRADLE_LEN)
     r.check(
         not is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.25 * ch, floor_z - 0.25 * ch),
         f"{name}: drain funnelled at the trough floor -- the water side",
@@ -743,16 +751,34 @@ def check_cradle_edges(
         is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 1.5 * ch, floor_z - 0.25 * ch),
         "...and no more than that",
     )
+    # The flank of that same mouth, and the only sample here that can tell the
+    # old funnel from the new one. The floor is a cylinder lying along the
+    # tube, so at y = DRAIN_D/2 it has already climbed ``lip`` above its lowest
+    # point; a funnel whose widest ring sat *at* that lowest point never
+    # reached the lip out here and left it raw right round both flanks -- ~4
+    # sharp edges per drain, which is what the audit used to allow as the
+    # "drain funnel residual". This point sits below the floor at this y (so it
+    # was solid before) and inside the lifted cone (so it is air now).
+    lip = arc_r - sqrt(arc_r**2 - (mc.DRAIN_D / 2) ** 2)
+    r.check(
+        not is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.05, floor_z + lip / 2),
+        f"{name}: ...and broken on the flank, where the floor has climbed away",
+        f"lip {lip:.3f} mm at y=DRAIN_D/2, funnel lifted "
+        f"{cradle_mod.drain_funnel_rise(arc_r):.3f} mm above the floor",
+    )
+    r.check(
+        is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 2 * ch + 0.5, floor_z + lip / 2),
+        "...and the floor outboard of the funnel is untouched",
+    )
 
     # The raw-edge rule, made falsifiable, over the whole solid -- not just
     # the samples above. ``extra_sharp_allow`` lets a foot add its own
     # exceptions (its counterbore) on top of the ones every cradle-derived
-    # part shares: the insert mouths, the bed sliver, the bore/wall's own
-    # cross-section wherever the trough is axially discontinuous, and the
-    # curved-floor drains' funnel residual (a known gap -- see
-    # ``_is_near_drain_funnel``).
-    spacing = mc.CRADLE_LEN / 3  # cradle.add_drains' default count=2
-    drain_xy = ((spacing, 0.0), (2 * spacing, 0.0))
+    # part shares: the insert mouths, the bed sliver, and the bore/wall's own
+    # cross-section wherever the trough is axially discontinuous. The
+    # curved-floor drains used to need a fourth (their funnel left the lip raw
+    # on both flanks); ``cradle.drain_funnel`` reaches the flanks now, so there
+    # is nothing left to allow.
     _check_sharp_edges(
         part,
         name,
@@ -771,12 +797,6 @@ def check_cradle_edges(
                 "'the short verticals inside a trough's stadium... at the "
                 "bore's relief step, and down the seam of every bore and "
                 "counterbore, none of which may be rounded'",
-            ),
-            (
-                "drain funnel residual (KNOWN GAP)",
-                lambda edge: _is_near_drain_funnel(edge, drain_xy),
-                "the curved-floor drains' funnel cone cannot conform to a "
-                "doubly-curved floor; see _is_near_drain_funnel",
             ),
             (
                 "trough's own bed sliver left raw",
@@ -842,16 +862,29 @@ def check_foot_edges(part: Part, name: str, hole_d: float, r: Report) -> None:
             is_solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), lead + 0.4),
             "...and the bore is back to size above it",
         )
+        # Sampled *below* the floor, inside the material the cone has to take
+        # out. Above it is the counterbore's own void, where every sample comes
+        # back "not solid" whether or not anything was ever cut -- which is how
+        # this pocket kept a raw 90 deg shoulder through a passing check (see
+        # feet._create_foot on the cone that used to sit up there).
         r.check(
             not is_solid_at(
-                part, mid, hu + side * (hole_d / 2 + 0.6 * lead), floor + 0.8 * lead
+                part, mid, hu + side * (hole_d / 2 + 0.6 * lead), floor - 0.2 * lead
             ),
             f"{name}: bolt hole coned at the counterbore floor at u={hu:+.1f}",
             "the bolt has to find the hole blind, from inside the pocket",
         )
         r.check(
-            is_solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), floor - 0.4),
+            is_solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), floor - 1.6 * lead),
             "...and the bore is back to size below it",
+        )
+        # The seat the nyloc bears on is still flat: the cone stops one
+        # BOLT_LEAD_IN out, not at the counterbore wall.
+        r.check(
+            is_solid_at(
+                part, mid, hu + side * (hole_d / 2 + 1.6 * lead), floor - 0.2 * lead
+            ),
+            "...and the nut's seat outboard of it is still flat",
         )
 
 
@@ -1166,6 +1199,12 @@ def check_corner(r: Report) -> None:
             f"corner {angle:.0f}: both tubes seat without fouling",
             f"dark run {mc.dark_run(angle):.0f} mm",
         )
+        fouled = _cap_fouling_corner(p, angle)
+        r.check(
+            fouled < 0.01,
+            f"corner {angle:.0f}: both endcaps seat without fouling",
+            f"{fouled:.3f} mm^3 of corner inside the collars' envelope",
+        )
 
 
 def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
@@ -1233,36 +1272,50 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
         tag + "...and the corner itself is still there",
     )
 
+    # The trough-mouth corners, which take MOUTH_FILLET instead. Concave, so
+    # the fillet *adds* material into the channel: the first sample is inside
+    # what it added, the second is at the arc's own centre and has to stay
+    # air. The second is the one that fails on an R2.5 corner -- that radius
+    # reached 2.5 mm into a channel with 1.0 mm to give, which is what put
+    # material inside the endcap collar and left a seam across the bore mouth
+    # (see corner.MOUTH_FILLET and the clearance check in check_corner).
+    mf = corner_mod.MOUTH_FILLET
+    half_ch = corner_mod.CHANNEL_W / 2
+    z_ch = (corner_mod.PLINTH_H + corner_mod.TOP_Z) / 2
+    for side in (-1.0, 1.0):
+        r.check(
+            is_solid_at(
+                part, *at(start - 0.15 * mf, side * (half_ch - 0.15 * mf), z_ch)
+            ),
+            tag + f"trough mouth corner filleted at u={side * half_ch:+.1f}",
+            f"R{mf} -- half the clearance the channel holds for the cap collar",
+        )
+        r.check(
+            not is_solid_at(part, *at(start - mf, side * (half_ch - mf), z_ch)),
+            tag + "...and no further into the channel than that",
+        )
+
     check_corner_drain_funnels(part, r, angle)
 
     # The raw-edge rule, made falsifiable, over the whole solid. Insert
     # mouths and the bore/wall's own cross-section seam are the same
-    # exceptions every cradle-derived part makes; the drain funnel residual
-    # is the same known gap as ``check_cradle_edges``', just at this corner's
-    # own drain stations. Two more are corner-specific: the engraved label
-    # (a 0.6 mm bed-face pocket -- chamfering its glyph outlines would
-    # destroy legibility) and a small, unresolved residual near the first
-    # strap boss, tracked as a known gap rather than folded into a reason
-    # that was not actually verified.
-    drain_xy = ((0.0, 0.0), *corner_mod._drain_positions(angle, start))
+    # exceptions every cradle-derived part makes; the engraved label is
+    # corner-specific (a 0.6 mm bed-face pocket -- chamfering its glyph
+    # outlines would destroy legibility).
+    #
+    # Two known gaps used to sit here and neither does now, because both were
+    # geometry rather than exceptions: the curved-floor drains' funnel
+    # residual (``cradle.drain_funnel`` reaches the flanks now) and a residual
+    # by each arm's first strap boss whose cause the implementer could not
+    # trace. That second one was the channel's own end-wall fillet: R2.5 at a
+    # corner with only ``(CHANNEL_W - CAP_W) / 2`` of room rolled the wall
+    # inward past the bore's mouth outline *and* into the endcap collar's
+    # envelope. ``MOUTH_FILLET`` sizes that corner off the room it actually
+    # has -- see ``corner._mouth_corners``.
 
     def _is_label_glyph(edge) -> bool:
         bb = edge.bounding_box()
         return bb.min.Z > -0.01 and bb.max.Z < corner_mod.LABEL_DEPTH + 0.02
-
-    def _is_boss_area_residual(edge) -> bool:
-        # Length and z-window match exactly, across all four angles, a small
-        # (<=6 mm) BSPLINE/LINE residual sitting where a strap boss's own
-        # insert hole (drilled INSERT_DEPTH down from the rim, z 19.8-28.8)
-        # and the bore's band/relief step (whose short vertical seam already
-        # matches ``_is_trough_seam_edge`` reaches z~25-28) come closest
-        # together -- but the two adjacent faces were not traced by hand to
-        # full certainty, so this is reported as a known gap, not asserted
-        # as that specific cause.
-        if edge.geom_type not in (GeomType.BSPLINE, GeomType.LINE):
-            return False
-        bb = edge.bounding_box()
-        return edge.length <= 6.0 and 19.0 < bb.min.Z < 21.0 and 24.0 < bb.max.Z < 26.0
 
     _check_sharp_edges(
         part,
@@ -1284,24 +1337,10 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
                 "counterbore, none of which may be rounded'",
             ),
             (
-                "drain funnel residual (KNOWN GAP)",
-                lambda edge: _is_near_drain_funnel(edge, drain_xy),
-                "the curved-floor drains' funnel cone cannot conform to a "
-                "doubly-curved floor; see _is_near_drain_funnel",
-            ),
-            (
                 "engraved label glyph outline",
                 _is_label_glyph,
                 "a 0.6 mm pocket in the bed face (LABEL_DEPTH); chamfering "
                 "glyph outlines would destroy legibility",
-            ),
-            (
-                "boss/insert-area residual (KNOWN GAP, cause not fully traced)",
-                _is_boss_area_residual,
-                "a small (<=6 mm) residual near the first strap boss's "
-                "insert hole and the bore's own relief step; the exact "
-                "adjacent faces were not traced to full certainty -- see "
-                "_is_boss_area_residual",
             ),
         ),
     )
@@ -1315,8 +1354,13 @@ def check_corner_drain_funnels(part: Part, r: Report, angle: float = 60.0) -> No
     flat, while the other two arm stations open into the cradle trough, whose
     floor is the bore's curved underside -- and one of those two sits in the
     relieved middle (a lower floor) while the other sits in a contact band (the
-    nominal one), so both regimes ``cradle.trough_floor_lift`` has to tell
+    nominal one), so both regimes ``cradle.trough_floor_z`` has to tell
     apart are exercised here.
+
+    A curved-floor station gets a third sample the flat ones cannot need: out
+    on the flank, where the floor has already climbed away from the funnel's
+    lowest point. That is the sample the old cone failed -- see
+    ``check_cradle_edges`` for the same pair on the bare cradle.
     """
     start = corner_mod.cradle_start(angle)
     ch = mc.EDGE_CHAMFER
@@ -1358,9 +1402,16 @@ def check_corner_drain_funnels(part: Part, r: Report, angle: float = 60.0) -> No
     # relieved middle and one in a contact band.
     for frac, region in ((0.35, "relieved"), (0.75, "banded")):
         d = start + mc.CRADLE_LEN * frac
-        lift = trough_floor_lift(d - start, mc.CRADLE_LEN)
-        floor_z = corner_mod.PLINTH_H + mc.TUBE_UNDER_Z - lift
+        offset = d - start
+        arc_r = trough_floor_arc_r(offset, mc.CRADLE_LEN)
+        floor_z = corner_mod.PLINTH_H + trough_floor_z(offset, mc.CRADLE_LEN)
         pair(f"trough drain ({region}) funnelled at the curved floor", d, floor_z)
+        lip = arc_r - sqrt(arc_r**2 - (mc.DRAIN_D / 2) ** 2)
+        r.check(
+            not is_solid_at(part, *at(d, mc.DRAIN_D / 2 + 0.05, floor_z + lip / 2)),
+            tag + f"...trough drain ({region}): broken on the flank too",
+            f"lip {lip:.3f} mm at the drain's own radius, on an R{arc_r:.3f} floor",
+        )
 
 
 def _tube_clears_corner(part: Part, angle: float) -> bool:
@@ -1379,6 +1430,33 @@ def _tube_clears_corner(part: Part, angle: float) -> bool:
         if _shared_volume(part, placed) > 0.01:
             return False
     return True
+
+
+def _cap_fouling_corner(part: Part, angle: float) -> float:
+    """Material of this corner inside a seated endcap's envelope, in mm^3.
+
+    The tube stops at ``cradle_start``; the cap collar lives in the ``CAP_T``
+    *behind* that, out in the channel, so ``_tube_clears_corner`` cannot see
+    it -- and a corner that fouls the collar cannot be assembled at all, since
+    the cap is screwed to the tube before either goes near a corner.
+    ``CHANNEL_W >= CAP_W + 1.0`` was the only thing asserting this and it
+    checks a constant, not the built solid: the channel's own end-wall fillet
+    reached 1.5 mm past that promise (0.18 mm^3 an arm) and the arithmetic
+    stayed true throughout.
+    """
+    start = corner_mod.cradle_start(angle)
+    fouled = 0.0
+    for bearing in corner_mod._axis_bearings(angle):
+        placed = as_part(
+            Pos(
+                start * cos(radians(bearing)),
+                start * sin(radians(bearing)),
+                corner_mod.PLINTH_H + mc.TUBE_UNDER_Z,
+            )
+            * (Rotation(0, 0, bearing) * e.seated())
+        )
+        fouled += _shared_volume(part, placed)
+    return fouled
 
 
 def check_stand(r: Report) -> None:
@@ -1582,6 +1660,32 @@ def check_stand_edges(part: Part, r: Report) -> None:
         is_solid_at(part, px + stand_mod.PIVOT_CLEAR_D / 2 + 0.5 * ch, py, 0.875 * ch),
         "...and it is only EDGE_CHAMFER deep",
     )
+    # And the pivot counterbore's own floor, six millimetres up. Sampled below
+    # that floor, in the material the cone takes out -- above it is the
+    # counterbore's void, where every sample reads "not solid" whether or not
+    # anything was ever cut (the same trap feet.py's floor cone fell into).
+    lead = mc.BOLT_LEAD_IN
+    cbore_floor = stand_mod.FLANGE_T - stand_mod.PIVOT_CBORE_H
+    r.check(
+        not is_solid_at(
+            part,
+            px + stand_mod.PIVOT_CLEAR_D / 2 + 0.6 * lead,
+            py,
+            cbore_floor - 0.2 * lead,
+        ),
+        "pivot counterbore floors are coned where they step down to the hole",
+        "a square shoulder at a layer line, directly under the bolt that "
+        "carries the tripod",
+    )
+    r.check(
+        is_solid_at(
+            part,
+            px + stand_mod.PIVOT_CLEAR_D / 2 + 1.6 * lead,
+            py,
+            cbore_floor - 0.2 * lead,
+        ),
+        "...and the M6 head's seat outboard of it is still flat",
+    )
     r.check(
         not is_solid_at(
             part,
@@ -1600,16 +1704,28 @@ def check_stand_edges(part: Part, r: Report) -> None:
         ),
         "...and no more than that",
     )
+    # The cable slot's mouth, all four edges of it. The cable is never clamped
+    # here, so these are chafe edges, and they are now one boolean flare rather
+    # than a fillet on the vertical pair (stand._cable_mouth_flare). Sampled at
+    # the slot's own corner, quarter of the way into the flare's depth: inside
+    # the funnel it has opened by three quarters of a chamfer in *both* axes,
+    # which is what tells a 45 deg flare from the old fillet -- that one opened
+    # the sides and left the floor and the ceiling square.
     sx = stand_mod.CABLE_SLOT_W / 2
     sy = -sqrt((stand_mod.PEDESTAL_D / 2) ** 2 - sx**2)
+    slot_z0 = stand_mod.FLANGE_T + 1.0
+    for label, z, lift in (
+        ("floor", slot_z0, 0.25 * ch),
+        ("ceiling", slot_z0 + stand_mod.CABLE_SLOT_W, -0.25 * ch),
+    ):
+        r.check(
+            not is_solid_at(part, sx + 0.25 * ch, sy + 0.25 * ch, z + lift),
+            f"cable slot's mouth flared at its {label} corner",
+            f"{ch} mm at 45 deg, cut as a boolean -- OCC will not chamfer it",
+        )
     r.check(
-        not is_solid_at(part, sx + 0.12 * fr, sy + 0.12 * fr, stand_mod.FLANGE_T + 5),
-        "cable slot's mouth filleted -- the cable is never clamped here",
-        f"R{fr}",
-    )
-    r.check(
-        is_solid_at(part, sx + 0.72 * fr, sy + 0.72 * fr, stand_mod.FLANGE_T + 5),
-        "...and the slot is still CABLE_SLOT_W wide behind it",
+        is_solid_at(part, sx + 1.5 * ch, sy + 1.5 * ch, stand_mod.FLANGE_T + 5),
+        "...and the slot is still CABLE_SLOT_W wide behind the flare",
     )
 
     # The family-wide exception, asserted rather than assumed: a printed lead-in
@@ -1646,7 +1762,6 @@ def check_stand_edges(part: Part, r: Report) -> None:
     # Z, because this part's own "vertical" is global Z throughout.
     z0 = stand_mod.FLANGE_T + 1.0  # cable slot box, bed-side face
     z1 = z0 + mc.CABLE_OD + 2.0  # cable slot box, well-side face (CABLE_SLOT_W)
-    pivot_floor_z = stand_mod.FLANGE_T - stand_mod.PIVOT_CBORE_H
 
     def _is_stand_seam(edge) -> bool:
         r = _edge_radius(edge)
@@ -1671,41 +1786,55 @@ def check_stand_edges(part: Part, r: Report) -> None:
             and abs(bb.min.Z - stand_mod.FLANGE_T) < 0.05
         )
 
-    def _is_well_mouth(edge) -> bool:
-        r = _edge_radius(edge)
-        return r is not None and abs(r - stand_mod.WELL_D / 2) < 0.02
-
-    def _is_collar_bore_root(edge) -> bool:
-        r = _edge_radius(edge)
-        if r is not None and abs(r - stand_mod.COLLAR_HALF_W) < 0.02:
-            return True
-        ctr = edge.bounding_box().center()
-        return abs(stand_mod._collar_dist(ctr.X, ctr.Y)) < 0.5
-
-    def _is_cable_slot_mouth(edge) -> bool:
-        # Two raw seams from the same box cut: the pedestal's own outer wall
-        # (top/bottom of the notch, at the box's Z extent) and the box's
-        # flat side wall crossing the offset well's cylindrical boundary
-        # inside the cavity. _cable_mouth_corners() only fillets the
-        # vertical corners *on the pedestal's own radius* -- neither of these
-        # is on that radius, so both were missed.
-        bb = edge.bounding_box()
-        r = _edge_radius(edge)
-        if r is not None and abs(r - stand_mod.PEDESTAL_D / 2) < 0.05:
-            return abs(bb.min.Z - z0) < 0.1 or abs(bb.min.Z - z1) < 0.1
-        if edge.geom_type == GeomType.LINE and bb.size.X < 0.05:
-            half = mc.CABLE_OD / 2 + 1.0  # CABLE_SLOT_W / 2
-            if abs(abs((bb.min.X + bb.max.X) / 2) - half) < 0.05:
-                return abs(bb.min.Z - z0) < 0.1 and abs(bb.max.Z - z1) < 0.1
-        return False
-
-    def _is_pivot_cbore_floor_step(edge) -> bool:
+    def _is_well_seat_mouth(edge) -> bool:
+        # The well's mouth in the seat plane, and only that one. The predicate
+        # used to be "any arc of the well's radius", which swept in the two
+        # arcs 31 mm lower where the cable slot cuts the well -- a different
+        # pair of edges, on a different face, with a different reason.
         r = _edge_radius(edge)
         bb = edge.bounding_box()
         return (
             r is not None
-            and abs(r - stand_mod.PIVOT_CLEAR_D / 2) < 0.05
-            and abs(bb.min.Z - pivot_floor_z) < 0.05
+            and abs(r - stand_mod.WELL_D / 2) < 0.02
+            and abs(bb.min.Z - stand_mod.SEAT_Z) < 0.05
+        )
+
+    def _is_well_slot_crossing(edge) -> bool:
+        # KNOWN GAP: the cable slot's floor and ceiling where they cross the
+        # well's barrel, at the slot's own two heights.
+        r = _edge_radius(edge)
+        bb = edge.bounding_box()
+        return (
+            r is not None
+            and abs(r - stand_mod.WELL_D / 2) < 0.02
+            and (abs(bb.min.Z - z0) < 0.05 or abs(bb.min.Z - z1) < 0.05)
+        )
+
+    def _is_collar_bore_root(edge) -> bool:
+        # An *arc* on this outline is collar geometry only if it turns at the
+        # collar's own radius. The position fallback below is for the straight
+        # root edges, which have no radius to match -- letting arcs reach it
+        # too is how two R``EDGE_FILLET`` fillet residuals ended up filed under
+        # a reason about the cap's seat (see _is_socket_root_runout). Its
+        # tolerance is 0.05, tighter than the 0.1 exclusion _socket_root
+        # itself uses, so an edge that merely *ends* on the collar cannot pass
+        # for one that lies on it.
+        r = _edge_radius(edge)
+        if r is not None:
+            return abs(r - stand_mod.COLLAR_HALF_W) < 0.02
+        ctr = edge.bounding_box().center()
+        return abs(stand_mod._collar_dist(ctr.X, ctr.Y)) < 0.05
+
+    def _is_socket_root_runout(edge) -> bool:
+        # KNOWN GAP: where the socket-root fillet stops dead at the collar.
+        # An arc of exactly EDGE_FILLET, standing on the collar bore's own
+        # flank -- neither of which the collar's geometry has anywhere.
+        r = _edge_radius(edge)
+        ctr = edge.bounding_box().center()
+        return (
+            r is not None
+            and abs(r - mc.EDGE_FILLET) < 0.02
+            and abs(stand_mod._collar_dist(ctr.X, ctr.Y)) < 0.5
         )
 
     _check_sharp_edges(
@@ -1735,11 +1864,21 @@ def check_stand_edges(part: Part, r: Report) -> None:
                 "(this function's own docstring)",
             ),
             (
-                "gland well mouth left raw",
-                _is_well_mouth,
+                "gland well's mouth in the seat left raw",
+                _is_well_seat_mouth,
                 "_socket_root excludes it: at this height it is a ceiling "
                 "over the well, not a root, and its arc looks like a root "
                 "edge to any position test",
+            ),
+            (
+                "well/cable-slot crossing, horizontal pair (KNOWN GAP)",
+                _is_well_slot_crossing,
+                "the slot's floor and ceiling where they cut the well's "
+                "barrel. Its vertical pair is filleted (_cable_well_corners) "
+                "and its outer mouth is flared (_cable_mouth_flare), but a "
+                "flare at this end grows faster than the barrel curves away "
+                "and would break out through the well wall a few mm in -- so "
+                "these two are stated rather than treated",
             ),
             (
                 "collar bore root left raw",
@@ -1749,19 +1888,14 @@ def check_stand_edges(part: Part, r: Report) -> None:
                 "cap seating altogether",
             ),
             (
-                "cable slot mouth left raw (KNOWN GAP)",
-                _is_cable_slot_mouth,
-                "_cable_mouth_corners() only fillets the vertical corners on "
-                "the pedestal's own outer radius; the notch's top/bottom "
-                "edges and its flat side wall's crossing of the offset "
-                "well were missed -- see _is_cable_slot_mouth",
-            ),
-            (
-                "pivot counterbore floor step (KNOWN GAP)",
-                _is_pivot_cbore_floor_step,
-                "the flat shoulder between the pivot counterbore and the "
-                "narrower through-hole -- same family as feet.py's "
-                "counterbore floor step",
+                "socket-root fillet run-out at the collar (KNOWN GAP)",
+                _is_socket_root_runout,
+                "not collar geometry at all: the R2.5 socket-root fillet "
+                "ending dead against _socket_root's collar exclusion, on the "
+                "blend it adds in front of the mouth. Same species as the "
+                "corner's own mouth fillet (corner.MOUTH_FILLET) -- but "
+                "widening the exclusion only moves the run-out onto the "
+                "mouth plane, it does not remove it",
             ),
         ),
     )
@@ -1827,10 +1961,11 @@ def check_feet(r: Report) -> None:
     ):
         check_mount_basics(part, name, r, max_z=mc.CRADLE_DEPTH)
         check_mount_never_touches(part, name, r)
-        # A foot's own two exceptions, on top of every cradle-derived part's
-        # shared set: the counterbore mouth (documented, feet.py's module
-        # docstring) and the counterbore floor's own step (a known gap --
-        # see ``_is_cbore_floor_step_edge``).
+        # A foot's own exception, on top of every cradle-derived part's shared
+        # set: the counterbore mouth (documented, feet.py's module docstring).
+        # The counterbore *floor's* step used to need a second one -- it is
+        # broken by a cone now (feet._create_foot), so there is nothing left
+        # to allow.
         foot_sharp_allow = (
             (
                 "counterbore mouth left raw",
@@ -1838,13 +1973,6 @@ def check_feet(r: Report) -> None:
                 "feet.py's module docstring: an 0.8 lead-in there would eat "
                 "half of PAD_WALL, the only wall between an M6/M5 nyloc and "
                 "open air; the nut is dropped in by hand, not found blind",
-            ),
-            (
-                "counterbore floor step (KNOWN GAP)",
-                lambda edge, hd=hole_d: _is_cbore_floor_step_edge(edge, hd / 2),
-                "the flat shoulder between the counterbore's own diameter "
-                "and the narrower through-hole the lead-in cone widens; see "
-                "_is_cbore_floor_step_edge",
             ),
         )
         check_cradle_edges(part, name, r, extra_sharp_allow=foot_sharp_allow)
@@ -2185,11 +2313,27 @@ def _shared_volume(a: Part, b: Part) -> float:
 # here, so the whole family below is the first time it has ever been
 # enforced. Every legitimate raw edge is an *allow* entry -- a predicate, a
 # reason, and (below) a count -- so an exception has to be stated, not merely
-# not noticed. A few findings did not resolve to a documented design
-# decision; those are labelled KNOWN GAP and still asserted machine-clean
-# only because the offending geometry lives in a file outside this one's
-# write-set (cradle.py, corner.py, stand.py) -- see the reasons themselves,
-# and the task report, for what would need to change there.
+# not noticed.
+#
+# The audit's first run left five findings that resolved to no design
+# decision at all, labelled KNOWN GAP and left to the model files. Four have
+# since been fixed in the geometry rather than in the allow-list -- the
+# curved-floor drain funnels (cradle.drain_funnel), the counterbore floor
+# steps (feet, stand), the cable slot's mouth (stand._cable_mouth_flare) and
+# the corner's own trough-mouth fillet (corner.MOUTH_FILLET, which was also
+# putting material inside the endcap collar). Two remain, both stated in
+# their own reason rather than folded into a neighbouring one: the well /
+# cable-slot crossing's horizontal pair, and the socket-root fillet's run-out
+# at the collar exclusion.
+#
+# **An allow entry is a claim about what an edge is, not a way to get to
+# green.** The run-out pair spent a release inside the "collar bore root"
+# entry, matched by a position test five times looser than the exclusion that
+# produced them, and a reason about the cap's seat that did not describe them
+# at all -- which is worse than the prose rule this replaced, because it
+# stops anyone looking. Predicates here match on the thing itself (an arc's
+# own radius, a face's own plane), and fall back to position only where there
+# is no radius to match.
 
 _SEAM_BORE_R = (c.WIDTH + mc.BORE_FIT) / 2  # 13.035 -- same as `bore` below
 
@@ -2225,6 +2369,17 @@ def _is_trough_seam_edge(edge, top_z: float) -> bool:
     selectors exclude it: by the arc's own radius for the curved pieces, and
     by the same length-below-``top_z``-derived threshold, on a genuinely
     vertical edge, for the short straight ones in between.
+
+    **The margin on that threshold is load-bearing, not the threshold.** This
+    is the exact complement of the construction selector -- ``cradle
+    .vertical_corners`` and ``corner._vertical_corners`` both keep
+    ``length > 0.6 * top_z``, this keeps ``<=`` -- so the two can never both
+    claim an edge, or both miss one. What makes it *safe* rather than merely
+    complementary is that the seam edges it matches are 3.0 mm against a
+    17.28 mm ceiling: nearly six times' clearance. Narrow the window towards
+    the real lengths and it stops being a complement and starts being a
+    tuned filter, which is how a fillet residual gets absorbed by a
+    neighbouring reason (see ``_is_socket_root_runout`` for the one that did).
     """
     r = _edge_radius(edge)
     if r is not None and abs(r - _SEAM_BORE_R) < 0.02:
@@ -2235,33 +2390,6 @@ def _is_trough_seam_edge(edge, top_z: float) -> bool:
         return False
     bb = edge.bounding_box()
     return edge.length <= 0.6 * top_z and bb.size.X < 0.05 and bb.size.Y < 0.05
-
-
-def _is_near_drain_funnel(
-    edge,
-    drain_xy: tuple[tuple[float, float], ...],
-    max_len: float = 6.0,
-    tol: float = 4.0,
-) -> bool:
-    """KNOWN GAP: a drain's upper-mouth funnel, left slightly sharp.
-
-    The boolean cone that funnels a drain's throat into the trough floor
-    (``cradle.add_drains``, ``corner._add_drains``) is a single-curvature
-    surface; the trough floor it funnels into, wherever it is the bore's own
-    curved underside rather than a flat channel/bed face, is not. The cone
-    cannot conform to it exactly, so every drain that opens into that curved
-    floor keeps a short (<=6 mm), real seam around its throat -- invisible in
-    a projection and never checked before this audit existed. Fixing it means
-    reshaping the funnel in ``cradle.py``/``corner.py``, both outside this
-    file's write-set, so it is recorded here rather than folded into a reason
-    that does not actually apply.
-    """
-    if edge.length > max_len:
-        return False
-    ctr = edge.bounding_box().center()
-    return any(
-        ((ctr.X - px) ** 2 + (ctr.Y - py) ** 2) ** 0.5 < tol for px, py in drain_xy
-    )
 
 
 def _is_bed_sliver(edge) -> bool:
@@ -2285,23 +2413,6 @@ def _is_cbore_mouth_edge(edge, cbore_r: float) -> bool:
         and abs(r - cbore_r) < 0.05
         and abs(bb.min.Z - mc.CRADLE_DEPTH) < 0.05
     )
-
-
-def _is_cbore_floor_step_edge(edge, hole_r: float) -> bool:
-    """KNOWN GAP: the counterbore's own floor shoulder, where it steps down
-    to the narrower through-hole.
-
-    feet.py documents and treats the *bed* mouth and the counterbore *floor*
-    lead-in (both boolean cones, verified in ``check_foot_edges``), but not
-    this remainder: the flat annular shoulder between the counterbore's own
-    diameter and the narrower hole the lead-in cone actually widens. Fixing
-    it means widening that cone's base radius in ``feet.py``, outside this
-    file's write-set.
-    """
-    r = _edge_radius(edge)
-    bb = edge.bounding_box()
-    floor_z = mc.CRADLE_DEPTH - feet_mod.CBORE_DEPTH
-    return r is not None and abs(r - hole_r) < 0.05 and abs(bb.min.Z - floor_z) < 0.05
 
 
 def _check_sharp_edges(
