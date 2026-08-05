@@ -27,13 +27,19 @@
     height: 100dvh;
     overflow: hidden;
   }
+  /* overflow:hidden and the shrink rules below are load-bearing: #bar is a flex
+     row inside a grid track that is exactly one viewport wide, and a flex item
+     defaults to min-width:auto — so any child that refuses to shrink (a nowrap
+     label, a long status string) widens the bar past the viewport and scrolls
+     the whole page sideways. Every child here must be able to shrink or clip. */
   #bar {
-    grid-area: bar; display: flex; align-items: center; gap: 10px;
+    grid-area: bar; display: flex; align-items: center; gap: 10px; overflow: hidden;
     padding: 8px 14px; border-bottom: 1px solid #2a2f37; background: #171b21;
     padding-top: calc(8px + env(safe-area-inset-top));
   }
-  #bar h1 { font-size: 15px; margin: 0; white-space: nowrap; font-weight: 600; }
-  #bar .spacer { flex: 1; }
+  #bar h1 { font-size: 15px; margin: 0; white-space: nowrap; font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  #bar .spacer { flex: 1 1 auto; min-width: 0; }
+  #bar button { flex: 0 0 auto; }
   button {
     padding: 6px 12px; border: 1px solid #333a44; border-radius: 6px; font-weight: 600;
     cursor: pointer; background: #232a33; color: #cdd3db; font-size: 13px;
@@ -48,6 +54,7 @@
   #runtime {
     font-size: 11px; color: #8b93a1; background: none; border: 1px solid #2a2f37;
     border-radius: 999px; padding: 4px 10px; white-space: nowrap; font-weight: 500;
+    flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis;
   }
   #runtime.ready { color: #7fd18a; border-color: #2f5c37; }
   #runtime.err { color: #e88; border-color: #5c2f2f; }
@@ -100,11 +107,14 @@
      "view" row out to width×(oldH/oldW) and the page overflows vertically.
      touch-action:none hands every touch gesture to OrbitControls — without it the
      browser steals one-finger drags for page scrolling and the model won't rotate. */
-  canvas#viewer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  #vinfo { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: #6b7280; pointer-events: none; }
+  /* The overlays and the canvas are all absolutely positioned siblings, so paint
+     order would otherwise follow DOM order and the opaque WebGL canvas would
+     cover #vstatus (which precedes it). Stack them explicitly. */
+  canvas#viewer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; z-index: 0; }
+  #vinfo { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: #6b7280; pointer-events: none; z-index: 1; }
   #vinfo .touch { display: none; }
   #vstatus { position: absolute; left: 12px; top: 10px; right: 12px; font-size: 12px; color: #cdd3db;
-    background: rgba(20,23,28,.7); border: 1px solid #2a2f37; border-radius: 6px; padding: 5px 10px; }
+    background: rgba(20,23,28,.7); border: 1px solid #2a2f37; border-radius: 6px; padding: 5px 10px; z-index: 2; }
   #vstatus.err { color: #f0a5a5; border-color: #5c2f2f; }
   #vstatus.hidden { display: none; }
 
@@ -113,7 +123,7 @@
   #optin {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     width: min(340px, calc(100% - 32px)); background: #1b2027; border: 1px solid #333a44;
-    border-radius: 10px; padding: 16px; box-shadow: 0 12px 32px rgba(0,0,0,.5);
+    border-radius: 10px; padding: 16px; box-shadow: 0 12px 32px rgba(0,0,0,.5); z-index: 3;
   }
   #optin[hidden] { display: none; }
   #optin h3 { margin: 0 0 8px; font-size: 14px; }
@@ -551,7 +561,10 @@ document.getElementById('optin-no').addEventListener('click', () => {
 
 function onWorkerMessage(ev) {
   const m = ev.data;
-  if (m.type === 'status') { el.runtime.textContent = 'Python: ' + shortStatus(m.text); log(m.text); }
+  // Boot progress goes to the viewer overlay, never the pill: the overlay is a
+  // full-width block that wraps, whereas the pill sits in the bar's flex row
+  // where a long string is what pushed the page into horizontal scroll.
+  if (m.type === 'status') { setVStatus(m.text); log(m.text); }
   else if (m.type === 'log') { log(m.text); }
   else if (m.type === 'ready') {
     runtimeState = 'ready'; setRuntimePill();
@@ -579,8 +592,6 @@ function onWorkerMessage(ev) {
     drainPending();
   }
 }
-function shortStatus(t) { return t.length > 34 ? t.slice(0, 33) + '…' : t; }
-
 function drainPending() {
   if (pending && !busy) { const p = pending; pending = null; sendJob(p); }
 }
