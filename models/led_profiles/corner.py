@@ -32,12 +32,15 @@ numbers are not free choices:
 Print pose: back face on the bed, cradles and channel opening up. That is the
 LED direction, so nothing overhangs and the first layer is the whole footprint.
 
-Edge treatments are three isolated calls at the end of ``create_corner`` rather
+Edge treatments are four isolated calls at the end of ``create_corner`` rather
 than one, and every one of them selects **by geometry, not off a face**: the top
 face carries eight insert holes, which is precisely the case OCC will not
-chamfer from (see ``models/lib/edges.py``). They are, in order, the body's
-vertical corners (filleted -- arm ends, boss steps, the V's inner root, the
-channel's end walls), the whole rim at ``TOP_Z`` bar those insert mouths
+chamfer from (see ``models/lib/edges.py``). They are, in order, the two
+trough-mouth corners per arm (filleted at ``MOUTH_FILLET``, the one radius on
+this part set by the room it has rather than by the house rule), the rest of the
+body's vertical corners (filleted at ``EDGE_FILLET`` -- arm ends, boss steps,
+the V's inner root, the channel's ends out at the knuckle), the whole rim at
+``TOP_Z`` bar those insert mouths
 (chamfered -- outer silhouette, channel mouth, and both trough mouths, which is
 the tube's lead-in as it drops in sideways), and the bed face's outer wire. The
 drains get boolean cones instead, because their mouths share the bed face with
@@ -94,6 +97,24 @@ GLAND_DROP = m.GLAND_ENV_D / 2 - 9.0  # 3.0 -- endcap.GLAND_Z is 9.0
 PLINTH_H = 8.0  # > GLAND_DROP + a printable floor
 
 CHANNEL_W = max(CAP_W, m.GLAND_ENV_D) + 2.0  # 29.2, clears the cap collar
+
+# The two corners where the channel's side wall meets its end wall are the one
+# pair ``EDGE_FILLET`` does not fit, and the reason is arithmetic rather than
+# taste. That corner is concave, so a fillet of radius R rolls the wall inward
+# by R at the end plane -- and the end plane is the trough's mouth, where the
+# only room there is is the ``(CHANNEL_W - CAP_W) / 2`` = 1.0 mm the channel
+# holds clear of the endcap collar. R2.5 therefore rolled 1.5 mm past the
+# collar's own envelope (0.18 mm^3 of interference per arm, measured against a
+# seated cap, not estimated) and straight through the bore's mouth outline,
+# where it ended dead against the bore wall and left the unblended seam the
+# raw-edge audit reported as an untraced residual near the first strap boss.
+#
+# Half the collar clearance: the corner still gets a break, and the cap keeps
+# the other half. **Not a free number** -- it is the same species as
+# ``mount_config.BOSS_U`` and ``feet.PAD_WALL``, a radius that has to be
+# derived from the room it sits in rather than typed.
+MOUTH_FILLET = (CHANNEL_W - CAP_W) / 4  # 0.5
+
 ARM_WALL = 6.0
 BODY_W = CHANNEL_W + 2 * ARM_WALL  # 41.2
 KNUCKLE_R = BODY_W / 2
@@ -212,10 +233,14 @@ def create_corner(angle: float = 60.0) -> Part:
         add(label, mode=Mode.SUBTRACT)
 
         # Edge treatments, house rule: fillet vertical, chamfer horizontal.
-        # Three separate isolated calls, each re-querying the builder, because a
+        # Four separate isolated calls, each re-querying the builder, because a
         # successful edge op invalidates the previous selection and a failed one
-        # would otherwise take every later op with it.
-        fillet_edge(bp, _vertical_corners(bp), m.EDGE_FILLET)
+        # would otherwise take every later op with it. The trough-mouth corners
+        # go first and on their own: they are the two verticals with a radius of
+        # their own (MOUTH_FILLET), and running them separately also means a
+        # radius OCC will not take there cannot cost the arm ends theirs.
+        fillet_edge(bp, _mouth_corners(bp, angle, start), MOUTH_FILLET)
+        fillet_edge(bp, _vertical_corners(bp, angle, start), m.EDGE_FILLET)
         chamfer_edge(bp, _rim_edges(bp), m.EDGE_CHAMFER)
         chamfer_edge(
             bp, bp.faces().sort_by(Axis.Z)[0].outer_wire().edges(), m.EDGE_CHAMFER
@@ -239,21 +264,65 @@ def _arc_radius(edge) -> float | None:
         return None
 
 
-def _vertical_corners(bp: BuildPart) -> ShapeList:
+def _is_vertical_corner(edge) -> bool:
+    """A real vertical corner of the body, as opposed to a seam inside it.
+
+    The length test is what separates a corner of the body from the short
+    verticals inside a trough's stadium and around the engraved label, both of
+    which must be left alone.
+    """
+    return (
+        edge.length > 0.6 * TOP_Z and abs(edge.bounding_box().max.Z - TOP_Z) < 1e-6
+    )
+
+
+def _mouth_corners(bp: BuildPart, angle: float, start: float) -> ShapeList:
+    """The two vertical corners per arm where the channel meets the trough.
+
+    Where the channel's side wall runs into its end wall, at the plane the
+    tube's cradle begins. Selected in each arm's own frame -- ``start`` along
+    the axis, ``CHANNEL_W / 2`` across it -- which is the only thing that
+    separates them from the other 20.8 mm verticals the channel has: its two
+    ends out at the knuckle, and the notch where the two arms' channels cross.
+
+    They take ``MOUTH_FILLET`` rather than ``EDGE_FILLET``; see that constant
+    for what the full radius did to the endcap collar and the bore's mouth.
+    """
+    out = []
+    for e in bp.edges().filter_by(Axis.Z):
+        if not _is_vertical_corner(e):
+            continue
+        ctr = e.center()
+        for bearing in _axis_bearings(angle):
+            a = radians(bearing)
+            d = ctr.X * cos(a) + ctr.Y * sin(a)
+            u = -ctr.X * sin(a) + ctr.Y * cos(a)
+            if abs(d - start) < 0.05 and abs(abs(u) - CHANNEL_W / 2) < 0.05:
+                out.append(e)
+                break
+    return ShapeList(out)
+
+
+def _vertical_corners(bp: BuildPart, angle: float, start: float) -> ShapeList:
     """The body's own vertical corners: arm ends, boss steps, the V's inner
-    root and the channel's end walls.
+    root and the channel's end walls out at the knuckle.
 
     Selected by geometry rather than off a face, because the top face they all
     reach carries eight insert holes -- exactly the case where OCC refuses to
-    work off a face at all. The length test is what separates a real corner of
-    the body from the short verticals inside a trough's stadium and around the
-    engraved label, both of which must be left alone.
+    work off a face at all.
+
+    The trough-mouth corners are held back for ``_mouth_corners``, which gives
+    them the smaller radius the endcap collar leaves room for. They are a
+    separate call rather than a smaller radius for everything because
+    ``EDGE_FILLET`` is right everywhere else -- these arms are 41 mm across,
+    and this is the one corner on the part with 1 mm of room.
     """
+    held_back = set(_mouth_corners(bp, angle, start))
     return ShapeList(
         [
             e
             for e in bp.edges().filter_by(Axis.Z)
-            if e.length > 0.6 * TOP_Z and abs(e.bounding_box().max.Z - TOP_Z) < 1e-6
+            if _is_vertical_corner(e) and e not in held_back
         ]
     )
 
@@ -377,26 +446,22 @@ def _add_drains(angle: float, start: float) -> None:
     # And a funnel at every drain's *upper* mouth, where it actually drains
     # from. The knuckle drain and the near arm station (``d < start``) open
     # into the channel floor, which is flat -- a plain sketch cut straight up
-    # from PLINTH_H, same as the stand's gland well. The other two arm
-    # stations open into the cradle trough, whose floor is the bore's curved
-    # underside; ``cradle.trough_floor_lift`` is what keeps the funnel from
-    # either stopping short of a banded floor or, the other way round, never
-    # reaching any material at all in the relieved middle -- see that
-    # function's docstring and the cradle's own copy of this cone.
-    ch = m.EDGE_CHAMFER
+    # from PLINTH_H, same as the stand's gland well, so they take a plain cone
+    # (``arc_r=None``). The other two arm stations open into the cradle
+    # trough, whose floor is the bore's curved underside: there
+    # ``cradle.drain_funnel`` needs both the floor's height and the radius it
+    # curves to, so the funnel neither stops short of a banded floor nor
+    # misses the lip out on the flanks. Same call the cradle makes.
     for x, y, d in [(0.0, 0.0, 0.0), *stations]:
         if d < start:
-            floor_z = PLINTH_H
+            cr.drain_funnel(x, y, PLINTH_H, None)
         else:
-            lift = cr.trough_floor_lift(d - start, m.CRADLE_LEN)
-            floor_z = PLINTH_H + m.TUBE_UNDER_Z - lift
-        with Locations((x, y, floor_z - ch)):
-            Cone(
-                bottom_radius=m.DRAIN_D / 2,
-                top_radius=m.DRAIN_D / 2 + ch,
-                height=ch,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                mode=Mode.SUBTRACT,
+            offset = d - start
+            cr.drain_funnel(
+                x,
+                y,
+                PLINTH_H + cr.trough_floor_z(offset, m.CRADLE_LEN),
+                cr.trough_floor_arc_r(offset, m.CRADLE_LEN),
             )
 
 

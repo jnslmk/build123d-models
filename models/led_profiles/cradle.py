@@ -31,6 +31,8 @@ Two edges are left raw on purpose:
 
 from __future__ import annotations
 
+from math import sqrt
+
 from build123d import (
     Align,
     Axis,
@@ -337,6 +339,81 @@ def trough_floor_lift(offset: float, length: float) -> float:
     return m.BAND_RELIEF if relieved else 0.0
 
 
+def trough_floor_arc_r(offset: float, length: float) -> float:
+    """Radius of the arc the trough floor is a piece of, at ``offset``.
+
+    The bore is a stadium whose lower cap is a half cylinder of this radius,
+    lying along the tube's axis (``tube_section``). The relieved middle grows
+    it by ``BAND_RELIEF``, the same amount ``trough_floor_lift`` drops it.
+    """
+    return (c.WIDTH + m.BORE_FIT) / 2 + trough_floor_lift(offset, length)
+
+
+def trough_floor_z(offset: float, length: float) -> float:
+    """Height of the trough floor's *lowest* point, at ``offset``.
+
+    Not ``TUBE_UNDER_Z - lift``: the tube's underside is where the aluminium
+    sits, and the floor is half of ``BORE_FIT`` below that. Worth the 0.035 mm
+    only because a funnel's throat is measured down from this face.
+    """
+    return m.TUBE_UNDER_Z - m.BORE_FIT / 2 - trough_floor_lift(offset, length)
+
+
+def drain_funnel_rise(arc_r: float | None) -> float:
+    """How far above the floor's lowest point a drain funnel has to reach.
+
+    Zero on a flat floor. On the trough's own floor the surface is a cylinder
+    lying along the tube (``trough_floor_arc_r``), so it climbs away from the
+    drain's axis across the funnel's own mouth, and a funnel whose widest ring
+    sits *at* the lowest point never reaches the lip on the two flanks -- which
+    is exactly the ~4 sharp edges per drain this family used to ship (the audit
+    in ``checks.py`` called it the drain funnel residual).
+
+    The rise is measured at ``DRAIN_D / 2 + 2 * EDGE_CHAMFER``, one chamfer
+    wider than the funnel's own mouth ends up. That margin is what makes the
+    result *provably* enough rather than nearly enough: the funnel keeps its
+    45 deg slope, so its widest ring lands at ``DRAIN_D / 2 + EDGE_CHAMFER +
+    rise``, and since the rise always comes out under one ``EDGE_CHAMFER`` for
+    a bore this size, that ring stays inside the radius the rise was measured
+    at. The floor climbs monotonically outward, so a ring inside that radius
+    clears the floor by construction.
+    """
+    if arc_r is None:
+        return 0.0
+    r_out = m.DRAIN_D / 2 + 2 * m.EDGE_CHAMFER
+    return arc_r - sqrt(max(arc_r**2 - r_out**2, 0.0))
+
+
+def drain_funnel(x: float, y: float, floor_z: float, arc_r: float | None) -> None:
+    """Cut one drain's inside-mouth funnel, where it actually drains from.
+
+    ``floor_z`` is the floor's lowest point at that station and ``arc_r`` the
+    radius of the floor's own arc there, or ``None`` for a flat floor (the
+    corner's channel, the stand's gland well). A sharp lip here holds water on
+    surface tension no matter how clean the bed-side lead-in is.
+
+    The cut is a boolean cone, per the house rule for a bore mouth, and it stays
+    safe on a curved floor for the reason every boolean does: it can only remove
+    material that is actually there. Its narrow end sits ``EDGE_CHAMFER`` below
+    the lowest point of the floor at the drain's own nominal radius, so the
+    throat is broken cleanly; its wide end is lifted by ``drain_funnel_rise``,
+    which is what carries the break round onto the flanks where the floor has
+    already climbed away.
+
+    Must be called inside an open ``BuildPart``, like ``add_drains``.
+    """
+    rise = drain_funnel_rise(arc_r)
+    height = m.EDGE_CHAMFER + rise
+    with Locations((x, y, floor_z - m.EDGE_CHAMFER)):
+        Cone(
+            bottom_radius=m.DRAIN_D / 2,
+            top_radius=m.DRAIN_D / 2 + height,
+            height=height,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
+
+
 def add_drains(length: float, count: int = 2) -> None:
     """Punch drains through a cradle floor.
 
@@ -368,28 +445,19 @@ def add_drains(length: float, count: int = 2) -> None:
             )
     # And a funnel at each drain's *upper* mouth, where it actually drains
     # from -- the trough's own floor, which is the bore's curved underside,
-    # not a flat pad like the bed. A sharp lip there holds water on surface
-    # tension no matter how clean the bed-side lead-in is. The cone is the
-    # same size and shape as the bed one, mirrored (wide end at the floor,
-    # narrow end EDGE_CHAMFER below it); it stays safe on a curved floor
-    # because a boolean cut can only ever remove material that is actually
-    # there, so it cannot cut deeper than the true surface allows, and its
-    # narrow end always sits exactly at the drain's own nominal radius, so the
-    # throat is broken cleanly regardless. What it *can* get wrong is where
-    # its wide end lands relative to the surface -- ``trough_floor_lift`` is
-    # what keeps that funnel from stopping short of a raised (banded) floor
-    # while assuming the lower, relieved one.
+    # not a flat pad like the bed. ``trough_floor_z``/``trough_floor_arc_r``
+    # are what tell that funnel which floor it is landing on: a banded station
+    # and a relieved one sit BAND_RELIEF apart and curve to different radii,
+    # and a funnel sized for the wrong one either stops short of the surface
+    # or never reaches any material at all.
     for i in range(1, count + 1):
         offset = i * spacing
-        floor_z = m.TUBE_UNDER_Z - trough_floor_lift(offset, length)
-        with Locations((offset, 0, floor_z - m.EDGE_CHAMFER)):
-            Cone(
-                bottom_radius=m.DRAIN_D / 2,
-                top_radius=m.DRAIN_D / 2 + m.EDGE_CHAMFER,
-                height=m.EDGE_CHAMFER,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                mode=Mode.SUBTRACT,
-            )
+        drain_funnel(
+            offset,
+            0.0,
+            trough_floor_z(offset, length),
+            trough_floor_arc_r(offset, length),
+        )
 
 
 def strap_land_z() -> float:
@@ -410,12 +478,16 @@ __all__ = [
     "boss_pad_section",
     "create",
     "create_cradle",
+    "drain_funnel",
+    "drain_funnel_rise",
     "is_insert_mouth",
     "outer_half_width",
     "rim_edges",
     "strap_land_z",
     "treat_edges",
+    "trough_floor_arc_r",
     "trough_floor_lift",
+    "trough_floor_z",
     "tube_section",
     "vertical_corners",
 ]

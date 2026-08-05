@@ -68,11 +68,13 @@ from build123d import (
     Part,
     Plane,
     Pos,
+    Rectangle,
     Rotation,
     ShapeList,
     Wedge,
     add,
     extrude,
+    loft,
     mirror,
 )
 
@@ -247,6 +249,71 @@ def _boss_gusset(z_bot: float, side: float) -> Part:
     return placed if side > 0 else as_part(mirror(placed, about=Plane.YZ))
 
 
+def _cable_mouth_flare() -> Part:
+    """The cable slot's outer mouth, flared as a boolean tool.
+
+    Where the slot breaks out of the pedestal it leaves four raw edges and the
+    cable turns through all of them: two vertical corners on the barrel and two
+    horizontal, the notch's own floor and ceiling arcs. Only the vertical pair
+    used to be treated (an R``EDGE_FILLET`` fillet); the raw-edge audit found
+    the other two, and **OCC will not chamfer them** -- at ``EDGE_CHAMFER`` and
+    at every length down to 0.2, one at a time or all four at once, always
+    "Failed creating a chamfer". That is the case ``models/lib/edges.py`` says
+    to stop asking about and cut as a boolean instead.
+
+    So the whole mouth is lofted: nominal ``CABLE_SLOT_W`` one
+    ``EDGE_CHAMFER`` inside the barrel's deepest point, opening at 45 deg in
+    both x and z on the way out. All four edges get the same break, which the
+    fillet could never give the horizontal pair, and the mouth ends up a funnel
+    rather than a slot with two rounded corners. Three things about the shape
+    are load-bearing, all three found by building the alternatives:
+
+    * **45 deg, not steeper.** Flaring x by ``EDGE_FILLET`` over the same
+      ``EDGE_CHAMFER`` of depth gives a wider, gentler mouth for the cable --
+      and leaves a 108 deg step down each side where the taper meets the slot
+      wall, which is a sharp edge by the audit's own measure. Equal reach in
+      both axes keeps every transition at 135 deg.
+    * **The fillet cannot stay.** Filleting first and flaring after leaves the
+      notch's arcs uncovered out at the corners the fillet widened; flaring
+      first and filleting after is refused by OCC at every radius from 2.5 down
+      to 1.0. The flare replaces it rather than joining it.
+    * **The tool is clipped at the flange's top face**, below.
+
+    Printed standing on the flange, the flared ceiling is also a 45 deg
+    overhang where the flat one was a bridge.
+    """
+    w = CABLE_SLOT_W
+    ch = m.EDGE_CHAMFER
+    mid_z = FLANGE_T + 1.0 + w / 2
+    taper_end = PEDESTAL_D / 2 - ch  # 23.2, as a +Y offset for Plane.XZ
+    start = PEDESTAL_D / 2 + 2.0  # 26.0 -- clear of the barrel at every x
+    with BuildPart() as tool:
+        # 45 deg: the section grows by exactly what the plane has moved out.
+        grow = start - taper_end
+        with BuildSketch(Plane.XZ.offset(start)):
+            with Locations((0, mid_z)):
+                Rectangle(w + 2 * grow, w + 2 * grow)
+        with BuildSketch(Plane.XZ.offset(taper_end)):
+            with Locations((0, mid_z)):
+                Rectangle(w, w)
+        loft(ruled=True)
+        # Nothing of this tool may reach below the flange's top face. The flare
+        # is still opening where it leaves the pedestal's barrel, and the
+        # flange is 90 mm across: two millimetres further out the tool is
+        # 5.6 mm taller than the slot and would gouge a notch out of the flange
+        # top behind the mouth. Inside the barrel the flare's own floor never
+        # gets within 0.2 mm of this plane, so the clip costs the mouth nothing.
+        with Locations((0, -PEDESTAL_D, FLANGE_T)):
+            Box(
+                4 * PEDESTAL_D,
+                4 * PEDESTAL_D,
+                4 * PEDESTAL_D,
+                align=(Align.CENTER, Align.CENTER, Align.MAX),
+                mode=Mode.SUBTRACT,
+            )
+    return tool.part
+
+
 def create_stand_hub() -> Part:
     """The hub, in its print pose: flange on z=0, socket opening +Y."""
     with BuildPart() as bp:
@@ -281,7 +348,9 @@ def create_stand_hub() -> Part:
 
         # Cable out of the back of the well, and a drain under it. Cut as a box
         # rather than an extruded sketch: Plane.XZ faces -Y, so offsetting it
-        # walks the sketch out past the part instead of through it.
+        # walks the sketch out past the part instead of through it. Its mouth
+        # is flared afterwards, once the edge ops are done -- see
+        # ``_cable_mouth_flare``.
         with Locations((0, -PEDESTAL_D / 2, FLANGE_T + 1)):
             Box(
                 CABLE_SLOT_W,
@@ -290,6 +359,7 @@ def create_stand_hub() -> Part:
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.SUBTRACT,
             )
+        add(_cable_mouth_flare(), mode=Mode.SUBTRACT)
         with Locations((0, GLAND_OFFSET, 0)):
             Cylinder(
                 m.DRAIN_D / 2,
@@ -333,7 +403,15 @@ def create_stand_hub() -> Part:
         # so a rim chamfer runs onto a finished fillet rather than the reverse.
         fillet_edge(bp, _boss_corners(bp), m.EDGE_FILLET)
         fillet_edge(bp, _lip_corners(bp), LIP_FILLET)
-        fillet_edge(bp, _cable_mouth_corners(bp), m.EDGE_FILLET)
+        # The cable slot's *inner* end. The mains cable is the one thing in
+        # this family that bears on a printed edge rather than on another
+        # printed part, and the notch it turns through was treated on two of
+        # its six edges. These are the pair where the slot cuts into the offset
+        # gland well; the outer mouth's four are the flare at the end of this
+        # function. CABLE_BEND_R is already 4x CABLE_OD for the same reason --
+        # a cable on a fixed outdoor installation still works against whatever
+        # it touches every time the lamp cycles hot and cold.
+        fillet_edge(bp, _cable_well_corners(bp), m.EDGE_FILLET)
         # The socket cantilevers 112 mm off the pedestal, so its root is the one
         # blend on the part that is structural rather than cosmetic. Only the
         # *outer* root: the collar bore's root is excluded by _socket_root,
@@ -467,22 +545,33 @@ def _lip_corners(bp: BuildPart) -> ShapeList:
     return ShapeList(out)
 
 
-def _cable_mouth_corners(bp: BuildPart) -> ShapeList:
-    """The vertical corners where the cable slot breaks out of the pedestal.
+def _cable_well_corners(bp: BuildPart) -> ShapeList:
+    """The vertical ridges where the cable slot cuts into the gland well.
 
-    The cable leaves here and is never clamped, so this is a chafe edge rather
-    than a decorative one. Picked by "on the pedestal's outside diameter, only
-    as tall as the slot" -- the length test is what separates them from the
-    pedestal cylinder's own seam, which sits on the same diameter.
+    The slot is a box and the well is a cylinder **offset from the socket axis
+    by ``GLAND_OFFSET``**, so the two flat side walls meet the well's barrel on
+    a pair of vertical lines that are *not* symmetric about the slot's own
+    centre -- picked here by the one thing they do share, sitting on the well's
+    own radius from the well's own centre, at the slot's height.
+
+    Same reason as ``_cable_mouth_flare``: the cable turns out of the well into
+    the slot right here, so these are the first edges it bears against on its
+    way out. They were missed until the raw-edge audit found them. The two
+    *horizontal* edges of this same crossing are still raw -- see
+    ``check_stand_edges`` for what a flare would cost at this end.
     """
-    return ShapeList(
-        [
-            e
-            for e in bp.edges().filter_by(Axis.Z)
-            if e.length < CABLE_SLOT_W + 0.1
-            and abs(hypot(e.center().X, e.center().Y) - PEDESTAL_D / 2) < 0.05
-        ]
-    )
+    z_lo = FLANGE_T + 1.0
+    z_hi = z_lo + CABLE_SLOT_W
+    out = []
+    for e in bp.edges().filter_by(Axis.Z):
+        ctr = e.center()
+        bb = e.bounding_box()
+        if abs(hypot(ctr.X, ctr.Y - GLAND_OFFSET) - WELL_D / 2) > 0.05:
+            continue
+        if abs(bb.min.Z - z_lo) > 0.05 or abs(bb.max.Z - z_hi) > 0.05:
+            continue
+        out.append(e)
+    return ShapeList(out)
 
 
 def _socket_root(bp: BuildPart) -> ShapeList:
@@ -619,10 +708,12 @@ def _add_lead_ins() -> None:
 
     * the **insert holes**, the family-wide exception -- a printed lead-in
       removes the material the heat-set has to melt into;
-    * the **counterbore mouths**. ``PIVOT_R - PIVOT_CBORE_D / 2`` is 24.25,
-      which is 0.25 mm outside the pedestal's 48 mm diameter, so a cone at that
-      mouth would undercut the pedestal's own base. The bore already clears an
-      M6 head by 0.75 mm a side and needs no help finding it.
+    * the **counterbore mouths**, meaning their *rims* at ``FLANGE_T``.
+      ``PIVOT_R - PIVOT_CBORE_D / 2`` is 24.25, which is 0.25 mm outside the
+      pedestal's 48 mm diameter, so a cone at that mouth would undercut the
+      pedestal's own base. The bore already clears an M6 head by 0.75 mm a side
+      and needs no help finding it. Their *floors*, six millimetres down and
+      nowhere near the pedestal wall, do get a cone -- see below.
 
     Same arithmetic is why the flange/pedestal root carries no fillet: any blend
     there would hang out over a counterbore mouth and foul the bolt head.
@@ -640,6 +731,8 @@ def _add_lead_ins() -> None:
                 mode=Mode.SUBTRACT,
             )
     # A funnel at the drain's upper mouth, so the well actually empties into it.
+    # The well floor is flat, so a plain cone conforms to it (``cradle
+    # .drain_funnel`` is the same cut where the floor is the trough's own arc).
     with Locations((0, GLAND_OFFSET, FLANGE_T - ch)):
         Cone(
             bottom_radius=m.DRAIN_D / 2,
@@ -648,6 +741,23 @@ def _add_lead_ins() -> None:
             align=(Align.CENTER, Align.CENTER, Align.MIN),
             mode=Mode.SUBTRACT,
         )
+    # And the pivot counterbores' floors, where each one steps down to the
+    # narrower clearance hole. That shoulder is where an M6 head lands, so it
+    # is not a handling edge -- but it is a square internal corner at a layer
+    # line directly under the fastener that carries the whole tripod's load,
+    # which is the worst place on this part for a stress riser. Broken by
+    # BOLT_LEAD_IN and no more: the flat left between the cone and the
+    # counterbore wall is the head's own bearing seat.
+    lead = m.BOLT_LEAD_IN
+    for x, y in _pivot_positions():
+        with Locations((x, y, FLANGE_T - PIVOT_CBORE_H - lead)):
+            Cone(
+                bottom_radius=PIVOT_CLEAR_D / 2,
+                top_radius=PIVOT_CLEAR_D / 2 + lead,
+                height=lead,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
 
 
 def _drill_strap_inserts() -> None:
