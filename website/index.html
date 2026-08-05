@@ -125,6 +125,15 @@
   #vstatus { position: absolute; left: 12px; top: 10px; right: 12px; font-size: 12px; color: #cdd3db;
     background: rgba(20,23,28,.7); border: 1px solid #2a2f37; border-radius: 6px; padding: 5px 10px; z-index: 2; }
   #vstatus.err { color: #f0a5a5; border-color: #5c2f2f; }
+  /* Viewer-local controls sit in the canvas's bottom-right corner rather than in
+     #bar: they act on the view, not on the model, and the bar has no room left
+     on a phone. */
+  .vbtn {
+    position: absolute; right: 12px; bottom: 10px; z-index: 2;
+    padding: 5px 10px; font-size: 12px; background: rgba(20,23,28,.7);
+  }
+  .vbtn[aria-pressed="true"] { border-color: #4a90ff; color: #e6e8eb; background: rgba(59,130,246,.18); }
+  @media (max-width: 900px) { .vbtn { min-height: 34px; } }
   /* Shared: the viewer's status line, and the download buttons an assembly
      view does not offer. A class rather than the `hidden` attribute, because
      both carry element rules that would otherwise have to be fought. */
@@ -218,6 +227,7 @@
     <span class="mouse">drag = rotate · scroll = zoom · right-drag = pan</span>
     <span class="touch">drag = rotate · pinch = zoom · two-finger drag = pan</span>
   </div>
+  <button id="btn-grid" class="vbtn" aria-pressed="true" title="Show or hide the ground grid (G)">Grid</button>
   <div id="optin" hidden>
     <h3>Rebuild in your browser?</h3>
     <p class="muted">
@@ -294,7 +304,113 @@ controls.enableDamping = true; controls.dampingFactor = 0.12;
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(120, 80, 200); scene.add(key);
 const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-90, -130, 90); scene.add(fill);
-const grid = new THREE.GridHelper(400, 20, 0x3a4048, 0x2a2f37); grid.rotation.x = Math.PI / 2; scene.add(grid);
+
+// ---------------------------------------------------------------------------
+// Ground grid on XY (build123d's print bed plane).
+// A GridHelper is a fixed-size lattice: at 400 mm it sits as a small patch in
+// the middle of the viewport for a 1500 mm profile, and vanishes entirely once
+// you zoom inside it. This is a plane that follows the camera, with its lines
+// drawn in the fragment shader from world coordinates — so it fills the view at
+// every zoom, and its cell size steps by decades with the camera distance
+// (0.1 -> 1 -> 10 -> 100 mm) instead of collapsing into moiré.
+// ---------------------------------------------------------------------------
+const gridUniforms = {
+  uCell:  { value: 10 },                            // minor cell size, mm
+  uFine:  { value: 1 },                             // minor lattice opacity, faded out before it changes decade
+  uCam:   { value: new THREE.Vector3() },
+  uFade:  { value: 1000 },                          // distance at which the grid is fully gone
+  uMinor: { value: new THREE.Color(0x2a2f37) },
+  uMajor: { value: new THREE.Color(0x3a4048) },
+  uAxisX: { value: new THREE.Color(0x7a4149) },
+  uAxisY: { value: new THREE.Color(0x3f6b48) },
+};
+const grid = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.ShaderMaterial({
+    uniforms: gridUniforms,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    // Bias the grid away from the eye so a part resting on z=0 wins the depth
+    // test against the coplanar bed instead of z-fighting with it.
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+    vertexShader: `
+      varying vec3 vWorld;
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+      uniform float uCell, uFine, uFade;
+      uniform vec3 uCam, uMinor, uMajor, uAxisX, uAxisY;
+      varying vec3 vWorld;
+
+      // Coverage of the nearest line of a cell-spaced lattice, antialiased with
+      // the screen-space derivative so lines stay ~1px wide at any zoom.
+      float lattice(vec2 p, float cell) {
+        vec2 c = p / cell;
+        vec2 w = max(fwidth(c), 1e-8);        // cells crossed per pixel
+        vec2 g = abs(fract(c - 0.5) - 0.5) / w;
+        float line = 1.0 - min(min(g.x, g.y), 1.0);
+        // Once a cell is only a few pixels wide the lattice is at its sampling
+        // limit: every pixel lands on a line, so the lines stop reading as lines
+        // and turn into a flat wash. Fade it out there instead — this is what
+        // keeps the far field, where perspective packs decades of cells into a
+        // few pixels near the horizon, from hazing over.
+        return line * (1.0 - smoothstep(0.12, 0.45, max(w.x, w.y)));
+      }
+
+      void main() {
+        vec2 p = vWorld.xy;
+        float minor = lattice(p, uCell) * uFine;
+        float major = lattice(p, uCell * 10.0);
+        vec3 col = mix(uMinor, uMajor, major);
+        float a = max(minor * 0.7, major);
+
+        // The two world axes, drawn over the lattice they line up with.
+        vec2 d = max(fwidth(p), 1e-8);
+        float ax = 1.0 - min(abs(p.y) / d.y, 1.0);   // X axis runs along y = 0
+        float ay = 1.0 - min(abs(p.x) / d.x, 1.0);
+        col = mix(col, uAxisX, ax);
+        col = mix(col, uAxisY, ay);
+        a = max(a, max(ax, ay));
+
+        a *= 1.0 - smoothstep(uFade * 0.25, uFade, length(vWorld - uCam));
+        if (a < 0.004) discard;                      // keep the far field out of the depth/blend work
+        gl_FragColor = vec4(col, a);
+      }
+    `,
+  }),
+);
+grid.frustumCulled = false;   // the plane is re-centred every frame; its (unit) bounds lie
+grid.renderOrder = -1;        // about the camera, so culling it on them is meaningless
+scene.add(grid);
+
+// Re-centre and re-scale the grid for the current camera distance. Called every
+// frame, before the render.
+function updateGrid() {
+  if (!grid.visible) return;
+  const dist = Math.max(camera.position.distanceTo(controls.target), 1e-3);
+  // Minor cells are the power of ten nearest 1/20th of the visible span, so the
+  // lattice reads in round millimetres. Between two decades the count per screen
+  // climbs 10x, which is what the cross-fade is for: the fine lattice is gone by
+  // the time it would be dense enough to alias, and the coarse one it was drawn
+  // over has become the new fine one.
+  const decade = Math.log10(dist) - 1.3;
+  const step = Math.floor(decade);
+  gridUniforms.uCell.value = Math.pow(10, step);
+  gridUniforms.uFine.value = Math.pow(1 - (decade - step), 1.5);
+  // Stop short of the far plane: camera.far is set when a model is framed and
+  // does not follow a later zoom-out, so an unclamped fade would end in a hard
+  // circular clip rather than in nothing.
+  gridUniforms.uFade.value = Math.min(dist * 6, camera.far * 0.8);
+  gridUniforms.uCam.value.copy(camera.position);
+  grid.position.set(camera.position.x, camera.position.y, 0);
+  grid.scale.setScalar(dist * 20);
+}
 const material = new THREE.MeshStandardMaterial({ color: 0x59a6ff, metalness: 0.1, roughness: 0.55, flatShading: true });
 const gltfLoader = new GLTFLoader();
 let currentObject = null;   // the currently displayed render object (STL mesh or glTF scene)
@@ -361,7 +477,7 @@ function resize() {
 }
 new ResizeObserver(resize).observe(document.getElementById('view'));
 resize();
-(function loop() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+(function loop() { controls.update(); updateGrid(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
 
 function triCount(bytes) {  // binary STL: uint32 triangle count at byte 80
   return bytes.byteLength >= 84 ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(80, true) : 0;
@@ -383,6 +499,7 @@ const el = {
   cm: document.getElementById('cm'),
   cmLoading: document.getElementById('cm-loading'),
   btnCode: document.getElementById('btn-code'),
+  btnGrid: document.getElementById('btn-grid'),
   btnRun: document.getElementById('btn-run'),
   btnRevert: document.getElementById('btn-revert'),
   btnStl: document.getElementById('btn-stl'),
@@ -402,6 +519,7 @@ function setVStatus(text, isErr) {
 // State
 // ---------------------------------------------------------------------------
 const LS_RUNTIME = 'b123d.runtime';   // 'on' once the visitor has opted in
+const LS_GRID = 'b123d.grid';         // 'off' once the visitor has hidden the ground grid
 
 let manifest = null;         // { models: [...] }
 let sources = {};            // { "models/cube.py": "<text>" }
@@ -485,6 +603,29 @@ el.tabHide.addEventListener('click', () => {
   const closed = document.body.classList.toggle('drawer-closed');
   el.tabHide.textContent = closed ? '▴' : '▾';
 });
+
+// ---------------------------------------------------------------------------
+// Ground grid toggle — remembered, because whether the bed helps or gets in the
+// way is a property of what you are looking at, not of one visit.
+// ---------------------------------------------------------------------------
+function showGrid(on) {
+  grid.visible = on;
+  el.btnGrid.setAttribute('aria-pressed', String(on));
+  try { localStorage.setItem(LS_GRID, on ? 'on' : 'off'); } catch { /* private mode */ }
+}
+el.btnGrid.addEventListener('click', () => showGrid(!grid.visible));
+addEventListener('keydown', (e) => {
+  if (e.key !== 'g' && e.key !== 'G') return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  showGrid(!grid.visible);
+});
+(() => {
+  let remembered = null;
+  try { remembered = localStorage.getItem(LS_GRID); } catch { /* private mode */ }
+  showGrid(remembered !== 'off');
+})();
 
 // ---------------------------------------------------------------------------
 // Parameter form
