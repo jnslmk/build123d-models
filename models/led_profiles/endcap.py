@@ -25,6 +25,19 @@ Print pose: outer face down on the bed, lip up. That puts the gland thread on a
 vertical axis (the only axis worth printing a thread on), gives the largest
 possible first layer, and leaves no overhang anywhere -- the lip grows *out of*
 the flange rather than hanging off it.
+
+Edge treatments are three chamfers, all taken while the part is still a plain
+two-step prism -- before the bore, the screw mouths and the thread exist -- and
+each isolated in its own ``chamfer_edge`` call. They are the bed face's outer
+wire (``EDGE_CHAMFER``, elephant's foot), the collar's silhouette where it runs
+into the aluminium (``COLLAR_CHAMFER``) and the lip's leading edge
+(``LIP_LEAD_IN``). Nothing is filleted: the flange is a stadium, so its flanks
+run into its arcs tangentially and it has no vertical corners to break. Three
+edges are left square on purpose and should stay that way -- the whole of the
+``CAP_T`` face inboard of the collar chamfer, which is what beds against the
+extrusion's 0.5 mm wall; both screw mouths on that same face; and the gland
+bore's mouth there, which is the thread's own faded exit and the one place a
+lead-in would hand OCC a degenerate fuse (see ``GLAND_COLLAR``).
 """
 
 from __future__ import annotations
@@ -45,15 +58,15 @@ from build123d import (
     Pos,
     Rectangle,
     Rotation,
+    ShapeList,
     Sketch,
     SlotOverall,
     add,
-    chamfer,
     extrude,
 )
 
 from models.lib import fits
-from models.lib.edges import as_part
+from models.lib.edges import as_part, chamfer_edge
 
 from . import config as c
 from .profile import _big, _loc
@@ -70,7 +83,18 @@ CAP_H = c.HEIGHT + 2 * CAP_PROUD
 # so it will engage the first 8 of these 12 and seal on its flange against the
 # face; the extra depth costs 2 mm and accepts a long-thread gland too.
 CAP_T = 12.0
+# Same 0.8 as ``mount_config.EDGE_CHAMFER``, kept local because this module sits
+# *upstream* of that one -- corner.py imports CAP_T and CAP_W from here, and
+# mount_config carries the mounts' ASA material with it.
 EDGE_CHAMFER = 0.8
+
+# The collar step, where the cap's face runs into the aluminium. Sized to
+# CAP_PROUD rather than to EDGE_CHAMFER on purpose: at 45 deg a chamfer of
+# exactly the collar's overhang puts its inner edge on the tube's own
+# silhouette, so the step reads as one bevel and the extrusion's 0.5 mm wall
+# still lands on a full-width flat seat. EDGE_CHAMFER is 0.8 and would eat
+# 0.2 mm of that seat.
+COLLAR_CHAMFER = CAP_PROUD
 
 # ------------------------------------------------------------------ the lip
 
@@ -81,6 +105,13 @@ LIP_DEPTH = 6.0
 LIP_T = 1.2
 LIP_FIT = fits.SLIDING
 LIP_TOP_GAP = 0.4  # clears the screw bosses bulging out of the cavity ceiling
+
+# Lead-in on the lip's leading edge, so it starts into the cavity instead of
+# catching on it. A third of the wall rather than EDGE_CHAMFER: 0.4 mm is
+# already ~3.5x the 0.11 mm radial clearance, and it leaves 0.8 mm of flat on
+# the tip -- two whole extrusion widths, where 0.8 would leave a 0.4 mm knife
+# edge for the slicer to make one lonely bead of.
+LIP_LEAD_IN = LIP_T / 3
 
 # ---------------------------------------------------------------- the gland
 
@@ -180,10 +211,22 @@ def create_endcap() -> Part:
             add(lip_section())
         extrude(amount=LIP_DEPTH)
 
-        # Kill the elephant's foot on the bed-facing perimeter, and do it before
-        # anything is drilled so a failure here cannot cascade through the rest.
-        bottom = bp.faces().sort_by(Axis.Z)[0]
-        chamfer(bottom.outer_wire().edges(), length=EDGE_CHAMFER)
+        # Edge treatments, house rule: chamfer horizontal, fillet vertical.
+        # Three isolated calls, all of them here rather than at the end -- this
+        # is the last moment at which every face they select from is still
+        # clean, before the bore, the screw mouths and the thread arrive, and a
+        # chamfer OCC refuses on a bare face is a chamfer that was never going
+        # to work. Each goes through ``chamfer_edge`` so a refusal is confined
+        # to its own feature instead of quietly taking the two after it.
+        # There is nothing to fillet: the flange is a stadium, so its flanks
+        # meet its arcs tangentially and it has no vertical corners at all.
+        chamfer_edge(  # elephant's foot on the bed-facing perimeter
+            bp, bp.faces().sort_by(Axis.Z)[0].outer_wire().edges(), EDGE_CHAMFER
+        )
+        chamfer_edge(bp, _collar_rim_edges(bp), COLLAR_CHAMFER)
+        chamfer_edge(  # the lip's lead-in, on the way into the cavity
+            bp, bp.faces().sort_by(Axis.Z)[-1].outer_wire().edges(), LIP_LEAD_IN
+        )
 
         # Gland bore, then the thread fused into it.
         with BuildSketch():
@@ -227,6 +270,45 @@ def create_endcap() -> Part:
     part.color = CAP_COLOR
     part.label = "endcap"
     return part
+
+
+def _arc_radius(edge) -> float | None:
+    """An edge's radius, or None if it is straight.
+
+    ``Edge.radius`` raises on a line rather than returning None, and the rim
+    below is a mix of both.
+    """
+    try:
+        return edge.radius
+    except Exception:  # noqa: BLE001 -- "not a circle" is the answer, not an error
+        return None
+
+
+def _collar_rim_edges(bp: BuildPart) -> ShapeList:
+    """The collar's own silhouette at ``CAP_T``: two arcs and two flanks.
+
+    Selected by geometry rather than off the face, because that face is the one
+    that beds against the aluminium: it is about to take the gland bore and both
+    screw mouths, and the lip's root wires already sit on it. All of those must
+    stay square -- only the outer stadium wants the chamfer, and it is the only
+    thing up there at the cap's own radius.
+    """
+    r_out = CAP_W / 2
+
+    def is_silhouette(edge) -> bool:
+        r = _arc_radius(edge)
+        if r is not None:
+            return abs(r - r_out) < 0.01
+        # A straight flank: its midpoint is the whole of what distinguishes it.
+        return abs(abs(edge.center().X) - r_out) < 0.01
+
+    return ShapeList(
+        [
+            e
+            for e in bp.edges().filter_by_position(Axis.Z, CAP_T - 0.01, CAP_T + 0.01)
+            if is_silhouette(e)
+        ]
+    )
 
 
 def _screw_centres() -> list[tuple[float, float]]:

@@ -20,7 +20,7 @@ and its dependents uses that convention; ``config``'s z is offset by
 
 from __future__ import annotations
 
-from math import radians, tan
+from math import radians, sqrt, tan
 
 from models.lib import fits
 
@@ -45,6 +45,12 @@ CRADLE_DEPTH = TUBE_UNDER_Z + c.RIM_Z  # 20.8
 # aluminium tube. SLIDING is the class that lands where SNUG does in PETG.
 BORE_FIT = fits.for_material(fits.SLIDING, MATERIAL)  # 0.07 diametral
 
+# Half the cradle's overall width at the mouth. Lives here rather than in
+# cradle.py because the bolt circle below has to know where the wall's outer
+# face is, and cradle.py imports *this* module. ``cradle.outer_half_width()``
+# returns it.
+CRADLE_OUTER_HALF_W = (c.WIDTH + BORE_FIT) / 2 + CRADLE_WALL  # 17.04
+
 # Contact in two bands at the ends only. The relieved middle is not a fit: it is
 # the +/-1 deg of angular compliance a closed polygon needs, because 0.5 deg of
 # error is 13 mm over 1500 mm and three tubes will not otherwise close.
@@ -52,7 +58,10 @@ BAND_LEN = 15.0
 BAND_RELIEF = 0.6
 
 DRAIN_D = 4.0  # every upward-facing pocket drains; see design-notes S5
+
+# House rule (AGENTS.md): chamfer horizontal edges, fillet vertical ones.
 EDGE_CHAMFER = 0.8
+EDGE_FILLET = 2.5
 
 # ------------------------------------------------------------------- strap
 
@@ -65,10 +74,47 @@ STRAP_T = 5.0
 # the strap clears the lot and captures the tube instead of clamping it. This
 # clearance is therefore also the tube's vertical play -- see strap.py.
 DIFFUSER_CLEAR = 1.5
-FOOT_H = 6.0
+FOOT_H = 8.0  # see the bolt circle below -- this and BOSS_U are one decision
 
-BOSS_U = 19.5  # bolt axis, outboard of the cradle wall
-BOSS_OD = 12.0
+# --------------------------------------------------- the strap's arch envelope
+
+# The strap's outer flank, in strap-local z (zero at the land it bolts to). It
+# is a stadium: full width up to the upper arc's centre, then curving in. The
+# bolt circle below is derived from it, so both live here rather than in
+# strap.py, which is the module that *draws* this shape.
+STRAP_AXIS_Z = TUBE_AXIS_Z - CRADLE_DEPTH  # -1.8, the tube's axis from the land
+ARCH_HALF_W = c.WIDTH / 2 + DIFFUSER_CLEAR + STRAP_T  # 19.50
+_ARCH_ARC_Z = STRAP_AXIS_Z + (c.HEIGHT - c.WIDTH) / 2  # 0.20
+
+
+def arch_half_width(z: float) -> float:
+    """Half the strap's outer width at height ``z`` above the land."""
+    if z <= _ARCH_ARC_Z:
+        return ARCH_HALF_W
+    return sqrt(max(ARCH_HALF_W**2 - (z - _ARCH_ARC_Z) ** 2, 0.0))
+
+
+# ------------------------------------------------------------- the bolt circle
+
+# THE OTHER TRAP, and the reason none of these three are typed numbers. BOSS_U
+# used to be 19.5 -- which is ARCH_HALF_W exactly, i.e. the bolt axis was *on*
+# the arch's own flank. The hole's top mouth came out bisected by the arch
+# springing (no flat land for two thirds of it) and an M4 head fouled the flank
+# by 2.6 mm, so the strap could not actually be bolted down.
+#
+# The bolt must therefore stand clear of the flank at the height its head sits:
+# the foot's top face. Raising FOOT_H is half the fix and moving BOSS_U out is
+# the other, because the flank curves in as it rises -- 8 mm of foot buys 1.6 mm
+# of the 4.25 mm needed, and BOSS_U pays the rest.
+BOLT_HEAD_D = 7.0  # M4 socket cap; a button head is 7.6 but sits lower
+BOLT_HEAD_CLEAR = 0.75
+BOSS_U = arch_half_width(FOOT_H) + BOLT_HEAD_D / 2 + BOLT_HEAD_CLEAR  # 22.12
+
+# The pad has to reach *inboard* far enough to fuse into the cradle wall -- it
+# is not a free-standing column -- and outboard far enough to seat the head.
+PAD_MERGE = 2.0  # ligament into the cradle's outer face
+BOSS_OD = 2 * (BOSS_U - CRADLE_OUTER_HALF_W + PAD_MERGE)  # 14.17
+
 INSERT_D = 5.7  # M4 heat-set: 5.5 table + FDM correction. NO lead-in chamfer.
 INSERT_DEPTH = 9.0  # insert length + 1 mm relief well for displaced plastic
 BOLT_CLEAR_D = 4.75  # M4 normal + 0.25; must stay under INSERT_D

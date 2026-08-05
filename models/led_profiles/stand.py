@@ -27,11 +27,31 @@ Three things the endcap forces on the geometry:
 Print pose: standing on the flange, cradle channel vertical and opening
 sideways. The cradle is a prism extruded straight up, so it is overhang-free by
 construction, and the pivot counterbores open upward.
+
+Edge treatments follow the house rule -- fillet vertical, chamfer horizontal --
+but this is the one mount in the family whose print pose *is* its assembly pose
+(see ``seated``), so "vertical" here means the bed's normal, global Z, not the
+tube's axis. Two consequences worth stating, because they invert what the other
+mounts do:
+
+* The socket's mouth opens sideways (+Y) and its lips are therefore *vertical*
+  edges -- they get fillets, where the corner's and the cradle's mouths are
+  horizontal rims and get chamfers.
+* The tube drops in from **above**, so the rim at ``TOP_Z`` is both a horizontal
+  edge and the tube's lead-in. That chamfer is the one that has to be there.
+
+Downward-facing horizontal edges only ever get a chamfer, never a fillet: at 45
+degrees a chamfer is self-supporting, where a fillet leaves the bed at 90.
+Every selection is made **by geometry** -- position, length, arc radius -- and
+never off a face, because the socket's mouth faces carry the heat-set insert
+holes, which is exactly what OCC refuses to work off. The insert mouths
+themselves stay raw, the same deliberate exception the rest of the family makes:
+a printed lead-in removes the material the heat-set has to melt into.
 """
 
 from __future__ import annotations
 
-from math import cos, radians, sin
+from math import cos, hypot, radians, sin, sqrt
 
 from build123d import (
     Align,
@@ -41,6 +61,7 @@ from build123d import (
     BuildSketch,
     Circle,
     Color,
+    Cone,
     Cylinder,
     Locations,
     Mode,
@@ -48,11 +69,14 @@ from build123d import (
     Plane,
     Pos,
     Rotation,
+    ShapeList,
+    Wedge,
     add,
     extrude,
+    mirror,
 )
 
-from models.lib.edges import as_part, chamfer_edge
+from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
 from . import config as c
 from . import cradle as cr
@@ -88,6 +112,59 @@ SOCKET_DEPTH = 100.0
 TOP_Z = SEAT_Z + CAP_T + SOCKET_DEPTH
 
 CABLE_SLOT_W = m.CABLE_OD + 2.0
+
+# The socket's own stadium, in plan. Written out here rather than re-derived at
+# every selector, because every edge below is picked by where it sits relative
+# to one of these two outlines.
+SOCKET_HALF_W = (c.WIDTH + m.BORE_FIT) / 2 + m.CRADLE_WALL  # 17.035
+SOCKET_HALF_H = (c.HEIGHT + m.BORE_FIT) / 2 + m.CRADLE_WALL  # 19.035
+MOUTH_Y = m.CRADLE_DEPTH + SINK  # 1.8 -- the plane the socket is cut off at
+
+# The cap collar is wider than the tube, so the bore is opened out over CAP_T.
+# Hoisted out of ``create_stand_hub`` because the selectors have to know where
+# that wider bore's wall is: a fillet at its root would unseat the endcap, which
+# has only 0.5 mm a side to play with.
+COLLAR_CLEAR = max(CAP_W - c.WIDTH, CAP_H - c.HEIGHT) + 1.0  # 2.2
+COLLAR_HALF_W = (c.WIDTH + COLLAR_CLEAR) / 2  # 14.1
+COLLAR_HALF_H = (c.HEIGHT + COLLAR_CLEAR) / 2  # 16.1
+
+# The mouth lips take a smaller radius than everything else. EDGE_FILLET is
+# sized for the corner's 41 mm arms; a lip is only CRADLE_WALL wide, and over
+# the collar band it is narrower still -- SOCKET_HALF_W - COLLAR_HALF_W = 2.94
+# mm -- so R2.5 would leave 0.44 mm of wall there, under what a 0.4 nozzle
+# should be asked to print. Six tenths of it leaves 1.44 mm, three perimeters,
+# and still takes the sharp corner off a 112 mm edge somebody has to carry.
+LIP_FILLET = 0.6 * m.EDGE_FILLET  # 1.5
+
+# The boss pads' underside is the one real overhang in this family: printed
+# standing on its flange (the module docstring), each pad's flat underside
+# hangs off the socket wall with nothing below it, six times. An 0.8 mm edge
+# chamfer breaks the corner but does not change the fact that the pad starts
+# in mid-air -- fixing it needs the underside to *grow out of the wall*, and
+# that takes two changes together:
+#
+# * ``PAD_BASE_V`` shortens the pad's own reach into the socket. The old
+#   value, ``cr.back_z(SINK)``, ran the pad to the stadium's rounded back tip
+#   -- correct for every *other* mount, where this same axis is print-vertical
+#   and reaching it means reaching the bed, but here it is the socket's own
+#   depth axis. Nothing needs that reach: the insert only goes in as far as
+#   ``MOUTH_Y - INSERT_DEPTH`` (-7.2), and past v=-10 or so the socket wall's
+#   own half-width has already shrunk *below* the pad's inboard edge (see
+#   ``GUSSET_SUPPORT_U``), so the old pad was not a 12 mm cantilever there --
+#   it was a slab floating over open air for its entire depth, unconnected to
+#   the wall at all. Confirmed by point-sampling the pre-fix part, not assumed.
+# * A 45 deg wedge (``_boss_gusset``) then carries the shortened pad's
+#   underside back to wall that is actually there. Its inboard edge sits at
+#   ``GUSSET_SUPPORT_U``, the wall's *real* half-width at v=PAD_BASE_V --
+#   never the flank's full ``SOCKET_HALF_W``, which would overshoot past
+#   material that has already curved away by that depth.
+PAD_BASE_V = -9.0
+_GUSSET_ARC = SOCKET_HALF_H - SOCKET_HALF_W  # 2.0 -- see _stadium_dist
+GUSSET_SUPPORT_U = sqrt(
+    SOCKET_HALF_W**2 - (abs(PAD_BASE_V) - _GUSSET_ARC) ** 2
+)  # 15.53
+GUSSET_RUN = m.BOSS_U + m.BOSS_OD / 2 - GUSSET_SUPPORT_U  # 13.68 -- rise = run, 45 deg
+
 STAND_COLOR = Color(0.30, 0.32, 0.36)
 LEG_COLOR = Color(
     0.62, 0.64, 0.67
@@ -125,6 +202,51 @@ def _pivot_positions() -> list[tuple[float, float]]:
     ]
 
 
+def _boss_gusset(z_bot: float, side: float) -> Part:
+    """A 45 deg wedge that carries one boss pad's underside back to the wall.
+
+    ``Wedge`` is an OCC primitive (``Solid.make_wedge``), built directly rather
+    than by fillet/chamfer or by lofting between two sketches -- it cannot fail
+    the way an edge op can (gotchas S1/S5), which matters here because the
+    whole pad underside needs support, not just an edge to break.
+
+    Built axis-aligned -- local X the ramp's horizontal reach (u), local Y its
+    rise, local Z the socket's depth (v), constant along the ramp -- then
+    ``rotation=(90, 0, 0)`` turns local Y onto global Z (the print-vertical
+    rise) and local Z onto global -Y, the same axis swap
+    ``_drill_strap_inserts`` uses for its cylinders. The near face is a
+    hairline sliver at u=``GUSSET_SUPPORT_U`` -- wall that is actually there
+    for the whole depth this ramp covers (see the constant's own comment) --
+    and the far face grows to u=``GUSSET_SUPPORT_U + GUSSET_RUN``, exactly the
+    pad's own outboard edge, over a rise of the same ``GUSSET_RUN``. The
+    hairline sliver means the ramp's true run is ``GUSSET_RUN`` less the
+    0.05 mm ``xsize``, not ``GUSSET_RUN`` itself, so the slope is not exactly
+    45 deg -- measured off the built solid it is ~45.1 deg, very slightly
+    steeper than 45. That is the safe direction (it clears the self-supporting
+    threshold with a hair to spare rather than sitting exactly on it) and
+    0.05 mm out of a ~13.7 mm run is well inside the margin ``check_stand_gusset``
+    checks against, so it is left as a hairline rather than a true zero-width
+    edge. The far face flush-merges with the pad's underside with no seam.
+    Built for the +u side and mirrored for -u, since a mirror about the YZ
+    plane flips u without touching the depth or the rise.
+    """
+    depth = MOUTH_Y - PAD_BASE_V
+    with BuildPart() as gusset:
+        Wedge(
+            xsize=0.05,
+            ysize=GUSSET_RUN,
+            zsize=depth,
+            xmin=0.0,
+            zmin=0.0,
+            xmax=GUSSET_RUN,
+            zmax=depth,
+            rotation=(90, 0, 0),
+            align=(Align.MIN, Align.MIN, Align.MIN),
+        )
+    placed = as_part(Pos(GUSSET_SUPPORT_U, MOUTH_Y, z_bot - GUSSET_RUN) * gusset.part)
+    return placed if side > 0 else as_part(mirror(placed, about=Plane.YZ))
+
+
 def create_stand_hub() -> Part:
     """The hub, in its print pose: flange on z=0, socket opening +Y."""
     with BuildPart() as bp:
@@ -144,9 +266,8 @@ def create_stand_hub() -> Part:
         with BuildSketch(Plane.XY.offset(SEAT_Z + CAP_T)):
             add(cr.tube_section(m.BORE_FIT, lift=SINK))
         extrude(amount=TOP_Z - SEAT_Z - CAP_T, mode=Mode.SUBTRACT)
-        collar = max(CAP_W - c.WIDTH, CAP_H - c.HEIGHT) + 1.0
         with BuildSketch(Plane.XY.offset(SEAT_Z)):
-            add(cr.tube_section(collar, lift=SINK))
+            add(cr.tube_section(COLLAR_CLEAR, lift=SINK))
         extrude(amount=CAP_T, mode=Mode.SUBTRACT)
 
         # The gland well -- offset, because the gland axis is not the tube's.
@@ -193,12 +314,41 @@ def create_stand_hub() -> Part:
                 mode=Mode.SUBTRACT,
             )
 
-        # Strap bosses up the socket, then their inserts.
+        # Strap bosses up the socket, then a gusset under each one to carry its
+        # underside back to the wall (see PAD_BASE_V/GUSSET_* above), then the
+        # inserts.
         for z in STATIONS:
             with BuildSketch(Plane.XY.offset(z - m.STRAP_W / 2)):
-                add(cr.boss_pad_section(lift=SINK, base=cr.back_z(SINK)))
+                add(cr.boss_pad_section(lift=SINK, base=PAD_BASE_V))
             extrude(amount=m.STRAP_W)
+            for side in (-1.0, 1.0):
+                add(_boss_gusset(z - m.STRAP_W / 2, side))
         _drill_strap_inserts()
+        _add_lead_ins()
+
+        # Edge treatments. Every one is its own isolated call and re-queries the
+        # builder, because a successful edge op invalidates the previous
+        # selection (gotchas S4) and a failed one would otherwise take every
+        # later op down with it (gotchas S1). Verticals first, then horizontals,
+        # so a rim chamfer runs onto a finished fillet rather than the reverse.
+        fillet_edge(bp, _boss_corners(bp), m.EDGE_FILLET)
+        fillet_edge(bp, _lip_corners(bp), LIP_FILLET)
+        fillet_edge(bp, _cable_mouth_corners(bp), m.EDGE_FILLET)
+        # The socket cantilevers 112 mm off the pedestal, so its root is the one
+        # blend on the part that is structural rather than cosmetic. Only the
+        # *outer* root: the collar bore's root is excluded by _socket_root,
+        # because filling it would lift the endcap off its seat.
+        fillet_edge(bp, _socket_root(bp), m.EDGE_FILLET)
+        # The rim is the tube's lead-in, since here the tube drops in from
+        # above rather than sideways. Everything at TOP_Z, unfiltered: unlike
+        # the corner's rim this one carries no insert mouths to exclude -- the
+        # stand's inserts go into the mouth lips' *vertical* faces, the topmost
+        # of them 10 mm below the rim.
+        chamfer_edge(bp, _at_z(bp, TOP_Z), m.EDGE_CHAMFER)
+        chamfer_edge(bp, _boss_crowns(bp), m.EDGE_CHAMFER)
+        chamfer_edge(bp, _boss_undersides(bp), m.EDGE_CHAMFER)
+        chamfer_edge(bp, _ring(bp, SEAT_Z, PEDESTAL_D / 2), m.EDGE_CHAMFER)
+        chamfer_edge(bp, _ring(bp, FLANGE_T, FLANGE_D / 2), m.EDGE_CHAMFER)
         chamfer_edge(
             bp, bp.faces().sort_by(Axis.Z)[0].outer_wire().edges(), m.EDGE_CHAMFER
         )
@@ -207,6 +357,297 @@ def create_stand_hub() -> Part:
     part.color = STAND_COLOR
     part.label = "stand hub"
     return part
+
+
+# ------------------------------------------------------------ edge selection
+
+
+def _stadium_dist(x: float, y: float, half_w: float, half_h: float) -> float:
+    """Signed distance in plan from (x, y) to a tube stadium's outline.
+
+    Negative inside. Every section of this socket is a ``SlotOverall`` centred
+    on the tube axis -- which ``SINK`` puts on the hub's own axis -- so it is
+    two arcs of radius ``half_w`` centred at y = +/-(half_h - half_w), joined by
+    flanks at x = +/-half_w. One function answers "is this edge on the socket
+    wall, on the collar bore, or out on a boss pad", which is the whole of the
+    selection problem here and needs no face to answer.
+    """
+    arc = half_h - half_w
+    if abs(y) <= arc:
+        return abs(x) - half_w
+    return hypot(x, abs(y) - arc) - half_w
+
+
+def _socket_dist(x: float, y: float) -> float:
+    return _stadium_dist(x, y, SOCKET_HALF_W, SOCKET_HALF_H)
+
+
+def _collar_dist(x: float, y: float) -> float:
+    return _stadium_dist(x, y, COLLAR_HALF_W, COLLAR_HALF_H)
+
+
+def _arc_radius(edge) -> float | None:
+    """An edge's radius, or None if it is straight.
+
+    ``Edge.radius`` raises on a line rather than returning None, and every
+    selection below is a mix of lines and arcs.
+    """
+    try:
+        return edge.radius
+    except Exception:  # noqa: BLE001 -- "not a circle" is the answer, not an error
+        return None
+
+
+def _at_z(bp: BuildPart, z: float) -> ShapeList:
+    """Every edge lying in the plane ``z``.
+
+    A degenerate min == max band on ``filter_by_position`` turns into exact
+    float equality against a centre that carries kernel rounding, so give it a
+    real tolerance (gotchas S4).
+    """
+    return bp.edges().filter_by_position(Axis.Z, z - 0.01, z + 0.01)
+
+
+def _ring(bp: BuildPart, z: float, radius: float) -> ShapeList:
+    """The one circular edge of ``radius`` at height ``z``.
+
+    Used for the flange's and the pedestal's top rims. Picked by radius rather
+    than off the face above them, because both of those faces carry holes --
+    three M6 counterbores on the flange, the whole socket footprint and the
+    gland well on the pedestal.
+    """
+    return ShapeList(
+        [
+            e
+            for e in _at_z(bp, z)
+            if (r := _arc_radius(e)) is not None and abs(r - radius) < 0.05
+        ]
+    )
+
+
+def _boss_corners(bp: BuildPart) -> ShapeList:
+    """The strap bosses' free vertical corners.
+
+    The pads stand off the socket wall, so their outboard corners are the only
+    sharp verticals on the upper half of the part. ``_socket_dist`` separates
+    them from the pad's own root, where it meets the socket's arc -- that one is
+    concave and is left alone, since a blend there is a gusset rather than a
+    broken edge and would mix concave with convex in one all-or-nothing call.
+    The height test drops every cylinder seam lower down (the pedestal's, the
+    flange's, the counterbores'), which are seams in a single face and not
+    corners at all.
+    """
+    return ShapeList(
+        [
+            e
+            for e in bp.edges().filter_by(Axis.Z)
+            if e.bounding_box().min.Z > SEAT_Z
+            and _socket_dist(e.center().X, e.center().Y) > 0.5
+        ]
+    )
+
+
+def _lip_corners(bp: BuildPart) -> ShapeList:
+    """The outer vertical corners of the socket's two mouth lips.
+
+    These are what the corner connector never has: its mouth is a horizontal
+    rim, this one is a pair of 112 mm vertical edges. Selected as "on the socket
+    wall, at the mouth plane", which excludes the tangency seams at
+    y = -(SOCKET_HALF_H - SOCKET_HALF_W) where the stadium's flank meets its
+    arc -- those are smooth, and a fillet on a tangent edge is meaningless.
+    """
+    out = []
+    for e in bp.edges().filter_by(Axis.Z):
+        ctr = e.center()
+        if abs(ctr.Y - MOUTH_Y) > 0.05:
+            continue
+        if abs(_socket_dist(ctr.X, ctr.Y)) > 0.1:
+            continue
+        out.append(e)
+    return ShapeList(out)
+
+
+def _cable_mouth_corners(bp: BuildPart) -> ShapeList:
+    """The vertical corners where the cable slot breaks out of the pedestal.
+
+    The cable leaves here and is never clamped, so this is a chafe edge rather
+    than a decorative one. Picked by "on the pedestal's outside diameter, only
+    as tall as the slot" -- the length test is what separates them from the
+    pedestal cylinder's own seam, which sits on the same diameter.
+    """
+    return ShapeList(
+        [
+            e
+            for e in bp.edges().filter_by(Axis.Z)
+            if e.length < CABLE_SLOT_W + 0.1
+            and abs(hypot(e.center().X, e.center().Y) - PEDESTAL_D / 2) < 0.05
+        ]
+    )
+
+
+def _socket_root(bp: BuildPart) -> ShapeList:
+    """Where the socket wall's *outer* footprint lands on the pedestal top.
+
+    Everything at ``SEAT_Z`` bar three things:
+
+    * the pedestal's own rim, which is convex and gets a chamfer instead;
+    * the gland well's mouth, which at this height is a ceiling over the well,
+      not a root -- the well reaches to within 0.03 mm of the socket's back wall
+      (``WELL_D / 2 + 9.0`` against ``SOCKET_HALF_H``), so its arc looks like a
+      root edge to any position test;
+    * anything inside the collar bore. That bore clears the cap collar by 0.5 mm
+      a side and its seat is already only ~0.6 mm wide at the narrowest, so a
+      fillet at its root would stop the cap seating altogether.
+    """
+    out = []
+    for e in _at_z(bp, SEAT_Z):
+        r = _arc_radius(e)
+        if r is not None and abs(r - WELL_D / 2) < 0.05:
+            continue
+        if r is not None and abs(r - PEDESTAL_D / 2) < 0.05:
+            continue
+        ctr = e.center()
+        if _collar_dist(ctr.X, ctr.Y) < 0.1:
+            continue
+        out.append(e)
+    return ShapeList(out)
+
+
+def _boss_pad_outline(bp: BuildPart, z: float) -> ShapeList:
+    """A boss pad's free outline at height ``z``, top or bottom.
+
+    Only the stretch standing clear of the socket: where the pad runs back into
+    the wall the edge is concave, and a chamfer there would be cutting a notch
+    into the ligament that carries the strap bolt's load.
+    """
+    return ShapeList(
+        [e for e in _at_z(bp, z) if _socket_dist(e.center().X, e.center().Y) > 0.5]
+    )
+
+
+def _boss_crowns(bp: BuildPart) -> ShapeList:
+    """Every boss pad's upward-facing outline."""
+    out: list = []
+    for z in STATIONS:
+        out.extend(_boss_pad_outline(bp, z + m.STRAP_W / 2))
+    return ShapeList(out)
+
+
+def _boss_undersides(bp: BuildPart) -> ShapeList:
+    """Every boss pad's downward-facing outline that the gusset does not cover.
+
+    The pad's real overhang is fixed by ``_boss_gusset``, not here -- this is
+    what is left over after it: a short seam at the pad's own outboard-bottom
+    corner, where the gusset's far face and the pad's own rectangle meet. Still
+    worth an 0.8 mm break rather than a knife edge, but it is no longer the
+    line standing between this part and a floating underside.
+    """
+    out: list = []
+    for z in STATIONS:
+        out.extend(_boss_pad_outline(bp, z - m.STRAP_W / 2))
+    return ShapeList(out)
+
+
+def _gusset_faces(part: Part) -> ShapeList:
+    """The six 45 deg gusset ramps' sloped faces -- one per boss pad, per side.
+
+    Selected by geometric properties, never by index (gotchas S9/S10), and by
+    more than one of them -- confirmed necessary, not just belt-and-braces, by
+    running this selector against the pre-fix part (no gusset at all) and
+    watching each weaker version still find something:
+
+    * normal has no v (global Y) component *and* is tilted -- neither
+      vertical nor horizontal. Y=0 alone is not enough: the socket wall's own
+      lip, between boss stations, is a flat vertical face whose normal is
+      also pure X, and the position window below does not exclude it either
+      (it is close enough to a gusset's own footprint to fall inside).
+    * large enough: adding the tilt test still is not enough on its own,
+      because ``_boss_undersides`` chamfers the pad's pre-fix outline at the
+      same 45 deg every edge chamfer in this file uses, just 0.8 mm wide --
+      geometrically identical in angle to a real ramp, wrong by two orders of
+      magnitude in area. ``min_area`` is set generously below the real ramp's
+      area (run x sqrt(2) x the gusset's own v-depth) and comfortably above
+      an 0.8 mm chamfer bevel's.
+
+    The position window then tells the six ramps apart from each other: it is
+    derived from the same GUSSET_SUPPORT_U/RUN the ramp itself is built from,
+    not eyeballed, and nearest-match breaks any tie inside it.
+    """
+    mid_u = GUSSET_SUPPORT_U + GUSSET_RUN / 2
+    half_window = GUSSET_RUN / 2 + 0.5
+    min_area = 0.5 * GUSSET_RUN * sqrt(2) * (MOUTH_Y - PAD_BASE_V)
+    out = []
+    for z in STATIONS:
+        z_bot = z - m.STRAP_W / 2
+        mid_z = z_bot - GUSSET_RUN / 2
+        for side in (-1.0, 1.0):
+            target_u = side * mid_u
+            candidates = []
+            for f in part.faces():  # ty: ignore[invalid-argument-type]
+                c = f.center()
+                if (
+                    abs(c.X - target_u) >= half_window
+                    or abs(c.Z - mid_z) >= half_window
+                ):
+                    continue
+                if f.area < min_area:
+                    continue
+                n = f.normal_at(c)
+                if abs(n.Y) < 1e-6 and 0.3 < abs(n.Z) < 0.95:
+                    candidates.append(f)
+            if candidates:
+                out.append(
+                    min(
+                        candidates,
+                        key=lambda f: (f.center().X - target_u) ** 2
+                        + (f.center().Z - mid_z) ** 2,
+                    )
+                )
+    return ShapeList(out)
+
+
+def _add_lead_ins() -> None:
+    """Boolean cone lead-ins at every bore mouth that is not a heat-set insert.
+
+    Cones rather than edge chamfers for the reason ``corner._add_drains`` gives:
+    these mouths share their faces with other features -- three counterbores and
+    the pedestal on the bed face, the drain in the well floor -- and that is the
+    case OCC is least willing to chamfer from. The bed-face ones double as
+    elephant's-foot relief.
+
+    Two mouths are deliberately left raw:
+
+    * the **insert holes**, the family-wide exception -- a printed lead-in
+      removes the material the heat-set has to melt into;
+    * the **counterbore mouths**. ``PIVOT_R - PIVOT_CBORE_D / 2`` is 24.25,
+      which is 0.25 mm outside the pedestal's 48 mm diameter, so a cone at that
+      mouth would undercut the pedestal's own base. The bore already clears an
+      M6 head by 0.75 mm a side and needs no help finding it.
+
+    Same arithmetic is why the flange/pedestal root carries no fillet: any blend
+    there would hang out over a counterbore mouth and foul the bolt head.
+    """
+    ch = m.EDGE_CHAMFER
+    mouths = [(x, y, PIVOT_CLEAR_D) for x, y in _pivot_positions()]
+    mouths.append((0.0, GLAND_OFFSET, m.DRAIN_D))
+    for x, y, d in mouths:
+        with Locations((x, y, 0)):
+            Cone(
+                bottom_radius=d / 2 + ch,
+                top_radius=d / 2,
+                height=ch,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+    # A funnel at the drain's upper mouth, so the well actually empties into it.
+    with Locations((0, GLAND_OFFSET, FLANGE_T - ch)):
+        Cone(
+            bottom_radius=m.DRAIN_D / 2,
+            top_radius=m.DRAIN_D / 2 + ch,
+            height=ch,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
 
 
 def _drill_strap_inserts() -> None:
@@ -218,7 +659,7 @@ def _drill_strap_inserts() -> None:
     """
     for z in STATIONS:
         for side in (-1, 1):
-            with Locations((side * m.BOSS_U, m.CRADLE_DEPTH + SINK, z)):
+            with Locations((side * m.BOSS_U, MOUTH_Y, z)):
                 Cylinder(
                     m.INSERT_D / 2,
                     m.INSERT_DEPTH,

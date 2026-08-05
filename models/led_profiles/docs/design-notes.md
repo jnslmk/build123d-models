@@ -57,9 +57,31 @@ straightness.
 
 Torque is designed out rather than specified. The strap's feet land hard on the
 cradle's boss lands with the bolt axis through the middle of the land, so the
-bolt is in pure compression against a stop and over-torque squashes a 165 mm²
+bolt is in pure compression against a stop and over-torque squashes a 237 mm²
 pad instead of the tube. The instruction is **"tighten until it bottoms, plus a
 quarter turn"** — no wrench, no judgement.
+
+#### The bolt circle is derived, not chosen
+
+`BOSS_U` was a typed 19.5 mm, which is `ARCH_HALF_W` **exactly** — the bolt axis
+lay on the strap's own outer flank. The hole's top mouth came out bisected by
+the arch springing, with flat land for only a third of it, and an M4 socket head
+fouled the flank by 2.6 mm. The strap could not have been bolted down at all.
+The same 2.5 mm-outboard-of-the-cradle bolt circle also put the Ø5.7 insert
+holes 0.4 mm into the trough's outer wall.
+
+Both numbers now come out of `mount_config.arch_half_width(FOOT_H)`, which is
+the flank's own stadium evaluated at the land: the foot is tall enough (8 mm)
+for the flank to have curved in, and the bolt far enough out (22.1 mm) to clear
+what is left, with the pad widened to `BOSS_OD` 14.2 mm so it still fuses into
+the cradle wall on its inboard side rather than standing free. The insert holes
+follow the same circle and now clear the trough wall by 2.2 mm. The cost is a
+strap 58 mm wide instead of 51 and 2 mm taller feet; the shadow is unchanged,
+because that is `STRAP_W` and nothing here touches it.
+
+`check_bolt_clears_arch()` asserts it twice — once in closed form, once by
+putting a head-sized slug where the head goes and looking for shared volume,
+because the formula can be right about a shape the builder did not produce.
 
 ### The strap's grip lips do not exist, and could not
 
@@ -357,10 +379,23 @@ real load is 1.35 kg.
 
 Print poses, all authored already sitting on z = 0 per the house rule: the corner
 on its web back with both cradles opening up; the strap on its feet with the arch
-up, shaped as an ogive so every face is ≥ 45°; the stand hub standing on its
-flange with the channel vertical, gusseted at the root because that is where
-bending crosses layer boundaries. Every one is support-free — support scarring in
-a locating bore is exactly what ruins the fit in §1.
+up; the stand hub standing on its flange with the channel vertical, gusseted at
+the root because that is where bending crosses layer boundaries. Every one is
+support-free — support scarring in a locating bore is exactly what ruins the fit
+in §1.
+
+**Correction:** the strap's outer silhouette is an ogive shaped to stay ≥ 45°
+throughout, but that claim does not extend to the bore's own crown, which is a
+different curve. The crown is genuinely flat at its centre (0° from horizontal,
+not merely close to it) and drops below the 45° rule over a chord of
+`sqrt(2) * BORE_HALF_W` ≈ 20.5 mm — measured off the built solid, not asserted
+from the sketch. It is still support-free, but for a different reason than "every
+face clears 45°": that chord is thrown across the strap's own `STRAP_W`
+(18 mm) as a short, converging bridge rather than a flat one, and it stays
+printable only as long as the run does not outgrow the chord it closes.
+`strap.py`'s module docstring carries the full derivation and the numbers;
+`checks.check_bore_crown_bridge` is what keeps this paragraph honest if either
+side of that relationship ever moves.
 
 ---
 

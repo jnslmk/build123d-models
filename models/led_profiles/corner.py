@@ -32,6 +32,17 @@ numbers are not free choices:
 Print pose: back face on the bed, cradles and channel opening up. That is the
 LED direction, so nothing overhangs and the first layer is the whole footprint.
 
+Edge treatments are three isolated calls at the end of ``create_corner`` rather
+than one, and every one of them selects **by geometry, not off a face**: the top
+face carries eight insert holes, which is precisely the case OCC will not
+chamfer from (see ``models/lib/edges.py``). They are, in order, the body's
+vertical corners (filleted -- arm ends, boss steps, the V's inner root, the
+channel's end walls), the whole rim at ``TOP_Z`` bar those insert mouths
+(chamfered -- outer silhouette, channel mouth, and both trough mouths, which is
+the tube's lead-in as it drops in sideways), and the bed face's outer wire. The
+drains get boolean cones instead, because their mouths share the bed face with
+the engraved label.
+
 One build123d trap shapes how this file is written: **a ``BuildSketch`` opened
 inside a helper function does not attach to the caller's ``BuildPart``**, and
 the following ``extrude`` raises "A face or sketch must be provided". Object
@@ -53,6 +64,7 @@ from build123d import (
     BuildSketch,
     Circle,
     Color,
+    Cone,
     Cylinder,
     FontStyle,
     Location,
@@ -63,13 +75,14 @@ from build123d import (
     Pos,
     Rectangle,
     Rotation,
+    ShapeList,
     Sketch,
     Text,
     add,
     extrude,
 )
 
-from models.lib.edges import as_part, chamfer_edge
+from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
 from . import cradle as cr
 from . import mount_config as m
@@ -197,6 +210,13 @@ def create_corner(angle: float = 60.0) -> Part:
         _drill_inserts(angle, start)
         _add_drains(angle, start)
         add(label, mode=Mode.SUBTRACT)
+
+        # Edge treatments, house rule: fillet vertical, chamfer horizontal.
+        # Three separate isolated calls, each re-querying the builder, because a
+        # successful edge op invalidates the previous selection and a failed one
+        # would otherwise take every later op with it.
+        fillet_edge(bp, _vertical_corners(bp), m.EDGE_FILLET)
+        chamfer_edge(bp, _rim_edges(bp), m.EDGE_CHAMFER)
         chamfer_edge(
             bp, bp.faces().sort_by(Axis.Z)[0].outer_wire().edges(), m.EDGE_CHAMFER
         )
@@ -205,6 +225,62 @@ def create_corner(angle: float = 60.0) -> Part:
     part.color = CORNER_COLOR
     part.label = f"corner {angle:.0f} deg"
     return part
+
+
+def _arc_radius(edge) -> float | None:
+    """An edge's radius, or None if it is straight.
+
+    ``Edge.radius`` raises on a line rather than returning None, and every
+    selection below is a mix of lines and arcs.
+    """
+    try:
+        return edge.radius
+    except Exception:  # noqa: BLE001 -- "not a circle" is the answer, not an error
+        return None
+
+
+def _vertical_corners(bp: BuildPart) -> ShapeList:
+    """The body's own vertical corners: arm ends, boss steps, the V's inner
+    root and the channel's end walls.
+
+    Selected by geometry rather than off a face, because the top face they all
+    reach carries eight insert holes -- exactly the case where OCC refuses to
+    work off a face at all. The length test is what separates a real corner of
+    the body from the short verticals inside a trough's stadium and around the
+    engraved label, both of which must be left alone.
+    """
+    return ShapeList(
+        [
+            e
+            for e in bp.edges().filter_by(Axis.Z)
+            if e.length > 0.6 * TOP_Z and abs(e.bounding_box().max.Z - TOP_Z) < 1e-6
+        ]
+    )
+
+
+def _rim_edges(bp: BuildPart) -> ShapeList:
+    """Everything at the rim except the insert mouths.
+
+    The rim carries the outer silhouette, the channel's mouth and both troughs'
+    mouths, and all of it wants a chamfer -- the trough ones are the tube's
+    lead-in as it drops in sideways. The eight insert holes are the deliberate
+    exception this family already makes elsewhere: a printed lead-in removes the
+    material the heat-set has to melt into (``cradle.create_cradle``), so they
+    are filtered out by radius. A fillet arc left by ``_vertical_corners`` is
+    ``EDGE_FILLET``, well clear of that test.
+    """
+    return ShapeList(
+        [
+            e
+            for e in bp.edges().filter_by_position(Axis.Z, TOP_Z - 0.01, TOP_Z + 0.01)
+            if not _is_insert_mouth(e)
+        ]
+    )
+
+
+def _is_insert_mouth(edge) -> bool:
+    r = _arc_radius(edge)
+    return r is not None and abs(r - m.INSERT_D / 2) < 0.05
 
 
 def _strap_boss_solid(angle: float, start: float) -> Part:
@@ -239,15 +315,16 @@ def _drill_inserts(angle: float, start: float) -> None:
                     )
 
 
-def _add_drains(angle: float, start: float) -> None:
-    """Drains out of the channel and both cradles -- see design-notes S5."""
-    with Locations((0, 0, 0)):
-        Cylinder(
-            m.DRAIN_D / 2,
-            PLINTH_H,
-            align=(Align.CENTER, Align.CENTER, Align.MIN),
-            mode=Mode.SUBTRACT,
-        )
+def _drain_stations(angle: float, start: float) -> list[tuple[float, float, float]]:
+    """Where every drain but the knuckle's own goes, in plan, tagged with its
+    distance ``d`` from the vertex.
+
+    ``d`` is what a drain's inside-mouth funnel needs: the ``start*0.55``
+    station is short of ``start``, so it opens into the channel's flat floor
+    like the knuckle drain does, and the other two are the tube's own cradle,
+    where the floor is the bore's curved underside instead.
+    """
+    out: list[tuple[float, float, float]] = []
     for bearing in _axis_bearings(angle):
         a = radians(bearing)
         for d in (
@@ -255,13 +332,72 @@ def _add_drains(angle: float, start: float) -> None:
             start + m.CRADLE_LEN * 0.35,
             start + m.CRADLE_LEN * 0.75,
         ):
-            with Locations((d * cos(a), d * sin(a), 0)):
-                Cylinder(
-                    m.DRAIN_D / 2,
-                    TOP_Z,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                    mode=Mode.SUBTRACT,
-                )
+            out.append((d * cos(a), d * sin(a), d))
+    return out
+
+
+def _drain_positions(angle: float, start: float) -> list[tuple[float, float]]:
+    """Where every drain but the knuckle's own goes, in plan."""
+    return [(x, y) for x, y, _d in _drain_stations(angle, start)]
+
+
+def _add_drains(angle: float, start: float) -> None:
+    """Drains out of the channel and both cradles -- see design-notes S5."""
+    stations = _drain_stations(angle, start)
+    with Locations((0, 0, 0)):
+        Cylinder(
+            m.DRAIN_D / 2,
+            PLINTH_H,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
+    for x, y, _d in stations:
+        with Locations((x, y, 0)):
+            Cylinder(
+                m.DRAIN_D / 2,
+                TOP_Z,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+
+    # Lead-in at every drain's bed-face mouth. Cut as boolean cones rather than
+    # edge-chamfered: these mouths sit on the same face as the engraved label
+    # and the part's whole outer wire, which is the face OCC is least willing to
+    # work off. The taper also takes the elephant's foot off the first layer.
+    for x, y in [(0.0, 0.0), *_drain_positions(angle, start)]:
+        with Locations((x, y, 0)):
+            Cone(
+                bottom_radius=m.DRAIN_D / 2 + m.EDGE_CHAMFER,
+                top_radius=m.DRAIN_D / 2,
+                height=m.EDGE_CHAMFER,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+
+    # And a funnel at every drain's *upper* mouth, where it actually drains
+    # from. The knuckle drain and the near arm station (``d < start``) open
+    # into the channel floor, which is flat -- a plain sketch cut straight up
+    # from PLINTH_H, same as the stand's gland well. The other two arm
+    # stations open into the cradle trough, whose floor is the bore's curved
+    # underside; ``cradle.trough_floor_lift`` is what keeps the funnel from
+    # either stopping short of a banded floor or, the other way round, never
+    # reaching any material at all in the relieved middle -- see that
+    # function's docstring and the cradle's own copy of this cone.
+    ch = m.EDGE_CHAMFER
+    for x, y, d in [(0.0, 0.0, 0.0), *stations]:
+        if d < start:
+            floor_z = PLINTH_H
+        else:
+            lift = cr.trough_floor_lift(d - start, m.CRADLE_LEN)
+            floor_z = PLINTH_H + m.TUBE_UNDER_Z - lift
+        with Locations((x, y, floor_z - ch)):
+            Cone(
+                bottom_radius=m.DRAIN_D / 2,
+                top_radius=m.DRAIN_D / 2 + ch,
+                height=ch,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
 
 
 def _label_solid(angle: float) -> Part:

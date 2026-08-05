@@ -121,12 +121,17 @@ throughout, and a drain out of every upward-facing pocket.
 
 | part | size | hardware |
 |---|---|---|
-| `strap` | 51 × 18 × 20 mm | 2 × M4 × 16 |
-| `cradle` | 60 × 51 × 21 mm | 4 × M4 heat-set inserts |
-| `corner 60°` | 167 × 140 × 29 mm | 8 × M4 inserts, 4 straps |
+| `strap` | 58 × 18 × 20 mm | 2 × M4 × 16 socket cap |
+| `cradle` | 60 × 58 × 21 mm | 4 × M4 heat-set inserts |
+| `corner 60°` | 172 × 141 × 29 mm | 8 × M4 inserts, 4 straps |
 | `stand hub` | 90 × 90 × 156 mm | 3 × M6 pivots, 6 × M4 inserts |
-| `eye foot` | 60 × 52 × 21 mm | 2 × M6 eye bolts + nyloc |
-| `wall foot` | 60 × 52 × 21 mm | 2 × M5 into the wall |
+| `eye foot` | 60 × 58 × 21 mm | 2 × M6 eye bolts + nyloc |
+| `wall foot` | 60 × 58 × 21 mm | 2 × M5 into the wall |
+
+The bolt circle is `BOSS_U` = 22.1 mm off the tube axis, which is not a round
+number because it is derived: the strap's own arch is 19.5 mm at its widest, and
+the head has to seat clear of that flank. See `docs/design-notes.md` §"The bolt
+circle is derived, not chosen" — 19.5 was the number, and it did not work.
 
 Bought for the stand: three flat bars, 20 × 3 × 250 mm, Ø6.5 hole 12 mm from one
 end — stainless or galvanised, not plain mild steel if it lives outdoors.
