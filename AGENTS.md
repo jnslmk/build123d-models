@@ -163,10 +163,14 @@ their parent, so a missing line ships a wheel without that model.
 
 ### Known deviations
 
+Nothing to copy here — these are gaps, and closing one is welcome work:
+
 - No single-file model has a `check()`, so `uv run check <flat-model>` prints
-  "no checks defined" for all of them. The two packages carry real `checks.py`.
-- `models/lens_cap.py` has no module docstring, which is the only documentation
-  a single-file model gets.
+  "no checks defined" for all of them.
+- `drill_storage` and `drill_fit_tester` have no `checks.py` yet, though
+  `checks.py` is meant to be package floor. `led_profiles` and
+  `led_psu_enclosure` are the two that carry real ones — read those for the
+  shape a `checks.py` should take.
 
 ## build123d Style
 

@@ -1,3 +1,28 @@
+"""Push-on camera lens cap: a shallow cup that slips over the front of a barrel.
+
+A closed disc with a thin ring wall standing off it. Nothing snaps and nothing
+threads -- it is held by friction against the outside of the lens barrel, which
+is why the wall is deliberately thin (1.2 mm, three perimeters at a 0.4 mm
+nozzle): it has to flex onto the barrel rather than hoop-stress against it.
+
+**What it fits.** ``inner_dia`` is the cap's bore and defaults to 51 mm. Set it
+to the barrel's *measured* outside diameter -- no clearance is subtracted here,
+because an FDM bore already prints a few tenths under nominal and the thin wall
+takes up the rest. If a cap comes out too tight to push on, raise ``inner_dia``
+by 0.2 mm at a time rather than thinning the wall. ``height`` is how far it
+covers the barrel; 6 mm is enough to stay put without fouling a focus ring.
+
+Parametric on the website (see ``PARAMS``). ``create()`` clamps every input so
+the geometry stays valid across the full slider range -- the top cannot swallow
+the whole height, and the chamfer cannot eat the wall.
+
+**Printing.** PETG, no supports, and it comes back already in print pose:
+closed face down on the bed, mouth up. That way the disc is a solid first layer
+instead of an unsupported bridge across the cavity. The chamfer sits on that
+bed-side edge, so it doubles as elephant-foot relief -- which is also what keeps
+the rim from catching as the cap goes on.
+"""
+
 from build123d import (
     BuildPart,
     BuildSketch,
