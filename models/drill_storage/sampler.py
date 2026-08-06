@@ -6,7 +6,8 @@ by side, in the order they are defined: wood, metal, stone.
 
 The row of covers behind is the point of the layout rather than a filler: they
 are the same part in three heights, and standing them next to each other shows
-what the set's longest tool costs in Gridfinity units (19U, 21U, 23U). The shells
+what the set's longest tool costs in Gridfinity units (19U, 23U, 23U -- wood,
+metal, stone). The shells
 in front all look alike because they are -- only the bore pattern differs, and
 each carries its own engraved legend for it.
 

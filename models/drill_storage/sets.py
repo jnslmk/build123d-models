@@ -325,8 +325,8 @@ FREE_LAYOUT: dict[str, tuple[float, float]] = {
 }
 
 # Ten HSS twist drills on DIN 338 jobber lengths, plus a 4 - 20 mm step drill.
-# The 10 mm at 132 mm is the longest, which lands this set on the family's default
-# 123 mm cover (147 mm / 21U assembled) -- the tallest of the three.
+# The 10 mm at 150 mm is the longest, which lands this set on a 137 mm cover
+# (161 mm / 23U assembled) -- tied with the stone set as the tallest of the three.
 #
 # This is the one set that is **not** packed in rows, and the step drill is why.
 # A 4 - 20 mm step drill reserves a 20 mm footprint for a 6.3 mm socket, and
@@ -366,7 +366,7 @@ METAL = DrillSet(
         Drill(5.0, 86.0),
         Drill(6.0, 93.0),
         Drill(8.0, 117.0),
-        Drill(10.0, 132.0),
+        Drill(10.0, 150.0),
     ),
     # 25 mm of hex is 6.2 mm short of the 31.2 mm socket, so the step drill hangs
     # by the underside of its 20 mm step on the cartridge's top face rather than

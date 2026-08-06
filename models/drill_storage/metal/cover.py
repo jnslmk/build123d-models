@@ -1,6 +1,6 @@
 """The cover for the metal set: Metal engraved up one face.
 
-123 mm (147 mm / 21U assembled) -- the family default, since the 132 mm
+137 mm (161 mm / 23U assembled) -- tied with the stone set, since the 150 mm
 twist drill is the longest tool in the package.
 
 Interchangeable with the other sets' covers -- every shell seats one the same way

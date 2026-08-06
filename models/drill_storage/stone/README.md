@@ -18,8 +18,9 @@ uv run check drill_storage.stone
 | Cartridge | `drill_storage.stone.insert` | TPU | flat bottom down, bores up |
 | Cover | `drill_storage.stone.cover` | PETG | pillow top down, mouth up |
 
-**Cover: 137 mm**, for a 161 mm (23U) assembled envelope — the tallest of the
-three, despite the shortest drill list, because a 10 mm masonry bit runs 150 mm.
+**Cover: 137 mm**, for a 161 mm (23U) assembled envelope — tied with the metal
+set for the tallest of the three, despite the shortest drill list, because a
+10 mm masonry bit runs 150 mm (and the metal set's 10 mm twist drill does too).
 
 ## Every bore is cut 0.20 mm under its printed size
 

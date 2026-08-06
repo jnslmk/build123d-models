@@ -85,7 +85,7 @@ No supports anywhere. Every part comes off `create()` in its print pose.
 Cover heights are quantised: `cover_height_for()` picks the smallest whole
 Gridfinity Z unit (7 mm) that still swallows the longest tool standing on the
 shell floor, so the assembled holder always sits on a unit boundary — 19U for
-wood, 21U for metal, 23U for stone. **The covers are interchangeable**, because
+wood, 23U for metal and stone. **The covers are interchangeable**, because
 every shell keeps the same seat height; a taller one simply leaves more air.
 
 ## Assembly

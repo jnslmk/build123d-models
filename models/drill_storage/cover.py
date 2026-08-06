@@ -10,7 +10,7 @@ keeps ``SHELL_FOOT_TOP`` and ``GUIDE_FLOOR_Z`` where ``box`` has them, so a tall
 cover fits a shorter set's shell and simply leaves more air over the tips. Only
 the engraved word and the height differ, which is why the stone cover (137 mm)
 will happily close over the wood shell and the wood one (109 mm) will not close
-over a 132 mm twist drill.
+over a 150 mm twist drill.
 
 Printed pillow-top down, mouth up, in PETG -- ``create_cover`` already returns it
 in that pose. The set's own material is engraved up one flat face.

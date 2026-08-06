@@ -13,8 +13,8 @@ Every bore is cut 0.20 mm under its printed size, because a masonry bit's
 carbide tip is wider than the shank the bores actually hold. See
 ``sets.STONE``'s ``shank_allowance``.
 
-Cover: 137 mm (161 mm / 23U assembled), the tallest of the three, for a 150 mm
-10 mm bit.
+Cover: 137 mm (161 mm / 23U assembled), tied with the metal set as the tallest
+of the three, for a 150 mm 10 mm bit.
 
 The set itself -- sizes, lengths, the shank allowance, what the cover says --
 is ``sets.STONE``. The geometry is shared with the other two variants and lives
