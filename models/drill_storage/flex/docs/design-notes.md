@@ -83,8 +83,8 @@ span wants a *rigid* wall; gripping it wants a *compliant* one. A block is a
 compromise at both, and an expensive one — 33 cm³ of slow filament.
 
 Splitting them costs nothing. The shell is solid ASA below the cavity and bored at
-`GUIDE_FIT` (+0.34 cut: a snug fit in the *part*, plus the 0.24 mm a hole prints
-undersize) for 23.2 mm, which is the guide. The TPU is a **collar** centred
+`GUIDE_FIT` (free, plus the 0.24 mm a hole prints undersize, so it is free in the
+*part* and not only in the model) for 23.2 mm, which is the guide. The TPU is a **collar** centred
 on its own retention bead — it reaches exactly as far below the bead as it stands
 above it — and that reach is the longer of what it must contain (land plus lead-in,
 or the bead's own ramp), so the collar comes out 8.0 mm and does nothing but grip,
@@ -216,14 +216,13 @@ under one and letting a drill fall through.
   more brittle; the bead may want less protrusion. Nothing here changes it, and
   nothing here has tested it.
 - **Does 23.2 mm of ASA guide plus a 3.5 mm land hold a drill straight enough?**
-  The guide is cut at +0.34 diametral — a snug fit plus the hole undersize, so it
-  should *print* at about +0.10 rather than arriving at +0.01 — over a long span,
-  which should be far better than the old all-TPU arrangement, but that is
-  arithmetic, not a print. It gives up 0.045 mm of radial location against the
-  bore as it was cut before: taken alone, a drill in the guide can tilt
-  `atan(0.34 / 23.2)` ≈ 0.8°, against 0.6°. Compensating all the way to a printed
-  *free* fit was tried and backed out — +0.49 cut, 1.2° — because 0.25 mm of real
-  clearance is slop under a 121 mm drill, and the guide's job is to hold it
-  straight. Snug is the target: a little looser than zero, no more.
+  The guide is cut at +0.49 diametral — a free fit plus the hole undersize, so it
+  should *print* free rather than arriving at +0.01 — over a long span, which
+  should be far better than the old all-TPU arrangement, but that is arithmetic,
+  not a print. It also gives up 0.12 mm of radial location: taken alone, a drill
+  in the guide can now tilt `atan(0.49 / 23.2)` ≈ 1.2°, against 0.6° before. The
+  guide is not what locates a drill in the end — it stands on the floor and is
+  held at the TPU land, 3.5 mm of it, at the top of the stack — but if a bit ever
+  rattles visibly in the shell, this is the number that bought it.
 - **The bore layout is still cramped by the shell wall.** If it ever needs to give
   more back, the honest alternative is a 1×2 footprint.

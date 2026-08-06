@@ -104,10 +104,9 @@ def guide_bore_tool(d: float, x: float, y: float) -> Part:
 
     The guide grips nothing. Its only job is to hold a drill upright over
     ``GUIDE_H`` so the short TPU collar above does not have to, which is why it is
-    cut at ``GUIDE_FIT`` rather than anywhere near the collar's land. That is a
-    snug fit *in the printed part* plus the undersize FDM takes out of a small
-    vertical hole -- cut at the fit alone, a 23.2 mm bore arrives at zero
-    clearance and the drill has to be pushed past it.
+    cut at ``GUIDE_FIT`` (free) rather than anywhere near the collar's land -- and
+    at free *plus* the undersize FDM prints a hole at, because a nominal free fit
+    in a 23.2 mm bore arrives as a drag the drill has to be pushed past.
 
     Its mouth chamfer is ``GUIDE_MOUTH_CH``, not the base's 0.8 mm: this layout is
     packed tighter than the PETG base's, and at 0.8 two neighbouring mouths would
