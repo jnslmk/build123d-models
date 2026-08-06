@@ -26,8 +26,10 @@ drags over 23.2 mm of shell, and the TPU land interferes (``LAND_FIT``, -0.05) s
 3.5 mm of cartridge holds it. ``checks.py`` asserts that ordering, because a
 guide that gripped or a land that cleared would each defeat the split silently.
 
-``drill_storage.hex`` is the odd one out and still one-material: 1/4" driver bits
-want a drop-in socket, not a grip, so it is cut from ``box.create_base``.
+``drill_storage.hex`` is the same two-material idea cut for 1/4" hex-shank bits:
+two boxes -- a 1x1 ALLEN key box and a 2x2 driver-bit box -- each with a rigid
+black base, a black TPU insert and a translucent cover, in their own package
+next to ``wood/``.
 """
 
 from . import box, config, sets

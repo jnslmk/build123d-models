@@ -12,8 +12,8 @@ Gridfinity baseplate.
   foot profile), 42 mm tall (6U). A 41.5 mm body steps down to a 35 mm collar
   that plugs into the cover; graduated drill bores are sunk from the top face.
   The three drill sets do not use this: they are two-material (``shell`` +
-  ``insert``), and ``create_base`` survives for ``drill_storage.hex``, whose
-  driver bits are held by a plain hex socket rather than by a TPU land.
+  ``insert``), and the hex-bit boxes are two-material too (``drill_storage.hex``),
+  so ``create_base`` survives as the one-material baseline the split replaced.
 * Cover -- 42 mm rounded square, 123 mm tall, pillow-rounded closed top, open
   bottom that snaps over the base collar. The material name is engraved (with
   chamfered mouths) up one flat face. Every variant shares it.
@@ -241,9 +241,11 @@ COVER_H = cover_height_for(MAX_DRILL_LEN)  # 123 mm default cover (147 - FOOT_TO
 # keeps the history, because the lesson (a rib welded to a wall over its full
 # width is not a spring, and no interference number rescues it) outlives the code.
 #
-# What is left is the drop-in socket ``drill_storage.hex`` needs: a 1/4" driver
-# bit is held by nothing but its own weight and the socket's flats, which is all
-# a 25 mm bit standing 10 mm proud has ever needed.
+# What is left is the engine's own drop-in socket: a 1/4" driver bit is held by
+# nothing but its own weight and the socket's flats. Nothing cuts one any more --
+# ``drill_storage.hex`` has joined the two-material family, and a hex bit now
+# sits in a TPU land like any other hex shank -- but the machinery stays, as the
+# one-material baseline the split is measured against.
 HEX_SLIP = 0.05  # across-flats clearance on the guide socket -- drops straight in
 
 
@@ -726,9 +728,10 @@ def create_base(
     """A Gridfinity 1x1 base: foot + body stepping to a collar, with plain bores.
 
     The one-material holder, and the shape of every holder in this package until
-    the drill sets went two-material. What still uses it is
-    ``drill_storage.hex``, whose 1/4" driver bits want a drop-in socket and no
-    grip at all; a drill set wants ``shell`` + ``insert`` instead.
+    the drill sets went two-material. Nothing cuts from it any more -- a drill
+    set wants ``shell`` + ``insert``, and the hex-bit boxes are two-material too
+    (``drill_storage.hex``) -- but it stays as the engine's documented baseline,
+    and the collar profile it introduced is what every shell still plugs into.
 
     ``bores`` are round holes ``(diameter, x, y)``. ``hex_bores`` are hex
     sockets ``(across_flats, x, y)`` for hex-shank bits -- the shank drops into
@@ -747,7 +750,7 @@ def create_base(
 
     ``bore_depth`` is how far every hole is sunk below the top face. The default
     swallows a full-length drill; a set of *short* bits wants a shallower bore so
-    each bit still stands proud enough to pinch (see ``drill_storage.hex``).
+    each bit still stands proud enough to pinch.
 
     ``foot_top`` (shoulder the cover seats on) and ``collar_h`` set how tall the
     base is; together they are its total height, which the defaults put at 42 mm

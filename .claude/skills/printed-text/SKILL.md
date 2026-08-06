@@ -95,9 +95,9 @@ The same probe answers layout questions. Measure at a probe size, then scale:
 `run = box.size.X / probe` is the word's width per 1 mm of font size, so the
 largest font that fits a face of width `W` is `W / run`. Glyph widths vary enough
 (a `1` against a `W`) that a characters-times-width rule of thumb either overflows
-the face or wastes it. See `_label_fit` in
-`models/drill_storage/hex.py`, which uses this to choose between reading up a
-cover face and reading across it.
+the face or wastes it. See `label_fit` in
+`models/drill_storage/hex/cover.py`, which uses this to choose between reading
+up a cover face and reading across it.
 
 ## Orientation is the biggest lever
 
@@ -155,4 +155,4 @@ label is gone.
 | File | What it shows |
 | --- | --- |
 | `models/drill_storage/box.py` | `engrave_row_legend` — bold 4 mm wall numbers aligned to hole world-x, each clamped off the rounded corners by a limit worked out from its own text width; constants `WALL_LABEL_SIZE`, `WALL_LABEL_Z`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_BAND`. Cover label with a chamfered V-groove mouth. |
-| `models/drill_storage/hex.py` | `_label_fit` — probe-measures the word to pick the largest font and the better reading direction for a cover face. |
+| `models/drill_storage/hex/cover.py` | `label_fit` — probe-measures the word to pick the largest font and the better reading direction for a cover face. |

@@ -10,7 +10,7 @@ compliant-rib answer.
 
 - [Never cut a bore at nominal](#never-cut-a-bore-at-nominal)
 - [Ribbed bores](#ribbed-bores)
-- [The repo's implementation and its constants](#the-repos-implementation-and-its-constants)
+- [The constants this repo measured](#the-constants-this-repo-measured)
 - [Hex sockets](#hex-sockets)
 - [Spacing between bores](#spacing-between-bores)
 - [Calibrating a grip](#calibrating-a-grip)
@@ -144,9 +144,9 @@ measurements rather than becoming a formula.
 
 A hex socket has **no ribs to take up slack unless you give it some**, so a plain
 hex fit lives entirely in its across-flats clearance and is correspondingly fussy.
-`models/drill_storage/hex.py` does exactly that: `HEX_CLEARANCE = 0.15` on a
-nominal `HEX_SHANK_AF = 6.35` (1/4") shank — enough to drop in and lift out
-one-handed, not enough to rattle.
+`models/drill_storage/hex/config.py` does exactly that: `HEX_CLEARANCE = 0.15`
+on a nominal `HEX_SHANK_AF = 6.35` (1/4") shank — enough to drop in and lift
+out one-handed, not enough to rattle.
 
 A gripping socket has to split the two jobs. Cut the socket **over** size
 (`HEX_SLIP = 0.05`) so it only guides the shank and stops it rotating, and take

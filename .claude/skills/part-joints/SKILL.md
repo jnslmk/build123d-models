@@ -193,10 +193,11 @@ Read the real thing before inventing a new one.
 - **Telescoping tube into a shroud** — `models/wall_bar_lamp.py:36-37`.
   `SHROUD_BORE_DIAMETER = TUBE_OUTER_DIAMETER + 0.4` over a 40 mm tube: a clean
   +0.4 mm diametral slip fit, matching the table above.
-- **Hex socket slip fit** — `models/drill_storage/hex.py` (`HEX_SHANK_AF`,
-  `HEX_CLEARANCE`). `HEX_CLEARANCE = 0.15` across the flats on a 6.35 mm 1/4"
-  shank, with the comment explaining that the fit lives *entirely* in that number
-  because the socket has nothing compliant to take up slack.
+- **Hex socket slip fit** — `models/drill_storage/hex/config.py`
+  (`HEX_SHANK_AF`, `HEX_CLEARANCE`). `HEX_CLEARANCE = 0.15` across the flats on
+  a 6.35 mm 1/4" shank, with the comment explaining that the fit lives
+  *entirely* in that number because the socket has nothing compliant to take up
+  slack.
 - **Interference land in an elastomer** — `models/drill_storage/insert.py`. A TPU
   cartridge grips a drill on a 3.5 mm land at `LAND_FIT` while the rigid ASA shell
   below it guides at a free fit: two materials, cut on opposite sides of nominal,

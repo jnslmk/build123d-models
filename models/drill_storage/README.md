@@ -26,7 +26,7 @@ uv run check drill_storage.wood         # geometry assertions for one set
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per set: the assembled scene, plus `shell`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
-| `hex.py` | `drill_storage.hex` — 16-piece ¼″ driver-bit set. The one-material outlier: driver bits want a drop-in socket, not a grip. |
+| [`hex/`](hex/README.md) | `drill_storage.hex` — the two-material 16-piece ¼″ driver-bit set: rigid base + TPU insert + translucent cover. Both boxes: the ALLEN 1x1 keeps 8 sockets, the BITS 2x2 spreads 16 across a 4x4 grid. |
 
 Adding a fourth set is a `DrillSet` in `sets.py` and a package copied from
 `wood/`. Nothing in the geometry has to know about it.
