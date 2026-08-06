@@ -65,9 +65,19 @@ def check_fits(r: Report) -> None:
         f"- {c.LAND_EXTRA_GRIP:.2f}",
     )
     r.check(
-        c.GUIDE_FIT == fits.for_material(fits.FREE, "asa"),
-        "GUIDE_FIT is a free fit in ASA",
-        f"{c.GUIDE_FIT:.2f} mm",
+        c.GUIDE_FIT
+        == fits.for_material(fits.FREE, "asa") + c.GUIDE_UNDERSIZE_COMP,
+        "GUIDE_FIT is a free fit in ASA plus the hole undersize FDM prints",
+        f"{c.GUIDE_FIT:.2f} mm = {fits.for_material(fits.FREE, 'asa'):.2f} "
+        f"+ {c.GUIDE_UNDERSIZE_COMP:.2f}",
+    )
+    # The guide is cut wider than the bore above it, so a drill entering the
+    # cartridge never steps *down* onto an ASA edge on its way through -- the only
+    # thing it can touch below the land is air.
+    r.check(
+        c.GUIDE_FIT > c.RELIEF_FIT,
+        "the guide is wider than the cartridge relief above it",
+        f"guide {c.GUIDE_FIT:.2f} > relief {c.RELIEF_FIT:.2f} mm",
     )
     # The split only works if the two halves are cut on opposite sides of
     # nominal. A guide that grips, or a land that clears, defeats it silently.
@@ -310,6 +320,31 @@ def check_guides(shell: Part, r: Report) -> None:
         for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid)
     )
     r.check(hex_ok, "the hex guide is bored too", f"{len(HEX_BORES)} socket(s)")
+
+    # layout_bores packs on the *cartridge's* relieved bore and knows nothing about
+    # how wide the guide is cut, so widening GUIDE_FIT spends a wall nothing else
+    # is watching. This is the check that stops it going too far.
+    guides = [(f"{d:g}", (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in DRILL_BORES]
+    guides += [
+        (f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in HEX_BORES
+    ]
+    worst_key, worst = "", math.inf
+    for (k1, r1, x1, y1), (k2, r2, x2, y2) in itertools.combinations(guides, 2):
+        gap = math.dist((x1, y1), (x2, y2)) - r1 - r2
+        if gap < worst:
+            worst, worst_key = gap, f"{k1}<->{k2}"
+    mouth_budget = 2 * c.GUIDE_MOUTH_CH + 0.1
+    r.check(worst >= mouth_budget - TOL,
+            "neighbouring guide mouths do not run into each other",
+            f"worst {worst_key} = {worst:.2f} mm (budget {mouth_budget:.2f})")
+    r.check(worst >= MIN_WALL - TOL,
+            "every guide pair is at least a printable wall apart",
+            f"{worst:.2f} mm (min {MIN_WALL})")
+    # The guides run up into the collar, which is narrower than the body below it.
+    reach = max(max(abs(x), abs(y)) + rad for _k, rad, x, y in guides)
+    r.check(reach + MIN_WALL <= c.CAVITY_W / 2 + TOL,
+            "every guide keeps a printable wall to the cavity",
+            f"reach {reach:.2f} of {c.CAVITY_W / 2:.2f} mm")
 
 
 def check_through_bores(insert: Part, r: Report) -> None:

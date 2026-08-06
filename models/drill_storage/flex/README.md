@@ -43,11 +43,17 @@ So the bores are plain and round, and the **contact** is what got shortened: a
 full circle over 3.5 mm have comparable contact area.
 
 Guiding and gripping then split cleanly by material. The ASA below is bored
-**loose** (`GUIDE_FIT`, +0.25) over 23.2 mm and holds the drill upright; the TPU
+**loose** (`GUIDE_FIT`, +0.49) over 23.2 mm and holds the drill upright; the TPU
 collar above is cut **tight** (`LAND_FIT`, -0.10) over 3.5 mm and holds it in
 place. `checks.py` asserts that ordering, because a guide that gripped or a land
 that cleared would each defeat the split silently. Full argument, with the
 numbers, in [`config.py`](config.py) and [`docs/design-notes.md`](docs/design-notes.md).
+
++0.49 is a free fit in ASA (+0.25) plus the 0.24 mm a small vertical hole prints
+undersize. Cut at the bare +0.25 the guide arrives at about +0.01 — a press fit in
+the one place the design wants no contact at all, which is what made a drill drag
+going in. The land one part up *lives* on that same undersize; the guide has to
+cancel it. Both are written as a fit class plus a named delta, never as a float.
 
 ## ⚠ The grip is not calibrated yet
 

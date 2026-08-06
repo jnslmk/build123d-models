@@ -10,7 +10,7 @@ The vertical stack, all in world z with the shell's foot on z=0::
 
     0.0  -  4.4   Gridfinity foot (BASE_H)
     4.4  -  6.0   shell floor -- drills bottom out here, on ASA, never on TPU
-    6.0  - 29.2   ASA guide bores, free fit -- hold the drill straight, no grip
+    6.0  - 29.2   ASA guide bores, free fit as printed -- straight, never gripping
    24.0           SHELL_FOOT_TOP, the shoulder the cover seats on
    29.2           CAVITY_FLOOR_Z -- the collar sits here
    29.2 - 32.7   TPU grip land (LAND_H) -- the only thing that holds a drill
@@ -85,7 +85,30 @@ CAVITY_R = COLLAR_R - SHELL_WALL  # 1.9 -- a true inward offset of the collar
 # have to; it must therefore grip nothing at all, which is what a free fit means.
 # Adjusted for ASA (-0.15 off the PETG baseline), not TPU -- this hole is cut in
 # the rigid part.
-GUIDE_FIT = fits.for_material(fits.FREE, SHELL_MATERIAL)  # free fit, ASA
+#
+# A free fit in ASA is +0.25 diametral, and that is what the guide asks for. It is
+# not what it *gets*: FDM prints a small vertical hole undersize -- a 5 mm hole
+# modelled at nominal measured 0.24 mm small on a 0.4 mm nozzle
+# (fdm-fits-and-clearances rule 4) -- so a bore cut at +0.25 arrives at roughly
+# +0.01 and the drill drags on ASA over 23.2 mm of guide. That is the whole reason
+# a drill in this shell feels tight, and it is a defect of the modelled number, not
+# of the fit class: the guide was specified free and printed as a press fit.
+#
+# So the undersize is added back. LAND_FIT one section down *exploits* the same
+# effect -- a TPU bore at nominal arrives as the interference that grips -- and
+# these two are the opposite ends of one printer fact: the land wants the undersize
+# and the guide has to cancel it. Neither one is allowed to be an anonymous float,
+# so both are written as their fit class plus a named delta.
+#
+# The ceiling on this is the cavity floor, where two neighbouring guide mouths must
+# not run into each other: at +0.49 the closest pair (9 and 10 mm) still keeps
+# 1.19 mm, against the 1.10 mm that two GUIDE_MOUTH_CH chamfers plus a sliver need.
+# checks.py checks that rather than trusting it, because layout_bores packs on the
+# *cartridge's* relieved bore and knows nothing about how wide the guide is cut.
+GUIDE_UNDERSIZE_COMP = 0.24
+GUIDE_FIT = fits.for_material(fits.FREE, SHELL_MATERIAL) + GUIDE_UNDERSIZE_COMP
+#            free fit, ASA (+0.25), plus the hole undersize FDM prints (+0.24),
+#            so what ends up in the part is the free fit it was specified as.
 GUIDE_FLOOR_Z = BORE_FLOOR_Z  # drills rest on ASA, and the cover math holds
 GUIDE_MOUTH_CH = 0.5  # lead-in where a guide opens into the cavity floor
 
@@ -175,7 +198,7 @@ LAND_H = 3.5  # grip band height above the cartridge floor
 # "how far from LAND_FIT", not "what absolute number was typed".
 #
 # It is also what makes the contrast the design depends on legible in one place:
-# the ASA guide below is cut LOOSE (GUIDE_FIT, +0.25) and the TPU collar TIGHT
+# the ASA guide below is cut LOOSE (GUIDE_FIT, +0.49) and the TPU collar TIGHT
 # (-0.10). checks.py asserts that ordering, because a guide that grips or a land
 # that clears would each quietly defeat the split.
 LAND_EXTRA_GRIP = 0.10
@@ -333,6 +356,7 @@ __all__ = [
     "GUIDE_FLOOR_Z",
     "GUIDE_H",
     "GUIDE_MOUTH_CH",
+    "GUIDE_UNDERSIZE_COMP",
     "HEX_LAND_FIT",
     "KEY_D",
     "KEY_FILLET",
