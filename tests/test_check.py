@@ -13,36 +13,61 @@ import check as check_module
 
 
 class NoChecksBackwardCompatTests(unittest.TestCase):
-    """`cube` has neither `checks.main()` nor `check()` -- the plain-argv path
-    must keep printing exactly the same message and exit 0, --json or not."""
+    """A model with neither `checks.main()` nor `check()` -- the plain-argv
+    path must keep printing exactly the same message and exit 0, --json or
+    not.
+
+    This used to exercise `cube` as its example of "a model with no checks
+    defined". That coupled the test to a roster fact rather than to
+    check.py's own behaviour: every single-file model in the roster
+    (including `cube`) is gaining a real `check()` as part of this same
+    effort, which would flip `cube` from "no checks" to "has checks" and
+    break this test on a premise it never meant to assert. A synthetic
+    module with no `check` attribute and no `__path__` (so it isn't mistaken
+    for a package with a `checks` submodule either) stands in instead --
+    see `_install_fake_no_checks_module`, the same test-double technique
+    `SingleFileCheckFnReportNoFlagsTests` already uses elsewhere in this
+    file.
+    """
+
+    def _install_fake_no_checks_module(self, name: str) -> str:
+        full_name = f"models.{name}"
+        # No `.check` attribute and no `__path__` -- `_load_model` +
+        # `_checks_submodule` + `getattr(module, "check", None)` see exactly
+        # what a real single-file model with no checks looks like.
+        sys.modules[full_name] = types.SimpleNamespace()  # ty: ignore[invalid-assignment]
+        self.addCleanup(sys.modules.pop, full_name, None)
+        return name
 
     def test_no_flags_prints_no_checks_and_exits_0(self) -> None:
+        name = self._install_fake_no_checks_module("__fake_no_checks_model")
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             with self.assertRaises(SystemExit) as ctx:
-                sys.argv = ["check.py", "cube"]
+                sys.argv = ["check.py", name]
                 check_module.main()
         self.assertEqual(ctx.exception.code, 0)
         self.assertEqual(
             out.getvalue(),
-            "Model 'cube' has no checks defined (no checks.main(), no check()).\n",
+            f"Model '{name}' has no checks defined (no checks.main(), no check()).\n",
         )
 
     def test_json_flag_keeps_same_stdout_and_exit_and_writes_report(self) -> None:
+        name = self._install_fake_no_checks_module("__fake_no_checks_model_json")
         with tempfile.TemporaryDirectory() as tmp:
             path = str(Path(tmp) / "report.json")
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
                 with self.assertRaises(SystemExit) as ctx:
-                    sys.argv = ["check.py", "cube", "--json", path]
+                    sys.argv = ["check.py", name, "--json", path]
                     check_module.main()
             self.assertEqual(ctx.exception.code, 0)
             self.assertEqual(
                 out.getvalue(),
-                "Model 'cube' has no checks defined (no checks.main(), no check()).\n",
+                f"Model '{name}' has no checks defined (no checks.main(), no check()).\n",
             )
             payload = json.loads(Path(path).read_text())
-            self.assertEqual(payload["model"], "cube")
+            self.assertEqual(payload["model"], name)
             self.assertEqual(payload["status"], "no_checks")
             self.assertEqual(payload["assertions"], [])
             self.assertEqual(payload["passed"], 0)
@@ -189,6 +214,202 @@ class SingleFileCheckFnJsonTests(unittest.TestCase):
             payload = json.loads(Path(path).read_text())
             self.assertFalse(payload["assertions"][0]["passed"])
             self.assertEqual(payload["assertions"][0]["detail"], "bad geometry")
+
+
+class SingleFileCheckFnReportJsonTests(unittest.TestCase):
+    """A tier-1 `check()` that returns a `models.lib.checks.Report` -- the
+    same instrumentation a package's `run()` uses -- must be captured with
+    full per-assertion detail, exactly like `_run_package_checks_json`."""
+
+    def test_passing_report_is_captured_in_full(self) -> None:
+        from models.lib.checks import Report
+
+        def fn():
+            r = Report()
+            r.section("widgets")
+            r.check(True, "widget A is round", "12.0mm")
+            return r
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "report.json")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                with self.assertRaises(SystemExit) as ctx:
+                    check_module._run_check_fn_json("fake", fn, path)
+            self.assertEqual(ctx.exception.code, 0)
+            self.assertIn("widget A is round", out.getvalue())
+
+            payload = json.loads(Path(path).read_text())
+            self.assertEqual(payload["model"], "fake")
+            self.assertEqual(payload["passed"], 1)
+            self.assertEqual(payload["failed"], 0)
+            self.assertEqual(
+                payload["assertions"],
+                [
+                    {
+                        "section": "widgets",
+                        "name": "widget A is round",
+                        "passed": True,
+                        "detail": "12.0mm",
+                    }
+                ],
+            )
+
+    def test_failing_report_exits_1_with_failed_assertions_in_json(self) -> None:
+        from models.lib.checks import Report
+
+        def fn():
+            r = Report()
+            r.section("widgets")
+            r.check(True, "widget A is round", "12.0mm")
+            r.check(False, "widget B is square", "expected 4 sides, got 3")
+            return r
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "report.json")
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit) as ctx:
+                    check_module._run_check_fn_json("fake", fn, path)
+            self.assertEqual(ctx.exception.code, 1)  # matches the package Report path
+
+            payload = json.loads(Path(path).read_text())
+            self.assertEqual(payload["passed"], 1)
+            self.assertEqual(payload["failed"], 1)
+            names = {a["name"]: a for a in payload["assertions"]}
+            self.assertTrue(names["widget A is round"]["passed"])
+            self.assertFalse(names["widget B is square"]["passed"])
+            self.assertEqual(
+                names["widget B is square"]["detail"], "expected 4 sides, got 3"
+            )
+
+    def test_report_json_shape_matches_package_report_json_shape(self) -> None:
+        """Same `Report`, run through both tiers' `--json` capture paths, must
+        produce byte-identical JSON payloads (module name aside) -- a
+        consumer like `check_diff.py` should not need to know which tier
+        produced a report."""
+        from models.lib.checks import Report
+
+        def make_report():
+            r = Report()
+            r.section("widgets")
+            r.check(True, "widget A is round", "12.0mm")
+            r.check(False, "widget B is square", "expected 4 sides, got 3")
+            return r
+
+        with tempfile.TemporaryDirectory() as tmp:
+            single_path = str(Path(tmp) / "single.json")
+            package_path = str(Path(tmp) / "package.json")
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    check_module._run_check_fn_json("fake", make_report, single_path)
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    check_module._run_package_checks_json(
+                        "fake",
+                        types.SimpleNamespace(run=make_report),  # ty: ignore[invalid-argument-type]
+                        package_path,
+                    )
+
+            single_payload = json.loads(Path(single_path).read_text())
+            package_payload = json.loads(Path(package_path).read_text())
+            self.assertEqual(single_payload, package_payload)
+
+
+class SingleFileCheckFnReportNoFlagsTests(unittest.TestCase):
+    """A tier-1 `check()` returning a `Report` must behave the same through
+    the plain `uv run check <name>` path (no `--json`) as it does through
+    `--json`: rendered output, and exit 1 iff the report has failures.
+
+    Without this, a `Report` with failures is merely truthy -- not `False` --
+    and `main()`'s old `sys.exit(1 if result is False else 0)` would report
+    success on a failing model, silently, with the failures never printed.
+    That is the exact path CI and a human typing `uv run check <name>` use.
+    """
+
+    def _install_fake_module(self, name: str, fn) -> str:
+        full_name = f"models.{name}"
+        # A plain object with a `.check` attribute stands in for a real module
+        # here: `_load_model` only ever does `sys.modules.get(full_name)` (via
+        # `importlib.import_module`) and `getattr(module, "check", None)`,
+        # neither of which cares that this isn't a real `ModuleType`.
+        sys.modules[full_name] = types.SimpleNamespace(  # ty: ignore[invalid-assignment]
+            check=fn
+        )
+        self.addCleanup(sys.modules.pop, full_name, None)
+        return name
+
+    def test_failing_report_no_flags_exits_1_and_prints_assertions(self) -> None:
+        from models.lib.checks import Report
+
+        def fn():
+            r = Report()
+            r.section("widgets")
+            r.check(True, "widget A is round", "12.0mm")
+            r.check(False, "widget B is square", "expected 4 sides, got 3")
+            return r
+
+        name = self._install_fake_module("__fake_report_fail_noflags", fn)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            with self.assertRaises(SystemExit) as ctx:
+                sys.argv = ["check.py", name]
+                check_module.main()
+        self.assertEqual(ctx.exception.code, 1)
+        rendered = out.getvalue()
+        self.assertIn("widget A is round", rendered)
+        self.assertIn("widget B is square", rendered)
+        self.assertIn("1 FAILED: widget B is square", rendered)
+
+    def test_passing_report_no_flags_exits_0(self) -> None:
+        from models.lib.checks import Report
+
+        def fn():
+            r = Report()
+            r.check(True, "only check")
+            return r
+
+        name = self._install_fake_module("__fake_report_pass_noflags", fn)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            with self.assertRaises(SystemExit) as ctx:
+                sys.argv = ["check.py", name]
+                check_module.main()
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertIn("all checks passed", out.getvalue())
+
+    def test_no_flags_and_json_paths_agree_on_output_and_exit_code(self) -> None:
+        """For the same `Report`, `uv run check <name>` and
+        `uv run check <name> --json <path>` must print the same thing and
+        exit with the same code -- the two tiers of `--json` capture already
+        do this for each other; this pins it across the flag too."""
+        from models.lib.checks import Report
+
+        def fn():
+            r = Report()
+            r.section("widgets")
+            r.check(True, "widget A is round", "12.0mm")
+            r.check(False, "widget B is square", "expected 4 sides, got 3")
+            return r
+
+        name = self._install_fake_module("__fake_report_agree", fn)
+
+        out_noflags = io.StringIO()
+        with contextlib.redirect_stdout(out_noflags):
+            with self.assertRaises(SystemExit) as ctx_noflags:
+                sys.argv = ["check.py", name]
+                check_module.main()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            json_path = str(Path(tmp) / "report.json")
+            out_json = io.StringIO()
+            with contextlib.redirect_stdout(out_json):
+                with self.assertRaises(SystemExit) as ctx_json:
+                    sys.argv = ["check.py", name, "--json", json_path]
+                    check_module.main()
+
+        self.assertEqual(ctx_noflags.exception.code, ctx_json.exception.code)
+        self.assertEqual(out_noflags.getvalue(), out_json.getvalue())
 
 
 class ReportStructuredCaptureTests(unittest.TestCase):

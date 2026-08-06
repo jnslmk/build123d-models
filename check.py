@@ -24,8 +24,12 @@ reporting interferences, clearances and every assertion's result, diffable
 with ``khana diff <old> <new>``. ``check_diff.py`` is this repo's counterpart
 to that ``diff`` command, comparing two ``--json`` reports.
 
-Without ``--json``, behaviour is unchanged from before this was added: same
-discovery order, same stdout, same exit codes.
+Without ``--json``, behaviour is unchanged from before this was added for every
+``check()`` shape except one: a single-file ``check()`` that returns a
+``models.lib.checks.Report`` is rendered and exits 1 on any failure, with or
+without ``--json`` -- the same rule ``checks.main()`` already applies to a
+package. ``None``/``False``/a raised ``AssertionError`` keep their original
+discovery order, stdout and exit codes.
 """
 
 from __future__ import annotations
@@ -103,9 +107,17 @@ def _run_package_checks_json(name: str, checks: ModuleType, json_path: str) -> N
 def _run_check_fn_json(name: str, fn, json_path: str) -> None:
     """``--json`` path for a single-file model's ``check()``.
 
-    ``check()`` only ever reports one overall pass/fail (there is no ``Report``
-    instrumentation at this tier), so it is recorded as a single synthetic
-    assertion rather than nothing.
+    A ``check()`` that returns a ``models.lib.checks.Report`` -- the same
+    instrumentation a package's ``run()`` uses -- is captured with full
+    per-assertion detail, exactly like ``_run_package_checks_json`` above: same
+    ``render()`` to stdout, same ``{"model": name, **report.to_dict()}`` JSON
+    shape, same "failures means exit 1" rule. This is what lets a tier-1
+    model's ``check()`` grow real assertions without becoming a package just
+    to get structured ``--json`` output.
+
+    One that returns ``None``/``False`` or raises -- the only shapes a
+    single-file ``check()`` has ever had before this -- is still recorded as a
+    single synthetic assertion, unchanged.
     """
     try:
         result = fn()
@@ -116,6 +128,19 @@ def _run_check_fn_json(name: str, fn, json_path: str) -> None:
             json_path, {"model": name, "assertions": [entry], "passed": 0, "failed": 1}
         )
         sys.exit(1)
+
+    # Imported here, not at module scope: by this point `fn` (the model's own
+    # check()) has already run, which means the model module -- and therefore
+    # build123d/OCP, which models.lib.checks itself imports -- is already in
+    # sys.modules. A module-scope import would pay that ~2s cost on every
+    # invocation of this CLI, including the "model not found"/"no checks
+    # defined" paths that never touch a Report at all.
+    from models.lib.checks import Report
+
+    if isinstance(result, Report):
+        print(result.render())
+        _write_json(json_path, {"model": name, **result.to_dict()})
+        sys.exit(1 if result.failures else 0)
 
     ok = result is not False
     entry = {"section": "", "name": "check()", "passed": ok, "detail": ""}
@@ -169,6 +194,18 @@ def main() -> None:
         except AssertionError as exc:
             print(f"FAILED: {exc}")
             sys.exit(1)
+        # Local import for the same reason as in _run_check_fn_json: deferred
+        # until after fn() has run, so this never pays build123d/OCP's ~2s
+        # import cost on a path that doesn't return a Report.
+        from models.lib.checks import Report
+
+        if isinstance(result, Report):
+            # Same rule as the package path (checks.main(), above): render
+            # every assertion and let its own failures decide the exit code.
+            # Without this, a Report with failures is merely truthy -- not
+            # `False` -- and this would silently report success.
+            print(result.render())
+            sys.exit(1 if result.failures else 0)
         sys.exit(1 if result is False else 0)
 
     print(f"Model '{name}' has no checks defined (no checks.main(), no check()).")
