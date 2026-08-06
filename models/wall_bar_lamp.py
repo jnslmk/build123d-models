@@ -46,6 +46,14 @@ SHROUD_OUTER_DIAMETER = TUBE_OUTER_DIAMETER + 6.0
 SHROUD_BORE_DIAMETER = TUBE_OUTER_DIAMETER + 0.4
 SHROUD_CENTER_WIDTH = 12.0
 SHROUD_TRANSITION_LENGTH = 8.0
+# Extra radius, beyond the bare tube radius, that the shroud's outer taper
+# keeps at its tube-facing ends (x = +/-end_x). This is what is left as wall
+# material once the bore (radius SHROUD_BORE_DIAMETER/2) is subtracted, so it
+# has to clear the tube radius by more than half the bore's diametral
+# clearance (fits.FREE) plus the 2-perimeter minimum wall for a 0.4 mm
+# nozzle: > fits.FREE / 2 + 0.8 mm. 1.2 mm leaves a comfortable margin above
+# that 1.0 mm floor.
+SHROUD_END_RADIAL_ALLOWANCE = 1.2
 BASE_WIDTH = 16.0
 BASE_DEPTH = 10.0
 BASE_HEIGHT = 11.0
@@ -71,12 +79,22 @@ def create_mount() -> Part:
     with BuildPart() as mount:
         outer_sections = []
         for offset, radius in (
-            (-end_x, tube_radius + 0.8),
+            (-end_x, tube_radius + SHROUD_END_RADIAL_ALLOWANCE),
             (-half_center_width, shroud_radius),
             (half_center_width, shroud_radius),
-            (end_x, tube_radius + 0.8),
+            (end_x, tube_radius + SHROUD_END_RADIAL_ALLOWANCE),
         ):
-            with BuildSketch(Plane.YZ.offset(offset)) as section:
+            # mode=PRIVATE: these sketches are collected into outer_sections
+            # and fed to loft() explicitly below. loft() only clears
+            # pending_faces when it falls back to them (sections=None); given
+            # an explicit list it leaves whatever the BuildSketch contexts
+            # queued untouched. Left at the default Mode.ADD, all four
+            # circles -- plus the bore sketch further down -- would still be
+            # sitting in mount.pending_faces when the next no-target
+            # extrude(mode=SUBTRACT) runs, and it sweeps every pending face it
+            # finds, not just the bore. PRIVATE keeps them out of that queue
+            # entirely (see build123d-geometry-ops).
+            with BuildSketch(Plane.YZ.offset(offset), mode=Mode.PRIVATE) as section:
                 Circle(radius)
             outer_sections.append(section.sketch)
         loft(outer_sections)
@@ -96,7 +114,12 @@ def create_mount() -> Part:
                 ],
                 align=None,
             )
-        extrude(amount=BASE_WIDTH, both=True)
+        # both=True extrudes BASE_WIDTH / 2 to each side of the sketch plane,
+        # so the foot's total span along X is BASE_WIDTH -- not 2 *
+        # BASE_WIDTH. BASE_WIDTH names the same thing BACKPLATE_WIDTH,
+        # SHROUD_CENTER_WIDTH etc. do: a full extent, not a half-extent, so
+        # the constant is right and the extrude call was the bug.
+        extrude(amount=BASE_WIDTH / 2, both=True)
 
     mount.part.label = "wall_mount"
     mount.part.color = BLACK
@@ -119,8 +142,19 @@ def create_tube() -> Part:
     return tube.part
 
 
-def create_end_cap() -> Part:
-    """Create a flush-faced plug cap for the diffuser tube ends."""
+def create_end_cap(*, mirrored: bool = False) -> Part:
+    """Create a flush-faced plug cap for the diffuser tube ends.
+
+    Body and lip are both built on the -X side (body centred on the sketch
+    plane, lip extending further -X from it), which is correct for the left
+    end of the assembly: the lip lands outboard of the tube, past the body.
+    ``mirrored=True`` reflects the whole cap about its own body's centre
+    plane (Plane.YZ) so the lip lands on the +X side instead -- needed for
+    the right end, whose lip otherwise points back into the tube it caps
+    instead of away from it. The body is rotationally symmetric about that
+    same plane, so the mirror only moves the lip; it does not change the
+    body.
+    """
     body_radius = TUBE_OUTER_DIAMETER / 2
 
     with BuildPart() as end_cap:
@@ -134,8 +168,9 @@ def create_end_cap() -> Part:
             Circle(END_CAP_LIP_DIAMETER / 2)
         extrude(amount=END_CAP_LIP_LENGTH)
 
-    end_cap.part.color = TRANSLUCENT_WHITE
-    return end_cap.part
+    part = end_cap.part.mirror(Plane.YZ) if mirrored else end_cap.part
+    part.color = TRANSLUCENT_WHITE
+    return part
 
 
 def _assemble_components() -> list[Part]:
@@ -159,7 +194,7 @@ def _assemble_components() -> list[Part]:
     )
     left_cap.label = "left_end_cap"
 
-    right_cap = create_end_cap().move(
+    right_cap = create_end_cap(mirrored=True).move(
         Location((cap_center_offset + CENTER_GAP / 2, 0, 0))
     )
     right_cap.label = "right_end_cap"
@@ -340,7 +375,9 @@ def check() -> Report:
     )
 
     r.section("shroud wall thickness at the bore mouth")
-    wall_at_mouth = (TUBE_OUTER_DIAMETER / 2 + 0.8) - (SHROUD_BORE_DIAMETER / 2)
+    wall_at_mouth = (TUBE_OUTER_DIAMETER / 2 + SHROUD_END_RADIAL_ALLOWANCE) - (
+        SHROUD_BORE_DIAMETER / 2
+    )
     r.check(
         wall_at_mouth >= 0.8,
         "shroud wall where the taper meets the bore clears the 2-perimeter floor",
