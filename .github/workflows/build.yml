@@ -5,12 +5,48 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Rebuild every model, ignoring the incremental build stamps"
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Lint, types and unit tests. Independent of the model build so it reports in
+  # well under a minute instead of behind several minutes of OCC work. It does
+  # not gate the deploy: a lint error is not a broken site, and the build job is
+  # already the gate that matters. Add it to `deploy.needs` to make it one.
+  check:
+    name: Lint, Types & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install Python dependencies
+        run: uv sync --frozen --no-group viewer
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Type check
+        run: uv run ty check .
+
+      - name: Unit tests
+        run: uv run python -m unittest discover -s tests -t .
+
   build:
     name: Build & Export Models
     runs-on: ubuntu-latest
@@ -25,22 +61,47 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libgirepository-2.0-dev \
-            libcairo2-dev \
-            pkg-config \
-            python3-dev \
-            gir1.2-gtk-3.0 \
-            libgtk-3-0
-
+      # No apt step: nothing on the build path imports pywebview or gi, and
+      # `--no-group viewer` keeps pygobject (and therefore libgirepository,
+      # libcairo and GTK, and the source build that needs them) out of the way.
       - name: Install Python dependencies
-        run: uv sync --frozen
+        run: uv sync --frozen --no-group viewer
 
-      - name: Build all models (STL + STEP)
-        run: uv run python main.py
+      # `exports/` carries `.build-stamps.json`, so restoring it is what lets
+      # main.py skip the models no change can reach. The key is unique per commit
+      # and the prefix restore-key picks up the most recent previous run; bump
+      # the `v1` to discard every stamp and rebuild the roster once.
+      - name: Restore built models
+        uses: actions/cache/restore@v6
+        with:
+          path: exports
+          key: exports-v1-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            exports-v1-${{ runner.os }}-
+
+      - name: Record the restored build state
+        id: before
+        run: echo "hash=$(sha256sum exports/.build-stamps.json 2>/dev/null | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Build stale models (STL + STEP + GLB)
+        env:
+          # `inputs` is empty for push and pull_request, so this is '' there.
+          FORCE: ${{ inputs.force_rebuild && '--all' || '' }}
+        run: uv run python main.py $FORCE
+
+      - name: Record the resulting build state
+        id: after
+        run: echo "hash=$(sha256sum exports/.build-stamps.json 2>/dev/null | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      # Only when something actually got built. Saving unconditionally would
+      # re-upload an identical `exports/` under a fresh key on every push, which
+      # churns the repository's 10 GB cache budget for no benefit.
+      - name: Save built models
+        if: steps.before.outputs.hash != steps.after.outputs.hash
+        uses: actions/cache/save@v6
+        with:
+          path: exports
+          key: exports-v1-${{ runner.os }}-${{ github.sha }}
 
       - name: Build web bundle (manifest + py-sources + copy render assets)
         run: uv run python -c "import website; website.build_web_bundle()"

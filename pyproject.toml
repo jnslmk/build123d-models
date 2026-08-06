@@ -15,8 +15,6 @@ dependencies = [
     "build123d>=0.10.0",
     "ocp-vscode>=3.4.0",
     "ocp-tessellate>=3.3.0",
-    "pygobject>=3.54.5",
-    "pywebview>=6.1",
 ]
 
 [project.scripts]
@@ -24,6 +22,7 @@ show = "show:main"
 export = "export_model:main"
 check = "check:main"
 check-diff = "check_diff:main"
+deps = "model_deps:main"
 render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
@@ -31,6 +30,13 @@ website = "website:main"
 
 [tool.uv]
 package = true
+# ``viewer`` is a default group, so ``uv sync`` still gives a developer a working
+# ``uv run show`` with no extra flag. It is a *group* rather than a plain
+# dependency so that CI can leave it out with ``--no-group viewer``: nothing in
+# the build path imports pywebview or gi, and installing pygobject means
+# building it from source against libgirepository, libcairo and GTK, which is an
+# apt step and a compile that the model build has no use for.
+default-groups = ["dev", "viewer"]
 
 [tool.setuptools]
 # Subpackages are not implied by their parent -- list every one, or a built
@@ -46,13 +52,20 @@ packages = [
     "models.led_profiles.assemblies",
     "models.led_psu_enclosure",
 ]
-py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
+py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "model_deps", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 
 [dependency-groups]
 dev = [
     "ruff>=0.14.7",
     "ty>=0.0.1a29",
     "watchfiles>=0.24.0",
+]
+# Only ``viewer.py`` needs these -- the pywebview window and the GTK backend it
+# runs on. Kept out of the build path so CI never has to install GTK to export
+# an STL; see the note on ``default-groups`` above.
+viewer = [
+    "pygobject>=3.54.5",
+    "pywebview>=6.1",
 ]
 mesh = [
     "manifold3d>=3.5.2",

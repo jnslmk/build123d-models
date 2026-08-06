@@ -107,8 +107,6 @@ dependencies = [
     { name = "build123d" },
     { name = "ocp-tessellate" },
     { name = "ocp-vscode" },
-    { name = "pygobject" },
-    { name = "pywebview" },
 ]
 
 [package.dev-dependencies]
@@ -123,6 +121,10 @@ mesh = [
     { name = "shapely" },
     { name = "trimesh" },
 ]
+viewer = [
+    { name = "pygobject" },
+    { name = "pywebview" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -130,8 +132,6 @@ requires-dist = [
     { name = "build123d", specifier = ">=0.10.0" },
     { name = "ocp-tessellate", specifier = ">=3.3.0" },
     { name = "ocp-vscode", specifier = ">=3.4.0" },
-    { name = "pygobject", specifier = ">=3.54.5" },
-    { name = "pywebview", specifier = ">=6.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -145,6 +145,10 @@ mesh = [
     { name = "rtree", specifier = ">=1.4.1" },
     { name = "shapely", specifier = ">=2.1.2" },
     { name = "trimesh", specifier = ">=5.0.0" },
+]
+viewer = [
+    { name = "pygobject", specifier = ">=3.54.5" },
+    { name = "pywebview", specifier = ">=6.1" },
 ]
 
 [[package]]
