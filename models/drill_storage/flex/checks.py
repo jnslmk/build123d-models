@@ -64,20 +64,28 @@ def check_fits(r: Report) -> None:
         f"{c.LAND_FIT:.2f} mm = {fits.for_material(fits.PRESS, 'tpu'):.2f} "
         f"- {c.LAND_EXTRA_GRIP:.2f}",
     )
+    # The guide is specified as what the printed bore should have, and cut at that
+    # plus what FDM takes back out of a small vertical hole.
     r.check(
-        c.GUIDE_FIT
-        == fits.for_material(fits.FREE, "asa") + c.GUIDE_UNDERSIZE_COMP,
-        "GUIDE_FIT is a free fit in ASA plus the hole undersize FDM prints",
-        f"{c.GUIDE_FIT:.2f} mm = {fits.for_material(fits.FREE, 'asa'):.2f} "
+        c.GUIDE_PRINTED_FIT == fits.SNUG,
+        "the guide prints to a snug fit -- a little looser than zero, no more",
+        f"{c.GUIDE_PRINTED_FIT:.2f} mm in the part",
+    )
+    r.check(
+        c.GUIDE_FIT == c.GUIDE_PRINTED_FIT + c.GUIDE_UNDERSIZE_COMP,
+        "GUIDE_FIT is that snug fit plus the hole undersize FDM prints",
+        f"{c.GUIDE_FIT:.2f} mm cut = {c.GUIDE_PRINTED_FIT:.2f} "
         f"+ {c.GUIDE_UNDERSIZE_COMP:.2f}",
     )
     # The guide is cut wider than the bore above it, so a drill entering the
     # cartridge never steps *down* onto an ASA edge on its way through -- the only
-    # thing it can touch below the land is air.
+    # thing it can touch below the land is air. The margin is thin (0.02 mm) and
+    # the two sides are unrelated derivations, so this is checked, not assumed.
     r.check(
         c.GUIDE_FIT > c.RELIEF_FIT,
         "the guide is wider than the cartridge relief above it",
-        f"guide {c.GUIDE_FIT:.2f} > relief {c.RELIEF_FIT:.2f} mm",
+        f"guide {c.GUIDE_FIT:.2f} > relief {c.RELIEF_FIT:.2f} mm, "
+        f"{c.GUIDE_FIT - c.RELIEF_FIT:.2f} mm to spare",
     )
     # The split only works if the two halves are cut on opposite sides of
     # nominal. A guide that grips, or a land that clears, defeats it silently.
