@@ -15,6 +15,10 @@ dependencies = [
     "build123d>=0.10.0",
     "ocp-vscode>=3.4.0",
     "ocp-tessellate>=3.3.0",
+    # Pure-Python wheel with no system dependencies, unlike the two below, so it
+    # stays a plain dependency: that keeps ``viewer.py``'s import resolvable
+    # everywhere and costs an install nothing.
+    "pywebview>=6.1",
 ]
 
 [project.scripts]
@@ -30,13 +34,13 @@ website = "website:main"
 
 [tool.uv]
 package = true
-# ``viewer`` is a default group, so ``uv sync`` still gives a developer a working
-# ``uv run show`` with no extra flag. It is a *group* rather than a plain
-# dependency so that CI can leave it out with ``--no-group viewer``: nothing in
-# the build path imports pywebview or gi, and installing pygobject means
-# building it from source against libgirepository, libcairo and GTK, which is an
-# apt step and a compile that the model build has no use for.
-default-groups = ["dev", "viewer"]
+# Both extra groups are *default* groups, so a plain ``uv sync`` still gives a
+# developer everything and no local command grows a flag. They are groups rather
+# than plain dependencies because between them they are the only reason CI would
+# ever need `apt`: neither pygobject nor pycairo ships a Linux wheel, so
+# installing one means a source build against system headers. The model build
+# imports neither, so it asks for neither and needs no system packages at all.
+default-groups = ["dev", "viewer", "pdf"]
 
 [tool.setuptools]
 # Subpackages are not implied by their parent -- list every one, or a built
@@ -60,12 +64,16 @@ dev = [
     "ty>=0.0.1a29",
     "watchfiles>=0.24.0",
 ]
-# Only ``viewer.py`` needs these -- the pywebview window and the GTK backend it
-# runs on. Kept out of the build path so CI never has to install GTK to export
-# an STL; see the note on ``default-groups`` above.
+# The GTK backend pywebview drives in ``viewer.py``. Needed to *open* the viewer
+# window, not to import it -- and it builds from source against libgirepository
+# and GTK, so the model build stays clear of it.
 viewer = [
     "pygobject>=3.54.5",
-    "pywebview>=6.1",
+]
+# ``render_a4_pdf.py`` draws its sheets with pycairo, which publishes Windows
+# wheels only and so builds against libcairo2-dev everywhere else.
+pdf = [
+    "pycairo>=1.29.0",
 ]
 mesh = [
     "manifold3d>=3.5.2",

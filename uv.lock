@@ -107,6 +107,7 @@ dependencies = [
     { name = "build123d" },
     { name = "ocp-tessellate" },
     { name = "ocp-vscode" },
+    { name = "pywebview" },
 ]
 
 [package.dev-dependencies]
@@ -121,9 +122,11 @@ mesh = [
     { name = "shapely" },
     { name = "trimesh" },
 ]
+pdf = [
+    { name = "pycairo" },
+]
 viewer = [
     { name = "pygobject" },
-    { name = "pywebview" },
 ]
 
 [package.metadata]
@@ -132,6 +135,7 @@ requires-dist = [
     { name = "build123d", specifier = ">=0.10.0" },
     { name = "ocp-tessellate", specifier = ">=3.3.0" },
     { name = "ocp-vscode", specifier = ">=3.4.0" },
+    { name = "pywebview", specifier = ">=6.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -146,10 +150,8 @@ mesh = [
     { name = "shapely", specifier = ">=2.1.2" },
     { name = "trimesh", specifier = ">=5.0.0" },
 ]
-viewer = [
-    { name = "pygobject", specifier = ">=3.54.5" },
-    { name = "pywebview", specifier = ">=6.1" },
-]
+pdf = [{ name = "pycairo", specifier = ">=1.29.0" }]
+viewer = [{ name = "pygobject", specifier = ">=3.54.5" }]
 
 [[package]]
 name = "cachetools"

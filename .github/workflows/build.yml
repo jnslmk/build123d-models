@@ -24,6 +24,13 @@ jobs:
   check:
     name: Lint, Types & Tests
     runs-on: ubuntu-latest
+    # `uv run` re-syncs the project before running, using the *default* groups --
+    # which would pull `viewer` (and so pygobject, and so GTK) straight back in
+    # and undo the `--no-group viewer` on the sync step below. Pinning the
+    # environment to exactly what that step installed is the point; it also means
+    # a missing sync step fails loudly instead of silently installing.
+    env:
+      UV_NO_SYNC: "1"
 
     steps:
       - name: Checkout
@@ -34,6 +41,16 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
+
+      # Only what pycairo needs to compile. `render_a4_pdf.py` imports it, so
+      # without this the type check cannot resolve `cairo` and its test cannot
+      # import at all. Deliberately not the GTK/girepository set the build used
+      # to install: `pygobject` is left out below, since opening a viewer window
+      # is not something CI does.
+      - name: Install cairo headers (for pycairo, which has no Linux wheel)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcairo2-dev pkg-config python3-dev
 
       - name: Install Python dependencies
         run: uv sync --frozen --no-group viewer
@@ -50,6 +67,10 @@ jobs:
   build:
     name: Build & Export Models
     runs-on: ubuntu-latest
+    # See the note on the `check` job: without this, `uv run` reinstalls the
+    # viewer group and the build needs GTK again.
+    env:
+      UV_NO_SYNC: "1"
 
     steps:
       - name: Checkout
@@ -61,11 +82,12 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      # No apt step: nothing on the build path imports pywebview or gi, and
-      # `--no-group viewer` keeps pygobject (and therefore libgirepository,
-      # libcairo and GTK, and the source build that needs them) out of the way.
+      # No apt step, and that is the point: nothing the model build imports needs
+      # a system library. `pygobject` and `pycairo` are the only two packages
+      # that would, they are the only two behind these flags, and neither is on
+      # the path from `create()` to an STL.
       - name: Install Python dependencies
-        run: uv sync --frozen --no-group viewer
+        run: uv sync --frozen --no-group viewer --no-group pdf
 
       # `exports/` carries `.build-stamps.json`, so restoring it is what lets
       # main.py skip the models no change can reach. The key is unique per commit
