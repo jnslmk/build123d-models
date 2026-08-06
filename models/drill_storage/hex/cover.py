@@ -1,9 +1,9 @@
 """The third printed part of a hex-bit box: the labelled translucent cover.
 
-``box.create_cover`` cut from its 42 mm constant: the same pillow-top, the same
-snap bead, the same engraved label -- at any cover width. The 1x1 ALLEN cover
-reproduces the family's geometry exactly (42.0 mm); the 2x2 BITS cover is
-84.5 mm, the family rule "cover = pad + 1.0".
+``box.create_cover`` at the family's 42 mm width: the same pillow-top, the
+same snap bead, the same engraved label. Both boxes share the cover envelope
+(41.5 mm, the pad itself, flush with the base) -- only the label, the height and the
+glyph orientation differ, which is what the parameters are for.
 
 ``label_fit`` sizes the engraving, exactly as the old one-material hex module
 did: the family's default reads *up* the face, which suits a tall cover, but a
@@ -49,7 +49,7 @@ from ..box import (
 from . import config as c
 
 
-def label_fit(cover_h: float, text: str, cover_w: float) -> tuple[float, float, bool]:
+def label_fit(cover_h: float, text: str) -> tuple[float, float, bool]:
     """Glyph size, vertical centre and orientation for a label on a cover face.
 
     Returns the largest the word can be printed, trying it both ways round: the
@@ -70,7 +70,7 @@ def label_fit(cover_h: float, text: str, cover_w: float) -> tuple[float, float, 
 
     bottom, top = 1.0, cover_h - TOP_FILLET  # flat face, under the pillow fillet
     height = top - bottom
-    width = cover_w - 2 * c.CORNER_R  # flat face between the rounded corners
+    width = c.COVER_W - 2 * c.CORNER_R  # flat face between the rounded corners
     up = c.MARGIN * height / run  # reading up the face
     across = min(c.MARGIN * width / run, c.MARGIN * height / thick)  # reading across
     return min(c.LABEL_SIZE, max(up, across)), (bottom + top) / 2, across > up
@@ -79,26 +79,24 @@ def label_fit(cover_h: float, text: str, cover_w: float) -> tuple[float, float, 
 def create_cover(
     label: str,
     cover_h: float,
-    cover_w: float,
     label_size: float,
     label_z: float,
     label_horizontal: bool = False,
 ) -> Part:
     """A rounded-square cover with a pillow top and an engraved label.
 
-    ``box.create_cover``, parameterised by width: the same bore, snap bead,
-    mouth lead-in and label machinery, sized for a cover of ``cover_w`` (42.0
-    for ALLEN, 84.5 for BITS). ``cover_h`` is the wall height -- pass
-    ``config.cover_h_for(bit_len)``. ``label_size`` / ``label_z`` /
+    ``box.create_cover`` at the shared 41.5 mm width: the same bore, snap
+    bead, mouth lead-in and label machinery. ``cover_h`` is the wall height --
+    pass ``config.cover_h_for(bit_len)``. ``label_size`` / ``label_z`` /
     ``label_horizontal`` come from ``label_fit``.
 
     The label reads *up* the face by default, which is what a tall tube wants;
     ``label_horizontal`` turns it a quarter so it reads across the face instead.
     """
-    inner_w = cover_w - 2 * COVER_WALL
+    inner_w = c.COVER_W - 2 * COVER_WALL
     with BuildPart() as cover:
         with BuildSketch():
-            RectangleRounded(cover_w, cover_w, c.CORNER_R)
+            RectangleRounded(c.COVER_W, c.COVER_W, c.CORNER_R)
         extrude(amount=cover_h)
         # Round the top over into a pillow.
         fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
@@ -142,7 +140,7 @@ def create_cover(
         # ``label_horizontal``. Same plane logic as box.create_cover, so the
         # text never comes out mirrored.
         text_plane = Plane(
-            origin=(0, cover_w / 2, label_z),
+            origin=(0, c.COVER_W / 2, label_z),
             x_dir=(-1, 0, 0) if label_horizontal else (0, 0, 1),
             z_dir=(0, 1, 0),
         )
@@ -153,7 +151,7 @@ def create_cover(
         # its own if it fails (see the note on box.create_cover).
         mouth = (
             cover.edges()
-            .filter_by_position(Axis.Y, cover_w / 2, cover_w / 2)
+            .filter_by_position(Axis.Y, c.COVER_W / 2, c.COVER_W / 2)
             .filter_by(lambda e: e.length < 30.0)
         )
         if mouth:

@@ -14,7 +14,7 @@ uv run show drill_storage.hex                # both boxes, all 24 tools standing
 uv run export drill_storage.hex.allen_base   # rigid, foot down, cavity up
 uv run export drill_storage.hex.allen_insert # TPU, flat down, bores up
 uv run export drill_storage.hex.allen_cover  # translucent, pillow top down
-uv run export drill_storage.hex.bits_base    # 2x2, foot down, cavity up
+uv run export drill_storage.hex.bits_base    # 1x1, foot down, cavity up
 uv run export drill_storage.hex.bits_insert  # TPU, flat down, bores up
 uv run export drill_storage.hex.bits_cover   # translucent, pillow top down
 uv run check drill_storage.hex
@@ -29,15 +29,17 @@ uv run check drill_storage.hex
 | BITS insert | `drill_storage.hex.bits_insert` | TPU, black | flat bottom down, bores up |
 | BITS cover | `drill_storage.hex.bits_cover` | PETG, translucent | pillow top down, mouth up |
 
-**ALLEN** — 1x1 Gridfinity (41.5 mm), eight sockets, the sizes engraved on the
+**ALLEN** — 1x1 Gridfinity (41.5 mm, pad, body and cover alike), eight sockets, the sizes engraved on the
 body walls largest → smallest, so the set reads as an ordered grid.
 
-**BITS** — 2x2 Gridfinity (83.5 mm pad, 84.5 mm cover), sixteen sockets in a
+**BITS** — 1x1 Gridfinity (41.5 mm, pad, body and cover alike), sixteen sockets in a
 **literal 4x4 grid**, no legend: the driver bits are a mixed bag with no single
-size scale to engrave, so you read the tips themselves. The BITS box is 2x2
-because sixteen sockets cannot meet the cartridge's clearances on one 1x1 collar
-— a 4x4 grid needs an 8.98 mm pitch to keep its neighbours apart, and the 1x1
-cartridge's wall leaves only 8.27 mm.
+size scale to engrave, so you read the tips themselves. Sixteen sockets cannot
+meet the cartridge's clearances on the family's numbers (the mouth lead-ins
+alone need an 8.88 mm pitch where the wall allows 8.27 mm), so BITS **shaves**
+three clearances — the two mouth chamfers and the guide fit — and the margins
+that result are pinned by `checks.py`. The full argument and every shaved
+number are in [`config.py`](config.py).
 
 **Covers**: ALLEN 52 mm (70 mm / 10U assembled), BITS 31 mm (49 mm / 7U). Bases
 are 30 mm — the family's 36 mm is for drills that need the depth. Bits rest on
@@ -47,4 +49,4 @@ rim, which is how you pinch them out.
 The clearances, the fit classes and the argument behind the two-material split
 are the drill family's — see [the family README](../README.md) and
 [`docs/design-notes.md`](../docs/design-notes.md). The hex package only re-derives
-the heights and the BITS box's 2x2 footprint, in [`config.py`](config.py).
+the heights and the BITS box's shaved clearances, in [`config.py`](config.py).

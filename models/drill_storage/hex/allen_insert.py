@@ -19,7 +19,7 @@ from .insert import create_insert
 def create() -> Part:
     """Model entry point: the ALLEN box's TPU cartridge, in print pose."""
     hex_bores, _rows, _pos = c.socket_layout("allen")
-    insert = create_insert(hex_bores, cart_w=c.ALLEN_CART_W)
+    insert = create_insert(hex_bores, mouth_ch=c.CART_MOUTH_CH)
     insert.label = "insert_allen"
     insert.color = c.INSERT_COLOR
     return insert

@@ -6,21 +6,23 @@ now a rigid base that guides, a TPU insert that grips, and a translucent cover,
 exactly like the drill sets. The bases and inserts are black; the covers are
 translucent so the bits read through them.
 
-Two boxes, one per bit family:
+Two boxes, one per bit family, both 1x1 Gridfinity:
 
-* **ALLEN** -- 1x1 Gridfinity, the 50 mm hex-key bits, sizes 1.5 / 2 / 2.5 /
+* **ALLEN** -- the 50 mm hex-key bits, sizes 1.5 / 2 / 2.5 /
   3 / 4 / 5 / 6 / 8. Those sizes are engraved into the body walls, laid out in
   rows largest -> smallest like the drill variants, so the set reads as an
   ordered grid.
-* **BITS** -- 2x2 Gridfinity, the 25 mm driver bits (Torx, Phillips, Pozidriv,
+* **BITS** -- the 25 mm driver bits (Torx, Phillips, Pozidriv,
   slotted, ...), sixteen of them in a **literal 4x4 grid**. A mixed bag with no
   single size scale to engrave, so the walls stay blank and you read the tip
   itself -- which is exactly what's left standing proud.
 
-The split is not a styling choice: sixteen sockets cannot meet the cartridge's
-clearances on one 1x1 collar (a 4x4 grid needs an 8.98 mm pitch to keep its
-neighbours apart, and the 1x1 cartridge's wall leaves only 8.27 mm), so the
-BITS box is the family's first 2x2.
+Sixteen sockets cannot meet the family's clearances on one 1x1 collar -- the
+cartridge's mouth lead-ins alone need an 8.88 mm pitch where the wall allows
+8.27 mm -- so the BITS box **shaves** the lead-in clearances instead of growing
+to 2x2 (the shaved numbers and the margins they leave are argued and pinned in
+`config.py` / `checks.py`). The user accepted the tight margins; TPU bores
+print undersize, so the real ones are better.
 
 A scene, not a print job -- three materials (black ASA base, black TPU insert,
 translucent PETG cover) never share a bed. The parts are:
@@ -28,7 +30,7 @@ translucent PETG cover) never share a bed. The parts are:
     uv run show drill_storage.hex.allen_base    # rigid, foot down, cavity up
     uv run show drill_storage.hex.allen_insert  # TPU, flat down, bores up
     uv run show drill_storage.hex.allen_cover   # translucent, pillow top down
-    uv run show drill_storage.hex.bits_base     # 2x2, foot down, cavity up
+    uv run show drill_storage.hex.bits_base     # 1x1, foot down, cavity up
     uv run show drill_storage.hex.bits_insert   # TPU, flat down, bores up
     uv run show drill_storage.hex.bits_cover    # translucent, pillow top down
 
@@ -63,11 +65,6 @@ GAP = 10.0  # edge-to-edge gap between the two boxes, like the family's pitch
 def _box(
     x: float,
     name: str,
-    pad: float,
-    cover_w: float,
-    collar_w: float,
-    cavity_w: float,
-    cart_w: float,
     bit_len: float,
     label: str,
     has_legend: bool,
@@ -77,22 +74,25 @@ def _box(
     Mirrors ``drill_storage.assembly.create_assembly`` (it builds one set; this
     builds one of the two hex boxes). The bits stand on the rigid guide floor,
     gripped by the cartridge's lands, with the translucent cover seated on the
-    shoulder.
+    shoulder. Both boxes share the family's 1x1 envelopes; the per-box guide
+    and mouth numbers come from ``config.box_fits``.
     """
+    guide_af, guide_mouth_ch, cart_mouth_ch = c.box_fits(name)
     hex_bores, rows, pos = c.socket_layout(name)
 
     base = create_base(
         hex_bores,
-        pad=pad,
-        collar_w=collar_w,
-        cavity_w=cavity_w,
+        guide_af=guide_af,
+        guide_mouth_ch=guide_mouth_ch,
         rows=rows if has_legend else None,
         hole_pos=pos if has_legend else None,
     )
     base.label = f"base_{name}"
     base.color = c.BASE_COLOR
 
-    insert = Pos(0, 0, c.CAVITY_FLOOR_Z) * create_insert(hex_bores, cart_w=cart_w)
+    insert = Pos(0, 0, c.CAVITY_FLOOR_Z) * create_insert(
+        hex_bores, mouth_ch=cart_mouth_ch
+    )
     insert.label = f"insert_{name}"
     insert.color = c.INSERT_COLOR
 
@@ -109,11 +109,10 @@ def _box(
     # create_cover returns print pose (pillow on the bed, mouth up); flip it
     # back and seat it on the shoulder, translucent so the bits read through.
     cover_h = c.cover_h_for(bit_len)
-    size, label_z, horizontal = label_fit(cover_h, label, cover_w)
+    size, label_z, horizontal = label_fit(cover_h, label)
     cover = create_cover(
         label,
         cover_h=cover_h,
-        cover_w=cover_w,
         label_size=size,
         label_z=label_z,
         label_horizontal=horizontal,
@@ -127,18 +126,15 @@ def _box(
 
 
 def create() -> Compound:
-    """Both hex-bit boxes, side by side: ALLEN (1x1) left, BITS (2x2) right."""
-    x_allen = -(c.ALLEN_PAD / 2 + c.BITS_PAD / 2 + GAP / 2)
+    """Both hex-bit boxes, side by side: ALLEN (1x1) left, BITS (1x1) right."""
+    # BODY_W, not PAD: GAP is meant to be the air you see between the two boxes,
+    # and what stands closest is the body/cover silhouette, not the foot.
+    x_allen = -(c.BODY_W / 2 + c.BODY_W / 2 + GAP / 2)
     x_bits = -x_allen
     children = []
     children += _box(
         x_allen,
         "allen",
-        c.ALLEN_PAD,
-        c.ALLEN_COVER_W,
-        c.ALLEN_COLLAR_W,
-        c.ALLEN_CAVITY_W,
-        c.ALLEN_CART_W,
         c.ALLEN_BIT_LEN,
         "ALLEN",
         True,
@@ -146,11 +142,6 @@ def create() -> Compound:
     children += _box(
         x_bits,
         "bits",
-        c.BITS_PAD,
-        c.BITS_COVER_W,
-        c.BITS_COLLAR_W,
-        c.BITS_CAVITY_W,
-        c.BITS_CART_W,
         c.BITS_BIT_LEN,
         "BITS",
         False,

@@ -1,6 +1,6 @@
 """The compliant half of a hex-bit box: a short black TPU cartridge of hex sockets.
 
-The family's ``insert``, cut to this package's widths. The argument is exactly
+The family's ``insert``, cut to this package's width. The argument is exactly
 ``drill_storage.insert``'s: a **collar**, not a block -- ``CART_H`` of TPU that
 reaches as far below its retention bead as it stands above it -- and every hex
 socket is cut by the family's own ``insert.hex_bore_tool``, so the land at the
@@ -9,9 +9,10 @@ bottom grips on ``HEX_LAND_FIT`` and the relief above it clears on
 the drill sets. The base guides a bit over 8.2 mm of rigid bore; this grips it
 over 3.5 mm of land, which is the whole point of the split.
 
-Two widths: the family's 35.68 mm cartridge for the 1x1 ALLEN box, and a
-78.18 mm one for the 2x2 BITS box. Everything else -- height, bead, key rib,
-mouth chamfers -- is shared.
+Both boxes share the family's 35.68 mm cartridge; the only per-box number is
+the socket mouths' lead-in chamfer, passed in (``config.box_fits`` says which
+box gets which -- BITS shaves it from the family's 0.5 to 0.2, see
+``config``).
 
 Printed flat-bottom down, bores up, in black TPU, no supports. Every socket is
 a through hole -- bits pass clean through into the base's guide below -- so
@@ -41,8 +42,8 @@ from ..insert import hex_bore_tool as _family_hex_bore_tool
 from . import config as c
 
 
-def key_rib(cart_w: float) -> Part:
-    """The keying rib on the +X face, at any cartridge width.
+def key_rib() -> Part:
+    """The keying rib on the +X face.
 
     It stands *outside* the cartridge body, so it can never collide with a
     socket however the layout deals them, and rides in a matching slot in the
@@ -56,7 +57,7 @@ def key_rib(cart_w: float) -> Part:
     bottom is the end that goes in first.
     """
     depth = c.KEY_D + c.KEY_ROOT  # KEY_ROOT is buried in the cartridge wall
-    x_mid = cart_w / 2 + c.KEY_D / 2 - c.KEY_ROOT / 2
+    x_mid = c.CART_W / 2 + c.KEY_D / 2 - c.KEY_ROOT / 2
     lead = c.KEY_LEAD_IN
 
     # Written out rather than factored into a helper: BuildSketch finds its
@@ -83,14 +84,16 @@ def key_rib(cart_w: float) -> Part:
 
 def create_insert(
     hex_bores: Sequence[tuple[float, float, float]],
-    cart_w: float,
+    mouth_ch: float,
 ) -> Part:
     """The TPU cartridge: a keyed collar of hex sockets, land at the bottom.
 
     ``hex_bores`` are ``(across_flats, x, y)`` in the base's coordinates -- pass
     the same tuples ``create_base`` was given, or the guides and the lands
-    disagree about where a bit is. ``cart_w`` is the cartridge width for the box
-    (``ALLEN_CART_W`` or ``BITS_CART_W``).
+    disagree about where a bit is. ``mouth_ch`` is the lead-in chamfer at the
+    socket mouths on the top face (``CART_MOUTH_CH`` for ALLEN, the shaved
+    ``BITS_CART_MOUTH_CH`` for BITS -- ``config.box_fits``). The cartridge
+    width is the family's ``CART_W`` for both boxes.
 
     The sockets are cut by the family's ``insert.hex_bore_tool``, untouched:
     foot relief, ``HEX_LAND_FIT`` land, lead-in, ``RELIEF_FIT`` relief. The
@@ -103,9 +106,9 @@ def create_insert(
     """
     with BuildPart() as cart:
         with BuildSketch(Plane.XY):
-            RectangleRounded(cart_w, cart_w, c.CART_R)
+            RectangleRounded(c.CART_W, c.CART_W, c.CART_R)
         extrude(amount=c.CART_H)
-        add(key_rib(cart_w))
+        add(key_rib())
 
         # Retention bead: outward, so the compliant part carries it and seating
         # costs a squeeze rather than deflecting the rigid wall. Asymmetric ramp
@@ -113,7 +116,7 @@ def create_insert(
         # box.snap_bead_ring -- a half-round bump fights the user going on.
         add(
             snap_bead_ring(
-                cart_w,
+                c.CART_W,
                 c.CART_R,
                 c.CART_BELOW_BEAD,
                 protrusion=c.CART_BEAD,
@@ -127,11 +130,11 @@ def create_insert(
         # Chamfer the outer edges before the bores are cut, so both tools only
         # ever see the plain prism.
         add(
-            rim_chamfer_tool(cart_w, c.CART_R, c.CART_H, c.SHELL_TOP_CHAMFER),
+            rim_chamfer_tool(c.CART_W, c.CART_R, c.CART_H, c.SHELL_TOP_CHAMFER),
             mode=Mode.SUBTRACT,
         )
         add(
-            bottom_chamfer_tool(cart_w, cart_w, c.CART_R, 0.0, 0.4),
+            bottom_chamfer_tool(c.CART_W, c.CART_W, c.CART_R, 0.0, 0.4),
             mode=Mode.SUBTRACT,
         )
 
@@ -145,9 +148,7 @@ def create_insert(
         # by its across-flats.
         for af, x, y in hex_bores:
             add(
-                hex_mouth_tool(
-                    (af + c.RELIEF_FIT) / 3**0.5, x, y, c.CART_H, c.CART_MOUTH_CH
-                ),
+                hex_mouth_tool((af + c.RELIEF_FIT) / 3**0.5, x, y, c.CART_H, mouth_ch),
                 mode=Mode.SUBTRACT,
             )
     return cart.part

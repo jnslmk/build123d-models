@@ -26,8 +26,9 @@ MODELS = [
     # Gridfinity drill storage: the family view, then one variant per tool set.
     # A variant is an assembled scene plus its three printed parts -- ASA shell,
     # TPU cartridge, PETG cover -- which are three filaments and so three jobs.
-    # ``hex`` is the two-material bit boxes: two Gridfinity sizes (1x1 ALLEN
-    # keys, 2x2 driver bits), each a rigid base + TPU insert + translucent cover.
+    # ``hex`` is the two-material bit boxes: both 1x1 Gridfinity (ALLEN keys,
+    # BITS driver bits with shaved lead-ins), each a rigid base + TPU insert +
+    # translucent cover.
     "drill_storage",
     "drill_storage.wood",
     "drill_storage.wood.shell",

@@ -17,11 +17,10 @@ from .cover import create_cover, label_fit
 def create() -> Part:
     """Model entry point: the ALLEN box's cover, in print pose."""
     cover_h = c.cover_h_for(c.ALLEN_BIT_LEN)
-    size, label_z, horizontal = label_fit(cover_h, "ALLEN", c.ALLEN_COVER_W)
+    size, label_z, horizontal = label_fit(cover_h, "ALLEN")
     cover = create_cover(
         "ALLEN",
         cover_h=cover_h,
-        cover_w=c.ALLEN_COVER_W,
         label_size=size,
         label_z=label_z,
         label_horizontal=horizontal,

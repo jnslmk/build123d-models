@@ -27,9 +27,10 @@ drags over 23.2 mm of shell, and the TPU land interferes (``LAND_FIT``, -0.05) s
 guide that gripped or a land that cleared would each defeat the split silently.
 
 ``drill_storage.hex`` is the same two-material idea cut for 1/4" hex-shank bits:
-two boxes -- a 1x1 ALLEN key box and a 2x2 driver-bit box -- each with a rigid
+two boxes -- a 1x1 ALLEN key box and a 1x1 driver-bit box -- each with a rigid
 black base, a black TPU insert and a translucent cover, in their own package
-next to ``wood/``.
+next to ``wood/``. ALLEN keeps the family's 8 sockets; BITS shaves its
+lead-in clearances to spread 16 across a 4x4 grid.
 """
 
 from . import box, config, sets

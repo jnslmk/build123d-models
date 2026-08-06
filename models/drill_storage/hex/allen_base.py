@@ -21,9 +21,8 @@ def create() -> Part:
     hex_bores, rows, pos = c.socket_layout("allen")
     base = create_base(
         hex_bores,
-        pad=c.ALLEN_PAD,
-        collar_w=c.ALLEN_COLLAR_W,
-        cavity_w=c.ALLEN_CAVITY_W,
+        guide_af=c.HEX_AF + c.GUIDE_FIT,
+        guide_mouth_ch=c.GUIDE_MOUTH_CH,
         rows=rows,
         hole_pos=pos,
     )

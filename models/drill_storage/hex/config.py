@@ -6,7 +6,8 @@ bead, the key rib, the packing budget -- is imported from ``drill_storage.config
 and re-exported here, so there is one copy of each fit and it cannot drift.
 What this file owns is what the hex boxes own: the bit sizes, the shortened
 heights (30 mm bases, because a bit needs none of the 36 mm a drill does), the
-two Gridfinity footprints (1x1 for ALLEN, 2x2 for BITS), and the colours.
+one Gridfinity footprint (1x1 for both boxes -- BITS reaches it by shaving the
+family's lead-in clearances, argued under "Footprints" below), and the colours.
 
 The vertical stack, in world z with the base's foot on z=0 (mirroring the
 family's ``config.py``)::
@@ -41,25 +42,23 @@ from build123d import Color
 from .. import config as fam
 from ..box import (
     BASE_H,
+    BODY_W,
     CAP_H,
     COLLAR_R,
     COLLAR_W,
     COVER_W,
-    COVER_WALL,
     CORNER_R,
     FOOT_C1,
     FOOT_C3,
     FOOT_STRAIGHT,
-    GRID,
+    HEX_SLIP,
     INNER_R,
     LABEL_CHAMFER,
     LABEL_DEPTH,
     LABEL_SIZE,
     PAD,
-    SLIP,
     SNAP_GROOVE_R,
     SNAP_Z,
-    TOLERANCE,
     TOP_FILLET,
     WALL_LABEL_SIZE,
     cover_height_for,
@@ -78,6 +77,8 @@ BORE_FOOT_RELIEF = fam.BORE_FOOT_RELIEF
 CART_BEAD = fam.CART_BEAD
 CART_BELOW_BEAD = fam.CART_BELOW_BEAD
 CART_H = fam.CART_H
+CART_W = fam.CART_W  # the cartridge envelope both boxes share
+CAVITY_W = fam.CAVITY_W  # the cavity envelope both boxes share
 CART_MOUTH_CH = fam.CART_MOUTH_CH
 CART_PROUD = fam.CART_PROUD
 CART_R = fam.CART_R
@@ -187,39 +188,80 @@ LEGEND_LINE_H = ((BASE_FOOT_TOP - BASE_H - 2 * LEGEND_MARGIN) - LEGEND_GLYPH_H) 
 MARGIN = 0.9  # fraction of a face a label may span, so it never runs to the edge
 
 # --- Footprints ---------------------------------------------------------------
-# Two Gridfinity sizes: the ALLEN box keeps the family's 1x1, the BITS box grows
-# to 2x2 because 16 sockets cannot meet the cartridge's clearances on one 1x1
-# collar -- a 4x4 grid needs an 8.98 mm pitch to keep its neighbours at
-# PACK_HOLE_WALL, and the 1x1 cartridge's wall leaves only 8.27 mm of pitch
-# (PACK_WALL_CLEARANCE at the outer sockets), so no pitch satisfies both.
-# Everything below the cavity floor is shared between the two boxes; only these
-# horizontal envelopes differ. The corner radii (collar, cavity, cartridge) are
-# the family's for both -- a bigger pad lengthens the straight edges, it does
-# not change the corner profile.
-ALLEN_PAD = PAD  # 41.5
-ALLEN_COVER_W = COVER_W  # 42.0, the family's cover
-ALLEN_COLLAR_W = COLLAR_W  # 39.2
-ALLEN_CAVITY_W = fam.CAVITY_W  # 36.0
-ALLEN_CART_W = fam.CART_W  # 35.68
-
-BITS_PAD = 2 * GRID - TOLERANCE  # 83.5, a 2x2 Gridfinity pad
-BITS_COVER_W = BITS_PAD + 1.0  # 84.5 -- family rule: cover = pad + 1.0
-BITS_INNER_W = BITS_COVER_W - 2 * COVER_WALL  # 82.1 cover bore
-BITS_COLLAR_W = BITS_INNER_W - SLIP  # 81.7, close slip fit in the bore
-BITS_CAVITY_W = BITS_COLLAR_W - 2 * fam.SHELL_WALL  # 78.5
-BITS_CART_W = BITS_CAVITY_W - fam.CART_SLIP  # 78.18
-
-# The BITS sockets are dealt in a literal 4x4 square grid, never pack_rows --
-# a packer deals 16 identical items as ragged rows (3+3+3+3+3+1), and the grid
-# is the point. The pitch spreads the grid to the cartridge envelope exactly
-# like pack_rows spreads a row: the outermost sockets land on
-# PACK_WALL_CLEARANCE of wall. The corner sockets face the *flat* edge -- a
-# rounded square's corner arc only intrudes beyond its tangent points, and at
-# this pitch the holes sit clear of the arcs by ~2.6 mm -- so the flat edge is
-# the binding constraint, and every neighbour gap comes out an order of
-# magnitude over PACK_HOLE_WALL.
-BITS_GRID = 4  # 4x4
-BITS_PITCH = (BITS_CART_W / 2 - HEX_SOCKET_R - PACK_WALL_CLEARANCE) / (
+# One Gridfinity size: both boxes are 1x1, sharing the family's envelopes --
+# PAD = BODY_W = COVER_W = 41.5, one flush 1x1 envelope top to bottom,
+# COLLAR_W 39.2, CAVITY_W 36.0, CART_W 35.68 (the
+# corner radii are the family's too). The ALLEN box keeps the family's
+# clearances outright; the BITS box has to fit sixteen sockets where ALLEN
+# fits eight, and cannot do it on the family's numbers. The two constraints
+# that say so are both *mouths*, not walls:
+#
+#   * cartridge mouths: two neighbouring sockets each need their mouth
+#     lead-in to form, so the pitch must hold two socket footprints plus two
+#     CART_MOUTH_CH chamfers: 2 x (HEX_SOCKET_R + 0.5) = 8.88 mm;
+#   * guide mouths: the drill-family guide (GUIDE_FIT, free plus the hole
+#     undersize comp) reserves (HEX_AF + 0.49)/sqrt(3) = 4.036 mm of radius,
+#     so two guides plus their mouth chamfers need 2 x 4.036 + 1.0 = 9.07 mm.
+#
+# ...while the cartridge's own wall caps the pitch at
+# (CART_W/2 - HEX_SOCKET_R - PACK_WALL_CLEARANCE) / 1.5 = 8.27 mm. No pitch
+# satisfies both sides -- which is the 2x2 argument this package used to make.
+#
+# So BITS shaves three things, each to the smallest number that still forms
+# the feature, and accepts the tight margins that result (the user asked for
+# them; TPU bores print undersize, so the real gaps are wider than modelled):
+#
+#   * the cartridge mouth chamfer drops from 0.5 to BITS_CART_MOUTH_CH = 0.2.
+#     A lead-in in TPU has an easier job anyway -- the material gives (the
+#     family says the same of its own 0.5);
+#   * the guide mouth chamfer drops from 0.5 to BITS_GUIDE_MOUTH_CH = 0.4.
+#     This one is cut in rigid ASA, so it keeps a real chamfer;
+#   * the guide stops being the drill family's free-fit-plus-undersize-comp
+#     (GUIDE_FIT exists for 23.2 mm of drill guide) and becomes the old
+#     one-material hex's proven drop-in socket: BITS_GUIDE_AF = HEX_AF +
+#     HEX_SLIP = 6.55 mm across-flats, the clearance box.py cut and printed
+#     for years. A 25 mm bit only needs 8.2 mm of rigid bore to stand
+#     upright -- guidance, not a free fit.
+#
+# The wall budget drops too. PACK_WALL_CLEARANCE (1.5) is CART_WALL plus a
+# full 0.5 mm mouth chamfer, and BITS only forms a 0.2 mm one, so the
+# outermost sockets sit on CART_WALL + BITS_CART_MOUTH_CH = 1.2 mm of
+# flat-face wall. At the top rim, where the mouth chamfer widens every bore
+# by 0.2 mm, that leaves exactly CART_WALL (1.0) -- the binding wall, which
+# BITS_PITCH is derived to land on, the same way pack_rows spreads a row to
+# the envelope. The flat face is the nearest wall surface for every socket
+# (the corner socket's included: 5.14 mm to the flat face against 6.16 mm to
+# the corner arc's nearest point, at its tangent points), so the 1.2 mm
+# flat-face budget is exactly what the edge sockets sit on -- and it is real
+# material, not an estimate: the hexagon sits inside its circumcircle, so
+# the printed wall is at least as thick as the budget (checks.py measures it
+# with freepack's SDF).
+#
+# The between-socket gaps then hold the family's own between-socket rule --
+# PACK_HOLE_WALL, two mouth chamfers plus a sliver -- evaluated at the shaved
+# chamfer: BITS_RELIEF_GAP_FLOOR = 2 x 0.2 + 0.1 = 0.5 mm, against 0.59 mm
+# measured at this pitch. They cannot hold MIN_WALL (0.8 mm, two perimeters):
+# the relief's real radius is 3.938 mm, so 0.8 mm of relief gap needs pitch
+# >= 8.68 mm, and the top-rim wall caps pitch at 8.47 mm -- the two floors do
+# not intersect. The floor is a *modelled* one: the relief is cut in TPU,
+# whose bores print 0.1-0.3 mm undersize, so the printed bore is smaller
+# than the cut and the real gap between neighbours is ~0.7-0.9 mm, over
+# MIN_WALL's two-perimeter intent. The modelled gap is still pinned so a
+# wider RELIEF_FIT cannot split the cartridge along a row unnoticed:
+# checks.py measures it at the relief z and asserts the floor.
+BITS_GRID = 4  # BITS sockets are dealt in a literal 4x4 square grid, never
+#                pack_rows -- a packer deals 16 identical items as ragged
+#                rows (3+3+3+3+3+1), and the grid is the point.
+BITS_CART_MOUTH_CH = 0.2  # shaved cartridge mouth chamfer (family 0.5)
+BITS_RELIEF_GAP_FLOOR = 2 * BITS_CART_MOUTH_CH + 0.1  # 0.5 -- the family's
+#    between-socket rule (two mouth chamfers plus a sliver) at the shaved
+#    chamfer; why it sits below MIN_WALL and what it pins: footprints section.
+BITS_GUIDE_MOUTH_CH = 0.4  # shaved guide mouth chamfer (family 0.5)
+BITS_GUIDE_AF = HEX_AF + HEX_SLIP  # 6.55 across-flats -- the old one-material
+#                                    hex's drop-in socket, proven on printed
+#                                    bases; circumradius 3.782, the same as
+#                                    the land's (HEX_AF + HEX_LAND_FIT)
+BITS_PITCH = (CART_W / 2 - HEX_SOCKET_R - (CART_WALL + BITS_CART_MOUTH_CH)) / (
     (BITS_GRID - 1) / 2
 )
 
@@ -278,13 +320,22 @@ def socket_layout(
     return hex_bores, None, None
 
 
+def box_fits(name: str) -> tuple[float, float, float]:
+    """The per-box deviations from the family's clearances: ``(guide_af,
+    guide_mouth_ch, cart_mouth_ch)``.
+
+    ALLEN keeps the family's numbers outright -- the guide cut at ``GUIDE_FIT``
+    and both mouth chamfers at 0.5. BITS shaves all three, argued under
+    "Footprints" above. The engines take these as parameters; this is the one
+    place that says which box gets which.
+    """
+    if name == "allen":
+        return HEX_AF + GUIDE_FIT, GUIDE_MOUTH_CH, CART_MOUTH_CH
+    return BITS_GUIDE_AF, BITS_GUIDE_MOUTH_CH, BITS_CART_MOUTH_CH
+
+
 __all__ = [
     "ALLEN_BIT_LEN",
-    "ALLEN_CART_W",
-    "ALLEN_CAVITY_W",
-    "ALLEN_COLLAR_W",
-    "ALLEN_COVER_W",
-    "ALLEN_PAD",
     "ALLEN_SIZES",
     "BASE_COLLAR_H",
     "BASE_COLOR",
@@ -292,16 +343,16 @@ __all__ = [
     "BASE_TOTAL_H",
     "BEAD_Z",
     "BITS_BIT_LEN",
-    "BITS_CART_W",
-    "BITS_CAVITY_W",
-    "BITS_COLLAR_W",
-    "BITS_COVER_W",
+    "BITS_CART_MOUTH_CH",
     "BITS_GRID",
-    "BITS_INNER_W",
-    "BITS_PAD",
+    "BITS_GUIDE_AF",
+    "BITS_GUIDE_MOUTH_CH",
     "BITS_PITCH",
+    "BITS_RELIEF_GAP_FLOOR",
     "CAVITY_FLOOR_Z",
     "CAVITY_H",
+    "CART_W",
+    "CAVITY_W",
     "COVER_COLOR",
     "COVER_TIP_CLEARANCE",
     "GROOVE_SEPARATION",
@@ -320,27 +371,26 @@ __all__ = [
     "MARGIN",
     "cover_h_for",
     "socket_layout",
+    "box_fits",
     # re-exported from ``box`` so the hex modules read one config
     "BASE_H",
+    "BODY_W",
     "CAP_H",
     "COLLAR_R",
     "COLLAR_W",
     "COVER_W",
-    "COVER_WALL",
     "CORNER_R",
     "FOOT_C1",
     "FOOT_C3",
     "FOOT_STRAIGHT",
-    "GRID",
+    "HEX_SLIP",
     "INNER_R",
     "LABEL_CHAMFER",
     "LABEL_DEPTH",
     "LABEL_SIZE",
     "PAD",
-    "SLIP",
     "SNAP_GROOVE_R",
     "SNAP_Z",
-    "TOLERANCE",
     "TOP_FILLET",
     "WALL_LABEL_SIZE",
     "cover_height_for",

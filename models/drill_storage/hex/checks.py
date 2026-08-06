@@ -3,17 +3,23 @@
     uv run check drill_storage.hex
 
 The hex boxes are the drill family's two-material design -- rigid base guides,
-TPU insert grips, translucent cover -- cut shorter (30 mm bases) and, for the
-BITS box, wider (2x2). The assertions were ported from the family's
-``drill_storage.checks`` and re-derived against this package's own config: the
-sockets are bored at the right across-flats and cut at exactly the radius the
-layout reserved, the walls and the neighbour gaps hold to the family's budgets,
-the base is the documented height in print pose, the assembled envelope is a
-whole Gridfinity unit, and no part ships a raw sharp edge that is not named.
+TPU insert grips, translucent cover -- cut shorter (30 mm bases). Both are 1x1:
+the ALLEN box keeps the family's clearances outright, the BITS box shaves
+three of them (the two mouth chamfers and the guide fit) to fit sixteen
+sockets in a literal 4x4 grid on the same cartridge, and the argument lives in
+``config.py``'s footprints section. The assertions were ported from the
+family's ``drill_storage.checks`` and re-derived against this package's own
+config: the sockets are bored at the right across-flats and cut at exactly the
+radius the layout reserved, the walls and the neighbour gaps hold to each
+box's budgets, the base is the documented height in print pose, the assembled
+envelope is a whole Gridfinity unit, and no part ships a raw sharp edge that
+is not named.
 
-The BITS box gets three assertions of its own: the 2x2 footprint (83.5 mm pad /
-84.5 mm cover), exactly sixteen sockets in a literal 4x4 grid at the solved
-pitch, and a cover sized to 25 mm bits.
+The BITS box gets assertions of its own: the shared 1x1 footprint, exactly
+sixteen sockets in a literal 4x4 grid at the shaved pitch, and every margin
+the shave trades on -- the flat-face and top-rim walls at CART_WALL (measured
+with the rounded-square SDF, corner sockets included), the land and relief
+gaps between neighbours, and the two mouth gaps.
 
 What this file cannot tell you is whether the grip is right. ``HEX_LAND_FIT``
 is the family's judgement, settled by printed cartridges -- see
@@ -34,14 +40,14 @@ from ...lib.checks import is_solid_at as is_solid_at
 from ...lib.checks import sharp_convex_edges
 from ..box import (
     BASE_H,
+    BODY_W,
     CAP_H,
     HEIGHT_UNIT,
-    PAD,
     SNAP_GROOVE_R,
     SNAP_Z,
     WALL_LABEL_SIZE,
 )
-from ..freepack import worst_slack
+from ..freepack import sdf, worst_slack
 from . import config as c
 from .base import create_base
 from .cover import create_cover, label_fit
@@ -167,7 +173,7 @@ def _hex_base_allow(has_legend: bool) -> tuple:
 
     def on_wall_legend(e) -> bool:
         b = e.bounding_box()
-        half = PAD / 2
+        half = BODY_W / 2
         # In a front/back wall plane -- the only two engrave_row_legend cuts.
         if not (abs(abs(b.min.Y) - half) < 0.05 and abs(abs(b.max.Y) - half) < 0.05):
             return False
@@ -222,35 +228,34 @@ def _socket_cut_r(part: Part, x: float, y: float, z: float) -> float:
 def check_box(
     r: Report,
     name: str,
-    pad: float,
-    cover_w: float,
-    collar_w: float,
-    cavity_w: float,
-    cart_w: float,
     bit_len: float,
     label: str,
     has_legend: bool,
     expected_assembled: float,
     expected_proud: float,
 ) -> None:
-    """Everything that has to hold for one hex box, on its three built parts."""
+    """Everything that has to hold for one hex box, on its three built parts.
+
+    The horizontal envelope is the shared family 1x1 set (``config``); the
+    per-box deviations -- guide across-flats, guide mouth chamfer, cartridge
+    mouth chamfer -- come from ``config.box_fits``.
+    """
+    guide_af, guide_mouth_ch, cart_mouth_ch = c.box_fits(name)
     hex_bores, rows, pos = c.socket_layout(name)
 
     base = create_base(
         hex_bores,
-        pad=pad,
-        collar_w=collar_w,
-        cavity_w=cavity_w,
+        guide_af=guide_af,
+        guide_mouth_ch=guide_mouth_ch,
         rows=rows if has_legend else None,
         hole_pos=pos if has_legend else None,
     )
-    insert = create_insert(hex_bores, cart_w=cart_w)
+    insert = create_insert(hex_bores, mouth_ch=cart_mouth_ch)
     cover_h = c.cover_h_for(bit_len)
-    size, label_z, horizontal = label_fit(cover_h, label, cover_w)
+    size, label_z, horizontal = label_fit(cover_h, label)
     cover = create_cover(
         label,
         cover_h=cover_h,
-        cover_w=cover_w,
         label_size=size,
         label_z=label_z,
         label_horizontal=horizontal,
@@ -265,9 +270,11 @@ def check_box(
         "base is BASE_TOTAL_H tall and sits on z=0 (print pose)",
         f"{bb.size.Z:.2f} mm, min z {bb.min.Z:.3f}",
     )
+    # BODY_W is the pad, so the body, the foot and the cover are all one 1x1
+    # Gridfinity envelope and nothing on the part reaches outside it.
     r.check(
-        abs(bb.size.X - pad) < 0.05 and abs(bb.size.Y - pad) < 0.05,
-        f"base footprint is the box's {pad:.1f} mm Gridfinity pad",
+        abs(bb.size.X - c.BODY_W) < 0.05 and abs(bb.size.Y - c.BODY_W) < 0.05,
+        f"base footprint is the shared {c.BODY_W:.1f} mm 1x1 Gridfinity pad",
         f"{bb.size.X:.2f} x {bb.size.Y:.2f} mm",
     )
     ib = insert.bounding_box()
@@ -283,9 +290,9 @@ def check_box(
         f"{cbb.size.Z:.2f} mm (want {cover_h:.2f})",
     )
     r.check(
-        abs(cbb.size.X - cover_w) < 0.05 and abs(cbb.size.Y - cover_w) < 0.05,
-        "cover is the box's width",
-        f"{cbb.size.X:.2f} mm (want {cover_w:.2f})",
+        abs(cbb.size.X - c.COVER_W) < 0.05 and abs(cbb.size.Y - c.COVER_W) < 0.05,
+        f"cover is the shared {c.COVER_W:.1f} mm width, flush with the base",
+        f"{cbb.size.X:.2f} mm (want {c.COVER_W:.2f})",
     )
 
     # The assembled envelope: a whole Gridfinity unit, matching the docstring.
@@ -360,23 +367,43 @@ def check_box(
     # re-derived from the radii actually cut, against the same cartridge
     # envelope the packer packed into. This is the other half of the same
     # guard: it fails whether the packer under-books the socket or the cutter
-    # grows it.
+    # grows it. Each box checks against its own budgets: ALLEN keeps the
+    # family's (PACK_WALL_CLEARANCE / PACK_HOLE_WALL), BITS the shaved ones:
+    # a wall budget of CART_WALL + cart_mouth_ch (1.2) and the between-socket
+    # rule at the shaved chamfer -- two mouth chamfers plus a sliver (0.5).
+    # BITS_PITCH is derived so the outermost sockets sit exactly on the wall
+    # budget, which is why the edge sockets land at 0.0 slack here; what
+    # actually binds is the top-rim wall, CART_WALL (1.0), measured
+    # separately below. The check stays conservative for the corner sockets:
+    # the SDF charges the true nearest-surface distance, which is the flat
+    # face (the corner arc's nearest point is a tangent point, farther out),
+    # and the hexagon sits inside its circumcircle (config's footprints
+    # section has the argument).
+    if name == "bits":
+        hole_wall = 2 * cart_mouth_ch + 0.1
+        wall_clearance = c.CART_WALL + cart_mouth_ch
+    else:
+        hole_wall = c.PACK_HOLE_WALL
+        wall_clearance = c.PACK_WALL_CLEARANCE
     slack, what = worst_slack(
         [(x, y) for _af, x, y in hex_bores],
         cut,
-        cart_w / 2,
+        c.CART_W / 2,
         c.CART_R,
-        c.PACK_HOLE_WALL,
-        c.PACK_WALL_CLEARANCE,
+        hole_wall,
+        wall_clearance,
     )
     r.check(
         slack >= -PACK_ROUNDING,
         "every socket meets its wall clearance and its neighbours",
         f"tightest {what}, {slack:+.4f} mm over the requirement "
-        f"(wall {c.PACK_WALL_CLEARANCE:.2f}, hole {c.PACK_HOLE_WALL:.2f})",
+        f"(wall {wall_clearance:.2f}, hole {hole_wall:.2f})",
     )
 
-    # The BITS box's whole point: a literal 4x4 grid, so assert it directly.
+    # The BITS box's whole point: a literal 4x4 grid at the shaved pitch, and
+    # every margin the shave trades on, pinned by name (the argument is in
+    # config's footprints section). The radii below are the measured cuts from
+    # the insert, so the reservations and the cuts cannot drift apart.
     if name == "bits":
         xs = sorted({round(x, 3) for _af, x, _y in hex_bores})
         ys = sorted({round(y, 3) for _af, _x, y in hex_bores})
@@ -395,10 +422,79 @@ def check_box(
             f"pitch {c.BITS_PITCH:.3f} mm, measured {pitch_x} x / {pitch_y} y",
         )
 
-    # The guides: bored in the base at GUIDE_FIT -- loose, because the base
-    # guides and the insert grips -- open from the floor to the cavity, and
-    # their mouths clear each other.
-    gr = (c.HEX_AF + c.GUIDE_FIT) / 3**0.5
+        half = c.CART_W / 2
+        positions = [(x, y) for _af, x, y in hex_bores]
+
+        # The top-rim wall is the binding one: the mouth chamfer widens every
+        # bore by BITS_CART_MOUTH_CH radially at the cartridge's top face, so
+        # the wall there is exactly one chamfer thinner than the flat-face
+        # wall -- and BITS_PITCH is derived to land it on CART_WALL. Measured
+        # with the rounded-square SDF, which is the true distance to the wall
+        # surface: every socket's nearest surface is a flat face (the corner
+        # sockets included -- 5.14 mm to the flat face against 6.16 mm to the
+        # corner arc's nearest point, at its tangent points), so the
+        # flat-face budget is exactly what the edge sockets sit on.
+        # The design sits on the floor exactly, so the tolerance is one order
+        # over the bisection the measured radii resolve to (~1e-4 mm) and
+        # float noise, and far under any real regression.
+        top_rim = min(
+            -sdf(x, y, half, c.CART_R) - (rad + cart_mouth_ch)
+            for (x, y), rad in zip(positions, cut)
+        )
+        r.check(
+            top_rim >= c.CART_WALL - 1e-3,
+            "every BITS socket keeps CART_WALL to the cartridge wall at the top rim",
+            f"{top_rim:.3f} mm (want >= {c.CART_WALL:.1f})",
+        )
+
+        # The land is the narrowest cut (HEX_LAND_FIT), so the material
+        # between neighbours at the land is the second binding gap, and it
+        # holds the printable floor.
+        land_gap = min(
+            math.dist(positions[i], positions[j]) - 2 * land_r
+            for i, j in itertools.combinations(range(len(positions)), 2)
+        )
+        r.check(
+            land_gap >= MIN_WALL - TOL,
+            "BITS lands keep MIN_WALL of TPU between neighbours",
+            f"{land_gap:.3f} mm (want >= {MIN_WALL:.1f})",
+        )
+
+        # The relief is the widest cut (RELIEF_FIT), so at the relief z the
+        # material between neighbours is thinner than at the land -- and no
+        # other check watches it: the land check samples the land z, so a
+        # wider RELIEF_FIT eats this gap while the land still holds MIN_WALL.
+        # It holds the family's between-socket floor instead, measured off
+        # the solid like the mouth check (config.BITS_RELIEF_GAP_FLOOR; the
+        # argument is in config's footprints section).
+        relief_gap = min(
+            math.dist(positions[i], positions[j]) - cut[i] - cut[j]
+            for i, j in itertools.combinations(range(len(positions)), 2)
+        )
+        r.check(
+            relief_gap >= c.BITS_RELIEF_GAP_FLOOR - TOL,
+            "BITS relief bores keep the between-socket floor between neighbours",
+            f"{relief_gap:.3f} mm (want >= {c.BITS_RELIEF_GAP_FLOOR:.2f})",
+        )
+
+        # Cartridge mouths: two neighbouring lead-ins must not merge -- the
+        # gap between the chamfered mouths, p - 2 x (r + chamfer), keeps a
+        # 0.1 mm sliver (the same rule as the family's PACK_HOLE_WALL, written
+        # out by name because the shaved chamfer is the whole point here).
+        mouth_gap = min(
+            math.dist(positions[i], positions[j]) - cut[i] - cut[j] - 2 * cart_mouth_ch
+            for i, j in itertools.combinations(range(len(positions)), 2)
+        )
+        r.check(
+            mouth_gap >= 0.1 - TOL,
+            "neighbouring BITS cartridge mouths keep a 0.1 mm sliver",
+            f"{mouth_gap:.3f} mm",
+        )
+
+    # The guides: bored in the base at the box's guide across-flats -- loose,
+    # because the base guides and the insert grips -- open from the floor to
+    # the cavity, and their mouths clear each other.
+    gr = guide_af / 3**0.5
     z_mid = c.GUIDE_FLOOR_Z + c.GUIDE_H / 2
     ok = all(
         not is_solid_at(base, x + gr - PROBE, y, z_mid)
@@ -407,7 +503,7 @@ def check_box(
     )
     r.check(
         ok,
-        f"all {len(hex_bores)} guides bored to {c.HEX_AF:g} mm across-flats (+GUIDE_FIT)",
+        f"all {len(hex_bores)} guides bored at {guide_af:g} mm across-flats",
         f"circumradius {gr:.3f} mm, sampled z={z_mid:.1f}",
     )
     open_span = all(
@@ -437,7 +533,7 @@ def check_box(
         gap = math.dist((x1, y1), (x2, y2)) - r1 - r2
         if gap < worst:
             worst, worst_key = gap, f"{k1}<->{k2}"
-    mouth_budget = 2 * c.GUIDE_MOUTH_CH + 0.1
+    mouth_budget = 2 * guide_mouth_ch + 0.1
     r.check(
         worst >= mouth_budget - TOL,
         "neighbouring guide mouths do not run into each other",
@@ -448,9 +544,9 @@ def check_box(
     # wall this check protects is the base's outer wall, not the cavity's.
     reach = max(max(abs(x), abs(y)) + gr for _af, x, y in hex_bores)
     r.check(
-        reach + MIN_WALL <= pad / 2 + TOL,
+        reach + MIN_WALL <= c.BODY_W / 2 + TOL,
         "every guide keeps a printable wall to the base's outer wall",
-        f"reach {reach:.2f} of {pad / 2:.2f} mm",
+        f"reach {reach:.2f} of {c.BODY_W / 2:.2f} mm",
     )
 
     # The ALLEN wall legend: the keys on one line must not collide, and the
@@ -491,7 +587,8 @@ def check_box(
         f"{len(bad_insert)} found" if bad_insert else "none, no exceptions",
     )
     bad_cover = sharp_convex_edges(
-        cover, allow=_cover_allow(label, size, label_z, cover_h, horizontal, cover_w)
+        cover,
+        allow=_cover_allow(label, size, label_z, cover_h, horizontal, c.COVER_W),
     )
     r.check(
         not bad_cover,
@@ -517,11 +614,6 @@ def run() -> Report:
     check_box(
         r,
         "allen",
-        c.ALLEN_PAD,
-        c.ALLEN_COVER_W,
-        c.ALLEN_COLLAR_W,
-        c.ALLEN_CAVITY_W,
-        c.ALLEN_CART_W,
         c.ALLEN_BIT_LEN,
         "ALLEN",
         True,
@@ -531,11 +623,6 @@ def run() -> Report:
     check_box(
         r,
         "bits",
-        c.BITS_PAD,
-        c.BITS_COVER_W,
-        c.BITS_COLLAR_W,
-        c.BITS_CAVITY_W,
-        c.BITS_CART_W,
         c.BITS_BIT_LEN,
         "BITS",
         False,

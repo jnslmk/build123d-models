@@ -26,14 +26,16 @@ uv run check drill_storage.wood         # geometry assertions for one set
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per set: the assembled scene, plus `shell`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
-| [`hex/`](hex/README.md) | `drill_storage.hex` — the two-material 16-piece ¼″ driver-bit set: rigid base + TPU insert + translucent cover. Both boxes: the ALLEN 1x1 keeps 8 sockets, the BITS 2x2 spreads 16 across a 4x4 grid. |
+| [`hex/`](hex/README.md) | `drill_storage.hex` — the two-material 16-piece ¼″ driver-bit set: rigid base + TPU insert + translucent cover. Both boxes 1x1: the ALLEN box keeps 8 sockets, the BITS box shaves its lead-in clearances to spread 16 across a 4x4 grid. |
 
 Adding a fourth set is a `DrillSet` in `sets.py` and a package copied from
 `wood/`. Nothing in the geometry has to know about it.
 
 ## How the parts hold together
 
-**Shell → cover.** A 41.5 mm body steps down to a 39.2 mm collar that plugs into
+**Shell → cover.** A 41.5 mm body — one Gridfinity pad, and the cover's width
+too, so the two are flush with no lip at the seam — steps down to a 39.2 mm
+collar that plugs into
 the cover's bore on a 0.4 mm diametral slip fit, and a ramped bead inside the
 cover clicks into a rounded groove on the collar. The bead is asymmetric on
 purpose: a long gentle lead-in below the tip so the cover slides on
@@ -85,7 +87,7 @@ No supports anywhere. Every part comes off `create()` in its print pose.
 Cover heights are quantised: `cover_height_for()` picks the smallest whole
 Gridfinity Z unit (7 mm) that still swallows the longest tool standing on the
 shell floor, so the assembled holder always sits on a unit boundary — 19U for
-wood, 23U for metal and stone. **The covers are interchangeable**, because
+wood, 21U for metal, 23U for stone. **The covers are interchangeable**, because
 every shell keeps the same seat height; a taller one simply leaves more air.
 
 ## Assembly
