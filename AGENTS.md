@@ -19,17 +19,16 @@ Two things follow from that and are not optional:
 
 ### Build only what changed
 
-`uv run python main.py` builds and exports **every** model in the roster. That is
-many minutes of OCC work, and CI runs it on every push anyway, so spending it
-locally to re-export forty models you did not touch is wasted time.
-
-Default to the per-model commands — they take the same model names as everything
-else, so `uv run export drill_storage.flex.shell` builds exactly that part:
+`uv run python main.py` is incremental and parallel, so running it is cheap even
+though the roster takes minutes from cold. It fingerprints each model over its
+own import closure plus the build's global inputs, keeps the result in
+`exports/.build-stamps.json`, and rebuilds only what a change can actually reach
+— then builds those across a process pool, longest job first.
 
 ```bash
-uv run check <model>     # geometry assertions
-uv run export <model>    # STL + STEP + GLB
-uv run render <model>    # SVG, no viewer needed
+uv run python main.py            # build whatever is stale
+uv run python main.py --list     # show the plan, build nothing
+uv run python main.py --all      # ignore the stamps and rebuild the roster
 ```
 
 **Rebuild the model you changed *and everything that imports what you changed.***
@@ -42,24 +41,34 @@ cut from shared engines:
 - `led_profiles/config.py` and `led_psu_enclosure/config.py` likewise feed every
   part and assembly in their packages.
 
-So: touching one model's own module means rebuilding that model. Touching a
-`box.py`, a `config.py`, or anything in `models/lib/` means rebuilding the family
-— and finding that family by `grep`, not from memory:
+You no longer have to work that blast radius out by hand — `model_deps` walks the
+import graph, which is what `main.py` selects on and what `uv run deps` reports:
 
 ```bash
-grep -rlE --include=*.py '(\.)+box import|drill_storage\.box' models/
+uv run deps models/lib/edges.py          # 33 of 41 models
+uv run deps models/cube.py               # just cube
+uv run deps --files led_profiles.stand   # the other direction
 ```
 
-Note the `--include=*.py` and the alternation. A narrower pattern like
-`from .box import` finds 5 files where the real answer is 17 — it misses both the
-`from ..box import` used one level down and the `from ..drill_storage.box import`
-that every `drill_fit_tester` coupon uses to reach across packages. Without
-`--include`, stale `__pycache__/*.pyc` inflate the count instead.
+Prefer that over a `grep`. The obvious pattern is wrong in two directions: `from
+.box import` finds 5 files where the real answer is 17, missing both the `from
+..box import` used one level down and the `from ..drill_storage.box import` that
+every `drill_fit_tester` coupon uses to reach across packages — and without
+`--include=*.py`, stale `__pycache__/*.pyc` inflate the count instead.
 
-Run the full `main.py` when the blast radius is genuinely wide (a `models/lib/`
-change, a rename across packages, a new entry in `tessellate_models.MODELS`) or
-when you want the same signal CI will give you before you push. Otherwise the
-per-model commands plus `ruff` and `ty` are enough, and CI is the backstop.
+The per-model commands are still the fastest loop while iterating on one part,
+and they take the same names as everything else:
+
+```bash
+uv run check <model>     # geometry assertions
+uv run export <model>    # STL + STEP + GLB
+uv run render <model>    # SVG, no viewer needed
+```
+
+Reach for `--all` when you have a reason to distrust the stamps — a change to
+something the fingerprint deliberately ignores, or a suspicion that an export on
+disk is not what its source would produce now. CI takes the same escape hatch:
+run the workflow manually with **force_rebuild** ticked.
 
 ## Commands
 
@@ -86,15 +95,23 @@ uv run check cube
 # Build ONE model (this is the one to reach for -- see "Build only what changed")
 uv run export cube
 
-# Build all models -- slow (many minutes). CI does this on every push, so you
-# rarely need to; see "Build only what changed" for when you do.
+# Build every stale model, in parallel. Cheap when little changed, minutes from
+# cold; --all forces the whole roster. See "Build only what changed".
 uv run python main.py
+uv run python main.py --list          # what it would build, and why
+
+# Which models a change reaches (this is what main.py selects on)
+uv run deps models/lib/edges.py
+uv run deps --files led_profiles.stand
 
 # Lint
 uv run ruff check .
 
 # Type check
 uv run ty check .
+
+# Tests
+uv run python -m unittest discover -s tests -t .
 
 # Query selection buffer (elements clicked in viewer)
 uv run selection                      # JSON output + human summary
@@ -116,9 +133,12 @@ This is a collection of 3D printable models using build123d (Python CAD library)
 
 - `models/` - The models themselves, one module or one package each (see **Model Structure**)
 - `models/lib/` - Helpers shared *across* models: `edges`, `checks`, `fits`
-- `exports/` - Generated STL / STEP / GLB / render assets (not tracked in git)
+- `exports/` - Generated STL / STEP / GLB / render assets (not tracked in git),
+  plus `.build-stamps.json`, the per-model fingerprints that make the build
+  incremental — CI caches this whole directory, so deleting it costs a full rebuild
 - `tessellate_models.py` - `MODELS`, the one roster the website, CI and `main.py` read
-- `main.py` - Builds and exports every model in `MODELS`
+- `main.py` - Builds and exports the stale models in `MODELS`, in parallel
+- `model_deps.py` - The import graph `main.py` decides staleness from, and `uv run deps`
 - `show.py` / `export_model.py` / `check.py` / `render_svg.py` - the `uv run` entry points
 - `website.py` - Builds the static site bundle from `MODELS`
 

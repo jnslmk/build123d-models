@@ -63,11 +63,17 @@ uv run export cube                    # STL (+ per-child STLs, + GLB)
 uv run export cube --step             # also STEP
 ```
 
-All of them:
+All of them — incremental, so this only rebuilds what your change can reach, and
+builds those in parallel:
 
 ```bash
-uv run python main.py
+uv run python main.py            # whatever is stale
+uv run python main.py --list     # what that would be, and why
+uv run python main.py --all      # the whole roster regardless
 ```
+
+`uv run deps <path>` answers the same question on its own, if you just want to
+know what a file feeds into.
 
 ## Checking
 
@@ -87,7 +93,7 @@ models/lib/      helpers shared across models (edges, checks, fits)
 exports/         generated STL / STEP / GLB / renders (untracked)
 website/         the static Pyodide site
 docs/plans/      design documents
-tests/           pytest suite
+tests/           unittest suite (uv run python -m unittest discover -s tests -t .)
 ```
 
 A model is either a **single file** (`models/cube.py`) or a **package**
