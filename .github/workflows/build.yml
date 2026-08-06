@@ -163,11 +163,31 @@ jobs:
       # up, and that queue is the whole cost of this job: the tar and upload
       # above take seconds, the file sync at the far end takes seconds, and
       # everything between is `deployment_queued`. That wait has been anywhere
-      # from 11s to 9m31s on consecutive pushes, and the action's default
-      # timeout is 10 minutes -- close enough that a slightly slower queue turns
-      # a perfectly good build into a red one. Nothing here can shorten the
-      # wait, so just refuse to give up on it.
+      # from 11s to the full ten minutes on consecutive pushes of the same
+      # artifact, which is long enough to fail a build with nothing wrong.
+      #
+      # **Ten minutes is not ours to raise.** The action clamps its own `timeout`
+      # input: `MAX_TIMEOUT = 600000` in src/internal/deployment.js, applied as
+      # `Math.min(timeoutInput, MAX_TIMEOUT)`. A `timeout: 1800000` used to sit
+      # here, and the run after it logged
+      #
+      #     Warning: timeout value is greater than the allowed maximum --
+      #     timeout set to the maximum of 600000 milliseconds.
+      #
+      # then failed at 10m04s, exactly as it would have with no input at all.
+      # There is no value that buys a longer wait, so do not put one back.
+      #
+      # Take the ten minutes twice instead. A timed-out attempt cancels only its
+      # own deployment and leaves the uploaded artifact alone, so a second
+      # `deploy-pages` opens a fresh deployment against the same bytes -- and a
+      # queue busy enough to swallow one attempt is usually clear by the next.
+      # Two timeouts running is Pages actually being down, and still fails the
+      # job, which is what red should mean here: `main` is the published site.
       - name: Deploy to GitHub Pages
+        id: deploy
         uses: actions/deploy-pages@v5
-        with:
-          timeout: 1800000
+        continue-on-error: true
+
+      - name: Deploy to GitHub Pages (second attempt)
+        if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v5
