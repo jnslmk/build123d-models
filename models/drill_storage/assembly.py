@@ -18,9 +18,16 @@ from build123d import Compound, Pos, Rotation
 from . import config as c
 from .cover import create_cover_for
 from .insert import create_insert_for
-from .sets import DrillSet
+from .sets import DrillSet, StepDrill
 from .shell import create_shell_for
-from .tools import CARBIDE, COVER_GLASS, STEEL, create_drill, create_hex_tool
+from .tools import (
+    CARBIDE,
+    COVER_GLASS,
+    STEEL,
+    create_drill,
+    create_hex_tool,
+    create_step_drill,
+)
 
 
 def create_assembly(drill_set: DrillSet) -> Compound:
@@ -44,14 +51,21 @@ def create_assembly(drill_set: DrillSet) -> Compound:
         tools.append(Pos(x, y, c.GUIDE_FLOOR_Z) * bit)
 
     for (af, x, y), spec in zip(drill_set.hex_bores, drill_set.hex_tools):
-        tool = create_hex_tool(af, spec.length, head_d=spec.head_d)
+        if isinstance(spec, StepDrill):
+            tool = create_step_drill(
+                af, spec.length, spec.shank_len, spec.d_min, spec.head_d, spec.step
+            )
+        else:
+            tool = create_hex_tool(af, spec.length, head_d=spec.head_d)
         tool.label = f"hex_{spec.key.lower()}"
         tool.color = STEEL
-        # Shank-end on the shell floor, same as every drill: a hex socket 31.2 mm
-        # deep no longer swallows a 40 mm shank, so the tool bottoms out and its
-        # head stands proud rather than resting on the top face. The collar still
-        # grips the shank, and the cover has room to spare.
-        tools.append(Pos(x, y, c.GUIDE_FLOOR_Z) * tool)
+        # Where a hex tool stops is arithmetic, not a choice -- ``HexTool.seat_z``
+        # owns it. A shank longer than the 31.2 mm socket bottoms out on the ASA
+        # floor like every drill; a shorter one hangs by its head on the
+        # cartridge's top face with its shank dangling in the socket. The scene
+        # draws whichever the tool's own shank length makes true, which is the
+        # point of drawing it at all.
+        tools.append(Pos(x, y, spec.seat_z) * tool)
 
     # create_cover returns print pose (pillow on the bed, mouth up); flip it back
     # and seat it on the shoulder, translucent so the tools read through it.

@@ -157,6 +157,7 @@ def create_shell(
     hex_bores: Sequence[tuple[float, float, float]] | None = None,
     rows: Sequence[Sequence[str]] | None = None,
     hole_pos: Mapping[str, tuple[float, float]] | None = None,
+    label_line_h: float | None = None,
 ) -> Part:
     """The ASA shell: Gridfinity foot, body, collar, guide bores, and the cavity.
 
@@ -170,6 +171,11 @@ def create_shell(
     (``{key: (x, y)}``) come straight from ``layout_bores`` and engrave the size
     legend into the body walls. The cartridge is keyed so the legend can only ever
     be read against the layout it describes.
+
+    ``label_line_h`` is the legend's row pitch; ``None`` takes the default. A set
+    laid out without rows packs its labels into more lines than a row layout ever
+    needs, and has to hand its own pitch in so the block still fits the wall --
+    ``box.wall_label_line_h`` is what works that out.
 
     Returned in print pose: foot on ``z=0``, cavity mouth up.
     """
@@ -222,7 +228,7 @@ def create_shell(
         )
 
         if rows and hole_pos:
-            engrave_row_legend(rows, hole_pos, WALL_LABEL_Z)
+            engrave_row_legend(rows, hole_pos, WALL_LABEL_Z, label_line_h)
     return shell.part
 
 
@@ -239,6 +245,7 @@ def create_shell_for(drill_set: DrillSet) -> Part:
         hex_bores=drill_set.hex_bores,
         rows=drill_set.rows,
         hole_pos=drill_set.pos,
+        label_line_h=drill_set.legend_line_h,
     )
     shell.label = f"shell_asa_{drill_set.name}"
     shell.color = c.SHELL_COLOR

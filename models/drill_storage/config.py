@@ -226,7 +226,8 @@ LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP + LAND
 # SHELL_WALL, not from here.
 RELIEF_FIT = fits.for_material(fits.SLIDING, CART_MATERIAL)
 
-# The hex land, for a countersink's or a tap's shank. It gets its own constant
+# The hex land, for a countersink's, a tap's or a step drill's shank. It gets
+# its own constant
 # because a hex land bears on flats rather than on a curved wall, and full
 # flat-on-flat contact is grabbier per mm of engagement -- the ribbed design
 # found the same thing from the other side, wanting more interference on the hex

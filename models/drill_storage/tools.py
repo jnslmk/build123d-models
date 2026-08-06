@@ -6,8 +6,8 @@ foul its neighbour, does a countersink's head land where the layout reserved roo
 for it. Overall length is the one dimension that is taken seriously, because it
 is the one the cover height is derived from.
 
-Three point styles, because the three sets do not look alike and the difference
-is not decoration:
+Three drill point styles, because the three sets do not look alike and the
+difference is not decoration:
 
 * ``brad``    -- a conical point with a slim centre spur (wood).
 * ``twist``   -- a plain conical point (metal).
@@ -121,10 +121,51 @@ def create_hex_tool(
     return tool.part
 
 
+def create_step_drill(
+    across_flats: float,
+    length: float,
+    shank_len: float,
+    d_min: float,
+    d_max: float,
+    step: float = 2.0,
+) -> Part:
+    """A step drill: a hex shank under a cone of stacked cylindrical steps.
+
+    Drawn **widest at the bottom**, which is the whole reason it is not a
+    ``create_hex_tool`` head: a countersink's cone flares upward and a step
+    drill's tapers upward, and the difference lands exactly where the question
+    is -- at tray level, among the other bits' bodies.
+
+    The rungs are cosmetic; the envelope is not. What the scene has to get right
+    is ``d_max`` at the shoulder, ``d_min`` at the tip, and the shoulder's height
+    (``shank_len`` above the shank end), because those are what the layout
+    reserved room for and what the cover has to clear.
+    """
+    shank_h = shank_len or length
+    body_h = length - shank_h
+    n = max(1, round((d_max - d_min) / step) + 1)
+    rung_h = body_h / n
+
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY):
+            RegularPolygon(across_flats / 3**0.5, 6)
+        extrude(amount=shank_h)
+        for i in range(n):
+            # Biggest step at the bottom, against the shoulder that carries the
+            # tool's weight on the cartridge's top face.
+            d = d_max - i * (d_max - d_min) / max(n - 1, 1)
+            with Locations((0, 0, shank_h + i * rung_h)):
+                Cylinder(
+                    d / 2, rung_h, align=(Align.CENTER, Align.CENTER, Align.MIN)
+                )
+    return tool.part
+
+
 __all__ = [
     "CARBIDE",
     "COVER_GLASS",
     "STEEL",
     "create_drill",
     "create_hex_tool",
+    "create_step_drill",
 ]

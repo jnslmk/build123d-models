@@ -7,7 +7,7 @@ grips, and a tall labelled **PETG cover** that snaps over the collar.
 ```bash
 uv run show drill_storage               # the family: three shells, three covers
 uv run show drill_storage.wood          # 2-10 mm brad-point set + countersink
-uv run show drill_storage.metal         # 1-10 mm HSS twist set + hex tap
+uv run show drill_storage.metal         # 1-10 mm HSS twist + tap + step drill
 uv run show drill_storage.stone         # 3-10 mm carbide masonry set
 uv run show drill_storage.hex           # 16-piece 1/4" hex-shank bit set
 uv run export drill_storage.wood.shell  # STL + STEP for the slicer
@@ -21,6 +21,7 @@ uv run check drill_storage.wood         # geometry assertions for one set
 | `box.py` | **The engine.** Gridfinity constants, hole packing, wall legends, `create_cover`, and the one-material `create_base`. Not a model. |
 | `config.py` | Every clearance, shared by all three sets: the guide fit, the land fit, the relief, the snap. No geometry. |
 | `sets.py` | **The three sets**, side by side: sizes, lengths, cover label, shank allowance. The only thing a variant decides. |
+| `freepack.py` | The layout solver for the one set `pack_rows` cannot lay out in rows. Run by hand; its answer is frozen in `sets.py`. |
 | `shell.py` / `insert.py` / `cover.py` | The three parts, set-agnostic. Hand them a `DrillSet`. |
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |

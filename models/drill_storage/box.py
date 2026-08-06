@@ -126,6 +126,25 @@ WALL_LABEL_DEPTH = 0.8  # engrave depth -- deep enough to stay legible under lay
 WALL_LABEL_STYLE = FontStyle.BOLD  # bold: ~1 mm strokes + a 0.7 mm decimal point,
 #                         so the fine features survive an FDM nozzle in ABS
 WALL_LABEL_MAX_LAT = PAD / 2 - CORNER_R - 1.0  # keep numbers off the rounded corners
+# How far above and below WALL_LABEL_Z the block of lines may reach. The body
+# wall runs BASE_H (4.4) to FOOT_TOP (24); this keeps the glyphs off both ends,
+# the foot's chamfer below and the cover's seat above.
+WALL_LABEL_BAND = 7.5
+
+
+def wall_label_line_h(n_lines: int) -> float:
+    """Row pitch for ``n_lines`` of legend, so the block still lands on the wall.
+
+    Three lines get the comfortable default -- the pitch every set built from
+    ``pack_rows`` has always used, and this returns exactly that for n <= 3 so
+    none of them moves. A fourth line only appears under a free layout, whose
+    labels are packed rather than read off rows, and it has to be squeezed: at
+    the default 5.6 mm pitch the bottom line lands on the Gridfinity foot.
+    """
+    default = WALL_LABEL_SIZE + 1.6
+    if n_lines < 2:
+        return default
+    return min(default, 2 * WALL_LABEL_BAND / (n_lines - 1))
 
 # --- Automatic hole layout ----------------------------------------------------
 # Spacing budget handed to ``pack_rows`` (see ``layout_bores``). HOLE_WALL is the

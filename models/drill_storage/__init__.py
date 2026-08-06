@@ -8,7 +8,7 @@ Every holder here is the same idea, cut for a different set of tools: a rigid
 
     uv run show drill_storage              # all three sets, shells and covers
     uv run show drill_storage.wood         # 2-10 mm brad-point set + countersink
-    uv run show drill_storage.metal        # 1-10 mm HSS twist set + hex tap
+    uv run show drill_storage.metal        # 1-10 mm twist + tap + step drill
     uv run show drill_storage.stone        # 3-10 mm carbide masonry set
     uv run show drill_storage.hex          # 16-piece 1/4" hex-shank bit set
     uv run show drill_storage.wood.insert  # just the TPU cartridge, print pose

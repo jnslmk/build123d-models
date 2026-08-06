@@ -36,18 +36,24 @@ from . import config as c
 from . import hex as hex_mod
 from . import sets
 from .box import (
+    BASE_H,
     CAP_H,
     COVER_W,
     FOOT_TOP,
     HEIGHT_UNIT,
     HEX_SLIP,
+    INNER_R,
+    INNER_W,
     PAD,
     SNAP_GROOVE_R,
     SNAP_Z,
+    WALL_LABEL_SIZE,
+    WALL_LABEL_Z,
     cover_height_for,
     create_base,
     create_cover,
 )
+from .freepack import sdf, worst_slack
 from .cover import create_cover_for
 from .insert import _hex_r, create_insert_for
 from .sets import DrillSet
@@ -59,6 +65,11 @@ PROBE = 0.08  # how far either side of a modelled radius we sample for material
 # feature does not slice as a wall at all, it merges with its neighbour. The same
 # figure is the floor for a *hole*: under two extrusions wide, a bore closes up.
 MIN_WALL = 0.8
+
+# Air between two steel tools standing in the tray. Not a printed wall, so it is
+# not MIN_WALL: nothing has to slice here, the tools only have to not touch, and
+# each is already located by its own socket. Enough to get a hand between them.
+TOOL_CLEARANCE = 0.5
 
 
 def _bore_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
@@ -391,6 +402,143 @@ def check_bore_spacing(s: DrillSet, r: Report) -> None:
     )
 
 
+def _packing_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
+    """What the *packer* had to fit, as ``(key, radius, x, y)``.
+
+    Not ``_bore_footprints``: for a hex tool this is whichever is wider, its head
+    or its relieved socket. The two differ by a factor of three on a step drill
+    -- a 20 mm body over a 6.3 mm socket -- and it is the head that decides
+    whether the layout was possible.
+    """
+    items = [(f"{d:g}", c.relieved_bore_r(d), x, y) for d, x, y in s.bores]
+    items += [
+        (t.key, max(t.head_d / 2, _hex_r(af, c.RELIEF_FIT)), x, y)
+        for t, (af, x, y) in zip(s.hex_tools, s.hex_bores)
+    ]
+    return items
+
+
+def check_layout(s: DrillSet, r: Report) -> None:
+    """A layout meets the packer's contract however it was arrived at.
+
+    ``pack_rows`` enforces this itself, so for two of the three sets this is a
+    restatement. For the one with an explicit ``layout`` it is the whole
+    guarantee: those coordinates come out of ``freepack`` and are frozen into
+    ``sets.py`` as literals, and a literal that nothing re-derives is exactly the
+    kind of number this package does not allow. So it is re-derived here, against
+    the same walls and gaps the row packer would have had to meet -- and against
+    the *packing* footprints, which is where a head three times its socket shows
+    up at all.
+    """
+    r.section(f"{s.name}: layout")
+    items = _packing_footprints(s)
+    slack, what = worst_slack(
+        [(x, y) for _k, _rad, x, y in items],
+        [rad for _k, rad, _x, _y in items],
+        c.PACK_HALF_W,
+        c.PACK_CORNER_R,
+        c.PACK_HOLE_WALL,
+        c.PACK_WALL_CLEARANCE,
+    )
+    r.check(
+        slack >= -TOL,
+        "every footprint meets its wall and its neighbours"
+        + (" (explicit layout)" if s.layout else " (packed in rows)"),
+        f"tightest {what}, {slack:+.2f} mm over the requirement",
+    )
+    r.check(
+        len(set(s.pos)) == len(s.bores) + len(s.hex_bores),
+        "the layout places every hole exactly once",
+        f"{len(s.pos)} keys for {len(s.bores)} bores + {len(s.hex_bores)} sockets",
+    )
+    # The legend is engraved line by line at each hole's own x, so two labels on
+    # one line must not overlap -- and the block must still land on the body wall.
+    for line in s.rows:
+        xs = sorted((s.pos[k][0], k) for k in line)
+        for (x1, k1), (x2, k2) in zip(xs, xs[1:]):
+            half = 0.31 * WALL_LABEL_SIZE * (len(k1) + len(k2))
+            r.check(
+                x2 - x1 >= half - TOL,
+                f"legend labels {k1!r} and {k2!r} do not collide",
+                f"{x2 - x1:.2f} mm apart, need {half:.2f}",
+            )
+    block = (len(s.rows) - 1) * s.legend_line_h / 2 + WALL_LABEL_SIZE * 0.75 / 2
+    r.check(
+        WALL_LABEL_Z - block >= BASE_H + TOL and WALL_LABEL_Z + block <= FOOT_TOP + TOL,
+        f"the {len(s.rows)}-line legend block fits the body wall",
+        f"{WALL_LABEL_Z - block:.2f} to {WALL_LABEL_Z + block:.2f} mm "
+        f"of {BASE_H:.1f}-{FOOT_TOP:.1f}, pitch {s.legend_line_h:.1f}",
+    )
+
+
+def check_hex_tools(s: DrillSet, r: Report) -> None:
+    """A hex tool is held by the same land the drills are, or it is held by
+    nothing -- and a head wider than its socket has to clear what it sits over.
+
+    Nothing else checks this. ``check_bore_spacing`` walks the *sockets*, so a
+    step drill's 20 mm body is invisible to it, and the land engagement is a
+    property of the tool's shank rather than of any cut geometry.
+    """
+    if not s.hex_tools:
+        return
+    r.section(f"{s.name}: hex tools")
+    land_top = c.CAVITY_FLOOR_Z + c.LAND_H
+    for t in s.hex_tools:
+        r.check(
+            t.seat_z <= c.CAVITY_FLOOR_Z + TOL and t.seat_z + t.shank >= land_top - TOL,
+            f"{t.key}: the shank spans the whole grip land",
+            f"shank {t.seat_z:.1f}-{t.seat_z + t.shank:.1f} mm over a land at "
+            f"{c.CAVITY_FLOOR_Z:.1f}-{land_top:.1f}",
+        )
+        r.check(
+            t.seat_z + t.shank >= c.CART_TOP_Z - TOL,
+            f"{t.key}: the head stops at the top face, never inside the socket",
+            f"shank ends at {t.seat_z + t.shank:.1f} mm, cartridge top "
+            f"{c.CART_TOP_Z:.1f}",
+        )
+        if t.head_d <= 0.0:
+            continue
+        # The head lives above the tray, where the bounding wall is the cover's
+        # bore rather than the cartridge -- so this is the one clearance that is
+        # measured against the cover. Against the *rounded square* it really is,
+        # not a circle through its flats: a head parked near a corner has another
+        # 2.8 mm of diagonal to use, and the wood set's countersink uses it.
+        x, y = s.pos[t.key]
+        clear = -sdf(x, y, INNER_W / 2, INNER_R) - t.head_d / 2
+        r.check(
+            clear >= TOOL_CLEARANCE - TOL,
+            f"{t.key}: the head clears the cover bore",
+            f"{clear:.2f} mm to the bore (min {TOOL_CLEARANCE})",
+        )
+        # ...and it must clear every tool tall enough to still be there.
+        head_z = t.seat_z + t.shank
+        others = [
+            (f"{d.nominal:g}", d.nominal / 2, bore[1], bore[2])
+            for d, bore in zip(s.drills, s.bores)
+            if c.GUIDE_FLOOR_Z + d.length > head_z
+        ]
+        others += [
+            (
+                o.key,
+                max(o.head_d / 2, o.across_flats / 3**0.5),
+                s.pos[o.key][0],
+                s.pos[o.key][1],
+            )
+            for o in s.hex_tools
+            if o.key != t.key and o.seat_z + o.length > head_z
+        ]
+        worst_key, worst = "nothing above it", math.inf
+        for key, rad, ox, oy in others:
+            gap = math.dist((x, y), (ox, oy)) - t.head_d / 2 - rad
+            if gap < worst:
+                worst, worst_key = gap, key
+        r.check(
+            worst >= TOOL_CLEARANCE - TOL,
+            f"{t.key}: the head clears every tool standing beside it",
+            f"worst {worst_key} = {worst:.2f} mm (min {TOOL_CLEARANCE})",
+        )
+
+
 def check_land(s: DrillSet, insert: Part, r: Report) -> None:
     """The grip itself: the land is where it is modelled, and it is tighter than
     the relief above it. This is the one thing point-sampling can prove."""
@@ -663,6 +811,8 @@ def check_set(s: DrillSet, r: Report) -> None:
 
     check_envelope(s, shell, insert, r)
     check_cover_interface(s, cover, r)
+    check_layout(s, r)
+    check_hex_tools(s, r)
     check_bore_spacing(s, r)
     check_guides(s, shell, r)
     check_land(s, insert, r)
