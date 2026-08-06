@@ -220,6 +220,36 @@ LAND_EXTRA_GRIP = 0.10
 LAND_EASE = 0.05  # opened by this much from the first printed cartridge
 LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP + LAND_EASE
 
+# --- Small-bore undersize taper ----------------------------------------------
+# The land *exploits* the printer's hole undersize as its interference: a bore
+# modelled at nominal arrives 0.1-0.3 mm small (measured 0.24 mm at 5 mm, rule 4
+# of fdm-fits-and-clearances), and that undersize is the grip. The catch is that
+# the undersize is a roughly constant absolute offset, so its bite scales
+# inversely with the hole: 0.25 mm is 2.5% of a 10 mm bore and 25% of a 1 mm one.
+# Below about 4 mm a small land stops being a press fit and becomes a wall the
+# drill cannot enter at all -- the metal set's 1 and 1.5 mm bores printed tight
+# enough that the bits would not go in.
+#
+# So below ``SMALL_BORE_COMP_THRESHOLD`` the land is eased by a linear taper:
+# ``SMALL_BORE_COMP_SLOPE`` mm of extra diametral clearance per millimetre the
+# hole falls short of the threshold -- +0.30 at 1 mm, +0.20 at 2 mm, +0.10 at
+# 3 mm, nothing at 4 mm and up. At the smallest end that returns the whole
+# measured undersize, which is the point: the bores that cannot be entered at
+# all are the ones that get the most. The slope is deliberately modest and is a
+# calibration knob, not a law -- the taper trades grip for insertability on
+# exactly the sizes that need it, and a set opts in via
+# ``DrillSet.small_bore_comp`` rather than every set carrying it. Raise the
+# slope if a small bore still refuses a bit; drop it if one rattles.
+SMALL_BORE_COMP_THRESHOLD = 4.0  # mm; at and below this, ease the land
+SMALL_BORE_COMP_SLOPE = 0.10  # mm of extra diametral clearance per mm below
+
+
+def small_bore_comp(d: float) -> float:
+    """Extra diametral clearance for a bore of diameter ``d`` under the
+    small-bore taper: ``0`` at the threshold and above, growing linearly below."""
+    return max(0.0, SMALL_BORE_COMP_SLOPE * (SMALL_BORE_COMP_THRESHOLD - d))
+
+
 # Sliding fit, TPU -- the relief above the land. It carries no grip at all, only
 # guidance, so what it wants is to be as loose as the space allows: any drag up
 # here is friction the user pays on every insertion and gets no retention back
@@ -351,6 +381,15 @@ def relieved_bore_r(d: float) -> float:
     return (d + RELIEF_FIT) / 2
 
 
+def land_bore_r(d: float, ease: float = 0.0) -> float:
+    """The radius actually cut for a drill of diameter ``d`` at its grip land --
+    the press fit, plus a named size-dependent ease (``small_bore_comp``) where
+    one applies. The land, not the relief: the relief stays the wider footprint,
+    so this never feeds the packer and never moves a hole.
+    """
+    return (d + LAND_FIT + ease) / 2
+
+
 __all__ = [
     "BASE_TOP_CHAMFER",
     "FOOT_TOP",
@@ -406,6 +445,8 @@ __all__ = [
     "RELIEF_FIT",
     "RIM_FLAT",
     "SHELL_COLOR",
+    "SMALL_BORE_COMP_SLOPE",
+    "SMALL_BORE_COMP_THRESHOLD",
     "SHELL_COLLAR_H",
     "SHELL_FOOT_TOP",
     "SHELL_GROOVE_R",
@@ -414,5 +455,7 @@ __all__ = [
     "SHELL_TOTAL_H",
     "SNAP_Z",
     "SHELL_WALL",
+    "land_bore_r",
     "relieved_bore_r",
+    "small_bore_comp",
 ]

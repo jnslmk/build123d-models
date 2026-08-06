@@ -83,10 +83,14 @@ once do not fit in any arrangement.
 of what a 0.4 mm nozzle resolves in TPU: the 1 mm land is 0.95 mm across, barely
 two extrusions wide. `checks.py` asserts that floor rather than assuming it.
 
-They print and they grip, but expect to open the smallest one with the drill
-itself the first time. If a bore closes up entirely, drop that size from
-`sets.METAL` — do **not** open every land to rescue one, which trades the grip on
-nine bores for the tenth.
+They used to print tight enough that the bits would not go in at all — the hole
+undersize a big bore turns into grip is a whole percentage of a 1 mm bore — so
+the set opts into the small-bore taper (`config.SMALL_BORE_*`): the grip lands
+of the 1–3 mm bores are opened progressively (+0.30 mm diametral at 1 mm,
++0.20 at 2, +0.10 at 3), and 4 mm and up are untouched. That is a deliberate
+trade — insertability on the sizes that need it, for grip on the sizes that can
+hold it. If a small bore still refuses a bit, raise
+`SMALL_BORE_COMP_SLOPE`; if one rattles, lower it.
 
 Sizes, lengths and the cover label are `sets.METAL`. The clearances, the geometry
 and the argument behind both are shared with the other two variants — see

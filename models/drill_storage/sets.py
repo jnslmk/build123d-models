@@ -168,6 +168,11 @@ class DrillSet:
     shank_allowance: float = 0.0  # nominal - shank, diametral (see module docs)
     material: str = ""  # what the set is for, in words, for the docs
     layout: dict[str, tuple[float, float]] | None = None  # skip the row packer
+    small_bore_comp: bool = False  # opt in to config.SMALL_BORE_*: open the
+    #                                grip lands of bores at and under the
+    #                                threshold, progressively (see the taper's
+    #                                argument in config.py -- it trades grip for
+    #                                insertability on the sizes that need it)
 
     # Solved in __post_init__ -- derived, never passed in.
     bores: tuple[tuple[float, float, float], ...] = field(init=False)
@@ -256,9 +261,7 @@ class DrillSet:
         it is ``HexTool.reach``, which is longer than the tool whenever the tool
         hangs by its head instead of bottoming out.
         """
-        return max(
-            [d.length for d in self.drills] + [t.reach for t in self.hex_tools]
-        )
+        return max([d.length for d in self.drills] + [t.reach for t in self.hex_tools])
 
     @property
     def nominal(self) -> list[float]:
@@ -342,14 +345,17 @@ FREE_LAYOUT: dict[str, tuple[float, float]] = {
 #
 # The 1 and 1.5 mm bores are the smallest holes in the package, and they are at
 # the edge of what a 0.4 mm nozzle resolves in TPU: a 0.95 mm land is barely two
-# extrusions wide. They print, and they grip -- but expect to open the smallest
-# one with the drill itself the first time, and if a bore closes up entirely,
-# drop the size rather than opening every land for it.
+# extrusions wide. They used to print tight enough that the bits would not go in
+# at all -- the hole undersize a big bore turns into grip is a whole percentage
+# of a 1 mm bore -- so this set opts into the small-bore taper
+# (``config.SMALL_BORE_*``) and trades the grip on exactly those sizes for the
+# ability to insert them. The 4 mm and up bores are untouched.
 METAL = DrillSet(
     name="metal",
     label="Metal",
     style="twist",
     material="HSS twist drills",
+    small_bore_comp=True,
     drills=(
         Drill(1.0, 34.0),
         Drill(1.5, 40.0),

@@ -60,10 +60,16 @@ def _hex_r(across_flats: float, fit: float) -> float:
     return (across_flats + fit) / 3**0.5
 
 
-def _cut_round_bore(d: float, x: float, y: float) -> None:
+def _cut_round_bore(d: float, x: float, y: float, land_ease: float = 0.0) -> None:
     """One plain round through-bore: a short grip land, a lead-in cone, then a
-    relieved guide the rest of the way up. Call inside the active BuildPart."""
-    land_r = (d + c.LAND_FIT) / 2
+    relieved guide the rest of the way up. Call inside the active BuildPart.
+
+    ``land_ease`` opens the land beyond ``LAND_FIT`` -- the size-dependent
+    small-bore compensation (``config.small_bore_comp``) when the set opts in.
+    It only ever widens the land: the relief above stays put, so the packing
+    footprint and every spacing check are untouched by it.
+    """
+    land_r = c.land_bore_r(d, land_ease)
     relief_r = (d + c.RELIEF_FIT) / 2
 
     with Locations((x, y, 0.0)):
@@ -182,12 +188,17 @@ def key_rib() -> Part:
 def create_insert(
     bores: Sequence[tuple[float, float, float]],
     hex_bores: Sequence[tuple[float, float, float]] | None = None,
+    small_bore_comp: bool = False,
 ) -> Part:
     """The TPU cartridge: a keyed block of plain round bores, land at the bottom.
 
     ``bores`` are ``(diameter, x, y)`` and ``hex_bores`` ``(across_flats, x, y)``,
     both in the shell's coordinates -- pass the same tuples ``create_shell`` was
     given its legend for, or the labels lie.
+
+    ``small_bore_comp`` opts in to ``config``'s size-dependent taper, opening
+    the grip lands of bores at and under the threshold progressively. A set
+    decides, not this function -- pass ``drill_set.small_bore_comp`` through.
 
     Returned in print pose, flat bottom on ``z=0``. The collar's own z=0 is the
     shell's ``CAVITY_FLOOR_Z`` (29.2), so a feature at world z appears here at
@@ -229,7 +240,12 @@ def create_insert(
         )
 
         for d, x, y in bores:
-            _cut_round_bore(d, x, y)
+            _cut_round_bore(
+                d,
+                x,
+                y,
+                land_ease=c.small_bore_comp(d) if small_bore_comp else 0.0,
+            )
         for af, x, y in hex_bores or []:
             add(hex_bore_tool(af, x, y), mode=Mode.SUBTRACT)
 
@@ -265,7 +281,11 @@ def create_insert(
 
 def create_insert_for(drill_set: DrillSet) -> Part:
     """The cartridge for one ``sets.DrillSet``, labelled and coloured."""
-    insert = create_insert(drill_set.bores, hex_bores=drill_set.hex_bores)
+    insert = create_insert(
+        drill_set.bores,
+        hex_bores=drill_set.hex_bores,
+        small_bore_comp=drill_set.small_bore_comp,
+    )
     insert.label = f"insert_tpu_{drill_set.name}"
     insert.color = c.CART_COLOR
     return insert
