@@ -92,6 +92,15 @@ def _land_ease(s: DrillSet, d: float) -> float:
     return c.small_bore_comp(d) if s.small_bore_comp else 0.0
 
 
+def _print_pose_y(y: float) -> float:
+    """Mirror a collar-frame y into the insert's print pose: the pose is the
+    collar rotated 180 deg about X, which flips Y (the rounded-square body is
+    symmetric, so the shape is unchanged -- only the bore positions move).
+    Z needs no helper: the checks name the flipped heights directly.
+    """
+    return -y
+
+
 # --- Set-independent: the clearances themselves -------------------------------
 
 
@@ -563,17 +572,20 @@ def check_land(s: DrillSet, insert: Part, r: Report) -> None:
     """The grip itself: the land is where it is modelled, and it is tighter than
     the relief above it. This is the one thing point-sampling can prove."""
     r.section(f"{s.name}: grip land")
-    z_land = c.BORE_FOOT_RELIEF + c.EFFECTIVE_LAND_H / 2
-    z_relief = c.LAND_H + c.LAND_LEAD_IN + 2.0
+    # The insert returns in print pose (top face on the bed, land up), so the
+    # land band sits at the top of the part and the relief below it.
+    z_land = c.CART_H - (c.BORE_FOOT_RELIEF + c.EFFECTIVE_LAND_H / 2)
+    z_relief = c.CART_H - (c.LAND_H + c.LAND_LEAD_IN + 2.0)
 
     for d, x, y in s.bores:
         land_r = c.land_bore_r(d, _land_ease(s, d))
         relief_r = (d + c.RELIEF_FIT) / 2
+        py = _print_pose_y(y)  # the print pose mirrors Y; sample the real part
         ok = (
-            not is_solid_at(insert, x + land_r - PROBE, y, z_land)
-            and is_solid_at(insert, x + land_r + PROBE, y, z_land)
-            and not is_solid_at(insert, x + relief_r - PROBE, y, z_relief)
-            and is_solid_at(insert, x + relief_r + PROBE, y, z_relief)
+            not is_solid_at(insert, x + land_r - PROBE, py, z_land)
+            and is_solid_at(insert, x + land_r + PROBE, py, z_land)
+            and not is_solid_at(insert, x + relief_r - PROBE, py, z_relief)
+            and is_solid_at(insert, x + relief_r + PROBE, py, z_relief)
         )
         r.check(
             ok,
@@ -583,7 +595,7 @@ def check_land(s: DrillSet, insert: Part, r: Report) -> None:
         # The step is the whole point: at land height the relief radius must be
         # solid, or the land is not actually narrower than the guide.
         r.check(
-            is_solid_at(insert, x + land_r + PROBE, y, z_land),
+            is_solid_at(insert, x + land_r + PROBE, py, z_land),
             f"{d:g} mm bore: land is proud of the relief",
             f"{(relief_r - land_r) * 2:.2f} mm diametral step",
         )
@@ -692,7 +704,9 @@ def check_through_bores(s: DrillSet, insert: Part, r: Report) -> None:
     r.section(f"{s.name}: through bores")
     heights = (0.05, c.CART_H / 2, c.CART_H - 0.05)
     ok_round = all(
-        not is_solid_at(insert, x, y, z) for _d, x, y in s.bores for z in heights
+        not is_solid_at(insert, x, _print_pose_y(y), z)
+        for _d, x, y in s.bores
+        for z in heights
     )
     r.check(
         ok_round,
@@ -700,7 +714,9 @@ def check_through_bores(s: DrillSet, insert: Part, r: Report) -> None:
         f"{len(s.bores)} bores sampled at 3 heights",
     )
     ok_hex = all(
-        not is_solid_at(insert, x, y, z) for _af, x, y in s.hex_bores for z in heights
+        not is_solid_at(insert, x, _print_pose_y(y), z)
+        for _af, x, y in s.hex_bores
+        for z in heights
     )
     r.check(
         ok_hex,

@@ -15,7 +15,7 @@ uv run check drill_storage.stone
 | part | model | material | print pose |
 | --- | --- | --- | --- |
 | Shell | `drill_storage.stone.shell` | ASA | foot down, cavity up |
-| Cartridge | `drill_storage.stone.insert` | TPU | flat bottom down, bores up |
+| Cartridge | `drill_storage.stone.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.stone.cover` | PETG | pillow top down, mouth up |
 
 **Cover: 137 mm**, for a 161 mm (23U) assembled envelope — tied with the metal

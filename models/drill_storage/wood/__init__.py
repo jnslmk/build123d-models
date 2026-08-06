@@ -6,7 +6,7 @@ Holds eleven brad-point wood drills, 2 - 10 mm (2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9
 A scene, not a print job -- three filaments never share a bed. The parts are:
 
     uv run show drill_storage.wood.shell    # ASA, foot down, cavity up
-    uv run show drill_storage.wood.insert   # TPU, flat down, bores up
+    uv run show drill_storage.wood.insert   # TPU, top down, bores down
     uv run show drill_storage.wood.cover    # PETG, pillow top down
 
 The countersink is packed by its 10 mm head and bored as a hex socket, and it

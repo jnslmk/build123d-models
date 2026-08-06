@@ -6,7 +6,7 @@ tool -- a masonry set is drills.
 A scene, not a print job -- three filaments never share a bed. The parts are:
 
     uv run show drill_storage.stone.shell    # ASA, foot down, cavity up
-    uv run show drill_storage.stone.insert   # TPU, flat down, bores up
+    uv run show drill_storage.stone.insert   # TPU, top down, bores down
     uv run show drill_storage.stone.cover    # PETG, pillow top down
 
 Every bore is cut 0.20 mm under its printed size, because a masonry bit's

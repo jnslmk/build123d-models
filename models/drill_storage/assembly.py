@@ -34,7 +34,10 @@ def create_assembly(drill_set: DrillSet) -> Compound:
     """Shell, collar seated in it, every tool in its bore, cover on top."""
     shell = create_shell_for(drill_set)
 
-    insert = Pos(0, 0, c.CAVITY_FLOOR_Z) * create_insert_for(drill_set)
+    # create_insert returns print pose (top face on the bed, land up); flip it
+    # back and seat it in the cavity.
+    insert = Rotation(180, 0, 0) * create_insert_for(drill_set)
+    insert = Pos(0, 0, c.CAVITY_FLOOR_Z - insert.bounding_box().min.Z) * insert
     insert.label = f"insert_tpu_{drill_set.name}"
     insert.color = c.CART_COLOR
 

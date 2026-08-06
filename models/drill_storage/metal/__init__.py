@@ -6,7 +6,7 @@ Holds ten HSS twist drills on jobber lengths, 1 - 10 mm (1, 1.5, 2, 2.5, 3, 4, 5
 A scene, not a print job -- three filaments never share a bed. The parts are:
 
     uv run show drill_storage.metal.shell    # ASA, foot down, cavity up
-    uv run show drill_storage.metal.insert   # TPU, flat down, bores up
+    uv run show drill_storage.metal.insert   # TPU, top down, bores down
     uv run show drill_storage.metal.cover    # PETG, pillow top down
 
 The 1 and 1.5 mm bores are the smallest in the package and sit at the edge of

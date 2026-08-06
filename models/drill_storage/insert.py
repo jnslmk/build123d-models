@@ -18,7 +18,7 @@ confined to a short land at the very bottom of the collar and the rest of the
 bore is relieved. ``config.LAND_FIT`` carries the full argument, including the
 ease it has since been opened by.
 
-Printed flat-bottom-down, bores up, in TPU, no supports. Every bore is a through
+Printed top-face-down, bores down, in TPU, no supports. Every bore is a through
 hole -- drills pass clean through into the shell's guide below -- so there is
 nothing to bridge and nothing to drain.
 
@@ -44,6 +44,7 @@ from build123d import (
     Pos,
     RectangleRounded,
     RegularPolygon,
+    Rotation,
     add,
     extrude,
     loft,
@@ -200,10 +201,11 @@ def create_insert(
     the grip lands of bores at and under the threshold progressively. A set
     decides, not this function -- pass ``drill_set.small_bore_comp`` through.
 
-    Returned in print pose, flat bottom on ``z=0``. The collar's own z=0 is the
-    shell's ``CAVITY_FLOOR_Z`` (29.2), so a feature at world z appears here at
-    ``z - CAVITY_FLOOR_Z`` -- the bead included, which lands on ``CART_BELOW_BEAD``
-    and is therefore exactly halfway up.
+    Returned in print pose, top face on ``z=0`` -- upside down from how it sits
+    in the shell, so the grip land prints last, clear of the bed. The collar's
+    own z=0 is the shell's ``CAVITY_FLOOR_Z`` (29.2), so a feature at world z
+    appears here at ``CART_H - (z - CAVITY_FLOOR_Z)`` -- the bead included,
+    which lands on ``CART_H - CART_BELOW_BEAD`` and is exactly halfway up.
     """
     with BuildPart() as cart:
         with BuildSketch(Plane.XY):
@@ -276,7 +278,14 @@ def create_insert(
                 ),
                 mode=Mode.SUBTRACT,
             )
-    return cart.part
+
+    # Print pose: top face down. The land is the tightest feature in the part --
+    # a 1 mm land cannot afford the first layers' elephant's foot squeezing it
+    # inward, so the grip end prints last on the clean upper layers and the
+    # mouth lead-ins take the bed instead. Rotating about X keeps the key rib on
+    # the +X face; the rounded-square body is symmetric in Y.
+    part = Rotation(180, 0, 0) * cart.part
+    return Pos(0, 0, -part.bounding_box().min.Z) * part
 
 
 def create_insert_for(drill_set: DrillSet) -> Part:

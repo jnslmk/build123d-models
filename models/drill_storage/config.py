@@ -292,12 +292,14 @@ CART_MOUTH_CH = 0.5
 
 LAND_LEAD_IN = CART_MOUTH_CH  # cone from the relief down onto the land
 
-# Relief at the very bottom of each bore, where the land meets the bed face.
-# Two jobs: it chamfers what would otherwise be a raw square edge (house rule --
-# chamfer horizontal edges), and it backs off the first layer, whose elephant's
-# foot squeezes inward and would otherwise make the bottom of the land grip
-# tighter than anything modelled here. It comes out of LAND_H, so the land that
-# actually bears is LAND_H - BORE_FOOT_RELIEF.
+# Relief at the very bottom of each bore, where the land meets the cartridge's
+# underside. Two jobs: it chamfers what would otherwise be a raw square edge
+# (house rule -- chamfer horizontal edges), and it backs off the last printed
+# layer, whose crown can squeeze the bore's exit -- the drill passes through
+# here into the guide. (The *bed* side of a bore is its mouth, now the insert
+# prints top-face-down, and the mouth cones are what absorb the first layer's
+# elephant's foot.) It comes out of LAND_H, so the land that actually bears is
+# LAND_H - BORE_FOOT_RELIEF.
 BORE_FOOT_RELIEF = 0.3
 EFFECTIVE_LAND_H = LAND_H - BORE_FOOT_RELIEF
 

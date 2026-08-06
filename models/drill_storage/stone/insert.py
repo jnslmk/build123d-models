@@ -5,7 +5,7 @@ land at its bottom and relieved above it. This is the part to re-cut when the
 tools change. Shape, argument and print notes are in ``drill_storage.insert``;
 the set it is cut for is ``sets.STONE``.
 
-Printed flat-bottom down, bores up, in TPU, no supports.
+Printed top-face down, bores down, in TPU, no supports.
 """
 
 from __future__ import annotations

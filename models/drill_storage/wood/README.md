@@ -15,7 +15,7 @@ uv run check drill_storage.wood
 | part | model | material | print pose |
 | --- | --- | --- | --- |
 | Shell | `drill_storage.wood.shell` | ASA | foot down, cavity up |
-| Cartridge | `drill_storage.wood.insert` | TPU | flat bottom down, bores up |
+| Cartridge | `drill_storage.wood.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.wood.cover` | PETG | pillow top down, mouth up |
 
 **Cover: 109 mm**, for a 133 mm (19U) assembled envelope. The 121 mm 10 mm drill

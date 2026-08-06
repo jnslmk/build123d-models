@@ -16,7 +16,7 @@ Each set's own scene, with the tools standing in it, is ``drill_storage.<set>``.
 
 from __future__ import annotations
 
-from build123d import Compound, Pos
+from build123d import Compound, Pos, Rotation
 
 from . import config as c
 from .box import GRID
@@ -39,7 +39,9 @@ def create() -> Compound:
         x = (i - 1) * PITCH
 
         shell = create_shell_for(drill_set)
-        insert = Pos(0, 0, c.CAVITY_FLOOR_Z) * create_insert_for(drill_set)
+        # Print pose is top-face-down; flip back into the cavity's orientation.
+        insert = Rotation(180, 0, 0) * create_insert_for(drill_set)
+        insert = Pos(0, 0, c.CAVITY_FLOOR_Z - insert.bounding_box().min.Z) * insert
         insert.label = f"insert_tpu_{drill_set.name}"
         insert.color = c.CART_COLOR
         cover = create_cover_for(drill_set)

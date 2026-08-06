@@ -77,7 +77,7 @@ No supports anywhere. Every part comes off `create()` in its print pose.
 
 - **Shell — ASA**, foot down, cavity up. 36 mm tall. ASA wants an enclosure; a
   42 mm footprint is not fussy, but a draught will still lift the foot's corners.
-- **Cartridge — TPU**, flat bottom down, bores up. 8 mm tall, every bore a through
+- **Cartridge — TPU**, top face down, bores down. 8 mm tall, every bore a through
   hole, so nothing to bridge and nothing to drain. Keep the perimeter count up:
   the grip land *is* a perimeter, and its diameter is the whole fit.
 - **Cover — PETG**, pillow top on the bed, mouth up.
