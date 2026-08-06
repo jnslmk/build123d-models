@@ -93,7 +93,13 @@ def _edge_to_polyline(edge: Edge) -> list[tuple[float, float]]:
 
 def _project_view(part: Part, view: str) -> ProjectedView:
     origin, up, look_at = _camera_for_view(part, view)
-    visible_edges, hidden_edges = part.project_to_viewport(
+    # build123d declares ``project_to_viewport`` on ``Mixin1D``, so a type
+    # checker reads a ``Part`` here as the wrong receiver. The hidden-line
+    # removal it performs is a whole-``Shape`` operation and is documented for
+    # solids -- ``Part.project_to_viewport`` resolves to this very method at
+    # runtime and returns the right edges. The annotation upstream is what is
+    # wrong, not the call.
+    visible_edges, hidden_edges = part.project_to_viewport(  # ty: ignore[invalid-argument-type]
         origin,
         viewport_up=up,
         look_at=look_at,
