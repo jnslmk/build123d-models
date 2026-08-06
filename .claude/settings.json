@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "jnslmk": {
+      "source": {
+        "source": "github",
+        "repo": "jnslmk/claude-plugins"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "implement-review@jnslmk": true
+  }
+}
