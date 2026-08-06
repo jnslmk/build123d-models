@@ -159,5 +159,15 @@ jobs:
         with:
           path: _site
 
+      # `deploy-pages` polls until GitHub's Pages backend picks the deployment
+      # up, and that queue is the whole cost of this job: the tar and upload
+      # above take seconds, the file sync at the far end takes seconds, and
+      # everything between is `deployment_queued`. That wait has been anywhere
+      # from 11s to 9m31s on consecutive pushes, and the action's default
+      # timeout is 10 minutes -- close enough that a slightly slower queue turns
+      # a perfectly good build into a red one. Nothing here can shorten the
+      # wait, so just refuse to give up on it.
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v5
+        with:
+          timeout: 1800000
