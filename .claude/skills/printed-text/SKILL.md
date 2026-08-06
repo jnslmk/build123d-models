@@ -132,7 +132,7 @@ alignment worse — there is a real three-way tension between **text size, hole
 spread and alignment**, and it has to be resolved deliberately rather than
 discovered on the print.
 
-`_engrave_row_legend` in `models/drill_storage/box.py` implements this:
+`engrave_row_legend` in `models/drill_storage/box.py` implements this:
 `flat_half = PAD / 2 - CORNER_R`, then a per-label
 `limit = flat_half - 0.31 * WALL_LABEL_SIZE * len(text) - 0.3` that the lateral
 position is clamped to.
@@ -147,6 +147,5 @@ label is gone.
 
 | File | What it shows |
 | --- | --- |
-| `models/drill_storage/box.py` | `_engrave_row_legend` — bold 4 mm wall numbers clamped off the rounded corners and aligned to hole world-x; constants `WALL_LABEL_SIZE`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_MAX_LAT`. Cover label with a chamfered V-groove mouth. |
+| `models/drill_storage/box.py` | `engrave_row_legend` — bold 4 mm wall numbers clamped off the rounded corners and aligned to hole world-x; constants `WALL_LABEL_SIZE`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_MAX_LAT`. Cover label with a chamfered V-groove mouth. |
 | `models/drill_storage/hex.py` | `_label_fit` — probe-measures the word to pick the largest font and the better reading direction for a cover face. |
-| `models/drill_fit_tester/frame.py` | `engrave` — the minimal sketch-on-a-plane, extrude-subtract engraving helper. |

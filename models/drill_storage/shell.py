@@ -1,5 +1,9 @@
 """The rigid half: an ASA Gridfinity shell that holds a TPU cartridge.
 
+Set-agnostic: hand it a layout and it cuts that layout. The three sets each own a
+thin module (``wood.shell``, ``metal.shell``, ``stone.shell``) that supplies one
+from ``sets.py`` and nothing else.
+
 Everything that has to keep its shape lives here -- the Gridfinity foot, the
 body, the collar with the cover's snap groove, the engraved size legend, the
 cavity the cartridge drops into, and the guide bores under it.
@@ -11,9 +15,10 @@ and must not rub), and the collar's land is cut at interference. Changing drill
 sets is still only a cartridge reprint as far as the *grip* goes, but the guides
 live here, so a genuinely different set needs both halves.
 
-36 mm tall, not the PETG base's 42: the bores no longer come down from the top
-face, so the height above the cover seat only has to hold the collar. The seat
-itself stays at 24 mm, which is what keeps the PETG base's cover fitting.
+36 mm tall, not the 42 mm of a one-material base: the bores no longer come down
+from the top face, so the height above the cover seat only has to hold the
+collar. The seat itself stays at 24 mm, which is what keeps every cover in this
+package interchangeable with every shell.
 
 Printed foot-down, cavity up, in ASA, no supports. ASA wants an enclosure; a
 42 mm footprint is small enough that it is not fussy, but a draughty room will
@@ -21,6 +26,8 @@ still lift the foot's corners.
 """
 
 from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
 
 from build123d import (
     Align,
@@ -39,7 +46,7 @@ from build123d import (
     loft,
 )
 
-from ..box import (
+from .box import (
     BASE_H,
     COLLAR_R,
     COLLAR_W,
@@ -50,12 +57,11 @@ from ..box import (
     WALL_LABEL_Z,
     engrave_row_legend,
     gridfinity_foot,
-    layout_bores,
     rim_chamfer_tool,
     snap_ring,
 )
-from ..wood import CSK_HEAD_D, CSK_HEX_AF, DRILL_DIAMS
 from . import config as c
+from .sets import DrillSet
 
 
 def cavity_mouth_tool() -> Part:
@@ -147,10 +153,10 @@ def hex_guide_tool(af: float, x: float, y: float) -> Part:
 
 
 def create_shell(
-    bores: list[tuple[float, float, float]] | None = None,
-    hex_bores: list[tuple[float, float, float]] | None = None,
-    rows: list[list[str]] | None = None,
-    hole_pos: dict[str, tuple[float, float]] | None = None,
+    bores: Sequence[tuple[float, float, float]] | None = None,
+    hex_bores: Sequence[tuple[float, float, float]] | None = None,
+    rows: Sequence[Sequence[str]] | None = None,
+    hole_pos: Mapping[str, tuple[float, float]] | None = None,
 ) -> Part:
     """The ASA shell: Gridfinity foot, body, collar, guide bores, and the cavity.
 
@@ -172,7 +178,7 @@ def create_shell(
 
         # Full-width body up to the shoulder the cover seats on. Left a flat
         # shoulder (no chamfer) so the cover's chamfered bottom rim seats flush
-        # on it -- box.py:1052-1054 has the argument.
+        # on it -- box.create_cover's COVER_SEAT_CH has the argument.
         with BuildSketch(Plane.XY.offset(BASE_H)):
             RectangleRounded(PAD, PAD, CORNER_R)
         extrude(amount=c.SHELL_FOOT_TOP - BASE_H)
@@ -220,37 +226,29 @@ def create_shell(
     return shell.part
 
 
-# The wood set's layout, packed into the *cartridge's* envelope rather than the
-# collar's, and by the relieved bore each drill really cuts. Shared with
-# ``insert`` so the two halves cannot disagree about where a hole is.
-DRILL_BORES, HEX_BORES, ROWS, POS = layout_bores(
-    DRILL_DIAMS,
-    hex_tools=[("CSK", CSK_HEX_AF, CSK_HEAD_D / 2)],
-    swap=[("CSK", "10")],
-    footprint_r=c.relieved_bore_r,
-    half_w=c.PACK_HALF_W,
-    corner_r=c.PACK_CORNER_R,
-    hole_wall=c.PACK_HOLE_WALL,
-    wall_clearance=c.PACK_WALL_CLEARANCE,
-)
+def create_shell_for(drill_set: DrillSet) -> Part:
+    """The shell for one ``sets.DrillSet``, labelled and coloured.
 
-
-def create() -> Part:
-    """Model entry point: the ASA shell for the wood drill set."""
-    shell = create_shell(DRILL_BORES, hex_bores=HEX_BORES, rows=ROWS, hole_pos=POS)
-    shell.label = "shell_asa"
+    The set's ``bores``/``hex_bores`` are the same tuples ``create_insert_for``
+    is handed, and must be: the guide below and the land above are one hole in
+    two materials, and only one call to ``layout_bores`` ever decides where it
+    is.
+    """
+    shell = create_shell(
+        drill_set.bores,
+        hex_bores=drill_set.hex_bores,
+        rows=drill_set.rows,
+        hole_pos=drill_set.pos,
+    )
+    shell.label = f"shell_asa_{drill_set.name}"
     shell.color = c.SHELL_COLOR
     return shell
 
 
 __all__ = [
-    "DRILL_BORES",
-    "HEX_BORES",
-    "POS",
-    "ROWS",
     "cavity_mouth_tool",
-    "create",
     "create_shell",
+    "create_shell_for",
     "guide_bore_tool",
     "hex_guide_tool",
     "key_slot_tool",

@@ -48,10 +48,10 @@ default-groups = ["dev", "viewer", "pdf"]
 packages = [
     "models",
     "models.lib",
-    "models.drill_fit_tester",
     "models.drill_storage",
-    "models.drill_storage.assemblies",
-    "models.drill_storage.flex",
+    "models.drill_storage.metal",
+    "models.drill_storage.stone",
+    "models.drill_storage.wood",
     "models.led_profiles",
     "models.led_profiles.assemblies",
     "models.led_psu_enclosure",

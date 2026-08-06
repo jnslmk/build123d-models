@@ -1,27 +1,35 @@
 """The compliant half: a short TPU collar that grips, and grips only.
 
+Set-agnostic: hand it a layout and it cuts that layout. The three sets each own a
+thin module (``wood.insert``, ``metal.insert``, ``stone.insert``) that supplies
+one from ``sets.py`` and nothing else -- and a set is a cartridge reprint away, so
+this is the part you re-cut when the tools change.
+
 A **collar**, not a block: it reaches exactly as far below its retention bead as
 it stands above it, so the bead sits on its mid-plane and the whole part is
 8.0 mm of TPU -- and that reach is itself derived from what it has to contain, so
 the collar is as short as its own features allow. Everything under it is ASA,
 bored at a free fit. The shell guides a drill over 23.2 mm; this grips it over 3.5.
 
-Each bore is **plain and round -- no ribs**: TPU supplies the compliance the PETG
-base had to build out of three sprung beads. What it does *not* supply is a way
-out of the friction that comes with it, so the grip is confined to a short land at
-the very bottom of the collar and the rest of the bore is relieved.
-``config.LAND_FIT`` carries the full argument.
+Each bore is **plain and round -- no ribs**: TPU supplies the compliance the
+ribbed PETG bores this replaced had to build out of three sprung beads. What it
+does *not* supply is a way out of the friction that comes with it, so the grip is
+confined to a short land at the very bottom of the collar and the rest of the
+bore is relieved. ``config.LAND_FIT`` carries the full argument, including the
+ease it has since been opened by.
 
 Printed flat-bottom-down, bores up, in TPU, no supports. Every bore is a through
 hole -- drills pass clean through into the shell's guide below -- so there is
 nothing to bridge and nothing to drain.
 
-The land fit is **not calibrated**. Print ``drill_fit_tester.land`` and judge it
-before committing a whole cartridge; the three-round history in box.py:187-286 is
-what happens when an interference number is assumed rather than measured.
+A printed cartridge is the only instrument that settles ``LAND_FIT``, and the one
+printed so far said "holds, harder than wanted" -- hence ``LAND_EASE``. Judge the
+next one the same way, and write the judgement into ``docs/design-notes.md``.
 """
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 from build123d import (
     Align,
@@ -41,10 +49,10 @@ from build123d import (
     loft,
 )
 
-from ...lib.edges import bottom_chamfer_tool
-from ..box import rim_chamfer_tool, snap_bead_ring
+from ..lib.edges import bottom_chamfer_tool
+from .box import rim_chamfer_tool, snap_bead_ring
 from . import config as c
-from .shell import DRILL_BORES, HEX_BORES
+from .sets import DrillSet
 
 
 def _hex_r(across_flats: float, fit: float) -> float:
@@ -188,8 +196,8 @@ def hex_mouth_tool(af: float, x: float, y: float) -> Part:
 
 
 def create_insert(
-    bores: list[tuple[float, float, float]],
-    hex_bores: list[tuple[float, float, float]] | None = None,
+    bores: Sequence[tuple[float, float, float]],
+    hex_bores: Sequence[tuple[float, float, float]] | None = None,
 ) -> Part:
     """The TPU cartridge: a keyed block of plain round bores, land at the bottom.
 
@@ -211,7 +219,7 @@ def create_insert(
         # Retention bead: outward, so the compliant part carries it and seating
         # costs a squeeze rather than deflecting the ASA wall. Asymmetric ramp
         # (long lead-in below, short retention face above) for the reason in
-        # box.py:81-89 -- a half-round bump fights the user going on.
+        # box.snap_bead_ring -- a half-round bump fights the user going on.
         add(
             snap_bead_ring(
                 c.CART_W,
@@ -243,7 +251,7 @@ def create_insert(
 
         # Lead-in at every mouth on the top face, cut as a boolean cone. Never an
         # OCC chamfer: a failed edge op corrupts the builder so every later one
-        # fails silently (box.py:964-969).
+        # fails silently (see the note in box.cut_holes).
         for d, x, y in bores:
             r = (d + c.RELIEF_FIT) / 2
             with Locations((x, y, c.CART_H - c.CART_MOUTH_CH)):
@@ -263,12 +271,18 @@ def create_insert(
     return cart.part
 
 
-def create() -> Part:
-    """Model entry point: the TPU cartridge for the wood drill set."""
-    insert = create_insert(DRILL_BORES, hex_bores=HEX_BORES)
-    insert.label = "insert_tpu"
+def create_insert_for(drill_set: DrillSet) -> Part:
+    """The cartridge for one ``sets.DrillSet``, labelled and coloured."""
+    insert = create_insert(drill_set.bores, hex_bores=drill_set.hex_bores)
+    insert.label = f"insert_tpu_{drill_set.name}"
     insert.color = c.CART_COLOR
     return insert
 
 
-__all__ = ["create", "create_insert", "hex_bore_tool", "key_rib"]
+__all__ = [
+    "create_insert",
+    "create_insert_for",
+    "hex_bore_tool",
+    "hex_mouth_tool",
+    "key_rib",
+]

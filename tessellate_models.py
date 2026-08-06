@@ -23,26 +23,24 @@ import importlib
 MODELS = [
     "cube",
     "door_latch",
-    # Fit coupons: three ways of cutting a bore, then three sweeps that settle
-    # the number it is cut at. See models/drill_fit_tester/__init__.py.
-    "drill_fit_tester",
-    "drill_fit_tester.plain",
-    "drill_fit_tester.taper",
-    "drill_fit_tester.sweep",
-    "drill_fit_tester.small",
-    "drill_fit_tester.full",
-    "drill_fit_tester.land",
-    # One Gridfinity base/cover engine, one holder per tool set, plus the scene
-    # that proves a drill fits inside.
+    # Gridfinity drill storage: the family view, then one variant per tool set.
+    # A variant is an assembled scene plus its three printed parts -- ASA shell,
+    # TPU cartridge, PETG cover -- which are three filaments and so three jobs.
+    # ``hex`` is the one-material outlier, a plain socket box for driver bits.
     "drill_storage",
     "drill_storage.wood",
+    "drill_storage.wood.shell",
+    "drill_storage.wood.insert",
+    "drill_storage.wood.cover",
     "drill_storage.metal",
+    "drill_storage.metal.shell",
+    "drill_storage.metal.insert",
+    "drill_storage.metal.cover",
+    "drill_storage.stone",
+    "drill_storage.stone.shell",
+    "drill_storage.stone.insert",
+    "drill_storage.stone.cover",
     "drill_storage.hex",
-    "drill_storage.assemblies.wood",
-    "drill_storage.assemblies.comparison",
-    "drill_storage.flex",
-    "drill_storage.flex.shell",
-    "drill_storage.flex.insert",
     # The lamp system: the whole stick, the three ways it gets mounted, and
     # each printed part on its own in print pose.
     "led_profiles",

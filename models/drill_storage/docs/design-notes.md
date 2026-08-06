@@ -1,29 +1,64 @@
-# Design notes — drill_storage.flex
+# Design notes — drill_storage
 
-Why this model is shaped the way it is. The numbers themselves live in
-`config.py`, next to the geometry that consumes them.
+Why these models are shaped the way they are. The numbers themselves live in
+`config.py` (the clearances, shared by all three sets) and `sets.py` (what each
+set is), next to the geometry that consumes them.
 
 ## Contents
 
+- [What came before: the ribbed bore](#what-came-before-the-ribbed-bore)
 - [The rib question](#the-rib-question)
 - [Why the land is at the bottom](#why-the-land-is-at-the-bottom)
 - [Why the cartridge is a short collar](#why-the-cartridge-is-a-short-collar)
 - [What the shell wall costs](#what-the-shell-wall-costs)
 - [Retention, keying, removal](#retention-keying-removal)
+- [Three sets, one design](#three-sets-one-design)
+- [Judgements from printed parts](#judgements-from-printed-parts)
 - [Open questions](#open-questions)
+
+## What came before: the ribbed bore
+
+This section is history, and it is kept because the code it describes has been
+deleted. Every holder in this package used to be **one PETG part**, and it
+gripped each bit on three compliant ribs standing into an otherwise relieved
+bore. Two full sets were printed and both fought back, in opposite directions:
+
+| | grip law | verdict |
+|---|---|---|
+| v1 | `0.04·d`, min 0.15 | 9/10 mm too tight, 8 mm and under too loose |
+| v2 | 0.34 flat, falling | 8/9/10 mm too loose, 6 mm and under too tight |
+
+Those reports are consistent, and the reason was never the interference number.
+The ribs were not springs: the bead stood only 0.2 mm proud of its valley while
+being 0.8 mm wide, so each "rib" was a shallow lens welded to the wall over
+nearly its full width. It could not deflect, only be crushed — v2 asked a 2 mm
+bore to squash 85% of its rib away and a 10 mm bore to engage 25% of one, and
+the whole usable travel between *rattles* and *jams* was about 0.1 mm of radius,
+finer than FDM's own run-to-run variation on a small hole.
+
+The fix was geometric rather than numeric — make the bead mostly proud of the
+valley so it meets the wall on a narrow neck and behaves like a stub spring, and
+one absolute interference then covers every size, because grip becomes
+force-controlled rather than position-controlled. That worked, and a printed
+sweep settled it at 0.22 diametral, with a measured small-bore compensation
+table underneath 5 mm where the nozzle cannot trace the bead tip out of a tight
+concave notch.
+
+It also took **three rounds of printed coupons** to get there, and every size
+below 5 mm was revised upward at least once. The two-material version replaced
+all of it. What is worth carrying forward is not the numbers but the shape of
+the mistake: *when no single number can be made to work, the geometry is wrong,
+not the number* — which is exactly the reasoning that produced the short land
+below.
 
 ## The rib question
 
 The question that started this: *if the insert is TPU, does it still need ribs?*
 
 Half of the answer is yes-you-can-drop-them, and it is the obvious half. The
-PETG base's ribs exist because PETG has no compliance of its own. `box.py`
-lines 187–286 are the record: two full printed generations failed in opposite
-directions while someone tuned an interference number, and the diagnosis was that
-the ribs were never springs — a 0.8 mm bead standing 0.2 mm proud of its valley is
-a lens welded to the wall, and it can only be crushed. The fix was geometric. TPU
-supplies that compliance from the bulk material, so the geometry stops earning its
-complexity.
+ribs existed because PETG has no compliance of its own, and the section above is
+the record of what that cost. TPU supplies that compliance from the bulk
+material, so the geometry stops earning its complexity.
 
 The other half is the one that bites. **Retention is friction × contact area**,
 and TPU on steel runs μ ≈ 0.5–0.9 — an order of magnitude grabbier than the
@@ -63,8 +98,8 @@ interference for its full depth would weld itself to the drill.
 
 ## Why the land is at the bottom
 
-Same reason `RIB_ZONE_H` starts at the bore floor: that is where the plain shank
-is. Higher up sit the flutes — two narrow spiral margins over a void — where a
+Same reason the old rib band started at the bore floor: that is where the plain
+shank is. Higher up sit the flutes — two narrow spiral margins over a void — where a
 grip feature bears intermittently and, worse, where the hardened spurs broach it
 away permanently on the way past.
 
@@ -104,9 +139,9 @@ so shortening *above* the seat costs the cover nothing.
 
 The seat itself deliberately did not move. `SHELL_FOOT_TOP` feeds
 `cover_height_for`, so lowering it to 18 would save another ~6 cm³ but mint a
-115 mm cover for this model alone and end the shared-cover property. `checks.py`
-asserts the seat is still where the PETG base's is, so that trade cannot be made by
-accident.
+115 mm cover for these models alone and end the shared-cover property.
+`checks.py` asserts the seat is still where the engine puts it, so that trade
+cannot be made by accident.
 
 The base is no longer a whole Gridfinity Z unit, and does not need to be — what has
 to quantise is the assembled envelope, still 19U / 133 mm.
@@ -126,18 +161,18 @@ smallest drills, and how near depends on which bits you own:
 | 3.5 | 37.0 | +4.3 | 37.0 | +4.3 |
 | 10 | 52.0 | +19.3 | 40.0 | +7.3 |
 
-Against the **brad-point** lengths this set actually uses
-(`assemblies/wood.DRILL_LENGTHS`) every size clears by at least 4.3 mm. Against DIN
-338 **jobber** lengths only the 2 mm is still short, and by 1.7 mm rather than the
-3.3 it was before the base came down to 36 — shortening the base moves the land
-*down*, so it improves this margin rather than costing it. `bores-and-ribs.md` is
-where the flute warning comes from: hardened spurs broach a grip feature away
-permanently, and TPU is softer than the PETG that lesson was learned on.
+Against the **brad-point** lengths `sets.WOOD` assumes, every size clears by at
+least 4.3 mm. Against DIN 338 **jobber** lengths — which is what `sets.METAL`
+is — only the 2 mm is short, and by 1.7 mm rather than the 3.3 it was before the
+base came down to 36; shortening the base moves the land *down*, so it improves
+this margin rather than costing it. `bores-and-ribs.md` is where the flute
+warning comes from: hardened spurs broach a grip feature away permanently, and
+TPU is softer than the PETG that lesson was learned on.
 
-So it is fine for the wood set as specified and **marginal** for a jobber twist set
-like `drill_storage.metal`. Neither table is measured off real bits; both are
-reference figures. Measure the shank on the smallest drill you own before printing
-a collar for a set other than this one.
+`sets.METAL` has no 2 mm problem in practice because its 2 mm drill is 49 mm
+long, not the 31 mm shank-top the jobber table assumes for the shortest stubby
+— but neither table is measured off real bits. Measure the shank on the smallest
+drill you own before printing a cartridge for a set of your own.
 
 Mitigations, if it bites: shorten `SHELL_COLLAR_H` further (the whole collar, and
 therefore the land, follows the rim down — but the bead has to stay clear of the
@@ -182,7 +217,7 @@ set of things that will break together if `SHELL_WALL` moves — hence the check
 on the TPU and the groove in the ASA — the compliant half of a joint carries the
 bead, so seating costs a squeeze rather than a wall deflection. The profile is
 `box.snap_bead_ring`'s asymmetric ramp (long lead-in below, short retention face
-above), reused via a new `outward=True`, for the reason at `box.py:81–89`: a
+above), reused via `outward=True`, for the reason recorded on that function: a
 symmetric half-round bump rises as steeply as it protrudes and fights the user
 going on.
 
@@ -200,13 +235,54 @@ pinched. Push-out holes through the shell floor were considered and dropped: the
 packer places bores wherever it likes, so any fixed hole position risks landing
 under one and letting a drill fall through.
 
+## Three sets, one design
+
+`wood`, `metal` and `stone` are the same shell, the same cartridge and the same
+cover, cut for different tools. Everything that differs is in `sets.py`, and it
+is deliberately a short list: which sizes, how long they are, what the cover
+says, and one thing that is not obvious.
+
+**A masonry bit's shank is under its nominal size.** The carbide tip is brazed
+across the top and stands proud on every side — that is what lets the bit cut a
+hole its own shank passes freely through — so a bore cut to the printed size
+grips 0.2 mm of air. `sets.STONE` carries a `shank_allowance` of 0.20 mm and
+every bore, ASA guide and TPU land alike, is cut to `nominal − allowance`. The
+engraved legend still reads the nominal size, because that is what the bit is
+sold as. This costs nothing: bits go in shank-first and the tip never enters the
+tray.
+
+It also caps that set at 10 mm. Masonry bits above it are commonly sold with a
+*reduced* shank — a 12 mm bit on a 10 mm shank, to fit a 10 mm chuck — which is
+a different allowance for each size rather than one for the set, and a 12 mm
+legend over a 10 mm bore is a label that lies.
+
+The wood and metal sets have no allowance: a twist or brad-point drill's shank
+*is* its nominal size, ground h8.
+
+## Judgements from printed parts
+
+The one instrument that settles a fit here is a printed cartridge. Recorded in
+order, newest last:
+
+| what was printed | judgement | what changed |
+|---|---|---|
+| wood cartridge, `LAND_FIT = −0.10` | holds — and this is why the ribbed design was dropped — but harder than a tool tray wants; a drill lifts the shell off the baseplate on the way out | `LAND_EASE = 0.05` added, opening both the round and hex lands by one named step |
+
+`LAND_EASE` is deliberately half of `LAND_EXTRA_GRIP`: the useful band between
+*falls out* and *fights you* is narrow in an elastomer, and the printer's own
+hole undersize (0.1–0.3 mm) is wider than the correction. Ease again before
+reaching for `LAND_H` — a shorter land changes the contact area, which is the
+thing that was reasoned about above, while the ease only trims the interference.
+
 ## Open questions
 
-- **`LAND_FIT` and `HEX_LAND_FIT` are unmeasured.** Print
-  `drill_fit_tester.land` in TPU and record the judgement here. Expect the two to
-  diverge — a hex land bears on flats, and full flat-on-flat contact is grabbier
-  per mm than a curved wall. The PETG version found the same thing from the other
-  side (`HEX_GRIP` 0.25 vs `RIB_GRIP` 0.22).
+- **Is the eased land right?** `LAND_EASE` has been modelled, not printed. The
+  next cartridge answers it; write the answer into the table above.
+- **The hex land has never been judged on its own.** It carries the same ease as
+  the round bores, but a hex land bears on flats, and full flat-on-flat contact
+  is grabbier per mm than a curved wall. The ribbed design found the same thing
+  from the other side, wanting more interference on the hex than on the round
+  bores. Expect these two to diverge again.
 - **Is the land now on the flutes of the small drills?** See the table above —
   it depends on the bits, and neither reference table is measured. This is the
   open question the collar geometry created, and the cheapest way to close it is

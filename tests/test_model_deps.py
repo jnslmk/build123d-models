@@ -49,12 +49,13 @@ class ModelFilesTests(unittest.TestCase):
         self.assertIn("models/led_psu_enclosure/tray.py", files)
 
     def test_cross_package_import_is_followed(self) -> None:
-        # The drill_fit_tester coupons reach into drill_storage.box, which the
-        # grep in AGENTS.md warns is easy to miss by hand.
-        self.assertIn(
-            "models/drill_storage/box.py",
-            rel(model_deps.model_files("drill_fit_tester.full")),
-        )
+        # A drill_storage variant is four thin modules over geometry that lives
+        # a package up, so every one of them reaches out of its own directory --
+        # the kind of edge the grep in AGENTS.md warns is easy to miss by hand.
+        files = rel(model_deps.model_files("drill_storage.wood.insert"))
+        self.assertIn("models/drill_storage/insert.py", files)
+        self.assertIn("models/drill_storage/box.py", files)
+        self.assertIn("models/lib/fits.py", files)
 
     def test_unknown_model_raises(self) -> None:
         with self.assertRaises(ModuleNotFoundError):
@@ -86,7 +87,8 @@ class AffectedModelsTests(unittest.TestCase):
     def test_shared_engine_selects_the_family(self) -> None:
         hits = model_deps.affected_models(["models/drill_storage/box.py"], list(MODELS))
         self.assertIn("drill_storage.wood", hits)
-        self.assertIn("drill_fit_tester.full", hits)
+        self.assertIn("drill_storage.stone.shell", hits)
+        self.assertIn("drill_storage.hex", hits)
         self.assertNotIn("cube", hits)
 
 

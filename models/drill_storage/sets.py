@@ -1,0 +1,266 @@
+"""The three tool sets, and everything that differs between them.
+
+A set is the *only* thing a variant gets to decide. The clearances live in
+``config.py`` (one land fit, one guide fit, one relief, for all three), the
+geometry lives in ``shell.py`` / ``insert.py`` / ``cover.py``, and the packing is
+solved by ``box.layout_bores``. What is left -- which sizes, how long they are,
+what the cover says, and how far a shank runs under its nominal size -- is here,
+in one table you can read side by side.
+
+    WOOD    2 - 10 mm brad-point, plus a 10 mm countersink on a hex shank
+    METAL   1 - 10 mm HSS twist, plus a 10 mm hex tap
+    STONE   3 - 10 mm carbide-tipped masonry, no hex tool
+
+Adding a fourth is a ``DrillSet`` here and a four-module package next to
+``wood/``; nothing in the geometry has to know.
+
+**Bores are cut to the shank, not to the name.** A drill goes in shank-first and
+stands on the shell's floor, so every millimetre of bore -- ASA guide and TPU land
+alike -- only ever touches the shank. On a twist or brad-point drill the two are
+the same number. On a masonry bit they are not: the carbide tip is *wider* than
+the ground shank behind it, so a bore cut to the printed size would hold nothing
+at all. ``shank_allowance`` is that difference, and it is subtracted once, here,
+where it can be seen next to the set it belongs to. The legend still engraves the
+nominal size, because that is what you ask a merchant for.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from .box import cover_height_for, layout_bores
+from . import config as c
+
+# Minimum gap wanted above the longest tip when picking the cover's Gridfinity
+# unit. Deliberately not ``box.DRILL_HEADROOM`` (6 mm): asking for the generic
+# headroom pushes a set that would just fit up a whole 7 mm unit, so every set
+# here asks for a tip clearance instead and lands on the true minimum. The 7 mm
+# quantisation then leaves whatever it leaves -- usually a few mm anyway.
+COVER_TIP_CLEARANCE = 1.0
+
+
+@dataclass(frozen=True)
+class HexTool:
+    """A hex-shank tool sharing the tray with the drills.
+
+    ``across_flats`` is measured on the tool itself, with no fit folded in --
+    ``config``'s ``HEX_LAND_FIT`` / ``RELIEF_FIT`` / ``GUIDE_FIT`` own the
+    clearances, and a hand-added tenth here would be a second, invisible one.
+
+    ``head_d`` is a head wider than the shank that rests above the tray (a
+    countersink's cone); it reserves the footprint even though the bore is only
+    shank-sized. 0 means the shank is the widest part of the tool.
+    """
+
+    key: str  # what the wall legend calls it: "CSK", "TAP"
+    across_flats: float
+    length: float  # overall, for the assembly scene
+    head_d: float = 0.0
+
+
+@dataclass(frozen=True)
+class Drill:
+    """One round-shank bit: the size it is sold as, and how long it is."""
+
+    nominal: float
+    length: float
+
+
+@dataclass(frozen=True, eq=False)
+class DrillSet:
+    """One tool set, with its layout solved on construction.
+
+    ``bores`` / ``hex_bores`` / ``rows`` / ``pos`` come out of a single call to
+    ``layout_bores``, and the shell and the insert are both built from that one
+    call -- which is what makes it impossible for the two halves to disagree
+    about where a hole is, or for the engraved legend to name the wrong one.
+    """
+
+    name: str  # module name: "wood"
+    label: str  # cover engraving: "Wood"
+    style: str  # how the assembly draws a bit: brad / twist / masonry
+    drills: tuple[Drill, ...]
+    hex_tools: tuple[HexTool, ...] = ()
+    swap: tuple[tuple[str, str], ...] = ()
+    shank_allowance: float = 0.0  # nominal - shank, diametral (see module docs)
+    material: str = ""  # what the set is for, in words, for the docs
+
+    # Solved in __post_init__ -- derived, never passed in.
+    bores: tuple[tuple[float, float, float], ...] = field(init=False)
+    hex_bores: tuple[tuple[float, float, float], ...] = field(init=False)
+    rows: list[list[str]] = field(init=False)
+    pos: dict[str, tuple[float, float]] = field(init=False)
+    cover_h: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        nominal = [d.nominal for d in self.drills]
+        # Packed by the widest thing cut at each position: the insert's relieved
+        # bore for a drill, and for a hex tool whichever is bigger, its head or
+        # its own relieved socket. A hex socket's circumradius is 2/sqrt(3) of
+        # its across-flats, so it is easy to under-reserve by eye.
+        hex_tools = [
+            (
+                t.key,
+                t.across_flats - self.shank_allowance,
+                max(
+                    t.head_d / 2,
+                    (t.across_flats - self.shank_allowance + c.RELIEF_FIT) / 3**0.5,
+                ),
+            )
+            for t in self.hex_tools
+        ]
+        bores, hex_bores, rows, pos = layout_bores(
+            nominal,
+            hex_tools=hex_tools,
+            swap=list(self.swap),
+            footprint_r=lambda d: c.relieved_bore_r(d - self.shank_allowance),
+            half_w=c.PACK_HALF_W,
+            corner_r=c.PACK_CORNER_R,
+            hole_wall=c.PACK_HOLE_WALL,
+            wall_clearance=c.PACK_WALL_CLEARANCE,
+        )
+        # Keys and the legend stay nominal; the hole is cut to the shank.
+        object.__setattr__(
+            self,
+            "bores",
+            tuple((d - self.shank_allowance, x, y) for d, x, y in bores),
+        )
+        object.__setattr__(self, "hex_bores", tuple(hex_bores))
+        object.__setattr__(self, "rows", rows)
+        object.__setattr__(self, "pos", pos)
+        object.__setattr__(
+            self,
+            "cover_h",
+            cover_height_for(
+                self.max_len,
+                headroom=COVER_TIP_CLEARANCE,
+                bore_floor_z=c.GUIDE_FLOOR_Z,
+                foot_top=c.SHELL_FOOT_TOP,
+            ),
+        )
+
+    @property
+    def max_len(self) -> float:
+        """The longest tool standing on the shell floor -- what sizes the cover."""
+        return max([d.length for d in self.drills] + [t.length for t in self.hex_tools])
+
+    @property
+    def nominal(self) -> list[float]:
+        return [d.nominal for d in self.drills]
+
+    def length_of(self, nominal: float) -> float:
+        for d in self.drills:
+            if d.nominal == nominal:
+                return d.length
+        raise KeyError(f"{nominal} is not in the {self.name} set")
+
+
+# --- Wood ---------------------------------------------------------------------
+# Eleven brad-point drills plus a countersink. The countersink is packed by its
+# 10 mm head (which sits above the tray) but bored as a 6.3 mm hex socket, and
+# swapped with the 10 mm drill so it lands at a row edge rather than in the
+# centre slot; their footprints are within 0.2 mm, so the trade costs no wall.
+#
+# The 10 mm brad-point at 121 mm is the longest thing here and so picks the
+# cover: 109 mm, for a 133 mm (19U) assembled envelope with ~3 mm over the tip.
+WOOD = DrillSet(
+    name="wood",
+    label="Wood",
+    style="brad",
+    material="brad-point wood drills",
+    drills=(
+        Drill(2.0, 60.0),
+        Drill(2.5, 62.0),
+        Drill(3.0, 66.0),
+        Drill(3.5, 70.0),
+        Drill(4.0, 75.0),
+        Drill(5.0, 86.0),
+        Drill(6.0, 93.0),
+        Drill(7.0, 100.0),
+        Drill(8.0, 110.0),
+        Drill(9.0, 117.0),
+        Drill(10.0, 121.0),
+    ),
+    hex_tools=(HexTool(key="CSK", across_flats=6.3, length=48.0, head_d=10.0),),
+    swap=(("CSK", "10"),),
+)
+
+# --- Metal --------------------------------------------------------------------
+# Ten HSS twist drills on DIN 338 jobber lengths, plus an M6 hex-shank tap. The
+# 10 mm at 132 mm is the longest, which lands this set on the family's default
+# 123 mm cover (147 mm / 21U assembled) -- the tallest of the three.
+#
+# The 1 and 1.5 mm bores are the smallest holes in the package, and they are at
+# the edge of what a 0.4 mm nozzle resolves in TPU: a 0.95 mm land is barely two
+# extrusions wide. They print, and they grip -- but expect to open the smallest
+# one with the drill itself the first time, and if a bore closes up entirely,
+# drop the size rather than opening every land for it.
+METAL = DrillSet(
+    name="metal",
+    label="Metal",
+    style="twist",
+    material="HSS twist drills",
+    drills=(
+        Drill(1.0, 34.0),
+        Drill(1.5, 40.0),
+        Drill(2.0, 49.0),
+        Drill(2.5, 57.0),
+        Drill(3.0, 61.0),
+        Drill(4.0, 75.0),
+        Drill(5.0, 86.0),
+        Drill(6.0, 93.0),
+        Drill(8.0, 117.0),
+        Drill(10.0, 132.0),
+    ),
+    hex_tools=(HexTool(key="TAP", across_flats=10.0, length=70.0),),
+)
+
+# --- Stone --------------------------------------------------------------------
+# Seven carbide-tipped masonry bits. No hex tool: a masonry set is drills, and
+# the room is better spent on the 10 mm.
+#
+# ``shank_allowance`` is the whole reason this set is not just a different drill
+# list. A masonry bit's brazed carbide tip stands proud of the shank on every
+# side -- 0.2 mm diametral is typical on this size range, and it is what makes
+# the bit cut a hole its own shank passes freely through. Bore to the printed
+# size and the land grips 0.2 mm of air. The bits go in shank-first and the tip
+# never enters the tray, so cutting to the shank costs nothing and is simply
+# what the fit is measured against.
+#
+# It also caps the set at 10 mm: masonry bits above that are commonly sold with
+# a *reduced* shank (a 12 mm bit on a 10 mm shank, to fit a 10 mm chuck), which
+# is a different allowance per size rather than one for the set, and a 12 mm
+# name over a 10 mm bore is a legend that lies. Add one only with its own entry.
+#
+# The 10 mm at 150 mm is the longest, so this set gets a 137 mm cover
+# (161 mm / 23U assembled) -- taller than the metal set's despite the shorter
+# drill list.
+STONE = DrillSet(
+    name="stone",
+    label="Stone",
+    style="masonry",
+    material="carbide-tipped masonry bits",
+    drills=(
+        Drill(3.0, 70.0),
+        Drill(4.0, 75.0),
+        Drill(5.0, 85.0),
+        Drill(6.0, 100.0),
+        Drill(7.0, 100.0),
+        Drill(8.0, 120.0),
+        Drill(10.0, 150.0),
+    ),
+    shank_allowance=0.20,
+)
+
+ALL = (WOOD, METAL, STONE)
+
+__all__ = [
+    "ALL",
+    "COVER_TIP_CLEARANCE",
+    "METAL",
+    "STONE",
+    "WOOD",
+    "Drill",
+    "DrillSet",
+    "HexTool",
+]

@@ -141,10 +141,10 @@ the rib**, giving a transition or press fit without a plain interference fit.
   repeated assembly loses the grip. If the joint must come apart and back together,
   use compliant ribs sized for elastic deflection instead (see below).
 - **Same principle as this repo's ribbed bores**, generalised from tool grip to
-  press fits. `models/drill_storage/box.py` uses `RIB_COUNT = 3` beads
+  press fits. `models/drill_storage` used `RIB_COUNT = 3` beads
   whose contact edge sits `RIB_GRIP = 0.22` mm (diametral) inside the tool, and
-  its long design comment (`:183-214`) explains why an elastic rib and a crushable
-  bump are different animals: the earlier bumps could only be crushed, not
+  its design notes (`models/drill_storage/docs/design-notes.md`) explain why an
+  elastic rib and a crushable bump are different animals: the earlier bumps could only be crushed, not
   deflected, so no single interference number covered the size range. Details in
   `bores-and-ribs.md`.
 - Under load or heat, crushed ribs have far less contact area than a full press

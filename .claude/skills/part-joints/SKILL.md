@@ -49,7 +49,7 @@ concentrates hoop stress and splits the socket on the first insertion.
 This is the same rule `AGENTS.md` already states for tool holes ("always add a
 lead-in at every hole mouth"), generalised: *every* mating feature is a hole
 mouth. The repo's default is `BORE_MOUTH_CHAMFER = 0.8`
-(`models/drill_storage/box.py:111`), cut as a boolean cone rather than an
+(`models/drill_storage/box.py`), cut as a boolean cone rather than an
 OCC chamfer — see the `build123d-geometry-ops` skill for why.
 
 ### 2. Mating faces must have the same geometry
@@ -64,8 +64,8 @@ other — a 42 mm cover over a 41.5 mm Gridfinity body — **chamfer the wider p
 mating edge** so it clears the narrower part's edge and seats flush instead of
 overhanging it. The repo does exactly this: the base's body top is left a
 deliberately flat shoulder and the *cover* carries `COVER_SEAT_CH = 0.4`
-(`models/drill_storage/box.py:108`, applied at `:1116`), with the reason
-written into the comment at `:1052-1054`.
+(`models/drill_storage/box.py`), with the reason written into the comment beside
+it in `create_cover`.
 
 ### 3. Lead-ins and compliant features beat tight tolerances
 
@@ -84,8 +84,10 @@ exactly right"
 This repo learned it the hard way and wrote the post-mortem down: two printed
 generations of scaled ribs both failed, in opposite directions, because the ribs
 were bumps welded to the wall rather than springs
-(`models/drill_storage/box.py:185-216`). The fix was geometric, not
-numeric. Read that comment before designing any interference feature here.
+(`models/drill_storage/docs/design-notes.md`). The fix was geometric, not
+numeric — and the *second* fix was to change material, letting a TPU insert be
+the spring so the ribs could go entirely. Read those notes before designing any
+interference feature here.
 
 ## Choose the joint
 
@@ -150,9 +152,10 @@ Order of operations, once the joint type is chosen:
    number inline. Every fit in this repo that survived contact with a printer did
    so because someone could find and change one constant.
 6. **Print a coupon before committing a whole part.** The repo's grip law was set
-   by printed sweep bars, twice revised, and the comment trail at
-   `models/drill_storage/box.py:185-276` is the record of why guessing did
-   not work.
+   by printed sweep bars, twice revised, and
+   `models/drill_storage/docs/design-notes.md` is the record of why guessing did
+   not work. Where a whole part is small enough — that repo's TPU cartridge is an
+   hour — the part *is* the coupon.
 
 ## Minimums and hard limits
 
@@ -180,24 +183,25 @@ gap under about 0.3 mm does not slice as a wall at all — it simply merges.
 Read the real thing before inventing a new one.
 
 - **Telescoping collar with a snap detent** —
-  `models/drill_storage/box.py`. A `COLLAR_W` collar plugs into the
-  cover's `INNER_W` bore at `SLIP = 0.4` diametral (`:90`, `:100`), and an
-  asymmetric ramped bead (`_snap_bead_ring`, `:416`) clicks into a rounded groove
-  (`_snap_ring`, `:401`). The bead's long insertion ramp and short retention face
-  are rule 3 in miniature — the earlier symmetric half-round bump fought the user
-  going on (`:81-89`).
+  `models/drill_storage/box.py`. A `COLLAR_W` collar plugs into the cover's
+  `INNER_W` bore at `SLIP = 0.4` diametral, and an asymmetric ramped bead
+  (`snap_bead_ring`) clicks into a rounded groove (`snap_ring`). The bead's long
+  insertion ramp and short retention face are rule 3 in miniature — the earlier
+  symmetric half-round bump fought the user going on. `snap_bead_ring(outward=True)`
+  is the same profile seen from the other side of the joint, for a compliant male
+  part detenting into a rigid female one.
 - **Telescoping tube into a shroud** — `models/wall_bar_lamp.py:36-37`.
   `SHROUD_BORE_DIAMETER = TUBE_OUTER_DIAMETER + 0.4` over a 40 mm tube: a clean
   +0.4 mm diametral slip fit, matching the table above.
-- **Hex socket slip fit** — `models/drill_storage/hex.py:51` (`HEX_SHANK_AF`),
-  `:60` (`HEX_CLEARANCE`). `HEX_CLEARANCE = 0.15` across the flats on a 6.35 mm
-  1/4" shank, with the
-  comment explaining that the fit lives *entirely* in that number because a hex
-  socket has no ribs to take up slack. The round bores next door do have ribs,
-  and that is precisely why they need no such precision.
-- **Ribbed bore for tool grip** — `create_base(ribbed=True)` and `cut_holes` in
-  `models/drill_storage/box.py:828`. The repo's compliant-rib
-  implementation, generalised in `references/bores-and-ribs.md`.
+- **Hex socket slip fit** — `models/drill_storage/hex.py` (`HEX_SHANK_AF`,
+  `HEX_CLEARANCE`). `HEX_CLEARANCE = 0.15` across the flats on a 6.35 mm 1/4"
+  shank, with the comment explaining that the fit lives *entirely* in that number
+  because the socket has nothing compliant to take up slack.
+- **Interference land in an elastomer** — `models/drill_storage/insert.py`. A TPU
+  cartridge grips a drill on a 3.5 mm land at `LAND_FIT` while the rigid ASA shell
+  below it guides at a free fit: two materials, cut on opposite sides of nominal,
+  each doing one job. `references/bores-and-ribs.md` generalises it, along with
+  the compliant-rib design it replaced.
 
 ## Verify, do not eyeball
 

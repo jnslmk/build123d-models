@@ -1,10 +1,14 @@
 """Measured and derived numbers for the ASA shell + TPU cartridge holder.
 
+One file for all three sets (``wood``, ``metal``, ``stone``): what changes
+between them is the drill list and the cover label, and neither is a tolerance.
+Everything a set *does* decide for itself lives in ``sets.py``.
+
 No geometry lives here. Everything is either imported from ``drill_storage.box``
 (so the Gridfinity envelope and the cover interface cannot drift apart from the
-PETG version) or derived from those numbers as an expression -- never typed as an
-evaluated result, which is how a relationship becomes invisible and free to
-break.
+engine every cover is still cut from) or derived from those numbers as an
+expression -- never typed as an evaluated result, which is how a relationship
+becomes invisible and free to break.
 
 The vertical stack, all in world z with the shell's foot on z=0::
 
@@ -27,21 +31,21 @@ that reach is the longer of what it has to contain -- land plus lead-in, or the
 bead's own ramp. So the TPU is 8.0 mm rather than 37.2, everything below it is ASA
 bored at a free fit, and the shell guides while the collar grips.
 
-The base is 36 mm, not the PETG base's 42: its bores no longer come down from the
-top face, so the height above the cover seat only has to hold the collar. What did
-*not* move is ``SHELL_FOOT_TOP``. The seat feeds ``cover_height_for``, so lowering
-it would mint a taller cover for this model alone; leaving it at 24 means
-``cover_height_for`` returns the same 109 mm it does for the PETG base and an
-already-printed ``drill_storage.wood`` cover still fits. ``checks.py`` asserts that
-rather than trusting the coincidence.
+The base is 36 mm, not the 42 mm of the one-material base still in ``box.py``: its
+bores no longer come down from the top face, so the height above the cover seat
+only has to hold the collar. What did *not* move is ``SHELL_FOOT_TOP``. The seat
+feeds ``cover_height_for``, so lowering it would mint a taller cover for these
+models alone; leaving it at 24 keeps every cover this package has ever produced
+interchangeable with every shell. ``checks.py`` asserts that rather than trusting
+the coincidence.
 """
 
 from __future__ import annotations
 
 from build123d import Color
 
-from ...lib import fits
-from ..box import (
+from ..lib import fits
+from .box import (
     BASE_TOP_CHAMFER,
     BORE_FLOOR_Z,
     BORE_MOUTH_CHAMFER,
@@ -66,7 +70,7 @@ CART_COLOR = Color(0.25, 0.55, 0.72)  # a distinctly different part, on purpose
 # The cartridge enters through the collar, so the collar bore is the throat, and
 # SHELL_WALL is what every millimetre of hole space is bought from -- twice over,
 # because it comes off both sides. This is the whole price of the two-material
-# split: the PETG base packs its bores into 34.8 mm, and this one into 32.1.
+# split: a one-material base packs its bores into 34.8 mm, and this one into 32.1.
 #
 # 1.6 mm is 4 perimeters at a 0.4 mm nozzle. It is a *floor*, not a preference:
 # at 2.0 mm the packer runs out of vertical room and silently compresses the rows
@@ -124,16 +128,16 @@ CAVITY_MOUTH_CH = 0.4  # inner rim -- the cartridge's lead-in
 RIM_FLAT = SHELL_WALL - SHELL_TOP_CHAMFER - CAVITY_MOUTH_CH  # 0.8
 
 # --- Shell height -------------------------------------------------------------
-# The base does NOT inherit box.BASE_TOTAL_H. The PETG base is 42 mm because its
+# The base does NOT inherit box.BASE_TOTAL_H. That base is 42 mm because its
 # bores are sunk from the top face and need the depth; this one grips in a short
 # collar at the top and guides in ASA below, so it needs far less.
 #
 # Only ``SHELL_COLLAR_H`` comes down. ``SHELL_FOOT_TOP`` deliberately stays at
 # box.FOOT_TOP, because the seat height feeds ``cover_height_for``: lower it and
-# this model needs its own taller cover, and an already-printed
-# ``drill_storage.wood`` cover stops fitting. The collar is free -- the cover's
-# groove sits at ``FOOT_TOP + SNAP_Z`` either way, so shortening above that costs
-# the cover nothing. checks.py asserts both halves of that.
+# every shell needs its own taller cover, and a cover already on the shelf stops
+# fitting. The collar is free -- the cover's groove sits at ``FOOT_TOP + SNAP_Z``
+# either way, so shortening above that costs the cover nothing. checks.py asserts
+# both halves of that.
 #
 # 36 mm is not a whole Gridfinity Z unit, and does not need to be: what has to
 # quantise is the *assembled* envelope (19U / 133 mm), which is set by the seat
@@ -157,10 +161,11 @@ CART_TOP_Z = SHELL_TOTAL_H + CART_PROUD  # 37.2
 # This is the whole design argument, so it is written out rather than left to the
 # design notes.
 #
-# The PETG base grips on three compliant ribs because PETG has no compliance of
-# its own: box.py:187-286 is the record of two printed generations that failed in
-# opposite directions until the ribs were reshaped into springs. TPU makes that
-# machinery pointless -- the bulk material is the spring.
+# The holder this replaced gripped on three compliant ribs cut into a PETG bore,
+# because PETG has no compliance of its own; ``docs/design-notes.md`` keeps the
+# record of the two printed generations that failed in opposite directions before
+# those ribs were reshaped into springs. TPU makes that machinery pointless --
+# the bulk material is the spring.
 #
 # But it does NOT follow that a plain deep bore works. Retention is friction x
 # contact area, and TPU on steel runs mu ~ 0.5-0.9. A full-circle interference
@@ -175,10 +180,10 @@ CART_TOP_Z = SHELL_TOTAL_H + CART_PROUD  # 37.2
 # 14 mm and one full circle over 3.5 mm have comparable contact area, which is
 # why this lands back in the force range the printed rib sweep already calibrated.
 #
-# The land sits at the bottom for the same reason RIB_ZONE_H does: that is the
-# plain shank. Higher up are the flutes, whose hardened spurs broach a grip
-# feature away permanently -- and TPU is softer than the PETG that lesson was
-# learned on, so the margin is worse, not better.
+# The land sits at the bottom because that is the plain shank. Higher up are the
+# flutes, whose hardened spurs broach a grip feature away permanently -- and TPU
+# is softer than the PETG that lesson was learned on, so the margin is worse, not
+# better.
 LAND_H = 3.5  # grip band height above the cartridge floor
 
 # Press fit, TPU -- i.e. modelled at nominal, because for_material(PRESS, "tpu")
@@ -186,23 +191,29 @@ LAND_H = 3.5  # grip band height above the cartridge floor
 # vertical hole 0.1-0.3 mm undersize, so a bore modelled at nominal arrives as a
 # real interference fit, and *that* undersize is the interference here.
 #
-# UNVERIFIED. The fit ladder in models/lib/fits.py models rigid-plastic clearance
-# fits; it does not model elastomer interference, and no TPU coupon has been
-# printed yet. Treat this as the centre of a sweep, not an answer -- print
-# ``drill_fit_tester.land`` and judge it, exactly as RIB_GRIP was settled.
-#
 # LAND_EXTRA_GRIP takes it *below* the ladder's tightest class, which is a thing
 # the ladder cannot express: PRESS is the bottom rung, and in TPU it lands on
 # nominal. The extra is deliberate interference on top of the print undersize,
-# and it is named rather than folded into a literal so the coupon can be read as
-# "how far from LAND_FIT", not "what absolute number was typed".
+# and it is named rather than folded into a literal so a printed cartridge can be
+# read as "how far from LAND_FIT", not "what absolute number was typed".
 #
-# It is also what makes the contrast the design depends on legible in one place:
+# LAND_EASE then gives some of it back. The first cartridge printed to these
+# numbers holds -- that is the finding, and it is why this design replaced the
+# ribbed one -- but it holds harder than a tool tray wants: a drill should come
+# out to a straight pull, not to a pull that lifts the shell off the baseplate
+# with it. So both lands open by one named step. It is deliberately small, half
+# of LAND_EXTRA_GRIP: the useful band between "falls out" and "fights you" is
+# narrow in an elastomer, the printer's own hole undersize (0.1-0.3 mm) is wider
+# than this correction, and a second small step is cheap while a cartridge cut
+# too loose is a reprint. Ease again before reaching for LAND_H.
+#
+# The contrast the design depends on survives it, and is legible in one place:
 # the ASA guide below is cut LOOSE (GUIDE_FIT, +0.49) and the TPU collar TIGHT
-# (-0.10). checks.py asserts that ordering, because a guide that grips or a land
+# (-0.05). checks.py asserts that ordering, because a guide that grips or a land
 # that clears would each quietly defeat the split.
 LAND_EXTRA_GRIP = 0.10
-LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP
+LAND_EASE = 0.05  # opened by this much from the first printed cartridge
+LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP + LAND_EASE
 
 # Sliding fit, TPU -- the relief above the land. It carries no grip at all, only
 # guidance, so what it wants is to be as loose as the space allows: any drag up
@@ -215,17 +226,24 @@ LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP
 # SHELL_WALL, not from here.
 RELIEF_FIT = fits.for_material(fits.SLIDING, CART_MATERIAL)
 
-# Press fit, TPU -- as LAND_FIT, but it gets its own constant because a hex land
-# bears on flats rather than on a curved wall, and full flat-on-flat contact is
-# grabbier per mm of engagement. The PETG version found the same thing from the
-# other side (HEX_GRIP 0.25 vs RIB_GRIP 0.22), so expect these two to diverge
-# once both have been on a coupon. Equally UNVERIFIED.
-HEX_LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL)
+# The hex land, for a countersink's or a tap's shank. It gets its own constant
+# because a hex land bears on flats rather than on a curved wall, and full
+# flat-on-flat contact is grabbier per mm of engagement -- the ribbed design
+# found the same thing from the other side, wanting more interference on the hex
+# than on the round bores, and these two should be expected to diverge again.
+#
+# It carries the same LAND_EASE, because a tool that has to be worked out of the
+# tray is the same complaint whatever its shank is. Starting from the press fit
+# (nominal in TPU) that lands it just *over* nominal -- which is not the clearance
+# it looks like: a bore this size still prints 0.1-0.3 mm under, so the real
+# contact is interference either way. Ease is measured against what the printer
+# delivers, not against the model.
+HEX_LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) + LAND_EASE
 
-# Lead-in at each bore mouth on the cartridge's top face. Smaller than the base's
-# BORE_MOUTH_CHAMFER (0.8): two neighbouring mouths each want their chamfer to
-# form without running into each other, and this cartridge's row pitch is tighter
-# than the base's -- at 0.8 the 6 mm and 9 mm mouths overlap and leave a sharp
+# Lead-in at each bore mouth on the cartridge's top face. Smaller than the
+# engine's BORE_MOUTH_CHAMFER (0.8): two neighbouring mouths each want their
+# chamfer to form without running into each other, and this cartridge's row pitch
+# is tighter than a one-material base's -- at 0.8 the 6 mm and 9 mm mouths overlap and leave a sharp
 # sliver between them. 0.5 clears the 1.23 mm those two actually have, and a
 # lead-in in TPU has an easier job anyway: the material gives.
 CART_MOUTH_CH = 0.5
@@ -248,7 +266,7 @@ EFFECTIVE_LAND_H = LAND_H - BORE_FOOT_RELIEF
 # carries the bead, so seating it costs a squeeze rather than a wall deflection.
 #
 # The profile is box.snap_bead_ring's asymmetric ramp (outward=True), for the
-# reason recorded at box.py:81-89: a symmetric half-round bump fights the user
+# reason recorded on box.snap_bead_ring: a symmetric half-round bump fights the user
 # going on, because it rises as steeply as it protrudes.
 CART_BEAD = 0.6  # radial protrusion of the TPU bead
 BEAD_LEAD_IN = 2.4  # gentle insertion ramp below the tip
@@ -302,7 +320,7 @@ KEY_SLIP = fits.for_material(fits.SLIDING, CART_MATERIAL)  # sliding fit, TPU
 
 # --- Bore layout --------------------------------------------------------------
 # The packing envelope is the cartridge, not the collar, and it is tighter than
-# the PETG base's: the shell wall and the cartridge wall both come out of the
+# a one-material base's: the shell wall and the cartridge wall both come out of the
 # same 39.2 mm collar. Bores are packed by their *relieved* radius, which is what
 # is actually cut -- smaller than ribbed_valley_r, which claws some of it back.
 PACK_HALF_W = CART_W / 2
@@ -364,6 +382,7 @@ __all__ = [
     "KEY_ROOT",
     "KEY_SLIP",
     "KEY_W",
+    "LAND_EASE",
     "LAND_EXTRA_GRIP",
     "LAND_FIT",
     "LAND_H",

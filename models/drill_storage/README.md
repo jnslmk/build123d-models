@@ -1,73 +1,101 @@
 # Drill Storage
 
-Gridfinity drill holders: a bored 1×1 base with a tall labelled cover that snaps
-over it, one holder per tool set, all cut from a single engine.
+Gridfinity drill holders, one per tool set. Each is three printed parts in three
+filaments: a rigid **ASA shell** that guides, a compliant **TPU cartridge** that
+grips, and a tall labelled **PETG cover** that snaps over the collar.
 
 ```bash
-uv run show drill_storage                    # the engine's demo set
-uv run show drill_storage.wood               # 2-10 mm brad-point set + countersink
-uv run show drill_storage.metal              # 1-10 mm HSS twist set + hex tap
-uv run show drill_storage.hex                # 16-piece 1/4" hex-shank bit set
-uv run show drill_storage.assemblies.wood    # the wood set with drills standing in it
-uv run show drill_storage.flex               # ASA shell + TPU collar, same wood set
-uv run show drill_storage.assemblies.comparison  # both holders side by side
-uv run export drill_storage.wood             # STLs for the slicer (base + cover)
+uv run show drill_storage               # the family: three shells, three covers
+uv run show drill_storage.wood          # 2-10 mm brad-point set + countersink
+uv run show drill_storage.metal         # 1-10 mm HSS twist set + hex tap
+uv run show drill_storage.stone         # 3-10 mm carbide masonry set
+uv run show drill_storage.hex           # 16-piece 1/4" hex-shank bit set
+uv run export drill_storage.wood.shell  # STL + STEP for the slicer
+uv run check drill_storage.wood         # geometry assertions for one set
 ```
 
 ## Layout
 
 | module | what it is |
 |---|---|
-| `box.py` | **The engine.** Constants, hole packing, rib geometry, wall legends, `create_base` / `create_cover`. Not a model. |
-| `sampler.py` | `drill_storage` — three covers and two graduated bases, so the engine is showable without picking a tool set. |
-| `wood.py` | `drill_storage.wood` — 2-10 mm brad-point set plus a 10 mm hex-shank countersink. |
-| `metal.py` | `drill_storage.metal` — 1-10 mm HSS twist set plus a 10 mm hex tap. |
-| `hex.py` | `drill_storage.hex` — 16-piece ¼″ hex-shank bit set, 8 long + 8 short. |
-| `assemblies/wood.py` | `drill_storage.assemblies.wood` — a scene, not a print job: every drill standing in its bore under a translucent cover. |
-| [`flex/`](flex/README.md) | `drill_storage.flex` — the same wood set as a rigid **ASA shell** (which guides) plus a short compliant **TPU collar** (which grips). No ribs: TPU is the spring, so the grip is a 3.5 mm land instead. Reuses this engine's foot, collar, snap and cover. |
-| `assemblies/comparison.py` | `drill_storage.assemblies.comparison` — the PETG ribbed holder and the ASA+TPU one side by side, sharing a cover. |
+| `box.py` | **The engine.** Gridfinity constants, hole packing, wall legends, `create_cover`, and the one-material `create_base`. Not a model. |
+| `config.py` | Every clearance, shared by all three sets: the guide fit, the land fit, the relief, the snap. No geometry. |
+| `sets.py` | **The three sets**, side by side: sizes, lengths, cover label, shank allowance. The only thing a variant decides. |
+| `shell.py` / `insert.py` / `cover.py` | The three parts, set-agnostic. Hand them a `DrillSet`. |
+| `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
+| `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
+| [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per set: the assembled scene, plus `shell`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
+| `hex.py` | `drill_storage.hex` — 16-piece ¼″ driver-bit set. The one-material outlier: driver bits want a drop-in socket, not a grip. |
 
-A holder module supplies a drill list, a cover label and (for a short set) a
-cover height. Everything else — where the holes go, how big the ribs are, what
-gets engraved on which wall, which way up each part prints — is solved in `box`.
-Adding a tool set is a new module of about sixty lines; edit `DRILL_DIAMS` and
-the layout re-packs itself.
+Adding a fourth set is a `DrillSet` in `sets.py` and a package copied from
+`wood/`. Nothing in the geometry has to know about it.
 
 ## How the parts hold together
 
-**Base → cover.** A 41.5 mm body steps down to a 35 mm collar that plugs into
+**Shell → cover.** A 41.5 mm body steps down to a 39.2 mm collar that plugs into
 the cover's bore on a 0.4 mm diametral slip fit, and a ramped bead inside the
 cover clicks into a rounded groove on the collar. The bead is asymmetric on
 purpose: a long gentle lead-in below the tip so the cover slides on
 progressively, a shorter steeper face above so it still detents going in.
 
-**Bore → drill.** Bores do not grip on a close-fitting wall. Three compliant
-ribs stand into each bore and hold the bit on its plain shank at a measured
-diametral interference. A rib is a spring; a tight cylinder is a jam, and it
-also has to survive the printer's own error on a 2 mm hole.
+**Shell → cartridge.** The cartridge drops into a 6.8 mm cavity at the top of the
+shell and clicks in on its own bead — outward, on the TPU, so seating it costs a
+squeeze rather than deflecting an ASA wall. A key rib on the +X face means it
+only goes in one way round, which is what makes the shell's engraved legend true.
 
-## The interference is measured, not calculated
+**Cartridge → bit.** The bore is plain and round, and it grips on a **3.5 mm
+land** at the very bottom, on the bit's plain shank. Everything above the land is
+relieved and everything below it is ASA. Guiding and gripping are cut on opposite
+sides of nominal, deliberately:
 
-`box.grip_for(d)` is the production law, and it is not a constant: small bores
-print their ribs short, so below 5 mm the grip ramps up along a measured table
-(`RIB_GRIP_SMALL`) rather than a formula. Every entry in that table came off a
-printed coupon.
+| | where | fit | job |
+|---|---|---|---|
+| ASA guide | 23.2 mm below the cartridge | **+0.49** (free, as printed) | keeps the bit upright, must never rub |
+| TPU relief | above the land | +0.32 (sliding) | clears the bit, grips nothing |
+| TPU land | 3.5 mm at the cartridge floor | **−0.05** (press, eased) | the only thing that holds a bit |
 
-The coupons are the sibling package, [`models/drill_fit_tester`](../drill_fit_tester/README.md).
-Print those before re-cutting a holder — a bar takes twenty minutes and a holder
-takes eight hours.
+`checks.py` asserts that ordering. A guide that gripped, or a land that cleared,
+would each defeat the split silently.
+
+## The interference is judged, not calculated
+
+`models/lib/fits.py` models rigid-plastic *clearance* fits and says nothing about
+an elastomer squeezing a steel shank, so `LAND_FIT` is a judgement made on a
+printed cartridge and written down. The first one held — that is why this design
+replaced the ribbed PETG bores it grew out of — but harder than a tool tray
+wants, so both lands were opened by a named `LAND_EASE` of 0.05 mm.
+
+That record, and what came before it, is in
+[`docs/design-notes.md`](docs/design-notes.md). Print a cartridge before
+re-cutting one: it is about 7 cm³ and an hour, against 20 cm³ and most of a day
+for a shell.
 
 ## Printing
 
-PETG, no supports.
+No supports anywhere. Every part comes off `create()` in its print pose.
 
-- **Base** — bores up, flat on the foot. Every bore mouth carries a 45° lead-in
-  chamfer cut as a boolean cone, not an OCC fillet: filleting a ribbed mouth is
-  unreliable, and a failed fillet corrupts the builder so every later one fails
-  silently too.
-- **Cover** — pillow top on the bed, mouth up. `create_cover` already returns it
-  that way, so the STL drops straight into the slicer.
+- **Shell — ASA**, foot down, cavity up. 36 mm tall. ASA wants an enclosure; a
+  42 mm footprint is not fussy, but a draught will still lift the foot's corners.
+- **Cartridge — TPU**, flat bottom down, bores up. 8 mm tall, every bore a through
+  hole, so nothing to bridge and nothing to drain. Keep the perimeter count up:
+  the grip land *is* a perimeter, and its diameter is the whole fit.
+- **Cover — PETG**, pillow top on the bed, mouth up.
 
 Cover heights are quantised: `cover_height_for()` picks the smallest whole
-Gridfinity Z unit (7 mm) that still swallows the longest drill standing on the
-bore floor, so the assembled holder always sits on a unit boundary.
+Gridfinity Z unit (7 mm) that still swallows the longest tool standing on the
+shell floor, so the assembled holder always sits on a unit boundary — 19U for
+wood, 21U for metal, 23U for stone. **The covers are interchangeable**, because
+every shell keeps the same seat height; a taller one simply leaves more air.
+
+## Assembly
+
+1. Drop the cartridge into the shell, **key rib on the +X face** lined up with
+   the slot in the cavity wall. It only goes one way.
+2. Push until the retention bead clicks into the groove near the top. It takes a
+   squeeze; TPU compresses 0.44 mm of engagement without complaint.
+3. Bits go in **shank first**, pass through the collar, and bottom out on the
+   shell's ASA floor 23.2 mm below — soft plastic creeps under a point load.
+
+To swap sets, pinch the 1.2 mm of cartridge standing proud of the shell rim and
+pull. Note that the guide bores live in the shell, so a genuinely different set
+needs both halves reprinted; the cartridge alone only re-does the grip.

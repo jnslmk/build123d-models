@@ -122,10 +122,10 @@ builder.
 
 Other patterns in the repo, when the lib helper does not fit:
 
-- Round and hex bore mouths — `models/drill_storage/box.py:962-987` cuts a
+- Round and hex bore mouths — `cut_holes` in `models/drill_storage/box.py` cuts a
   `Cone` frustum at every mouth, round and hex, and says why in a comment.
 - A rounded-square rim where no lib helper is imported —
-  `models/drill_storage/box.py:445` (`_rim_chamfer_tool`).
+  `rim_chamfer_tool` in `models/drill_storage/box.py`.
 
 `models/led_psu_enclosure/util.py` re-exports `as_part`, `chamfer_edge`,
 `top_chamfer_tool` and `bottom_chamfer_tool` for back-compatibility; existing

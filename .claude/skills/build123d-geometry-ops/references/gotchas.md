@@ -177,10 +177,10 @@ though the countersinks were 5 mm clear of the edge being chamfered. Recorded in
   and subtract a lofted keep-frustum, then you subtract the result from your part.
 - Round or hex bore mouth — subtract `Cone(r, r + ch, ch)` positioned at
   `top_z - ch` with `align=(Align.CENTER, Align.CENTER, Align.MIN)`. See
-  `models/drill_storage/box.py:962-987`, which does exactly this for every
+  `cut_holes` in `models/drill_storage/box.py`, which does exactly this for every
   round bore and every hex socket in one pass, and explains the choice inline.
 - Rounded-square rim, no lib import — `_rim_chamfer_tool` at
-  `models/drill_storage/box.py:445-462`.
+  `rim_chamfer_tool` in `models/drill_storage/box.py`.
 
 **Rule of thumb.** Two failed attempts on an edge op is the signal to switch
 instruments, not to try a third size.

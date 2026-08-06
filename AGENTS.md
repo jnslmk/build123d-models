@@ -36,8 +36,8 @@ That second half is the part that bites, because most of this repo's models are
 cut from shared engines:
 
 - a change under `models/lib/` can reach **any** model;
-- `drill_storage/box.py` is the engine behind `drill_storage.*`,
-  `drill_storage.flex.*` and every `drill_fit_tester.*` coupon;
+- `drill_storage/box.py` is the engine behind every `drill_storage.*` model, and
+  `drill_storage/config.py` and `sets.py` behind all three drill variants;
 - `led_profiles/config.py` and `led_psu_enclosure/config.py` likewise feed every
   part and assembly in their packages.
 
@@ -45,16 +45,17 @@ You no longer have to work that blast radius out by hand — `model_deps` walks 
 import graph, which is what `main.py` selects on and what `uv run deps` reports:
 
 ```bash
-uv run deps models/lib/edges.py          # 33 of 41 models
+uv run deps models/lib/edges.py          # 31 of 39 models
 uv run deps models/cube.py               # just cube
 uv run deps --files led_profiles.stand   # the other direction
 ```
 
 Prefer that over a `grep`. The obvious pattern is wrong in two directions: `from
-.box import` finds 5 files where the real answer is 17, missing both the `from
-..box import` used one level down and the `from ..drill_storage.box import` that
-every `drill_fit_tester` coupon uses to reach across packages — and without
-`--include=*.py`, stale `__pycache__/*.pyc` inflate the count instead.
+.box import` finds far fewer files than the real answer, missing the `from
+..box import` and `from ..sets import` that every `drill_storage.<set>.*` module
+uses to reach a directory up — and without `--include=*.py`, stale
+`__pycache__/*.pyc` inflate the count instead. `uv run deps
+models/drill_storage/box.py` reports 14 of 39 models; no grep will.
 
 The per-model commands are still the fastest loop while iterating on one part,
 and they take the same names as everything else:
@@ -211,10 +212,10 @@ Code panel keeps working.
   `models.<something>`, it is not a model — it cannot be shown, exported,
   rendered or put on the site. Splitting a second scene into its own module
   costs nothing and buys it a name.
-- **Never encode hierarchy in underscores.** A part of `drill_storage` is
-  `drill_storage.wood`, not `drill_storage_wood`; its assembled view is
-  `drill_storage.assemblies.wood`, not `drill_storage_wood_assembly`. Dots are
-  the hierarchy; underscores are only for multi-word single names.
+- **Never encode hierarchy in underscores.** The TPU cartridge of the wood set is
+  `drill_storage.wood.insert`, not `drill_storage_wood_insert`; the assembled
+  scene is `drill_storage.wood`, not `drill_storage_wood_assembly`. Dots are the
+  hierarchy; underscores are only for multi-word single names.
 - **No private cross-module imports.** `from models.other_model import _helper`
   means the two are one family: make it a package and make the helper public in
   a shared module.
@@ -250,12 +251,13 @@ their parent, so a missing line ships a wheel without that model.
 
 Nothing to copy here — these are gaps, and closing one is welcome work:
 
-- No single-file model has a `check()`, so `uv run check <flat-model>` prints
-  "no checks defined" for all of them.
-- `drill_storage` and `drill_fit_tester` have no `checks.py` yet, though
-  `checks.py` is meant to be package floor. `led_profiles` and
-  `led_psu_enclosure` are the two that carry real ones — read those for the
-  shape a `checks.py` should take.
+- The three `drill_storage` variant packages (`wood`, `metal`, `stone`) have no
+  `config.py` and no `docs/`, and their `checks.py` only forwards to the family's.
+  That is deliberate: they are four-module naming layers over geometry and
+  clearances that are deliberately shared, so the numbers live in
+  `drill_storage/sets.py` and `config.py` and the argument in `drill_storage/docs/`.
+  Copy the shape only for a package that is genuinely a thin leaf; a model that
+  owns its own numbers still owns its own `config.py`.
 
 ## build123d Style
 

@@ -1,10 +1,11 @@
 """Gridfinity storage for a 16-piece 1/4" hex-shank bit set -- 8 long + 8 short.
 
-A sibling of ``drill_storage.wood`` / ``drill_storage.metal`` built on the same
-square Gridfinity base/cover engine from ``drill_storage.box``, but every
-hole is a hex socket rather than a round bore: the bits all share the same
-6.35 mm (1/4") across-flats shank, so they drop straight into a hex pocket and
-are held by the flats.
+The one **one-material** holder left in this package. The drill sets are an ASA
+shell plus a TPU cartridge, because a drill has to be gripped; a 25 mm driver bit
+standing 10 mm proud of a socket does not. So this is still a plain PETG base
+from ``box.create_base``, and every hole is a hex socket rather than a round
+bore: the bits all share the same 6.35 mm (1/4") across-flats shank, so they drop
+straight into a pocket and are held by the flats and their own weight.
 
 Two boxes, one per bit family:
 
@@ -45,9 +46,10 @@ from .box import (
     layout_bores,
 )
 
-# 1/4" hex shank. Hex sockets have no ribs to take up slack (unlike the round
-# ribbed bores), so the fit lives entirely in this across-flats clearance: enough
-# that a bit drops in and lifts out one-handed, not so much that it rattles.
+# 1/4" hex shank. Nothing here is compliant, so the fit lives entirely in this
+# across-flats clearance: enough that a bit drops in and lifts out one-handed, not
+# so much that it rattles. (A drill set cannot be held this way, which is what the
+# TPU cartridge next door exists for -- but a driver bit only has to stand up.)
 HEX_SHANK_AF = 6.35  # nominal 1/4" across-flats
 # Diametral allowance (added straight across the flats, like a bore-diameter
 # formula -- not doubled, so it's already the total gap). Sits between
@@ -162,7 +164,6 @@ def create() -> Compound:
         base = create_base(
             [],
             hex_bores=hex_bores,
-            ribbed=False,
             rows=rows if keys else None,
             hole_pos=pos if keys else None,
             bore_depth=SOCKET_DEPTH,
