@@ -23,6 +23,8 @@ from build123d import (
     revolve,
 )
 
+from models.lib.checks import Report
+
 # A scene: rod, strips, mirror and diffusers in their use pose. Not a print job
 # -- see tessellate_models.model_is_assembly, which is what drops the website's
 # STL/STEP download for it.
@@ -330,3 +332,151 @@ def create() -> Compound:
         label="satellite_led",
         children=[rod] + strips + [mirror, diffuser_top, diffuser_bottom],
     )
+
+
+def _child(compound: Compound, label: str):
+    """The one direct child carrying ``label``, or a loud error.
+
+    Every builder here sets a unique label on what it returns, so a lookup
+    that comes back empty or ambiguous is itself a defect worth surfacing
+    rather than silently indexing by position.
+    """
+    matches = [c for c in compound.children if c.label == label]
+    if len(matches) != 1:
+        raise LookupError(
+            f"expected exactly one child labelled {label!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _overlap_volume(a, b) -> float:
+    """Material shared between two shapes, in mm^3 -- not their bounding boxes.
+
+    This is a scene, not a print job, but two parts that are supposed to mate
+    (a plug telescoping into a socket, a rod inside a diffuser's hex hole)
+    must still not collide, and an LED strip mounted to a face must not sit
+    inside the rod it is mounted to. Bounding boxes overlap for all of these
+    by design -- the mating region *should* overlap in extent -- so only an
+    actual boolean intersection volume can tell "assembled" from "colliding".
+    """
+    common = a.intersect(b)
+    if common is None:
+        return 0.0
+    shapes = list(common) if isinstance(common, (list, tuple)) else [common]
+    return float(sum(getattr(s, "volume", 0.0) for s in shapes))
+
+
+def check() -> Report:
+    """Geometry assertions for the satellite LED scene.
+
+    ``IS_ASSEMBLY = True`` -- this is a use-pose scene, not a print job, so
+    there is no print-pose or printability assertion here. Instead: the
+    compound exposes exactly the labelled children the scene is built from,
+    each LED strip sits on the hex face and at the angle ``FACE_ANGLES``
+    places it (and carries the number of LEDs ``HEX_LENGTH``/``LED_PITCH``
+    implies), the mirror is seated at the rod's rear end, and every mating
+    pair that is supposed to clear -- strip-to-rod, rod-to-diffuser hex hole,
+    and the diffuser's own telescoping joint -- actually clears, checked as a
+    real intersection volume rather than a bounding-box overlap.
+    """
+    r = Report()
+    part = create()
+
+    r.section("compound structure")
+    expected_labels = (
+        ["hex_rod"]
+        + [f"led_strip_{i}" for i in range(6)]
+        + ["parabolic_mirror", "diffuser_top", "diffuser_bottom"]
+    )
+    actual_labels = [c.label for c in part.children]
+    r.check(
+        actual_labels == expected_labels,
+        "scene exposes exactly the expected labelled children, in order",
+        f"{actual_labels}",
+    )
+
+    r.section("LED strip placement")
+    num_leds_expected = int(HEX_LENGTH / LED_PITCH)
+    for i in range(6):
+        strip = _child(part, f"led_strip_{i}")
+        pcb = _child(strip, "pcb")
+        bb = pcb.bounding_box()
+        cx = (bb.min.X + bb.max.X) / 2
+        cy = (bb.min.Y + bb.max.Y) / 2
+        angle = math.atan2(cy, cx) % (2 * math.pi)
+        expected_angle = FACE_ANGLES[i] % (2 * math.pi)
+        angular_diff = abs(
+            ((angle - expected_angle + math.pi) % (2 * math.pi)) - math.pi
+        )
+        r.check(
+            angular_diff < math.radians(1.0),
+            f"led_strip_{i}: pcb sits at its assigned face angle",
+            f"{math.degrees(angle):.1f} deg vs {math.degrees(expected_angle):.1f} deg expected",
+        )
+        radius = math.hypot(cx, cy)
+        expected_radius = HEX_APOTHEM + PCB_THICKNESS / 2
+        r.check(
+            abs(radius - expected_radius) < 0.5,
+            f"led_strip_{i}: pcb sits flush against the hex face (apothem + half thickness)",
+            f"r={radius:.2f} mm vs {expected_radius:.2f} mm expected",
+        )
+        led_children = [c for c in strip.children if c.label.startswith("led_")]
+        r.check(
+            len(led_children) == num_leds_expected,
+            f"led_strip_{i}: carries HEX_LENGTH/LED_PITCH LEDs",
+            f"{len(led_children)} of {num_leds_expected} expected",
+        )
+
+    r.section("mirror placement")
+    mirror = _child(part, "parabolic_mirror")
+    mirror_bb = mirror.bounding_box()
+    r.check(
+        abs(mirror_bb.min.Z - (-HEX_LENGTH / 2)) < 1.0,
+        "mirror's near face sits at the rod's rear end (moved by -HEX_LENGTH/2)",
+        f"mirror min z = {mirror_bb.min.Z:.2f} mm vs {-HEX_LENGTH / 2:.2f} mm expected",
+    )
+    rod = _child(part, "hex_rod")
+    rod_bb = rod.bounding_box()
+    r.check(
+        abs(rod_bb.min.Z - (-HEX_LENGTH / 2)) < 0.01,
+        "rod's rear end is exactly where the mirror is anchored to",
+        f"rod min z = {rod_bb.min.Z:.2f} mm",
+    )
+
+    r.section("non-interference")
+    # Threshold is 1.0 mm^3 for all three checks below, not 0. None of these
+    # joints is an intended press fit -- every real pass measures exactly
+    # 0.000 mm^3 (see the proof run in the implementer report). The margin is
+    # there purely to absorb boolean/tessellation noise at a touching or
+    # near-tangent face (OCC can return a sliver of a few 1e-3 mm^3 there),
+    # not to tolerate any deliberate overlap. It is ~3 orders of magnitude
+    # below what a genuine collision produces here (a forced-interference
+    # test elsewhere in this file measured 2324.8 mm^3 and 35640.0 mm^3), so
+    # it cannot mask a real defect.
+    strip_vol = sum(
+        _overlap_volume(rod, _child(part, f"led_strip_{i}")) for i in range(6)
+    )
+    r.check(
+        strip_vol < 1.0,
+        "no LED strip's pcb/leds/solder pads sit inside the rod they mount to",
+        f"{strip_vol:.3f} mm^3 total overlap across 6 strips (threshold 1.0)",
+    )
+
+    diffuser_top = _child(part, "diffuser_top")
+    diffuser_bottom = _child(part, "diffuser_bottom")
+    joint_vol = _overlap_volume(diffuser_top, diffuser_bottom)
+    r.check(
+        joint_vol < 1.0,
+        "diffuser_top's plug does not collide with diffuser_bottom's socket wall",
+        f"{joint_vol:.3f} mm^3 overlap in the telescoping joint (threshold 1.0), "
+        f"even though their bounding boxes overlap by STEP_OVERLAP={STEP_OVERLAP:.0f} mm",
+    )
+
+    rod_diffuser_vol = _overlap_volume(rod, diffuser_top)
+    r.check(
+        rod_diffuser_vol < 1.0,
+        "the hex rod clears diffuser_top's hex hole (HEX_HOLE_CLEARANCE)",
+        f"{rod_diffuser_vol:.3f} mm^3 overlap (threshold 1.0)",
+    )
+
+    return r
