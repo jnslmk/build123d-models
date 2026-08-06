@@ -50,7 +50,8 @@ compromise — it is usually the shape you wanted.
 | --- | --- |
 | Vertical corner of a plain prism | `fillet(...)` / `chamfer(...)` directly |
 | Top or bottom outer ring of a rounded-rect body | `top_chamfer_tool` / `bottom_chamfer_tool`, subtracted |
-| Mouth of a round or hex bore (lead-in) | subtract a `Cone(r, r + ch, ch)` frustum |
+| Mouth of a round bore (lead-in) | subtract a `Cone(r, r + ch, ch)` frustum |
+| Mouth of a hex socket (lead-in) | subtract a **lofted hex** frustum, `RegularPolygon(r, 6)` to `RegularPolygon(r + ch, 6)` — never a cone |
 | Any edge on a face that also carries holes, ribs, or text | boolean |
 | Internal corner under load, on a clean face | `fillet(...)`, wrapped in `chamfer_edge`-style snapshot/restore |
 
@@ -122,8 +123,19 @@ builder.
 
 Other patterns in the repo, when the lib helper does not fit:
 
-- Round and hex bore mouths — `cut_holes` in `models/drill_storage/box.py` cuts a
-  `Cone` frustum at every mouth, round and hex, and says why in a comment.
+- Bore mouths — `cut_holes` in `models/drill_storage/box.py` cuts a boolean
+  lead-in at every mouth, and matches the tool's cross-section to the hole's: a
+  `Cone` at a round bore, `hex_mouth_tool`'s lofted hex frustum at a hex socket.
+  **Escaping the edge op is only half the job — a boolean chamfer tool must have
+  the hole's own cross-section, so the bevel starts *on the hole wall*. Where it
+  does not, the cut is a counterbore with a ledge, not a chamfer.** A circle of
+  the socket's circumradius lies on a hexagon's wall at the six vertices only;
+  along a flat it sits an apothem's worth further out, so a cone opens wider than
+  the wall the instant it begins and rings the mouth with a horizontal step. That
+  shipped on the hex base — six sharp edges per socket, one per flat — and a
+  manual audit found it, not a check (`models/drill_storage/checks.py:1112-1115`).
+  `shell.hex_guide_tool` and `insert.hex_mouth_tool` were already lofting hex
+  frusta for the same reason.
 - A rounded-square rim where no lib helper is imported —
   `rim_chamfer_tool` in `models/drill_storage/box.py`.
 

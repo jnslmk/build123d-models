@@ -2,6 +2,7 @@
 
     uv run check drill_storage             # the engine, all three sets, and hex
     uv run check drill_storage.wood        # one set, which is much faster
+    uv run check drill_storage.hex         # just the two hex-bit boxes
     uv run python -m models.drill_storage.checks
 
 A clearance is invisible in a projection and a 0.3 mm land step does not show up
@@ -25,7 +26,7 @@ import itertools
 import math
 import sys
 
-from build123d import Part
+from build123d import BuildSketch, Part, Text
 
 from ..lib import fits
 from ..lib.checks import TOL as TOL
@@ -38,15 +39,23 @@ from . import sets
 from .box import (
     BASE_H,
     CAP_H,
+    COLLAR_R,
+    COLLAR_W,
     COVER_W,
     FOOT_TOP,
     HEIGHT_UNIT,
     HEX_SLIP,
+    HOLE_WALL,
     INNER_R,
     INNER_W,
+    LABEL_CHAMFER,
+    LABEL_DEPTH,
+    LABEL_SIZE,
+    LABEL_Z,
     PAD,
     SNAP_GROOVE_R,
     SNAP_Z,
+    WALL_CLEARANCE,
     WALL_LABEL_SIZE,
     WALL_LABEL_Z,
     cover_height_for,
@@ -71,12 +80,26 @@ MIN_WALL = 0.8
 # each is already located by its own socket. Enough to get a hand between them.
 TOOL_CLEARANCE = 0.5
 
+# ``pack_rows`` rounds every position it solves onto a 0.01 mm grid, so a hole it
+# pushed out to *exactly* its wall clearance can land up to half a step outside
+# it. That is quantisation, not a violated requirement, so a layout re-derived
+# from those coordinates is allowed this much and no more.
+PACK_ROUNDING = 0.01
+
+# The block a wall legend really occupies is estimated from ``0.75 * font_size``
+# (build123d renders digits at about that), which is a rule of thumb rather than
+# a measurement -- a real glyph's ink can sit a few tenths outside it. Used only
+# to widen the band an allow-predicate calls "the legend", never a clearance.
+LEGEND_INK_PAD = 0.3
+
 
 def _bore_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
     """Every cut bore as ``(key, relieved_radius, x, y)`` -- the real footprint,
     not the nominal tool, which is what has to be packed and walled."""
     items = [(f"{d:g}", c.relieved_bore_r(d), x, y) for d, x, y in s.bores]
-    items += [(f"hex{af:g}", _hex_r(af, c.RELIEF_FIT), x, y) for af, x, y in s.hex_bores]
+    items += [
+        (f"hex{af:g}", _hex_r(af, c.RELIEF_FIT), x, y) for af, x, y in s.hex_bores
+    ]
     return items
 
 
@@ -625,7 +648,9 @@ def check_guides(s: DrillSet, shell: Part, r: Report) -> None:
     # how wide the guide is cut, so widening GUIDE_FIT spends a wall nothing else
     # is watching. This is the check that stops it going too far.
     guides = [(f"{d:g}", (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in s.bores]
-    guides += [(f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in s.hex_bores]
+    guides += [
+        (f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in s.hex_bores
+    ]
     worst_key, worst = "", math.inf
     for (k1, r1, x1, y1), (k2, r2, x2, y2) in itertools.combinations(guides, 2):
         gap = math.dist((x1, y1), (x2, y2)) - r1 - r2
@@ -730,9 +755,9 @@ def _shell_allow() -> tuple:
     def on_wall_face(e) -> bool:
         b = e.bounding_box()
         half = PAD / 2
-        return (abs(abs(b.min.X) - half) < 0.05 and abs(abs(b.max.X) - half) < 0.05) or (
-            abs(abs(b.min.Y) - half) < 0.05 and abs(abs(b.max.Y) - half) < 0.05
-        )
+        return (
+            abs(abs(b.min.X) - half) < 0.05 and abs(abs(b.max.X) - half) < 0.05
+        ) or (abs(abs(b.min.Y) - half) < 0.05 and abs(abs(b.max.Y) - half) < 0.05)
 
     def on_shoulder(e) -> bool:
         b = e.bounding_box()
@@ -767,14 +792,71 @@ def _shell_allow() -> tuple:
     )
 
 
-def _cover_allow() -> tuple:
+def _label_window(
+    text: str, label_size: float, label_z: float, cover_h: float, horizontal: bool
+) -> tuple[float, float, float]:
+    """Where an engraved cover label really lands, in print pose.
+
+    Returns ``(x_half, z_centre, z_half)``: the half-width along x, and the band
+    along z, that the glyphs occupy on the label face.
+
+    Measured off the same ``Text`` sketch ``box.create_cover`` engraves rather
+    than estimated from the font size, because the two differ by a lot -- a word
+    is three times longer than it is tall, and which of those runs along z
+    depends on ``horizontal``. ``create_cover`` builds the label on the +Y face
+    at ``label_z`` and then flips the part into print pose (``Rotation(180,0,0)``
+    plus a re-seat on z=0), which puts the label on **-Y** at ``cover_h -
+    label_z`` -- so this reports the flipped coordinates, which are the ones an
+    edge of the returned part actually has.
+
+    Both spans are grown by ``LABEL_CHAMFER`` (the bevel on the glyph mouths
+    reaches outside the glyph itself) plus a small pad.
+    """
+    with BuildSketch() as sk:
+        Text(text, font_size=label_size)
+    box = sk.sketch.bounding_box()
+    run, thick = box.size.X, box.size.Y  # along the reading direction, and across
+    grow = LABEL_CHAMFER + 0.5
+    return (
+        (run if horizontal else thick) / 2 + grow,
+        cover_h - label_z,
+        (thick if horizontal else run) / 2 + grow,
+    )
+
+
+def _cover_allow(
+    text: str, label_size: float, label_z: float, cover_h: float, horizontal: bool
+) -> tuple:
+    """The cover's one legitimate exception: the engraved label's own glyphs.
+
+    Scoped to the label and nothing else. The predicate this replaced matched
+    any edge whose centre lay within 1.5 mm of *either* +/-Y face, which is
+    three things wider than its own reason: it whitelisted the blank face
+    opposite the label, the mouth rim's straight -Y segment, and everything
+    above and below the word on the labelled face. Nothing was being masked when
+    that was found -- every raw edge on all five covers measured is a glyph --
+    but an allow list that admits more than it says is how the *next* sharp edge
+    hides, so it is written to its reason: on the label face, inside the
+    engraving's depth, within the word's own footprint.
+    """
     half = COVER_W / 2
+    x_half, z_mid, z_half = _label_window(
+        text, label_size, label_z, cover_h, horizontal
+    )
 
-    def on_label_face(e) -> bool:
+    def on_label_glyph(e) -> bool:
         centre = e.center()
-        return abs(abs(centre.Y) - half) < 1.5 and abs(centre.X) < half
+        return (
+            # Cut *into* the -Y face: the mouth lies on it, the floor LABEL_DEPTH
+            # behind it, and the chamfer wall between the two.
+            -half - 0.05 <= centre.Y <= -half + LABEL_DEPTH + 0.05
+            and abs(centre.X) <= x_half
+            and abs(centre.Z - z_mid) <= z_half
+        )
 
-    return ((on_label_face, "engraved material label -- bevelling a glyph destroys it"),)
+    return (
+        (on_label_glyph, "engraved material label -- bevelling a glyph destroys it"),
+    )
 
 
 def check_sharp_edges(
@@ -795,7 +877,11 @@ def check_sharp_edges(
         "cartridge has no sharp convex edges at all",
         f"{len(bad_insert)} found" if bad_insert else "none, no exceptions",
     )
-    bad_cover = sharp_convex_edges(cover, allow=_cover_allow())
+    # create_cover_for takes box's own label defaults, so the window is measured
+    # from exactly what was engraved.
+    bad_cover = sharp_convex_edges(
+        cover, allow=_cover_allow(s.label, LABEL_SIZE, LABEL_Z, s.cover_h, False)
+    )
     r.check(
         not bad_cover,
         "cover has no unexplained sharp convex edges",
@@ -822,6 +908,84 @@ def check_set(s: DrillSet, r: Report) -> None:
 
 
 # --- The one-material outlier: drill_storage.hex ------------------------------
+
+
+def _hex_base_allow(has_legend: bool) -> tuple:
+    """The hex base's legitimate exceptions, each named with its reason.
+
+    The same three the shell claims (``_shell_allow``), re-derived against this
+    base's own shortened body -- and the legend one only for the box that
+    actually carries a legend, so the BITS base is held to the stricter standard
+    its blank walls deserve.
+    """
+    top = hex_mod.BASE_FOOT_TOP
+
+    def on_cover_seat(e) -> bool:
+        b = e.bounding_box()
+        return abs(b.min.Z - top) < 0.05 and abs(b.max.Z - top) < 0.05
+
+    def on_snap_groove(e) -> bool:
+        b = e.bounding_box()
+        if abs(b.max.Z - b.min.Z) > 0.05:
+            return False
+        groove_z = top + SNAP_Z
+        return any(
+            abs(b.min.Z - (groove_z + side * SNAP_GROOVE_R)) < 0.05
+            for side in (-1.0, 1.0)
+        )
+
+    def on_wall_legend(e) -> bool:
+        b = e.bounding_box()
+        half = PAD / 2
+        # In a front/back wall plane -- the only two engrave_row_legend cuts.
+        if not (abs(abs(b.min.Y) - half) < 0.05 and abs(abs(b.max.Y) - half) < 0.05):
+            return False
+        # ...and inside the legend block itself, which is what makes this the
+        # legend rather than "anything on that wall": the shoulder rim, the foot
+        # and the collar all lie outside the band.
+        block = (
+            (hex_mod.LEGEND_ROWS - 1) * hex_mod.LEGEND_LINE_H / 2
+            + hex_mod.LEGEND_GLYPH_H / 2
+            + LEGEND_INK_PAD
+        )
+        return abs(e.center().Z - hex_mod.LEGEND_Z) <= block
+
+    allow = (
+        (
+            on_cover_seat,
+            "cover seat is deliberately flat so the cover's chamfered "
+            "rim lands flat-on-flat (box.create_cover's COVER_SEAT_CH)",
+        ),
+        (
+            on_snap_groove,
+            "round snap-groove rims -- the groove is the mating "
+            "feature, and rounding its lips would shrink engagement",
+        ),
+    )
+    if has_legend:
+        allow += (
+            (on_wall_legend, "engraved size legend -- bevelling a glyph destroys it"),
+        )
+    return allow
+
+
+def _socket_cut_r(base: Part, x: float, y: float, z: float) -> float:
+    """The circumradius a hex socket is *really* cut at, measured off the solid.
+
+    Bisected outward from the socket's centre along +X, where the socket's
+    ``RegularPolygon`` puts its first vertex, so what is found is the
+    circumradius and not the apothem -- the same ray the socket-width check
+    samples on. Bisection rather than a two-point straddle because the number
+    this exists to catch differs by 0.03 mm, far inside ``PROBE``.
+    """
+    lo, hi = 0.5, 8.0
+    while hi - lo > 1e-4:
+        mid = (lo + hi) / 2
+        if is_solid_at(base, x + mid, y, z):
+            hi = mid
+        else:
+            lo = mid
+    return (lo + hi) / 2
 
 
 def check_hex_boxes(r: Report) -> None:
@@ -911,6 +1075,61 @@ def check_hex_boxes(r: Report) -> None:
             f"circumradius {rc:.3f} mm, sampled z={z:.1f}",
         )
 
+        # What you pack is what you cut. The check above only proves the socket
+        # is the size the *module* says; this one compares the radius the packer
+        # reserved on the collar against the radius the cutter took out of it,
+        # measured off the solid. They were 0.029 mm apart -- hex.py reserved
+        # HEX_AF/sqrt(3) while box.cut_holes sank (HEX_AF + HEX_SLIP)/sqrt(3) --
+        # and every downstream number still measured "fine", because the 0.4 mm
+        # of margin inside WALL_CLEARANCE quietly paid for it. An assertion on
+        # the resulting clearance would have passed; only comparing the two
+        # radii to each other catches it.
+        cut = [_socket_cut_r(base, x, y, z) for _af, x, y in hex_bores]
+        r.check(
+            max(abs(rad - hex_mod.HEX_SOCKET_R) for rad in cut) < 0.005,
+            "every socket is cut at exactly the circumradius the packer reserved",
+            f"packed {hex_mod.HEX_SOCKET_R:.4f} mm, cut "
+            f"{min(cut):.4f}..{max(cut):.4f} mm",
+        )
+        # ...and the layout that reservation produced still holds when it is
+        # re-derived from the radii actually cut, against the same envelope
+        # pack_rows packed into. This is the other half of the same guard: it
+        # fails whether the packer under-books the socket or the cutter grows it.
+        slack, what = worst_slack(
+            [(x, y) for _af, x, y in hex_bores],
+            cut,
+            COLLAR_W / 2,
+            COLLAR_R,
+            HOLE_WALL,
+            WALL_CLEARANCE,
+        )
+        r.check(
+            slack >= -PACK_ROUNDING,
+            "every socket as cut meets its wall clearance and its neighbours",
+            f"tightest {what}, {slack:+.4f} mm over the requirement "
+            f"(WALL_CLEARANCE {WALL_CLEARANCE:.2f}, allowing {PACK_ROUNDING} mm "
+            "of pack_rows' position rounding)",
+        )
+
+        # Edge treatment. Never checked before -- which is exactly how 48 sharp
+        # edges (6 per socket, one per flat, where a round counterbore had
+        # bevelled only the corners) survived in the shipped hex mouths until a
+        # manual audit found them. Four printed parts, two of them checked here.
+        bad_base = sharp_convex_edges(base, allow=_hex_base_allow(keys is not None))
+        r.check(
+            not bad_base,
+            "base has no unexplained sharp convex edges",
+            f"{len(bad_base)} found" if bad_base else "all treated or named",
+        )
+        bad_cover = sharp_convex_edges(
+            cover, allow=_cover_allow(label, size, label_z, cover_h, horizontal)
+        )
+        r.check(
+            not bad_cover,
+            "cover has no unexplained sharp convex edges",
+            f"{len(bad_cover)} found" if bad_cover else "all treated or named",
+        )
+
 
 # --- Entry points -------------------------------------------------------------
 
@@ -932,6 +1151,21 @@ def run_for(s: DrillSet) -> Report:
     r = Report()
     _shared(r)
     check_set(s, r)
+    return r
+
+
+def run_hex() -> Report:
+    """Just the two hex-bit boxes -- what ``uv run check drill_storage.hex`` runs.
+
+    ``hex`` is a module inside a package rather than a package of its own, so
+    ``check.py`` cannot find a ``models.drill_storage.hex.checks`` submodule for
+    it; it finds the module-level ``check()`` that single-file models use, and
+    that returns this. Without it the hex assertions ran only as part of the
+    whole family, and ``uv run check drill_storage.hex`` answered "no checks
+    defined" for a model that had four printed parts and twelve of them.
+    """
+    r = Report()
+    check_hex_boxes(r)
     return r
 
 

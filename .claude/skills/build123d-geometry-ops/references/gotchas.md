@@ -175,12 +175,38 @@ though the countersinks were 5 mm clear of the edge being chamfered. Recorded in
 - Rounded-rect body, top or bottom outer ring — `top_chamfer_tool` /
   `bottom_chamfer_tool` from `models/lib/edges.py`. Both build an oversized slab
   and subtract a lofted keep-frustum, then you subtract the result from your part.
-- Round or hex bore mouth — subtract `Cone(r, r + ch, ch)` positioned at
-  `top_z - ch` with `align=(Align.CENTER, Align.CENTER, Align.MIN)`. See
-  `cut_holes` in `models/drill_storage/box.py`, which does exactly this for every
-  round bore and every hex socket in one pass, and explains the choice inline.
-- Rounded-square rim, no lib import — `_rim_chamfer_tool` at
-  `rim_chamfer_tool` in `models/drill_storage/box.py`.
+- Round bore mouth — subtract `Cone(r, r + ch, ch)` positioned at `top_z - ch`
+  with `align=(Align.CENTER, Align.CENTER, Align.MIN)`. `cut_holes` in
+  `models/drill_storage/box.py` does exactly this for every round bore in one
+  pass, and explains the choice inline.
+- Hex socket mouth — **not** a cone. Loft a hex frustum: `RegularPolygon(r, 6)`
+  at `top_z - ch` to `RegularPolygon(r + ch, 6)` at `top_z`, with `r` the
+  socket's circumradius. That is `hex_mouth_tool` in
+  `models/drill_storage/box.py`, and the same shape `shell.hex_guide_tool` and
+  `insert.hex_mouth_tool` already used.
+
+  **The boolean tool's cross-section has to match the hole's.** Swapping an edge
+  op for a boolean buys you a cut that cannot fail; it does not by itself buy you
+  a chamfer. A chamfer's bevel has to *start on the hole wall*, and a circle of
+  the socket's circumradius `rc` lies on a hexagon's wall only at the six
+  vertices — along a flat's normal the wall is an apothem `rc * cos(30)` away, a
+  further 0.51 mm in on this base. So `Cone(rc, rc + ch, ch)` opened the flat to
+  3.79 mm the instant it began, where the wall below it stood at 3.28: a 0.52 mm
+  horizontal ledge encircling the mouth. The defect was over-cutting, not an
+  unbevelled flat — a counterbore, not a lead-in — and the ledge *was* the sharp
+  edge: 6 per socket, one per flat, 48 on the hex base's eight sockets. They
+  shipped. Nothing raised, nothing checked, and a manual audit is what found them
+  (`models/drill_storage/checks.py:1112-1115`, now covered by
+  `sharp_convex_edges`).
+
+  The frustum therefore cuts strictly *less* than the cone did along a flat, and
+  is identical to it at the six corners. Growing the *circumradius* by `ch` puts
+  the bevel at 45 deg at the corners and ~40 deg to vertical across the flats,
+  which is the convention all three tools share. Neither angle is an overhang
+  concern: the base prints bores-up and the mouth widens toward +Z, so it is
+  self-supporting by construction.
+- Rounded-square rim, no lib import — `rim_chamfer_tool` in
+  `models/drill_storage/box.py`.
 
 **Rule of thumb.** Two failed attempts on an edge op is the signal to switch
 instruments, not to try a third size.

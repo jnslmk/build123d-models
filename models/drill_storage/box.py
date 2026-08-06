@@ -84,6 +84,37 @@ INNER_R = 2.0
 LABEL_SIZE = 13.0
 LABEL_Z = 45.0
 LABEL_DEPTH = 0.6  # engrave depth into the flat face (< COVER_WALL, no punch-through)
+# That leaves COVER_WALL - LABEL_DEPTH = 0.6 mm of wall behind every glyph, under
+# the package's own MIN_WALL (0.8, checks.py). Accepted, deliberately, and here is
+# the whole argument so nobody has to re-derive it:
+#
+# * There is no room to satisfy both. `printed-text` puts the floor for a legible
+#   engrave at 0.5 mm, so an 0.8 mm residual needs COVER_WALL >= 1.3. That is not
+#   a free 0.1 mm: INNER_W is derived from COVER_WALL, COLLAR_W from INNER_W, and
+#   the shell and cartridge from COLLAR_W, so it re-cuts the whole snap joint.
+#   Nothing would *jam* -- at 1.3 both mixes come out looser, an old cover (39.6
+#   bore) over a new collar (39.0) by 0.6 mm and a new cover (39.4) over an old
+#   collar (39.2) by 0.2 -- but looser is the problem: SNAP_PROTRUSION is 0.45
+#   against a designed 0.4 mm slip, and 0.6 mm of slip leaves 0.15 mm of bead
+#   engagement instead of 0.25. The real cost is a re-verified snap fit across a
+#   mixed shelf, not a seized one. Shaving LABEL_DEPTH instead buys only 0.1 mm
+#   before the engrave drops under the legibility floor, and the label is on a
+#   *vertical* wall crossing the layer lines, which is the orientation
+#   `printed-text` says to spend extra depth on, not save it.
+# * MIN_WALL's own stated reason does not reach here. It is the floor for a wall
+#   that has to *be* something -- a free-standing rib, or a bore that closes up
+#   under two extrusions. This is the floor of a blind pocket with a full 1.2 mm
+#   of wall all around it, and its worst case is that the slicer lays one 0.4 mm
+#   perimeter instead of a filled 0.6: a translucent patch behind a label, on a
+#   lid, which is cosmetic and arguably an improvement.
+# * It is nowhere near the load. What flexes on this part is the mouth, over the
+#   snap bead at SNAP_Z = 6 mm from the opening. LABEL_Z is 45, so the nearest
+#   glyph edge is ~40 mm of full-section tube away from anything that deflects.
+#
+# So: not a defect, a priced trade. What would make it a defect is COVER_WALL
+# dropping or LABEL_DEPTH rising, so the pair is pinned in `checks.py` by
+# `check_wall_budget` -- named there as a stated exception to MIN_WALL rather
+# than compared against it, since it legitimately fails that comparison.
 LABEL_CHAMFER = 0.5  # near-full-depth bevel -> a continuous V-groove wall, no step
 
 # --- Snap fit -----------------------------------------------------------------
@@ -125,7 +156,10 @@ WALL_LABEL_DEPTH = 0.8  # engrave depth -- deep enough to stay legible under lay
 #                         lines on the vertical (bores-up) print orientation
 WALL_LABEL_STYLE = FontStyle.BOLD  # bold: ~1 mm strokes + a 0.7 mm decimal point,
 #                         so the fine features survive an FDM nozzle in ABS
-WALL_LABEL_MAX_LAT = PAD / 2 - CORNER_R - 1.0  # keep numbers off the rounded corners
+# (There is no WALL_LABEL_MAX_LAT constant. Keeping the numbers off the rounded
+# corners is ``engrave_row_legend``'s job and it works the limit out per label,
+# from that label's own width -- a single constant cannot, since "1.5" needs
+# more room than "8".)
 # How far above and below WALL_LABEL_Z the block of lines may reach. The body
 # wall runs BASE_H (4.4) to FOOT_TOP (24); this keeps the glyphs off both ends,
 # the foot's chamfer below and the cover's seat above.
@@ -145,6 +179,7 @@ def wall_label_line_h(n_lines: int) -> float:
     if n_lines < 2:
         return default
     return min(default, 2 * WALL_LABEL_BAND / (n_lines - 1))
+
 
 # --- Automatic hole layout ----------------------------------------------------
 # Spacing budget handed to ``pack_rows`` (see ``layout_bores``). HOLE_WALL is the
@@ -187,11 +222,11 @@ def cover_height_for(
     return total_assembled_h - foot_top
 
 
-TOTAL_ASSEMBLED_H = (
-    math.ceil((BORE_FLOOR_Z + MAX_DRILL_LEN + DRILL_HEADROOM + CAP_H) / HEIGHT_UNIT)
-    * HEIGHT_UNIT
-)  # 147 (21U)
-COVER_H = cover_height_for(MAX_DRILL_LEN)  # 123 mm default cover
+# The default holder's assembled envelope is 147 mm (21U). It is not a constant:
+# ``cover_height_for`` derives it from the numbers above and hands back the cover
+# height, and a second copy of that arithmetic here would only be one edit away
+# from disagreeing with the one that is actually built.
+COVER_H = cover_height_for(MAX_DRILL_LEN)  # 123 mm default cover (147 - FOOT_TOP)
 
 # --- Bores --------------------------------------------------------------------
 # A bore here is plain: a cylinder at the bit's diameter plus a clearance, with a
@@ -329,146 +364,6 @@ def rim_chamfer_tool(width: float, corner_r: float, top_z: float, ch: float) -> 
             RectangleRounded(width - 2 * ch, width - 2 * ch, max(corner_r - ch, 0.2))
         loft(mode=Mode.SUBTRACT)
     return tool.part
-
-
-# Fixed symmetry slots for the structured layout, outermost group first: the
-# corner diagonals, the edge axes, then an inner diagonal ring, an inner axis
-# ring, and finally the centre. Each entry is (angles_deg, seed_radius_fraction,
-# pinned). Pinned (perimeter) holes are held at their maximum radius so every one
-# sits the SAME distance from the wall -- even margins all the way round; the
-# rest seed inward and relax so the interior spreads out without touching a wall.
-_HOLE_SLOTS = [
-    ([45, 135, 225, 315], 0.62, True),  # corners -> pinned to a uniform wall gap
-    ([0, 90, 180, 270], 0.60, True),  # edges -> pinned to a uniform wall gap
-    ([45, 135, 225, 315], 0.28, False),  # inner diagonal ring -> relaxed inward
-    ([0, 90, 180, 270], 0.24, False),  # inner axis ring -> relaxed inward
-    ([None], 0.0, False),  # centre
-]
-
-
-def pack_holes(
-    footprints: list[tuple[str, float]],
-    collar_half: float,
-    corner_r: float,
-    hole_wall: float,
-    collar_wall: float,
-    iters: int = 6000,
-) -> dict[str, tuple[float, float]]:
-    """Place holes in an orderly, symmetric layout; return ``{key: (x, y)}``.
-
-    ``footprints`` is ``(key, radius)`` per hole, ``radius`` being the hole's cut
-    footprint (a plain bore's radius, or the hex countersink's head radius). The holes are graded onto fixed symmetry slots (``_HOLE_SLOTS``) --
-    largest four to the corner diagonals, next four to the edge axes, the rest to
-    an inner ring / centre -- and each hole's radius *along its fixed spoke* is
-    relaxed until it keeps at least ``hole_wall`` to its neighbours edge-to-edge
-    and at least ``collar_wall`` to the rounded collar wall. Fixing the angles
-    keeps the arrangement tidy and symmetric while the radial relaxation resolves
-    spacing.
-
-    Size ``hole_wall`` to ``2 * BORE_MOUTH_CHAMFER`` so both mouth fillets fit
-    between neighbours, and ``collar_wall`` to ``BORE_MOUTH_CHAMFER +
-    BASE_TOP_CHAMFER`` so a hole's mouth fillet and the top-rim fillet both fit;
-    then every fillet in ``create_base`` forms. Deterministic (no RNG). Prints a
-    WARNING if the collar is too crowded to reach the spacing.
-    """
-    order = sorted(range(len(footprints)), key=lambda i: -footprints[i][1])
-    keys = [footprints[i][0] for i in order]
-    r = [footprints[i][1] for i in order]
-    n = len(footprints)
-
-    theta: list[float | None] = []
-    seed: list[float] = []
-    pinned: list[bool] = []
-    for angles, frac, pin in _HOLE_SLOTS:
-        for a in angles:
-            if len(theta) < n:
-                theta.append(None if a is None else math.radians(a))
-                seed.append(frac * collar_half)
-                pinned.append(pin)
-
-    def sdf(px: float, py: float) -> float:
-        # Signed distance to the rounded-square collar wall (negative inside).
-        qx = abs(px) - (collar_half - corner_r)
-        qy = abs(py) - (collar_half - corner_r)
-        return math.hypot(max(qx, 0.0), max(qy, 0.0)) + min(max(qx, qy), 0.0) - corner_r
-
-    # Both helpers take the spoke angle rather than reading ``theta[i]``: a hole
-    # with no fixed spoke has angle None and never reaches them, but only the
-    # caller can see that, so passing the angle in keeps it out of their types.
-    def max_radius(i: int, a: float) -> float:
-        # Largest radius on hole i's fixed spoke that still clears the collar
-        # wall by ``collar_wall`` -- i.e. an exactly ``collar_wall`` margin.
-        lo, hi = 0.0, collar_half
-        for _ in range(28):
-            m = (lo + hi) / 2.0
-            if -sdf(m * math.cos(a), m * math.sin(a)) - r[i] >= collar_wall:
-                lo = m
-            else:
-                hi = m
-        return lo
-
-    def spoke(a: float, rho: float) -> list[float]:
-        return [rho * math.cos(a), rho * math.sin(a)]
-
-    # Pin perimeter holes to their max radius (uniform wall margin); seed the
-    # rest inward to relax.
-    pos: list[list[float]] = []
-    for i in range(n):
-        a = theta[i]
-        if a is None:
-            pos.append([0.0, 0.0])
-        else:
-            pos.append(spoke(a, max_radius(i, a) if pinned[i] else seed[i]))
-
-    def reproject(i: int) -> None:
-        # Keep each hole on its fixed spoke: perimeter holes stay pinned at the
-        # uniform wall margin; inner holes clamp to their max radius but are
-        # otherwise free to relax inward.
-        a = theta[i]
-        if a is None:
-            pos[i] = [0.0, 0.0]
-        elif pinned[i]:
-            pos[i] = spoke(a, max_radius(i, a))
-        else:
-            pos[i] = spoke(a, min(math.hypot(pos[i][0], pos[i][1]), max_radius(i, a)))
-
-    for _ in range(iters):
-        moved = 0.0
-        for i in range(n):
-            for j in range(i + 1, n):
-                dx = pos[j][0] - pos[i][0]
-                dy = pos[j][1] - pos[i][1]
-                d = math.hypot(dx, dy) or 1e-9
-                need = r[i] + r[j] + hole_wall
-                if d < need:
-                    push = (need - d) / 2.0
-                    ux, uy = dx / d, dy / d
-                    pos[i][0] -= ux * push
-                    pos[i][1] -= uy * push
-                    pos[j][0] += ux * push
-                    pos[j][1] += uy * push
-                    moved = max(moved, push)
-        for i in range(n):
-            reproject(i)
-        if moved < 1e-4:
-            break
-
-    worst = min(
-        (
-            math.hypot(pos[j][0] - pos[i][0], pos[j][1] - pos[i][1]) - r[i] - r[j]
-            for i in range(n)
-            for j in range(i + 1, n)
-        ),
-        default=hole_wall,
-    )
-    if worst < hole_wall - 0.05:
-        print(
-            f"WARNING: hole placement only reached {worst:.2f} mm walls "
-            f"(wanted {hole_wall:.2f} mm) -- the collar is too crowded; drop a "
-            f"hole or shrink one.",
-            file=sys.stderr,
-        )
-    return {keys[i]: (round(pos[i][0], 2), round(pos[i][1], 2)) for i in range(n)}
 
 
 def pack_rows(
@@ -706,13 +601,55 @@ def engrave_row_legend(
                 engrave(k, face, pos[k][0], z)
 
 
+def hex_mouth_tool(r: float, x: float, y: float, top_z: float, ch: float) -> Part:
+    """A subtractable lead-in for a hex socket mouth, hex-shaped all the way round.
+
+    A lofted hex frustum, from circumradius ``r`` at ``top_z - ch`` out to
+    ``r + ch`` at ``top_z``. Subtract it from the part after the socket is cut.
+
+    It is a frustum and not a cone because the bevel has to *start on the socket
+    wall*, and a circle through the hexagon's vertices does not lie on that wall
+    anywhere except at the six vertices themselves.
+
+    What the cone this replaced got wrong was not that it under-cut the flats --
+    it over-cut them. ``Cone(rc, rc + ch, ch)`` begins at the circumradius, but
+    along a flat's normal the socket wall is only an apothem away
+    (``rc * cos(30)``), a full ``rc - apothem`` = 0.51 mm further in. So the cut
+    opened to 3.78 mm the instant it began, where the wall below it stood at
+    3.28: a 0.52 mm horizontal ledge encircling the mouth, and *that* ledge was
+    the sharp edge -- 6 per socket, one per flat, each one hex-side long. Not a
+    missing bevel, a step. Measured on this base, the cone opened a flat to
+    3.7916 mm at z = 27.21 where the wall below was 3.2750.
+
+    So the frustum cuts strictly *less* than the cone did (0.51-0.61 mm less
+    along a flat at every height through the mouth); at the six corners the two
+    are identical to 4 dp, since that is where the circle and the hexagon touch.
+    The mouth ends up bevelled at 45 deg at the corners and ~40 deg to vertical
+    across the flats, which is what growing the *circumradius* by ``ch`` buys and
+    is the established shape here -- ``shell.hex_guide_tool`` and
+    ``insert.hex_mouth_tool`` are the same loft, so all three stay comparable.
+
+    Nothing here is an overhang: the base prints bores-up, and a mouth that
+    widens toward +Z takes material away as it rises, so every layer lands fully
+    on the one beneath it. Self-supporting by construction, at any bevel angle.
+    """
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY.offset(top_z - ch)):
+            with Locations((x, y)):
+                RegularPolygon(r, 6)
+        with BuildSketch(Plane.XY.offset(top_z)):
+            with Locations((x, y)):
+                RegularPolygon(r + ch, 6)
+        loft(ruled=True)
+    return tool.part
+
+
 def cut_holes(
     bores: list[tuple[float, float, float]],
     hex_bores: list[tuple[float, float, float]] | None,
     clearance: float,
     top_z: float,
     bore_depth: float,
-    through: bool = False,
     undersize_frac: float = 0.0,
 ) -> None:
     """Sink drill bores + hex sockets into the active part and chamfer every mouth.
@@ -726,18 +663,18 @@ def cut_holes(
     tighter than large ones.
 
     ``hex_bores`` are ``(across_flats, x, y)``, cut ``HEX_SLIP`` over so a shank
-    drops straight in and is only kept from spinning. Every mouth gets a 45-deg
-    lead-in chamfer of depth ``BORE_MOUTH_CHAMFER``, cut as a boolean (robust;
-    see the note below). With ``through`` the bores punch out the bottom (no
-    floor).
+    drops straight in and is only kept from spinning. Every mouth gets a lead-in
+    of depth ``BORE_MOUTH_CHAMFER``, cut as a boolean (robust; see the note
+    below) -- a 45-deg cone at a round bore, and a lofted hex frustum
+    (``hex_mouth_tool``) at a hex socket, which is the only shape whose bevel
+    starts on the socket wall instead of outside it.
     """
     floor_z = top_z - bore_depth
-    below = 1.0 if through else 0.0  # extend the cut past the bottom face
     for d, x, y in bores:
-        with Locations((x, y, floor_z - below)):
+        with Locations((x, y, floor_z)):
             Cylinder(
                 plain_bore_r(d, clearance - undersize_frac * d),
-                bore_depth + 1 + below,
+                bore_depth + 1,
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.SUBTRACT,
             )
@@ -748,7 +685,7 @@ def cut_holes(
                 RegularPolygon((af + HEX_SLIP) / 3**0.5, 6)
         # Pass the sketch explicitly: inside a helper the implicit "pending
         # sketch" lookup that a bare extrude() relies on doesn't resolve.
-        extrude(hex_sk.sketch, amount=-(bore_depth + below), mode=Mode.SUBTRACT)
+        extrude(hex_sk.sketch, amount=-bore_depth, mode=Mode.SUBTRACT)
 
     # Lead-in chamfer at every mouth, cut as a boolean 45-deg cone/frustum. We
     # deliberately avoid OCC's fillet op here: a failed fillet corrupts the
@@ -765,16 +702,13 @@ def cut_holes(
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.SUBTRACT,
             )
+    # A hex mouth gets a *hex* frustum, never a cone -- see ``hex_mouth_tool``.
     for af, x, y in hex_bores or []:
         rc = (af + HEX_SLIP) / 3**0.5  # hex circumradius, matching the guide socket
-        with Locations((x, y, top_z - BORE_MOUTH_CHAMFER)):
-            Cone(
-                rc,
-                rc + BORE_MOUTH_CHAMFER,
-                BORE_MOUTH_CHAMFER,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                mode=Mode.SUBTRACT,
-            )
+        add(
+            hex_mouth_tool(rc, x, y, top_z, BORE_MOUTH_CHAMFER),
+            mode=Mode.SUBTRACT,
+        )
 
 
 def create_base(
@@ -824,7 +758,10 @@ def create_base(
     re-centre and tighten that legend for a shortened body; the defaults suit the
     standard 24 mm one.
 
-    Every hole mouth (round *and* hex) gets a lead-in fillet of ``BORE_MOUTH_CHAMFER``.
+    Every hole mouth (round *and* hex) gets a lead-in chamfer of
+    ``BORE_MOUTH_CHAMFER`` -- a cone at a round bore, a hex frustum at a socket,
+    so the bevel starts on the socket wall rather than 0.5 mm outside it (which
+    is what left a sharp ledge round every hex mouth; see ``hex_mouth_tool``).
     """
     total_h = foot_top + collar_h
     with BuildPart() as base:

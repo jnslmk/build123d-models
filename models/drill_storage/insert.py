@@ -50,7 +50,7 @@ from build123d import (
 )
 
 from ..lib.edges import bottom_chamfer_tool
-from .box import rim_chamfer_tool, snap_bead_ring
+from .box import hex_mouth_tool, rim_chamfer_tool, snap_bead_ring
 from . import config as c
 from .sets import DrillSet
 
@@ -179,22 +179,6 @@ def key_rib() -> Part:
     return rib.part
 
 
-def hex_mouth_tool(af: float, x: float, y: float) -> Part:
-    """A subtractable 45-deg lead-in for a hex mouth, hex-shaped all the way round.
-
-    The round-cone version leaves the flats under-bevelled and the rim scalloped
-    (see ``create_insert``); a lofted hex frustum bevels every flat equally.
-    """
-    r = _hex_r(af, c.RELIEF_FIT)
-    with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(c.CART_H - c.CART_MOUTH_CH)):
-            RegularPolygon(r, 6)
-        with BuildSketch(Plane.XY.offset(c.CART_H)):
-            RegularPolygon(r + c.CART_MOUTH_CH, 6)
-        loft(ruled=True)
-    return Pos(x, y, 0) * tool.part
-
-
 def create_insert(
     bores: Sequence[tuple[float, float, float]],
     hex_bores: Sequence[tuple[float, float, float]] | None = None,
@@ -206,7 +190,7 @@ def create_insert(
     given its legend for, or the labels lie.
 
     Returned in print pose, flat bottom on ``z=0``. The collar's own z=0 is the
-    shell's ``CAVITY_FLOOR_Z`` (30.8), so a feature at world z appears here at
+    shell's ``CAVITY_FLOOR_Z`` (29.2), so a feature at world z appears here at
     ``z - CAVITY_FLOOR_Z`` -- the bead included, which lands on ``CART_BELOW_BEAD``
     and is therefore exactly halfway up.
     """
@@ -264,10 +248,18 @@ def create_insert(
                 )
         # The hex mouth gets a *hex* frustum, not a cone. A round cone cut into a
         # hex hole only reaches the corners, leaving the flats barely bevelled and
-        # a scalloped sharp rim between them -- which is exactly what the sharp-edge
-        # audit finds on the PETG base's hex mouth (6 edges at z=41.20).
+        # a scalloped sharp rim between them -- which is what the sharp-edge audit
+        # used to find on the PETG base next door (48 edges per base at z=27.20:
+        # 8 sockets x 6 flats), until ``box.cut_holes`` was moved onto the same
+        # frustum this has always used. Note what the shared tool takes: a
+        # *circumradius*, where every bore here is named by its across-flats.
         for af, x, y in hex_bores or []:
-            add(hex_mouth_tool(af, x, y), mode=Mode.SUBTRACT)
+            add(
+                hex_mouth_tool(
+                    _hex_r(af, c.RELIEF_FIT), x, y, c.CART_H, c.CART_MOUTH_CH
+                ),
+                mode=Mode.SUBTRACT,
+            )
     return cart.part
 
 
@@ -283,6 +275,5 @@ __all__ = [
     "create_insert",
     "create_insert_for",
     "hex_bore_tool",
-    "hex_mouth_tool",
     "key_rib",
 ]

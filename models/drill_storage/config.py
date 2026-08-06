@@ -70,13 +70,18 @@ CART_COLOR = Color(0.25, 0.55, 0.72)  # a distinctly different part, on purpose
 # The cartridge enters through the collar, so the collar bore is the throat, and
 # SHELL_WALL is what every millimetre of hole space is bought from -- twice over,
 # because it comes off both sides. This is the whole price of the two-material
-# split: a one-material base packs its bores into 34.8 mm, and this one into 32.1.
+# split: a one-material base packs its bores into 34.8 mm of row, and this one
+# into 32.68.
 #
 # 1.6 mm is 4 perimeters at a 0.4 mm nozzle. It is a *floor*, not a preference:
-# at 2.0 mm the packer runs out of vertical room and silently compresses the rows
-# until the 6 mm and 9 mm bores are 0.59 mm apart -- thinner than a printable
-# wall, in the softest material in the model. pack_rows only warns about
-# horizontal overpacking, so nothing complains; checks.py checks it instead.
+# raise it to 2.0 and the cartridge loses 0.8 mm of width, the packer keeps the
+# same three rows and spends the whole loss on the gaps inside them -- the wood
+# set's 9 and 10 mm bores, the tightest pair in the family, close from 1.36 mm to
+# 0.96 mm. That is under the 1.0 mm that two CART_MOUTH_CH chamfers alone eat, so
+# those two mouths would run together into a sharp sliver, in the softest material
+# in the model. pack_rows only warns when a row's gap goes actually *negative*, and
+# 0.96 mm is not negative, so nothing complains; checks.py holds every pair to
+# PACK_HOLE_WALL instead.
 # Under the 0.8 mm snap groove this leaves 0.8 mm, exactly 2 perimeters, which is
 # also the documented minimum. Do not raise the groove depth without raising this.
 SHELL_WALL = 1.6
@@ -219,11 +224,12 @@ LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP + LAND
 # guidance, so what it wants is to be as loose as the space allows: any drag up
 # here is friction the user pays on every insertion and gets no retention back
 # for. A free fit is what it would prefer, and it does not fit -- FREE widens
-# every bore by 0.09 mm of radius, which is enough to squeeze the row pitch until
-# the 6 mm and 9 mm bores are 0.99 mm apart. Sliding still leaves 0.16 mm of
-# radial clearance and buys back a 1.36 mm wall, which is a better trade in a
-# material this soft. If the drills ever feel like they drag, take it from
-# SHELL_WALL, not from here.
+# every bore by 0.09 mm of radius, and the packer pays for that out of the gaps
+# between them: the wood set's 9 and 10 mm bores, the tightest pair in the family,
+# close from 1.36 mm to 1.09 mm, which is under the 1.10 mm PACK_HOLE_WALL two
+# mouth chamfers are budgeted. Sliding still leaves 0.16 mm of radial clearance
+# and keeps that pair at 1.36 mm, which is a better trade in a material this soft.
+# If the drills ever feel like they drag, take it from SHELL_WALL, not from here.
 RELIEF_FIT = fits.for_material(fits.SLIDING, CART_MATERIAL)
 
 # The hex land, for a countersink's, a tap's or a step drill's shank. It gets
@@ -243,10 +249,15 @@ HEX_LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) + LAND_EASE
 
 # Lead-in at each bore mouth on the cartridge's top face. Smaller than the
 # engine's BORE_MOUTH_CHAMFER (0.8): two neighbouring mouths each want their
-# chamfer to form without running into each other, and this cartridge's row pitch
-# is tighter than a one-material base's -- at 0.8 the 6 mm and 9 mm mouths overlap and leave a sharp
-# sliver between them. 0.5 clears the 1.23 mm those two actually have, and a
-# lead-in in TPU has an easier job anyway: the material gives.
+# chamfer to form without running into each other, and this cartridge has less
+# room to give than a one-material base. It is the chamfer's own doing, because
+# it sets PACK_HOLE_WALL: at 0.8 the budget rises to 1.7 mm, the packer re-deals
+# the wood set into four rows to try to honour it and cannot -- it comes back
+# with the 6 and 9 mm mouths 1.23 mm apart, against the 1.6 mm two 0.8 chamfers
+# eat between them, so they overlap into a sharp sliver. At 0.5 the budget is
+# 1.1 mm, the three-row layout stands, and the tightest pair in any set (wood
+# 9|10 at 1.36 mm, metal 5|8 at 1.55 mm) clears the 1.0 mm the two chamfers take.
+# A lead-in in TPU has an easier job anyway: the material gives.
 CART_MOUTH_CH = 0.5
 
 LAND_LEAD_IN = CART_MOUTH_CH  # cone from the relief down onto the land

@@ -37,6 +37,7 @@ from .box import (
     CORNER_R,
     COVER_COLOR,
     COVER_W,
+    HEX_SLIP,
     LABEL_SIZE,
     TOP_FILLET,
     WALL_LABEL_SIZE,
@@ -61,6 +62,18 @@ HEX_SHANK_AF = 6.35  # nominal 1/4" across-flats
 # still drops a bit in and lifts it out one-handed without rattling.
 HEX_CLEARANCE = 0.15  # across-flats allowance -> slip fit
 HEX_AF = HEX_SHANK_AF + HEX_CLEARANCE
+
+# The circumradius a socket really occupies on the collar -- what you pack is
+# what you cut. ``box.cut_holes`` sinks every hex socket at ``(af + HEX_SLIP) /
+# sqrt(3)``, not at ``af / sqrt(3)``: the guide slip is added across the flats
+# and the circumradius is 2/sqrt(3) of that, so reserving the bare ``HEX_AF``
+# circumradius under-books every socket by ``HEX_SLIP / sqrt(3)``. Small (0.03
+# mm) and swallowed by the 0.4 mm of margin inside ``WALL_CLEARANCE`` -- but a
+# packer that reserves less than the cutter takes is wrong by construction, and
+# the next tool that widens HEX_SLIP would spend a wall nobody was watching.
+# ``sets.py`` reserves its hex tools the same way, at ``(af + RELIEF_FIT) /
+# sqrt(3)``, against what ``insert.py`` cuts.
+HEX_SOCKET_R = (HEX_AF + HEX_SLIP) / 3**0.5
 
 # A bit only needs enough socket to stand up straight and not tip; past that the
 # hole is just swallowing the tool. 15 mm is a little over two shank widths --
@@ -122,7 +135,7 @@ def _sockets(keys: list[str] | None):
     """
     names = keys or [f"H{i}" for i in range(BITS_PER_BOX)]
     _, hex_bores, rows, pos = layout_bores(
-        [], hex_tools=[(n, HEX_AF, HEX_AF / 3**0.5) for n in names]
+        [], hex_tools=[(n, HEX_AF, HEX_SOCKET_R) for n in names]
     )
     return hex_bores, rows, pos
 
@@ -195,3 +208,20 @@ def create() -> Compound:
         children += [Pos(x, -30, 0) * base, Pos(x, 30, 0) * cover]
 
     return Compound(label="drill_storage.hex", children=children)
+
+
+def check():
+    """The hex boxes' own geometry assertions, for ``uv run check``.
+
+    This is a module inside a package, not a package of its own, so ``check.py``
+    has no ``models.drill_storage.hex.checks`` submodule to find -- it looks for
+    the module-level ``check()`` a single-file model exposes, which is this one.
+    Returning the family's ``Report`` gets every assertion rendered and the exit
+    code taken from its failures, exactly as ``checks.main()`` would.
+
+    Imported here rather than at module scope because ``checks`` imports *this*
+    module; at module scope the two would deadlock on the circular import.
+    """
+    from .checks import run_hex
+
+    return run_hex()

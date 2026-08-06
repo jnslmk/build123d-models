@@ -133,9 +133,16 @@ spread and alignment**, and it has to be resolved deliberately rather than
 discovered on the print.
 
 `engrave_row_legend` in `models/drill_storage/box.py` implements this:
-`flat_half = PAD / 2 - CORNER_R`, then a per-label
+`flat_half = PAD / 2 - CORNER_R`, then a
 `limit = flat_half - 0.31 * WALL_LABEL_SIZE * len(text) - 0.3` that the lateral
 position is clamped to.
+
+**That limit is derived per label, inside the engrave step, from that label's own
+character count — there is no shared clamp constant to reach for.** A single
+number cannot do this job: the text is centre-aligned, so how far it may travel
+before a glyph runs onto a rounded corner depends on how wide *that* string is,
+and `"1.5"` needs more room than `"8"`. A constant sized for the longest label
+would over-clamp every short one and lose its hole alignment for nothing.
 
 ## Material note
 
@@ -147,5 +154,5 @@ label is gone.
 
 | File | What it shows |
 | --- | --- |
-| `models/drill_storage/box.py` | `engrave_row_legend` — bold 4 mm wall numbers clamped off the rounded corners and aligned to hole world-x; constants `WALL_LABEL_SIZE`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_MAX_LAT`. Cover label with a chamfered V-groove mouth. |
+| `models/drill_storage/box.py` | `engrave_row_legend` — bold 4 mm wall numbers aligned to hole world-x, each clamped off the rounded corners by a limit worked out from its own text width; constants `WALL_LABEL_SIZE`, `WALL_LABEL_Z`, `WALL_LABEL_DEPTH`, `WALL_LABEL_STYLE`, `WALL_LABEL_BAND`. Cover label with a chamfered V-groove mouth. |
 | `models/drill_storage/hex.py` | `_label_fit` — probe-measures the word to pick the largest font and the better reading direction for a cover face. |
