@@ -205,7 +205,21 @@ def main() -> None:
     from . import config as c
     from .sets import METAL
 
-    items = [(f"{d:g}", c.relieved_bore_r(d)) for d in METAL.nominal]
+    # Same footprints ``DrillSet.__post_init__`` packs with: the relieved bore
+    # of the *shank*, or the nominal body when a reduced shank makes the body
+    # the wider thing standing above the tray.
+    items = [
+        (
+            f"{d.nominal:g}",
+            max(
+                c.relieved_bore_r(
+                    d.shank if d.shank is not None else d.nominal - METAL.shank_allowance
+                ),
+                d.nominal / 2,
+            ),
+        )
+        for d in METAL.drills
+    ]
     items += [
         (t.key, max(t.head_d / 2, (t.across_flats + c.RELIEF_FIT) / 3**0.5))
         for t in METAL.hex_tools

@@ -245,16 +245,18 @@ says, and one thing that is not obvious.
 **A masonry bit's shank is under its nominal size.** The carbide tip is brazed
 across the top and stands proud on every side — that is what lets the bit cut a
 hole its own shank passes freely through — so a bore cut to the printed size
-grips 0.2 mm of air. `sets.STONE` carries a `shank_allowance` of 0.20 mm and
-every bore, ASA guide and TPU land alike, is cut to `nominal − allowance`. The
-engraved legend still reads the nominal size, because that is what the bit is
-sold as. This costs nothing: bits go in shank-first and the tip never enters the
-tray.
+grips air. And this set's shanks are ground *well* under nominal: a
+reduced-shank set, where every shank is the next-lower standard size (12 mm bit
+on a ~10 mm shank, 10 mm on 8, 8 mm on 6.3, 6 mm on 5, 5 mm on 4, 4 mm on
+3.15). So each drill in `sets.STONE` carries its own measured `shank`, and every
+bore, ASA guide and TPU land alike, is cut to that shank. The engraved legend
+still reads the nominal size, because that is what the bit is sold as. This
+costs nothing: bits go in shank-first and the tip never enters the tray.
 
-It also caps that set at 10 mm. Masonry bits above it are commonly sold with a
-*reduced* shank — a 12 mm bit on a 10 mm shank, to fit a 10 mm chuck — which is
-a different allowance for each size rather than one for the set, and a 12 mm
-legend over a 10 mm bore is a label that lies.
+The shanks are measured where the caliper has been (12, 10, 6, 5, 4 mm — they
+fit the next-lower-standard rule to within a tenth) and extrapolated on that
+same rule for the rest (8, 7, 3 mm). Bore to a shank wider than modelled and
+the bit will not seat; one narrower rattles.
 
 The wood and metal sets have no allowance: a twist or brad-point drill's shank
 *is* its nominal size, ground h8.

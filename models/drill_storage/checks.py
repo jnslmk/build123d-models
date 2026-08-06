@@ -274,6 +274,11 @@ def check_sets_table(r: Report) -> None:
             f"{s.name}: the shank is never wider than the size on the bit",
             f"allowance {s.shank_allowance:.2f} mm",
         )
+        r.check(
+            all(d.shank is None or d.shank <= d.nominal for d in s.drills),
+            f"{s.name}: no measured shank is wider than its nominal",
+            f"{[(d.nominal, d.shank) for d in s.drills if d.shank is not None and d.shank > d.nominal]}",
+        )
         # The smallest land still has to print as a hole rather than close up.
         smallest = min(c.land_bore_r(d, _land_ease(s, d)) * 2 for d, _x, _y in s.bores)
         r.check(
@@ -439,7 +444,15 @@ def _packing_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
     -- a 20 mm body over a 6.3 mm socket -- and it is the head that decides
     whether the layout was possible.
     """
-    items = [(f"{d:g}", c.relieved_bore_r(d), x, y) for d, x, y in s.bores]
+    items = [
+        (
+            f"{d.nominal:g}",
+            max(c.relieved_bore_r(bore_d), d.nominal / 2),
+            x,
+            y,
+        )
+        for d, (bore_d, x, y) in zip(s.drills, s.bores)
+    ]
     items += [
         (t.key, max(t.head_d / 2, _hex_r(af, c.RELIEF_FIT)), x, y)
         for t, (af, x, y) in zip(s.hex_tools, s.hex_bores)

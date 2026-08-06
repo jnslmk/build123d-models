@@ -9,7 +9,7 @@ in one table you can read side by side.
 
     WOOD    2 - 10 mm brad-point, plus a 10 mm countersink on a hex shank
     METAL   1 - 10 mm HSS twist, plus a 4 - 20 mm step drill on a hex shank
-    STONE   3 - 10 mm carbide-tipped masonry, no hex tool
+    STONE   3 - 12 mm carbide-tipped masonry, no hex tool
 
 Adding a fourth is a ``DrillSet`` here and a four-module package next to
 ``wood/``; nothing in the geometry has to know.
@@ -26,9 +26,10 @@ stands on the shell's floor, so every millimetre of bore -- ASA guide and TPU la
 alike -- only ever touches the shank. On a twist or brad-point drill the two are
 the same number. On a masonry bit they are not: the carbide tip is *wider* than
 the ground shank behind it, so a bore cut to the printed size would hold nothing
-at all. ``shank_allowance`` is that difference, and it is subtracted once, here,
-where it can be seen next to the set it belongs to. The legend still engraves the
-nominal size, because that is what you ask a merchant for.
+at all. The stone set's shanks are measured per drill and ground well below
+nominal (a reduced-shank set), so each drill carries its own ``shank`` diameter
+and the bore is cut to that. The legend still engraves the nominal size, because
+that is what you ask a merchant for.
 """
 
 from __future__ import annotations
@@ -135,10 +136,18 @@ class StepDrill(HexTool):
 
 @dataclass(frozen=True)
 class Drill:
-    """One round-shank bit: the size it is sold as, and how long it is."""
+    """One round-shank bit: the size it is sold as, how long it is, and -- for a
+    set whose shanks are ground below nominal -- how wide the shank actually is.
+
+    ``shank`` is the measured shank diameter. ``None`` means the shank is the
+    nominal, or the set's uniform ``shank_allowance`` below it. The bore is cut
+    to whatever the shank really is, because the drill stands on its shank; the
+    legend still engraves ``nominal``.
+    """
 
     nominal: float
     length: float
+    shank: float | None = None
 
 
 @dataclass(frozen=True, eq=False)
@@ -184,6 +193,20 @@ class DrillSet:
 
     def __post_init__(self) -> None:
         nominal = [d.nominal for d in self.drills]
+        # The diameter actually cut for each drill: its measured shank, or the
+        # nominal minus the set's uniform allowance. A drill stands on its shank,
+        # so the bore is cut to the shank, never the name.
+        bore_of = {
+            d.nominal: d.shank if d.shank is not None else d.nominal - self.shank_allowance
+            for d in self.drills
+        }
+        # Packed by the widest thing at each position: the insert's relieved bore
+        # (shank-sized) for a drill -- but the *body* stands above the tray at the
+        # nominal size, so a reduced-shank drill is packed by whichever is wider,
+        # exactly like a hex tool's head vs its socket. The body is nominal/2.
+        def drill_footprint_r(nominal_d: float) -> float:
+            return max(c.relieved_bore_r(bore_of[nominal_d]), nominal_d / 2)
+
         # Packed by the widest thing cut at each position: the insert's relieved
         # bore for a drill, and for a hex tool whichever is bigger, its head or
         # its own relieved socket. A hex socket's circumradius is 2/sqrt(3) of
@@ -204,7 +227,7 @@ class DrillSet:
                 nominal,
                 hex_tools=hex_tools,
                 swap=list(self.swap),
-                footprint_r=lambda d: c.relieved_bore_r(d - self.shank_allowance),
+                footprint_r=drill_footprint_r,
                 half_w=c.PACK_HALF_W,
                 corner_r=c.PACK_CORNER_R,
                 hole_wall=c.PACK_HOLE_WALL,
@@ -236,7 +259,7 @@ class DrillSet:
         object.__setattr__(
             self,
             "bores",
-            tuple((d - self.shank_allowance, x, y) for d, x, y in bores),
+            tuple((bore_of[d], x, y) for d, x, y in bores),
         )
         object.__setattr__(self, "hex_bores", tuple(hex_bores))
         object.__setattr__(self, "rows", rows)
@@ -325,8 +348,8 @@ FREE_LAYOUT: dict[str, tuple[float, float]] = {
 }
 
 # Ten HSS twist drills on DIN 338 jobber lengths, plus a 4 - 20 mm step drill.
-# The 10 mm at 150 mm is the longest, which lands this set on a 137 mm cover
-# (161 mm / 23U assembled) -- tied with the stone set as the tallest of the three.
+# The 10 mm at 132 mm is the longest, which lands this set on the family's default
+# 123 mm cover (147 mm / 21U assembled) -- the tallest of the three.
 #
 # This is the one set that is **not** packed in rows, and the step drill is why.
 # A 4 - 20 mm step drill reserves a 20 mm footprint for a 6.3 mm socket, and
@@ -366,7 +389,7 @@ METAL = DrillSet(
         Drill(5.0, 86.0),
         Drill(6.0, 93.0),
         Drill(8.0, 117.0),
-        Drill(10.0, 150.0),
+        Drill(10.0, 132.0),
     ),
     # 25 mm of hex is 6.2 mm short of the 31.2 mm socket, so the step drill hangs
     # by the underside of its 20 mm step on the cartridge's top face rather than
@@ -389,24 +412,24 @@ METAL = DrillSet(
 )
 
 # --- Stone --------------------------------------------------------------------
-# Seven carbide-tipped masonry bits. No hex tool: a masonry set is drills, and
-# the room is better spent on the 10 mm.
+# Eight carbide-tipped masonry bits. No hex tool: a masonry set is drills, and
+# the room is better spent on the 12 mm.
 #
-# ``shank_allowance`` is the whole reason this set is not just a different drill
-# list. A masonry bit's brazed carbide tip stands proud of the shank on every
-# side -- 0.2 mm diametral is typical on this size range, and it is what makes
-# the bit cut a hole its own shank passes freely through. Bore to the printed
-# size and the land grips 0.2 mm of air. The bits go in shank-first and the tip
-# never enters the tray, so cutting to the shank costs nothing and is simply
-# what the fit is measured against.
+# The shanks are measured, and they are ground below nominal -- this is a
+# reduced-shank set, where every shank is ground to the next-lower R10 preferred
+# number (12 -> 10, 10 -> 8, 8 -> 6.3, 6 -> 5, 5 -> 4, 4 -> 3.15). That is what
+# makes the set more than a different drill list: a masonry bit's brazed carbide
+# tip stands proud of the shank on every side, so a bore cut to the printed size
+# would grip 0.2 mm of air. The five measured sizes (12/9.9, 10/8, 6/5.1,
+# 5/4.1, 4/3.15) are the user's caliper readings; the rest (8, 7, 3) are
+# extrapolated on that same rule and will be corrected when the drills are at
+# hand. Bores are cut to the shank either way -- a drill stands on its shank,
+# and the legend still reads the nominal size, because that is what the bit is
+# sold as. The bits go in shank-first and the tip never enters the tray, so
+# cutting to the shank costs nothing.
 #
-# It also caps the set at 10 mm: masonry bits above that are commonly sold with
-# a *reduced* shank (a 12 mm bit on a 10 mm shank, to fit a 10 mm chuck), which
-# is a different allowance per size rather than one for the set, and a 12 mm
-# name over a 10 mm bore is a legend that lies. Add one only with its own entry.
-#
-# The 10 mm at 150 mm is the longest, so this set gets a 137 mm cover
-# (161 mm / 23U assembled) -- taller than the metal set's despite the shorter
+# The 12 mm at 150 mm is the longest, so this set gets a 137 mm cover
+# (161 mm / 23U assembled) -- the tallest of the three, despite the shortest
 # drill list.
 STONE = DrillSet(
     name="stone",
@@ -414,15 +437,15 @@ STONE = DrillSet(
     style="masonry",
     material="carbide-tipped masonry bits",
     drills=(
-        Drill(3.0, 70.0),
-        Drill(4.0, 75.0),
-        Drill(5.0, 85.0),
-        Drill(6.0, 100.0),
-        Drill(7.0, 100.0),
-        Drill(8.0, 120.0),
-        Drill(10.0, 150.0),
+        Drill(3.0, 70.0, shank=2.5),
+        Drill(4.0, 75.0, shank=3.15),
+        Drill(5.0, 85.0, shank=4.1),
+        Drill(6.0, 100.0, shank=5.1),
+        Drill(7.0, 100.0, shank=6.3),
+        Drill(8.0, 120.0, shank=6.3),
+        Drill(10.0, 150.0, shank=8.0),
+        Drill(12.0, 150.0, shank=9.9),
     ),
-    shank_allowance=0.20,
 )
 
 ALL = (WOOD, METAL, STONE)

@@ -1,7 +1,7 @@
 """The cover for the stone set: Stone engraved up one face.
 
-137 mm (161 mm / 23U assembled), tied with the metal set as the tallest of the
-three, for a 150 mm 10 mm bit.
+137 mm (161 mm / 23U assembled), the tallest of the three, for a 150 mm
+12 mm bit.
 
 Interchangeable with the other sets' covers -- every shell seats one the same way
 -- so a taller cover simply leaves more air over shorter tools. See

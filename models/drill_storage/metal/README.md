@@ -18,9 +18,9 @@ uv run check drill_storage.metal
 | Cartridge | `drill_storage.metal.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.metal.cover` | PETG | pillow top down, mouth up |
 
-**Cover: 137 mm**, for a 161 mm (23U) assembled envelope — tied with the stone
-set for the tallest of the three. The 150 mm 10 mm twist drill is the longest
-tool in the whole package.
+**Cover: 123 mm**, for a 147 mm (21U) assembled envelope. The 132 mm 10 mm twist
+drill is the longest tool in the whole package, so this is the family's default
+cover height.
 
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended
 `TAP` on the walls rather than a bare size, since it is not a drill. The step
@@ -67,8 +67,8 @@ be held by half a land. `HexTool.seat_z` works out which of the two a tool does
 from its own shank length, and `checks.py` asserts the land engagement either
 way.
 
-Nothing about the cover changes: the tip reaches 87 mm where the 150 mm twist
-drill reaches 156, so the 137 mm cover is still sized by the drill.
+Nothing about the cover changes: the tip reaches 87 mm where the 132 mm twist
+drill reaches 138, so the 123 mm cover is still sized by the drill.
 
 ### If you have the 3 – 12 mm one instead
 

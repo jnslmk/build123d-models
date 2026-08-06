@@ -1,7 +1,7 @@
 """Stone drill storage, assembled: ASA shell, TPU cartridge, tools, cover.
 
-Holds seven carbide-tipped masonry bits, 3 - 10 mm (3, 4, 5, 6, 7, 8, 10). No hex
-tool -- a masonry set is drills.
+Holds eight carbide-tipped masonry bits, 3 - 12 mm (3, 4, 5, 6, 7, 8, 10, 12).
+No hex tool -- a masonry set is drills.
 
 A scene, not a print job -- three filaments never share a bed. The parts are:
 
@@ -9,14 +9,13 @@ A scene, not a print job -- three filaments never share a bed. The parts are:
     uv run show drill_storage.stone.insert   # TPU, top down, bores down
     uv run show drill_storage.stone.cover    # PETG, pillow top down
 
-Every bore is cut 0.20 mm under its printed size, because a masonry bit's
-carbide tip is wider than the shank the bores actually hold. See
-``sets.STONE``'s ``shank_allowance``.
+Every bore is cut to its drill's measured shank, which is ground below nominal
+-- a reduced-shank masonry set. See ``sets.STONE``'s per-drill ``shank``.
 
-Cover: 137 mm (161 mm / 23U assembled), tied with the metal set as the tallest
-of the three, for a 150 mm 10 mm bit.
+Cover: 137 mm (161 mm / 23U assembled), the tallest of the three, for a 150 mm
+12 mm bit.
 
-The set itself -- sizes, lengths, the shank allowance, what the cover says --
+The set itself -- sizes, lengths, the shank measurements, what the cover says --
 is ``sets.STONE``. The geometry is shared with the other two variants and lives
 one level up; this package is only the naming.
 """

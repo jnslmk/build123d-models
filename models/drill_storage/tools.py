@@ -12,9 +12,9 @@ difference is not decoration:
 * ``brad``    -- a conical point with a slim centre spur (wood).
 * ``twist``   -- a plain conical point (metal).
 * ``masonry`` -- a carbide tip **wider than the shank**, over a shank ground
-  under the nominal size. That is the geometry ``sets.STONE``'s
-  ``shank_allowance`` exists for, so the scene draws it rather than pretending a
-  masonry bit is a cylinder.
+  under the nominal size. That is the geometry ``sets.STONE``'s measured
+  per-drill ``shank`` values exist for, so the scene draws it rather than
+  pretending a masonry bit is a cylinder.
 
 Every bit is built shank-end on ``z=0``, tip up: the pose it stands in inside a
 bore, so an assembly places it with a single ``Pos``.
