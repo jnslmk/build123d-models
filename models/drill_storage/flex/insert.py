@@ -59,20 +59,38 @@ def _cut_round_bore(d: float, x: float, y: float) -> None:
     relief_r = (d + c.RELIEF_FIT) / 2
 
     with Locations((x, y, 0.0)):
-        Cylinder(land_r, c.LAND_H, align=(Align.CENTER, Align.CENTER, Align.MIN),
-                 mode=Mode.SUBTRACT)
+        Cylinder(
+            land_r,
+            c.LAND_H,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
     # Lead-in from the relief down onto the land, so a drill finds the grip
     # instead of stubbing on its top edge.
     with Locations((x, y, c.LAND_H)):
-        Cone(land_r, relief_r, c.LAND_LEAD_IN,
-             align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+        Cone(
+            land_r,
+            relief_r,
+            c.LAND_LEAD_IN,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
     with Locations((x, y, c.LAND_H + c.LAND_LEAD_IN)):
-        Cylinder(relief_r, c.CART_H - c.LAND_H - c.LAND_LEAD_IN,
-                 align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+        Cylinder(
+            relief_r,
+            c.CART_H - c.LAND_H - c.LAND_LEAD_IN,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
     # Elephant's-foot relief where the land meets the bed.
     with Locations((x, y, 0.0)):
-        Cone(land_r + c.BORE_FOOT_RELIEF, land_r, c.BORE_FOOT_RELIEF,
-             align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+        Cone(
+            land_r + c.BORE_FOOT_RELIEF,
+            land_r,
+            c.BORE_FOOT_RELIEF,
+            align=(Align.CENTER, Align.CENTER, Align.MIN),
+            mode=Mode.SUBTRACT,
+        )
 
 
 def hex_bore_tool(af: float, x: float, y: float) -> Part:
@@ -229,8 +247,13 @@ def create_insert(
         for d, x, y in bores:
             r = (d + c.RELIEF_FIT) / 2
             with Locations((x, y, c.CART_H - c.CART_MOUTH_CH)):
-                Cone(r, r + c.CART_MOUTH_CH, c.CART_MOUTH_CH,
-                     align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+                Cone(
+                    r,
+                    r + c.CART_MOUTH_CH,
+                    c.CART_MOUTH_CH,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    mode=Mode.SUBTRACT,
+                )
         # The hex mouth gets a *hex* frustum, not a cone. A round cone cut into a
         # hex hole only reaches the corners, leaving the flats barely bevelled and
         # a scalloped sharp rim between them -- which is exactly what the sharp-edge

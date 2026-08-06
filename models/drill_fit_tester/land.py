@@ -57,22 +57,43 @@ def cut_land_bores(
         land_r = (d + fc.LAND_FIT + offset) / 2
         relief_r = (d + fc.RELIEF_FIT) / 2
         with Locations((x, y, 0.0)):
-            Cylinder(land_r, fc.LAND_H,
-                     align=(Align.CENTER, Align.CENTER, Align.MIN),
-                     mode=Mode.SUBTRACT)
-            Cone(land_r + fc.BORE_FOOT_RELIEF, land_r, fc.BORE_FOOT_RELIEF,
-                 align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+            Cylinder(
+                land_r,
+                fc.LAND_H,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+            Cone(
+                land_r + fc.BORE_FOOT_RELIEF,
+                land_r,
+                fc.BORE_FOOT_RELIEF,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
         with Locations((x, y, fc.LAND_H)):
-            Cone(land_r, relief_r, fc.LAND_LEAD_IN,
-                 align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+            Cone(
+                land_r,
+                relief_r,
+                fc.LAND_LEAD_IN,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
         with Locations((x, y, relief_z)):
-            Cylinder(relief_r, top_z - relief_z,
-                     align=(Align.CENTER, Align.CENTER, Align.MIN),
-                     mode=Mode.SUBTRACT)
+            Cylinder(
+                relief_r,
+                top_z - relief_z,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
         # Lead-in at the mouth, cut as a boolean cone -- never an OCC chamfer.
         with Locations((x, y, top_z - fc.CART_MOUTH_CH)):
-            Cone(relief_r, relief_r + fc.CART_MOUTH_CH, fc.CART_MOUTH_CH,
-                 align=(Align.CENTER, Align.CENTER, Align.MIN), mode=Mode.SUBTRACT)
+            Cone(
+                relief_r,
+                relief_r + fc.CART_MOUTH_CH,
+                fc.CART_MOUTH_CH,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
     # Hex sockets are left out on purpose: a hex land bears on flats, wants its
     # own number (HEX_LAND_FIT), and there is only one hex tool in the set -- so
     # it is judged on the cartridge, not swept here.
@@ -115,12 +136,20 @@ def create() -> Compound:
 
 def report() -> str:
     """The land radius each bar cuts, per size -- handy when judging the prints."""
-    lines = [f"PLATE_H {PLATE_H} mm, land {fc.LAND_H} mm, "
-             f"relief fit {fc.RELIEF_FIT:.2f} mm"]
+    lines = [
+        f"PLATE_H {PLATE_H} mm, land {fc.LAND_H} mm, relief fit {fc.RELIEF_FIT:.2f} mm"
+    ]
     for offset in LAND_OFFSETS:
         fit = fc.LAND_FIT + offset
         lines.append(f"  offset {offset:+.2f} -> bore = nominal {fit:+.2f} mm")
     return "\n".join(lines)
 
 
-__all__ = ["LAND_OFFSETS", "bar_name", "create", "create_bar", "cut_land_bores", "report"]
+__all__ = [
+    "LAND_OFFSETS",
+    "bar_name",
+    "create",
+    "create_bar",
+    "cut_land_bores",
+    "report",
+]

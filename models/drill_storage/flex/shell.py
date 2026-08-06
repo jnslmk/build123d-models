@@ -72,9 +72,7 @@ def cavity_mouth_tool() -> Part:
         with BuildSketch(Plane.XY.offset(z_top - ch)):
             RectangleRounded(c.CAVITY_W, c.CAVITY_W, c.CAVITY_R)
         with BuildSketch(Plane.XY.offset(z_top)):
-            RectangleRounded(
-                c.CAVITY_W + 2 * ch, c.CAVITY_W + 2 * ch, c.CAVITY_R + ch
-            )
+            RectangleRounded(c.CAVITY_W + 2 * ch, c.CAVITY_W + 2 * ch, c.CAVITY_R + ch)
         loft(ruled=True)
     return tool.part
 
@@ -117,8 +115,12 @@ def guide_bore_tool(d: float, x: float, y: float) -> Part:
         with Locations((x, y, c.GUIDE_FLOOR_Z)):
             Cylinder(r, c.GUIDE_H, align=(Align.CENTER, Align.CENTER, Align.MIN))
         with Locations((x, y, c.CAVITY_FLOOR_Z - c.GUIDE_MOUTH_CH)):
-            Cone(r, r + c.GUIDE_MOUTH_CH, c.GUIDE_MOUTH_CH,
-                 align=(Align.CENTER, Align.CENTER, Align.MIN))
+            Cone(
+                r,
+                r + c.GUIDE_MOUTH_CH,
+                c.GUIDE_MOUTH_CH,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+            )
     return tool.part
 
 

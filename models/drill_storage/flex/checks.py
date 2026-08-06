@@ -49,9 +49,7 @@ def _bore_footprints() -> list[tuple[str, float, float, float]]:
     """Every cut bore as ``(key, relieved_radius, x, y)`` -- the real footprint,
     not the nominal tool, which is what has to be packed and walled."""
     items = [(f"{d:g}", c.relieved_bore_r(d), x, y) for d, x, y in DRILL_BORES]
-    items += [
-        (f"hex{af:g}", _hex_r(af, c.RELIEF_FIT), x, y) for af, x, y in HEX_BORES
-    ]
+    items += [(f"hex{af:g}", _hex_r(af, c.RELIEF_FIT), x, y) for af, x, y in HEX_BORES]
     return items
 
 
@@ -65,8 +63,7 @@ def check_fits(r: Report) -> None:
         f"- {c.LAND_EXTRA_GRIP:.2f}",
     )
     r.check(
-        c.GUIDE_FIT
-        == fits.for_material(fits.FREE, "asa") + c.GUIDE_UNDERSIZE_COMP,
+        c.GUIDE_FIT == fits.for_material(fits.FREE, "asa") + c.GUIDE_UNDERSIZE_COMP,
         "GUIDE_FIT is a free fit in ASA plus the hole undersize FDM prints",
         f"{c.GUIDE_FIT:.2f} mm = {fits.for_material(fits.FREE, 'asa'):.2f} "
         f"+ {c.GUIDE_UNDERSIZE_COMP:.2f}",
@@ -112,46 +109,70 @@ def check_envelope(shell: Part, insert: Part, r: Report) -> None:
     """Gridfinity envelope, and the cartridge actually fitting its cavity."""
     r.section("envelope")
     sb = shell.bounding_box()
-    r.check(abs(sb.size.X - PAD) < 0.01 and abs(sb.size.Y - PAD) < 0.01,
-            "shell footprint is one Gridfinity pad",
-            f"{sb.size.X:.2f} x {sb.size.Y:.2f} mm")
-    r.check(abs(sb.size.Z - c.SHELL_TOTAL_H) < 0.01,
-            "shell is SHELL_TOTAL_H tall", f"{sb.size.Z:.1f} mm")
-    r.check(abs(sb.min.Z) < 0.01, "shell sits on z=0 (print pose)",
-            f"min z {sb.min.Z:.3f}")
+    r.check(
+        abs(sb.size.X - PAD) < 0.01 and abs(sb.size.Y - PAD) < 0.01,
+        "shell footprint is one Gridfinity pad",
+        f"{sb.size.X:.2f} x {sb.size.Y:.2f} mm",
+    )
+    r.check(
+        abs(sb.size.Z - c.SHELL_TOTAL_H) < 0.01,
+        "shell is SHELL_TOTAL_H tall",
+        f"{sb.size.Z:.1f} mm",
+    )
+    r.check(
+        abs(sb.min.Z) < 0.01, "shell sits on z=0 (print pose)", f"min z {sb.min.Z:.3f}"
+    )
 
     ib = insert.bounding_box()
-    r.check(abs(ib.min.Z) < 0.01, "cartridge sits on z=0 (print pose)",
-            f"min z {ib.min.Z:.3f}")
-    r.check(abs(ib.size.Z - c.CART_H) < 0.01,
-            "cartridge is CART_H tall", f"{ib.size.Z:.2f} mm")
+    r.check(
+        abs(ib.min.Z) < 0.01,
+        "cartridge sits on z=0 (print pose)",
+        f"min z {ib.min.Z:.3f}",
+    )
+    r.check(
+        abs(ib.size.Z - c.CART_H) < 0.01,
+        "cartridge is CART_H tall",
+        f"{ib.size.Z:.2f} mm",
+    )
     # The body must clear the cavity; the bead and key rib deliberately do not.
-    r.check(c.CART_W < c.CAVITY_W - TOL,
-            "cartridge body clears the cavity",
-            f"{c.CART_W:.2f} < {c.CAVITY_W:.2f} mm, slip {c.CART_SLIP:.2f}")
-    r.check(c.CART_PROUD > 0.5,
-            "cartridge stands proud enough to pinch out",
-            f"{c.CART_PROUD:.1f} mm")
+    r.check(
+        c.CART_W < c.CAVITY_W - TOL,
+        "cartridge body clears the cavity",
+        f"{c.CART_W:.2f} < {c.CAVITY_W:.2f} mm, slip {c.CART_SLIP:.2f}",
+    )
+    r.check(
+        c.CART_PROUD > 0.5,
+        "cartridge stands proud enough to pinch out",
+        f"{c.CART_PROUD:.1f} mm",
+    )
     # The collar's defining property: symmetric about its own bead.
-    r.check(abs(c.CART_BELOW_BEAD - c.CART_ABOVE_BEAD) < TOL,
-            "collar reaches as far below the bead as it stands above it",
-            f"below {c.CART_BELOW_BEAD:.2f} mm, above {c.CART_ABOVE_BEAD:.2f} mm")
-    r.check(abs(c.CART_H - 2 * c.CART_ABOVE_BEAD) < TOL,
-            "collar height is exactly twice its above-bead reach",
-            f"{c.CART_H:.2f} mm")
+    r.check(
+        abs(c.CART_BELOW_BEAD - c.CART_ABOVE_BEAD) < TOL,
+        "collar reaches as far below the bead as it stands above it",
+        f"below {c.CART_BELOW_BEAD:.2f} mm, above {c.CART_ABOVE_BEAD:.2f} mm",
+    )
+    r.check(
+        abs(c.CART_H - 2 * c.CART_ABOVE_BEAD) < TOL,
+        "collar height is exactly twice its above-bead reach",
+        f"{c.CART_H:.2f} mm",
+    )
     # The reach is derived from what it must contain, so check both halves of
     # that derivation rather than just the total.
-    r.check(c.CART_BELOW_BEAD >= c.LAND_H + c.LAND_LEAD_IN - TOL,
-            "reach below the bead covers the land and its lead-in",
-            f"{c.CART_BELOW_BEAD:.2f} mm vs "
-            f"{c.LAND_H + c.LAND_LEAD_IN:.2f} mm needed")
-    r.check(c.CART_BELOW_BEAD >= c.BEAD_LEAD_IN - TOL,
-            "reach below the bead covers the bead's own insertion ramp",
-            f"{c.CART_BELOW_BEAD:.2f} mm vs {c.BEAD_LEAD_IN:.2f} mm needed")
-    r.check(c.CART_ABOVE_BEAD >= c.BEAD_BACK + c.CART_PROUD - TOL,
-            "reach above the bead covers its retention face and the grip lip",
-            f"{c.CART_ABOVE_BEAD:.2f} mm vs "
-            f"{c.BEAD_BACK + c.CART_PROUD:.2f} mm needed")
+    r.check(
+        c.CART_BELOW_BEAD >= c.LAND_H + c.LAND_LEAD_IN - TOL,
+        "reach below the bead covers the land and its lead-in",
+        f"{c.CART_BELOW_BEAD:.2f} mm vs {c.LAND_H + c.LAND_LEAD_IN:.2f} mm needed",
+    )
+    r.check(
+        c.CART_BELOW_BEAD >= c.BEAD_LEAD_IN - TOL,
+        "reach below the bead covers the bead's own insertion ramp",
+        f"{c.CART_BELOW_BEAD:.2f} mm vs {c.BEAD_LEAD_IN:.2f} mm needed",
+    )
+    r.check(
+        c.CART_ABOVE_BEAD >= c.BEAD_BACK + c.CART_PROUD - TOL,
+        "reach above the bead covers its retention face and the grip lip",
+        f"{c.CART_ABOVE_BEAD:.2f} mm vs {c.BEAD_BACK + c.CART_PROUD:.2f} mm needed",
+    )
 
 
 def check_cover_interface(r: Report) -> None:
@@ -163,57 +184,82 @@ def check_cover_interface(r: Report) -> None:
     mint its own taller cover and stop sharing the PETG one.
     """
     r.section("cover interface")
-    h = cover_height_for(MAX_WOOD_DRILL_LEN, headroom=COVER_TIP_CLEARANCE,
-                         foot_top=c.SHELL_FOOT_TOP)
-    r.check(abs(h - COVER_H_WOOD) < TOL,
-            "an existing drill_storage.wood cover fits this shell",
-            f"cover_height_for -> {h:.1f} mm, wood cover {COVER_H_WOOD:.1f} mm")
-    r.check(abs(c.SHELL_FOOT_TOP - FOOT_TOP) < TOL,
-            "the cover seat still sits where the PETG base's does",
-            f"{c.SHELL_FOOT_TOP:.1f} mm -- lower it and the shared cover is lost")
-    r.check(abs(c.GUIDE_FLOOR_Z - 6.0) < TOL,
-            "drills still bottom out at BORE_FLOOR_Z",
-            f"{c.GUIDE_FLOOR_Z:.1f} mm")
+    h = cover_height_for(
+        MAX_WOOD_DRILL_LEN, headroom=COVER_TIP_CLEARANCE, foot_top=c.SHELL_FOOT_TOP
+    )
+    r.check(
+        abs(h - COVER_H_WOOD) < TOL,
+        "an existing drill_storage.wood cover fits this shell",
+        f"cover_height_for -> {h:.1f} mm, wood cover {COVER_H_WOOD:.1f} mm",
+    )
+    r.check(
+        abs(c.SHELL_FOOT_TOP - FOOT_TOP) < TOL,
+        "the cover seat still sits where the PETG base's does",
+        f"{c.SHELL_FOOT_TOP:.1f} mm -- lower it and the shared cover is lost",
+    )
+    r.check(
+        abs(c.GUIDE_FLOOR_Z - 6.0) < TOL,
+        "drills still bottom out at BORE_FLOOR_Z",
+        f"{c.GUIDE_FLOOR_Z:.1f} mm",
+    )
     # The base itself need not be a whole Gridfinity unit; the assembled envelope
     # must be, and that is what the cover is sized against.
     assembled = c.SHELL_FOOT_TOP + h
-    r.check(abs(assembled % HEIGHT_UNIT) < TOL,
-            "assembled envelope is a whole Gridfinity Z unit",
-            f"{assembled:.0f} mm = {assembled / HEIGHT_UNIT:.0f}U "
-            f"(base itself is {c.SHELL_TOTAL_H:.0f} mm, deliberately not a unit)")
+    r.check(
+        abs(assembled % HEIGHT_UNIT) < TOL,
+        "assembled envelope is a whole Gridfinity Z unit",
+        f"{assembled:.0f} mm = {assembled / HEIGHT_UNIT:.0f}U "
+        f"(base itself is {c.SHELL_TOTAL_H:.0f} mm, deliberately not a unit)",
+    )
 
     # The two grooves are cut into opposite faces of the same SHELL_WALL, so what
     # matters is that the *grooves* do not overlap in z -- the bead's ramp is on
     # the TPU and takes nothing out of the shell.
     need = SNAP_GROOVE_R + c.SHELL_GROOVE_R
-    r.check(c.GROOVE_SEPARATION > need,
-            "cover groove and collar groove never thin the same wall",
-            f"{c.GROOVE_SEPARATION:.1f} mm apart, {need:.1f} mm required")
+    r.check(
+        c.GROOVE_SEPARATION > need,
+        "cover groove and collar groove never thin the same wall",
+        f"{c.GROOVE_SEPARATION:.1f} mm apart, {need:.1f} mm required",
+    )
 
 
 def check_walls(shell: Part, r: Report) -> None:
     """Every place the two-material split could have left a wall too thin."""
     r.section("walls")
-    r.check(c.RIM_FLAT >= MIN_WALL - TOL,
-            "flat rim survives both top chamfers",
-            f"{c.RIM_FLAT:.2f} mm (min {MIN_WALL})")
-    r.check(c.SHELL_WALL - c.SHELL_GROOVE_R >= MIN_WALL - TOL,
-            "collar wall survives the cover's snap groove",
-            f"{c.SHELL_WALL - c.SHELL_GROOVE_R:.2f} mm")
-    r.check(c.SHELL_WALL - c.KEY_D >= MIN_WALL - TOL,
-            "cavity wall survives the key slot",
-            f"{c.SHELL_WALL - c.KEY_D:.2f} mm")
-    r.check(c.CART_WALL >= MIN_WALL - TOL,
-            "cartridge keeps CART_WALL to its outer face",
-            f"{c.CART_WALL:.2f} mm")
+    r.check(
+        c.RIM_FLAT >= MIN_WALL - TOL,
+        "flat rim survives both top chamfers",
+        f"{c.RIM_FLAT:.2f} mm (min {MIN_WALL})",
+    )
+    r.check(
+        c.SHELL_WALL - c.SHELL_GROOVE_R >= MIN_WALL - TOL,
+        "collar wall survives the cover's snap groove",
+        f"{c.SHELL_WALL - c.SHELL_GROOVE_R:.2f} mm",
+    )
+    r.check(
+        c.SHELL_WALL - c.KEY_D >= MIN_WALL - TOL,
+        "cavity wall survives the key slot",
+        f"{c.SHELL_WALL - c.KEY_D:.2f} mm",
+    )
+    r.check(
+        c.CART_WALL >= MIN_WALL - TOL,
+        "cartridge keeps CART_WALL to its outer face",
+        f"{c.CART_WALL:.2f} mm",
+    )
 
     # Point-sample the shell where the two grooves are deepest, to confirm the
     # arithmetic above describes the solid that was actually built.
     mid = (COLLAR_W / 2 + c.CAVITY_W / 2) / 2
-    r.check(is_solid_at(shell, mid, 0.0, c.SHELL_FOOT_TOP + SNAP_Z),
-            "shell is solid mid-wall at the cover groove", f"x={mid:.2f}")
-    r.check(is_solid_at(shell, mid, 0.0, c.BEAD_Z),
-            "shell is solid mid-wall at the cartridge groove", f"x={mid:.2f}")
+    r.check(
+        is_solid_at(shell, mid, 0.0, c.SHELL_FOOT_TOP + SNAP_Z),
+        "shell is solid mid-wall at the cover groove",
+        f"x={mid:.2f}",
+    )
+    r.check(
+        is_solid_at(shell, mid, 0.0, c.BEAD_Z),
+        "shell is solid mid-wall at the cartridge groove",
+        f"x={mid:.2f}",
+    )
 
 
 def check_bore_spacing(r: Report) -> None:
@@ -226,25 +272,33 @@ def check_bore_spacing(r: Report) -> None:
         gap = math.dist((x1, y1), (x2, y2)) - r1 - r2
         if gap < worst:
             worst, worst_key = gap, f"{k1}<->{k2}"
-    r.check(worst >= c.PACK_HOLE_WALL - TOL,
-            "every bore pair meets the mouth-chamfer budget",
-            f"worst {worst_key} = {worst:.2f} mm (budget {c.PACK_HOLE_WALL:.2f})")
-    r.check(worst >= MIN_WALL - TOL,
-            "every bore pair is at least a printable wall apart",
-            f"{worst:.2f} mm (min {MIN_WALL})")
+    r.check(
+        worst >= c.PACK_HOLE_WALL - TOL,
+        "every bore pair meets the mouth-chamfer budget",
+        f"worst {worst_key} = {worst:.2f} mm (budget {c.PACK_HOLE_WALL:.2f})",
+    )
+    r.check(
+        worst >= MIN_WALL - TOL,
+        "every bore pair is at least a printable wall apart",
+        f"{worst:.2f} mm (min {MIN_WALL})",
+    )
 
     # Every bore must also keep CART_WALL of material to the cartridge's face.
     half = c.CART_W / 2
     worst_edge = min(half - max(abs(x), abs(y)) - rad for _k, rad, x, y in items)
-    r.check(worst_edge >= c.CART_WALL - TOL,
-            "every bore keeps CART_WALL to the outer face",
-            f"{worst_edge:.2f} mm")
+    r.check(
+        worst_edge >= c.CART_WALL - TOL,
+        "every bore keeps CART_WALL to the outer face",
+        f"{worst_edge:.2f} mm",
+    )
 
     # The key rib lives outside the body, so no bore can ever reach it -- but say
     # so in code, because that is the whole reason it is out there.
-    r.check(all(x + rad < half + TOL for _k, rad, x, _y in items),
-            "no bore reaches past the cartridge face into the key rib",
-            f"max reach {max(x + rad for _k, rad, x, _y in items):.2f} of {half:.2f}")
+    r.check(
+        all(x + rad < half + TOL for _k, rad, x, _y in items),
+        "no bore reaches past the cartridge face into the key rib",
+        f"max reach {max(x + rad for _k, rad, x, _y in items):.2f} of {half:.2f}",
+    )
 
 
 def check_land(insert: Part, r: Report) -> None:
@@ -263,17 +317,24 @@ def check_land(insert: Part, r: Report) -> None:
             and not is_solid_at(insert, x + relief_r - PROBE, y, z_relief)
             and is_solid_at(insert, x + relief_r + PROBE, y, z_relief)
         )
-        r.check(ok, f"{d:g} mm bore: land {land_r:.2f} / relief {relief_r:.2f}",
-                f"sampled at z={z_land:.2f} and z={z_relief:.2f}")
+        r.check(
+            ok,
+            f"{d:g} mm bore: land {land_r:.2f} / relief {relief_r:.2f}",
+            f"sampled at z={z_land:.2f} and z={z_relief:.2f}",
+        )
         # The step is the whole point: at land height the relief radius must be
         # solid, or the land is not actually narrower than the guide.
-        r.check(is_solid_at(insert, x + land_r + PROBE, y, z_land),
-                f"{d:g} mm bore: land is proud of the relief",
-                f"{(relief_r - land_r) * 2:.2f} mm diametral step")
+        r.check(
+            is_solid_at(insert, x + land_r + PROBE, y, z_land),
+            f"{d:g} mm bore: land is proud of the relief",
+            f"{(relief_r - land_r) * 2:.2f} mm diametral step",
+        )
 
-    r.check(c.EFFECTIVE_LAND_H > 2.0,
-            "land is long enough to bear after the foot relief",
-            f"{c.EFFECTIVE_LAND_H:.1f} of {c.LAND_H:.1f} mm")
+    r.check(
+        c.EFFECTIVE_LAND_H > 2.0,
+        "land is long enough to bear after the foot relief",
+        f"{c.EFFECTIVE_LAND_H:.1f} of {c.LAND_H:.1f} mm",
+    )
 
 
 def check_guides(shell: Part, r: Report) -> None:
@@ -284,12 +345,12 @@ def check_guides(shell: Part, r: Report) -> None:
 
     for d, x, y in DRILL_BORES:
         gr = (d + c.GUIDE_FIT) / 2
-        ok = (
-            not is_solid_at(shell, x + gr - PROBE, y, z_mid)
-            and is_solid_at(shell, x + gr + PROBE, y, z_mid)
+        ok = not is_solid_at(shell, x + gr - PROBE, y, z_mid) and is_solid_at(
+            shell, x + gr + PROBE, y, z_mid
         )
-        r.check(ok, f"{d:g} mm guide bored to {gr * 2:.2f} mm",
-                f"sampled at z={z_mid:.1f}")
+        r.check(
+            ok, f"{d:g} mm guide bored to {gr * 2:.2f} mm", f"sampled at z={z_mid:.1f}"
+        )
 
     # Open all the way down to the floor a drill rests on, and no further.
     open_span = all(
@@ -297,22 +358,30 @@ def check_guides(shell: Part, r: Report) -> None:
         for _d, x, y in DRILL_BORES
         for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid, c.CAVITY_FLOOR_Z - 0.3)
     )
-    r.check(open_span, "every guide is open from its floor to the cavity",
-            f"{len(DRILL_BORES)} bores sampled at 3 heights")
-    floor_intact = all(
-        is_solid_at(shell, x, y, c.GUIDE_FLOOR_Z - 0.3)
-        for _d, x, y in DRILL_BORES
+    r.check(
+        open_span,
+        "every guide is open from its floor to the cavity",
+        f"{len(DRILL_BORES)} bores sampled at 3 heights",
     )
-    r.check(floor_intact, "the shell floor under every guide is solid",
-            "a drill rests on ASA, not on air")
+    floor_intact = all(
+        is_solid_at(shell, x, y, c.GUIDE_FLOOR_Z - 0.3) for _d, x, y in DRILL_BORES
+    )
+    r.check(
+        floor_intact,
+        "the shell floor under every guide is solid",
+        "a drill rests on ASA, not on air",
+    )
 
     # Guide is loose, land is tight -- confirm on the built solids, not just the
     # constants, since these are two separate parts that could drift apart.
     tighter = all(
         (d + c.LAND_FIT) / 2 < (d + c.GUIDE_FIT) / 2 for d, _x, _y in DRILL_BORES
     )
-    r.check(tighter, "every land is narrower than the guide beneath it",
-            f"{(c.GUIDE_FIT - c.LAND_FIT):.2f} mm diametral step, all sizes")
+    r.check(
+        tighter,
+        "every land is narrower than the guide beneath it",
+        f"{(c.GUIDE_FIT - c.LAND_FIT):.2f} mm diametral step, all sizes",
+    )
 
     hex_ok = all(
         not is_solid_at(shell, x, y, z)
@@ -325,26 +394,30 @@ def check_guides(shell: Part, r: Report) -> None:
     # how wide the guide is cut, so widening GUIDE_FIT spends a wall nothing else
     # is watching. This is the check that stops it going too far.
     guides = [(f"{d:g}", (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in DRILL_BORES]
-    guides += [
-        (f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in HEX_BORES
-    ]
+    guides += [(f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in HEX_BORES]
     worst_key, worst = "", math.inf
     for (k1, r1, x1, y1), (k2, r2, x2, y2) in itertools.combinations(guides, 2):
         gap = math.dist((x1, y1), (x2, y2)) - r1 - r2
         if gap < worst:
             worst, worst_key = gap, f"{k1}<->{k2}"
     mouth_budget = 2 * c.GUIDE_MOUTH_CH + 0.1
-    r.check(worst >= mouth_budget - TOL,
-            "neighbouring guide mouths do not run into each other",
-            f"worst {worst_key} = {worst:.2f} mm (budget {mouth_budget:.2f})")
-    r.check(worst >= MIN_WALL - TOL,
-            "every guide pair is at least a printable wall apart",
-            f"{worst:.2f} mm (min {MIN_WALL})")
+    r.check(
+        worst >= mouth_budget - TOL,
+        "neighbouring guide mouths do not run into each other",
+        f"worst {worst_key} = {worst:.2f} mm (budget {mouth_budget:.2f})",
+    )
+    r.check(
+        worst >= MIN_WALL - TOL,
+        "every guide pair is at least a printable wall apart",
+        f"{worst:.2f} mm (min {MIN_WALL})",
+    )
     # The guides run up into the collar, which is narrower than the body below it.
     reach = max(max(abs(x), abs(y)) + rad for _k, rad, x, y in guides)
-    r.check(reach + MIN_WALL <= c.CAVITY_W / 2 + TOL,
-            "every guide keeps a printable wall to the cavity",
-            f"reach {reach:.2f} of {c.CAVITY_W / 2:.2f} mm")
+    r.check(
+        reach + MIN_WALL <= c.CAVITY_W / 2 + TOL,
+        "every guide keeps a printable wall to the cavity",
+        f"reach {reach:.2f} of {c.CAVITY_W / 2:.2f} mm",
+    )
 
 
 def check_through_bores(insert: Part, r: Report) -> None:
@@ -355,33 +428,48 @@ def check_through_bores(insert: Part, r: Report) -> None:
         for d, x, y in DRILL_BORES
         for z in (0.05, c.CART_H / 2, c.CART_H - 0.05)
     )
-    r.check(ok_round, "every round bore is open top to bottom",
-            f"{len(DRILL_BORES)} bores sampled at 3 heights")
+    r.check(
+        ok_round,
+        "every round bore is open top to bottom",
+        f"{len(DRILL_BORES)} bores sampled at 3 heights",
+    )
     ok_hex = all(
         not is_solid_at(insert, x, y, z)
         for _af, x, y in HEX_BORES
         for z in (0.05, c.CART_H / 2, c.CART_H - 0.05)
     )
-    r.check(ok_hex, "every hex socket is open top to bottom",
-            f"{len(HEX_BORES)} sockets sampled")
+    r.check(
+        ok_hex,
+        "every hex socket is open top to bottom",
+        f"{len(HEX_BORES)} sockets sampled",
+    )
 
 
 def check_retention(r: Report) -> None:
     """A drill leaves the land at maybe 5-15 N and the cartridge weighs ~0.2 N,
     so the bead is not decoration."""
     r.section("retention")
-    r.check(c.BEAD_ENGAGEMENT > 0.2,
-            "retention bead engages past the cartridge's own slip",
-            f"{c.BEAD_ENGAGEMENT:.2f} mm (bead {c.CART_BEAD:.2f}, "
-            f"slip/2 {c.CART_SLIP / 2:.2f})")
-    r.check(c.CART_BEAD <= c.SHELL_GROOVE_R + TOL,
-            "bead tip fits inside the groove that receives it",
-            f"bead {c.CART_BEAD:.2f} <= groove r {c.SHELL_GROOVE_R:.2f}")
-    r.check(c.BEAD_LEAD_IN > c.BEAD_BACK,
-            "insertion ramp is gentler than the retention face",
-            f"lead-in {c.BEAD_LEAD_IN:.1f} vs back {c.BEAD_BACK:.1f} mm")
-    r.check(c.BEAD_Z + c.BEAD_BACK < c.SHELL_TOTAL_H,
-            "bead seats below the shell rim", f"{c.BEAD_Z + c.BEAD_BACK:.1f} mm")
+    r.check(
+        c.BEAD_ENGAGEMENT > 0.2,
+        "retention bead engages past the cartridge's own slip",
+        f"{c.BEAD_ENGAGEMENT:.2f} mm (bead {c.CART_BEAD:.2f}, "
+        f"slip/2 {c.CART_SLIP / 2:.2f})",
+    )
+    r.check(
+        c.CART_BEAD <= c.SHELL_GROOVE_R + TOL,
+        "bead tip fits inside the groove that receives it",
+        f"bead {c.CART_BEAD:.2f} <= groove r {c.SHELL_GROOVE_R:.2f}",
+    )
+    r.check(
+        c.BEAD_LEAD_IN > c.BEAD_BACK,
+        "insertion ramp is gentler than the retention face",
+        f"lead-in {c.BEAD_LEAD_IN:.1f} vs back {c.BEAD_BACK:.1f} mm",
+    )
+    r.check(
+        c.BEAD_Z + c.BEAD_BACK < c.SHELL_TOTAL_H,
+        "bead seats below the shell rim",
+        f"{c.BEAD_Z + c.BEAD_BACK:.1f} mm",
+    )
 
 
 def check_key(shell: Part, insert: Part, r: Report) -> None:
@@ -389,22 +477,36 @@ def check_key(shell: Part, insert: Part, r: Report) -> None:
     r.section("key")
     rib_tip = c.CART_W / 2 + c.KEY_D
     slot_floor = c.CAVITY_W / 2 + c.KEY_D
-    r.check(rib_tip < slot_floor - TOL, "key rib clears the bottom of its slot",
-            f"rib {rib_tip:.2f} < slot {slot_floor:.2f} mm")
+    r.check(
+        rib_tip < slot_floor - TOL,
+        "key rib clears the bottom of its slot",
+        f"rib {rib_tip:.2f} < slot {slot_floor:.2f} mm",
+    )
     # Sample low in the cavity, deliberately clear of the retention groove: the
     # collar is short enough now that mid-cavity lands *inside* the groove at
     # BEAD_Z, where the wall is legitimately void and proves nothing about the key.
     z = c.CAVITY_FLOOR_Z + 2.0
     clear_of_groove = abs(z - c.BEAD_Z) > c.SHELL_GROOVE_R + 0.5
-    r.check(clear_of_groove, "key probe height is clear of the retention groove",
-            f"z={z:.1f}, groove at {c.BEAD_Z:.1f}+/-{c.SHELL_GROOVE_R:.1f}")
-    r.check(not is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0, z),
-            "shell has a slot on +X in the cavity wall", f"z={z:.1f}")
-    r.check(is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0 + c.KEY_W, z),
-            "the slot is local, not a groove round the whole cavity",
-            f"solid at y={c.KEY_W:.1f}")
-    r.check(is_solid_at(insert, c.CART_W / 2 + c.KEY_D / 2, 0.0, c.CART_H / 2),
-            "cartridge has a rib on +X at mid-height", "")
+    r.check(
+        clear_of_groove,
+        "key probe height is clear of the retention groove",
+        f"z={z:.1f}, groove at {c.BEAD_Z:.1f}+/-{c.SHELL_GROOVE_R:.1f}",
+    )
+    r.check(
+        not is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0, z),
+        "shell has a slot on +X in the cavity wall",
+        f"z={z:.1f}",
+    )
+    r.check(
+        is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0 + c.KEY_W, z),
+        "the slot is local, not a groove round the whole cavity",
+        f"solid at y={c.KEY_W:.1f}",
+    )
+    r.check(
+        is_solid_at(insert, c.CART_W / 2 + c.KEY_D / 2, 0.0, c.CART_H / 2),
+        "cartridge has a rib on +X at mid-height",
+        "",
+    )
 
 
 def check_sharp_edges(shell: Part, insert: Part, r: Report) -> None:
@@ -421,8 +523,10 @@ def check_sharp_edges(shell: Part, insert: Part, r: Report) -> None:
 
     def on_shoulder(e) -> bool:
         b = e.bounding_box()
-        return (abs(b.min.Z - c.SHELL_FOOT_TOP) < 0.05
-                and abs(b.max.Z - c.SHELL_FOOT_TOP) < 0.05)
+        return (
+            abs(b.min.Z - c.SHELL_FOOT_TOP) < 0.05
+            and abs(b.max.Z - c.SHELL_FOOT_TOP) < 0.05
+        )
 
     def on_a_groove(e) -> bool:
         b = e.bounding_box()
@@ -437,18 +541,30 @@ def check_sharp_edges(shell: Part, insert: Part, r: Report) -> None:
 
     shell_allow = (
         (on_wall_face, "engraved size legend -- bevelling a glyph destroys it"),
-        (on_shoulder, "cover seat is deliberately flat so the cover's chamfered "
-                      "rim lands flat-on-flat (box.py:1052-1054)"),
-        (on_a_groove, "round snap-groove rims -- the groove is the mating "
-                      "feature, and rounding its lips would shrink engagement"),
+        (
+            on_shoulder,
+            "cover seat is deliberately flat so the cover's chamfered "
+            "rim lands flat-on-flat (box.py:1052-1054)",
+        ),
+        (
+            on_a_groove,
+            "round snap-groove rims -- the groove is the mating "
+            "feature, and rounding its lips would shrink engagement",
+        ),
     )
     bad_shell = sharp_convex_edges(shell, allow=shell_allow)
-    r.check(not bad_shell, "shell has no unexplained sharp convex edges",
-            f"{len(bad_shell)} found" if bad_shell else "all treated or named")
+    r.check(
+        not bad_shell,
+        "shell has no unexplained sharp convex edges",
+        f"{len(bad_shell)} found" if bad_shell else "all treated or named",
+    )
 
     bad_insert = sharp_convex_edges(insert)
-    r.check(not bad_insert, "cartridge has no sharp convex edges at all",
-            f"{len(bad_insert)} found" if bad_insert else "none, no exceptions")
+    r.check(
+        not bad_insert,
+        "cartridge has no sharp convex edges at all",
+        f"{len(bad_insert)} found" if bad_insert else "none, no exceptions",
+    )
 
 
 def run() -> Report:
