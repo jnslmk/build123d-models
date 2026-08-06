@@ -91,54 +91,78 @@ snap bead). Constants read from the file:
 INNER_DIA   = 78.0 mm
 BODY_WALL   = 2.4 mm
 LID_WALL    = 1.2 mm
-CLEARANCE   = 0.3 mm
-BEAD        = 0.4 mm   (radial protrusion of each interlocking bead)
+CLEARANCE   = 0.25 mm  (radial gap, lip OD to lid bore)
+BEAD        = 0.30 mm  (radial protrusion of each interlocking bead)
 ```
 
 **Derived lip geometry**, from `_dims()`:
 
 ```text
-lip_wall = BODY_WALL − LID_WALL − CLEARANCE = 2.4 − 1.2 − 0.3 = 0.9 mm
-lip_r    = (INNER_DIA/2 + BODY_WALL) − LID_WALL − CLEARANCE = 39.9 mm
-lip OD   = 2 · lip_r = 79.8 mm
+lip_wall = BODY_WALL − LID_WALL − CLEARANCE = 2.4 − 1.2 − 0.25 = 0.95 mm
+lip_r    = (INNER_DIA/2 + BODY_WALL) − LID_WALL − CLEARANCE = 39.95 mm
+lip OD   = 2 · lip_r = 79.9 mm
 ```
 
-**Apply the annular headline formula** (`references/annular.md`) to the
-bead: a radial bead height of `BEAD = 0.4 mm` is a **diametral** interference
-of `y = 2·BEAD = 0.8 mm` riding over the Ø79.8 mm lip:
+**This is a double-bead joint, and that changes which interference you feed
+the formula.** Both members carry a bead (`Torus(..., mode=Mode.ADD)` on the
+lip and in the lid bore), so the lid's bead does not ride into a plain bore —
+the two beads climb over *each other*. Three separate radial quantities come
+out of one bead size, and they answer three different questions:
 
 ```text
-ε = y / d = 0.8 / 79.8 = 1.0%
+peak    = 2·BEAD − CLEARANCE = 0.35 mm   beads crossing — MOMENTARY, one stroke
+seated  = BEAD − CLEARANCE   = 0.05 mm   at rest — SUSTAINED while the lid is shut
+barrier = peak − seated = BEAD = 0.30 mm what a pull-off climbs — the RETENTION
 ```
 
-**That number lands exactly on PLA's one-shot strain ceiling** (1.0%, from
-`materials.md`) — and **over** PLA's repeated-use limit (0.6%). In PETG
-(one-shot ceiling 1.7%, repeated 1.0%) the same joint sits comfortably inside
-both limits.
+**Apply the annular headline formula** (`references/annular.md`), remembering
+`y` is diametral, so each radial figure doubles:
 
-Why it likely survives in PLA anyway: `LID_WALL = 1.2 mm` and `lip_wall =
-0.9 mm` are both thin, so the interference splits across two flexible sides
-instead of loading one rigid one — the [load-sharing](references/annular.md#load-sharing-halves-the-strain)
-effect in `annular.md`, which is real mechanics but not something this repo
-measured or designed to. Read this as a worked example of the formula and its
-headroom, not as a defect report: the box was not sized wrong, it was sized
-without this margin being made explicit, and PETG removes the question
-entirely.
+```text
+ε_momentary = 2·0.35 / 79.9 = 0.88%     ← check against the strain ceiling
+ε_sustained = 2·0.05 / 79.9 = 0.13%     ← a creep load, not a snap load
+```
 
-**The margin runs the other way too, and is worth stating alongside the
-favourable one.** The 1.0% figure above treats the box's external bead as the
-only interference feature, riding into a plain bore. It is not: the lid cuts
-its *own* internal bead into its bore (a second `Torus`, same `BEAD = 0.4 mm`
-radial), so the joint is a double-bead interlock, not a single bead against a
-flat wall. Accounting for both beads crossing each other — the box bead's
-outer radius against the lid bead's inner radius — gives a peak diametral
-interference nearer **1.0 mm** than 0.8 mm, i.e. hoop strain closer to
-**≈1.25%**, which is *above* PLA's one-shot ceiling rather than exactly on it.
-The two margins (load-sharing pulling the effective strain down, the
-double-bead geometry pulling the peak strain up) both apply to the same joint
-and neither was designed to; treat the honest range for this specific box as
-**1.0–1.25% in PLA**, straddling the one-shot ceiling either way, and use PETG
-if the joint needs to be snapped more than once.
+**Which ceiling applies is set by load duration, and getting that wrong is the
+trap.** `materials.md` derives PETG at 1.7% one-shot and 1.0% repeated, where
+the 0.60× repeated derate is Covestro's figure for "frequent separation and
+rejoining". A reopened box lid *is* frequent rejoining, so the **momentary
+peak** is the number to hold against **1.0%**. 0.88% clears it.
+
+The **sustained** figure is a different question entirely: **neither PETG
+number is a creep allowable** — both are short-term snap values. So a
+sustained strain wants to be small on principle rather than merely legal, and
+0.13% is. This matters more than it looks: a "fix" that trades a momentary
+peak for a permanent strain can easily be a worse joint even when the number
+goes down.
+
+**Why the barrier is the retention, not the seated interference.** `SNAP =
+1.0 mm` holds the two beads far enough apart in Z that they never overlap once
+seated, so the seated interference is only 0.05 mm — which looks alarmingly
+close to nothing. It is not the retention. To lift the lid, its bead has to
+climb back over the box bead, i.e. re-cross the full 0.35 mm peak; the step it
+must climb is `barrier = 0.30 mm`, comfortably above FDM print variance.
+Judging this joint by its seated interference would condemn a sound design.
+
+**Load sharing is headroom on top of all of it.** `LID_WALL = 1.2 mm` and
+`lip_wall = 0.95 mm` are both thin, so the interference splits across two
+flexible sides rather than loading one rigid one — the
+[load-sharing](references/annular.md#load-sharing-halves-the-strain) effect in
+`annular.md`. Real mechanics, but treat it as margin, not as licence to size
+up: design to the rigid number, as the figures above do.
+
+**History, because the earlier numbers are still quoted elsewhere.** This box
+shipped `CLEARANCE = 0.3` / `BEAD = 0.4` for a long time, which puts the
+momentary peak at `2·(0.8 − 0.3) / 79.8 = 1.25%` — over PETG's repeated-use
+ceiling, and over PLA's 1.0% one-shot ceiling too. Tightening the clearance to
+0.25 mm and the bead to 0.30 mm brought it to 0.88% while *keeping* a 0.30 mm
+barrier and the same detent. Two dead ends are worth not repeating: deleting
+the lid's bead to cure the strain destroys the detent outright (interference
+goes flat across the whole stroke — a friction fit whose strain is now
+permanent), and reading `box-closures`' "2 perimeters behind the bead" as
+`wall ≥ 0.8 + bead` for these *protruding* beads inflates the wall budget for
+no measured gain. **In PLA this joint is still marginal at any of these
+numbers — use PETG**, per `AGENTS.md`'s default and the ranking below.
 
 ## Related skills
 

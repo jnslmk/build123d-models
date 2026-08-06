@@ -18,9 +18,11 @@ the whole height, and the chamfer cannot eat the wall.
 
 **Printing.** PETG, no supports, and it comes back already in print pose:
 closed face down on the bed, mouth up. That way the disc is a solid first layer
-instead of an unsupported bridge across the cavity. The chamfer sits on that
-bed-side edge, so it doubles as elephant-foot relief -- which is also what keeps
-the rim from catching as the cap goes on.
+instead of an unsupported bridge across the cavity. The chamfer on that bed-side
+edge is elephant-foot relief, not the mouth's lead-in -- they are opposite ends
+of the same tube. The open mouth gets its own lead-in chamfer, on both the bore
+and the outer wall, which is what actually keeps the rim from catching as the
+cap goes on over the barrel.
 """
 
 from build123d import (
@@ -118,10 +120,22 @@ def create(
             Circle(inner_dia / 2, mode=Mode.SUBTRACT)
         extrude(amount=height - top_thickness)
 
-        # Chamfer the solid-top edges (the closed face of the cap).
+        # Chamfer the solid-top edges (the closed face of the cap) -- bed-side
+        # elephant's-foot relief. This is the bottom of the tube, not the
+        # mouth; it does nothing for the rim catching as the cap goes on.
         if chamfer_size > 0:
             bottom_face = builder.faces().sort_by().first
             chamfer(bottom_face.edges(), length=chamfer_size)
+
+        # Lead-in on the mouth (the open top): both the bore's inner edge and
+        # the wall's outer edge, so the rim funnels onto the barrel instead of
+        # catching on a sharp corner. Bounded to half the wall thickness so
+        # the inner and outer cuts can't meet and knife-edge the rim.
+        mouth_max = min(wall_thickness / 2 - 0.05, height - top_thickness - 0.05)
+        mouth_chamfer = max(0.0, min(chamfer_size, mouth_max))
+        if mouth_chamfer > 0:
+            top_face = builder.faces().sort_by().last
+            chamfer(top_face.edges(), length=mouth_chamfer)
 
     # Print orientation: the builder already sits closed-face-down, open mouth
     # up — the closed disc becomes the smooth first layer on the bed instead of

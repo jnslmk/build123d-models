@@ -158,18 +158,31 @@ Worked example — `models/round_snap_box.py`, constants verified against the fi
 | `INNER_DIA` / `INNER_HEIGHT` | 78.0 / 20.0 mm | the two numbers a user actually sets |
 | `BODY_WALL` | 2.4 mm | thick: carries lip + clearance + lid |
 | `LID_WALL` | 1.2 mm | thin: nests into the recess |
-| `CLEARANCE` | 0.3 mm | radial gap, lip to lid bore |
-| *derived* `lip_wall` | **0.9 mm** | `2.4 − 1.2 − 0.3`, above the 0.8 floor |
+| `CLEARANCE` | 0.25 mm | radial gap, lip to lid bore |
+| *derived* `lip_wall` | **0.95 mm** | `2.4 − 1.2 − 0.25`, above the 0.8 floor |
 | `LIP_H` | 8.0 mm | recess height = lid engagement depth |
-| `BEAD` | 0.4 mm | radial protrusion of both interlocking beads |
-| `BEAD_DROP` / `SNAP` | 3.0 / 1.0 mm | bead centre below the rim; seated interference |
-| `RING_CHAMFER` / `LEAD_IN` | 0.8 / 0.4 mm | exterior rings; joint mouths |
+| `BEAD` | 0.30 mm | radial protrusion of both interlocking beads |
+| `BEAD_DROP` / `SNAP` | 3.0 / 1.0 mm | bead centre below the rim; seated bead offset |
+| `MIN_WALL` / `MIN_RIM` | 0.8 / 0.4 mm | 2 perimeters (structural); 1 extrusion (free rim) |
+| `RING_CHAMFER` / `LEAD_IN` | 0.8 / 0.4 mm | exterior rings; joint mouths (`LEAD_IN` is a cap, see below) |
 
-That 0.3 mm clearance is one step looser than the 0.15–0.25 mm this section
-recommends — it is what the printed part uses, and it is the number to beat if you
-want a tighter box. Whatever you choose, assert `body_wall − lid_wall − clearance
-≥ 0.8` in a check; the flush geometry silently produces a 0.4 mm lip if someone
-raises `LID_WALL` in the parametric UI.
+That 0.25 mm clearance sits **inside** the 0.15–0.25 mm this section recommends.
+It got there the hard way: the box shipped 0.3 mm for a long time — one step
+looser, and called out here as "the number to beat" — and tightening it to 0.25 mm
+is half of what brought the joint's momentary hoop strain from 1.25% back under
+PETG's 1.0% repeated-use ceiling (the other half was `BEAD` 0.4 → 0.30). Assert
+`body_wall − lid_wall − clearance ≥ 0.8` in a check; the flush geometry silently
+produces a 0.4 mm lip if someone raises `LID_WALL` in the parametric UI.
+
+**Two lead-ins share one rim, so cap them.** The lip's top face gets a chamfer at
+*each* edge — outward so the lid funnels on, inward for the cavity mouth — and two
+45° chamfers of size `c` eat `2c` of the rim between them. An uncapped 0.4 mm
+`LEAD_IN` on this 0.95 mm lip leaves a 0.15 mm knife ring, and on a thinner lip the
+chamfer simply fails and gets silently rolled back. Size it from what must survive:
+`c = min(LEAD_IN, (lip_wall − MIN_RIM) / 2)`. The floor is one extrusion, not two
+perimeters — the rim is a free top face that only has to stay printable, and holding
+it to 0.8 mm would squeeze the lead-in to 0.075 mm, below what a 0.4 mm nozzle
+resolves.
 
 ## 3. Snap-fit lid (annular bead)
 
@@ -186,17 +199,44 @@ spring.
   for PCB-to-enclosure fit, where it recommends **1.5–2.0 mm for FDM** instead
   ([Formlabs][fl-snap]). Get the material-specific tolerance from `snap-fits` before
   trusting 0.4 mm on anything but PLA on a well-tuned printer.
-- Leave **≥ 2 perimeters of material behind the bead**: a 0.4 mm bead wants a
-  1.2 mm lip. If the rabbet lip is thinner than that, **cut the bead into the lid
-  bore instead** — it is the thicker side of most flush joints.
+- Leave **≥ 2 perimeters of material behind the bead** — 0.8 mm of backing at a
+  0.4 mm nozzle. **"Behind" depends on how the bead is built, and the difference
+  is a whole wall thickness:**
+  - A bead **added** on a face (`Torus(..., mode=Mode.ADD)`, the usual case — it
+    stands proud and removes nothing) is backed by the member's *entire* wall, so
+    the rule is `wall ≥ 0.8 mm`. The bead's own height is on top of that: a 0.4 mm
+    added bead on a 0.8 mm lip gives a 1.2 mm total section at the bead.
+  - A bead **cut into** a member, or one sitting beside a groove, eats its own
+    depth out of the wall, so that form needs `wall ≥ 0.8 + bead`.
+
+  Reading the added case as if it were the cut one double-counts the bead and
+  inflates the whole wall budget — it once grew `round_snap_box`'s outside diameter
+  by 1.2 mm for no measured change in the joint. If the lip really is too thin,
+  **cut the bead into the lid bore instead** — it is the thicker side of most flush
+  joints.
 - **Bead faces ≤ 45°** so the bead is self-supporting in either print pose. A
   triangular section ramps in *and* back out, so the lid also releases; a
   square-backed bead is a one-way lock.
-- Ring stiffness scales badly. `models/round_snap_box.py` snaps a 0.4 mm bead over a
-  Ø79.8 lip; `models/led_psu_enclosure` uses a 0.6 mm bead with only **0.3 mm net
-  engagement** (`SNAP_BEAD 0.6 − LID_PLUG_CLEAR 0.3`) because its 221 × 121 mm
-  rectangular ring is far stiffer than the small round hoop and anything deeper would
-  need a pry tool.
+- Ring stiffness scales badly. `models/round_snap_box.py` snaps a 0.30 mm bead over a
+  Ø79.9 lip for **0.30 mm of retention barrier**; `models/led_psu_enclosure` uses a
+  0.6 mm bead with the same **0.3 mm net engagement** (`SNAP_BEAD 0.6 −
+  LID_PLUG_CLEAR 0.3`) because its 221 × 121 mm rectangular ring is far stiffer than
+  the small round hoop and anything deeper would need a pry tool.
+- **With a bead on *both* faces, three different numbers fall out of one bead size,
+  and they are not interchangeable.** For opposing beads of height `b` across a
+  radial clearance `c`:
+
+  ```text
+  peak    = 2b − c    the beads crossing on the way past — MOMENTARY (one stroke)
+  seated  = b − c     bead against the other's plain bore at rest — SUSTAINED
+  barrier = b         what a pull-off has to climb back over — the RETENTION
+  ```
+
+  Size the **peak** against the strain ceiling, keep **seated** small (it is a
+  creep load, and no snap-fit strain allowable covers sustained loading), and gate
+  **barrier** on print variance. Gating the wrong one is an easy and expensive
+  mistake: judging retention by the seated figure makes a sound joint look like it
+  has none.
 
 ## 4. Threaded screw-on
 

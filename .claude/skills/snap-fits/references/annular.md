@@ -172,9 +172,34 @@ print-friendly shape everywhere it appears:
 
 ## Worked example
 
-See `models/round_snap_box.py` — worked in full in the skill's `SKILL.md` (the
-`INNER_DIA = 78.0`, `BEAD = 0.4` case, hoop strain landing at exactly PLA's
-one-shot ceiling).
+See `models/round_snap_box.py` — worked in full in the skill's `SKILL.md`.
+Constants as shipped: `INNER_DIA = 78.0`, `BODY_WALL = 2.4`, `LID_WALL = 1.2`,
+`CLEARANCE = 0.25`, `BEAD = 0.30` mm, giving a 0.95 mm lip, a Ø79.9 mm lip and
+an 82.8 mm outside diameter.
+
+Two things about that example are worth carrying back into this file, because
+the plain `h = ε·d/2` formula above does not capture either:
+
+- **It is a double-bead joint, so one bead height yields three different
+  interferences** — `peak = 2·BEAD − CLEARANCE = 0.35 mm` (the beads crossing,
+  momentary), `seated = BEAD − CLEARANCE = 0.05 mm` (sustained while shut), and
+  `barrier = BEAD = 0.30 mm` (what a pull-off must climb — the retention).
+  Feed **peak** to the strain formula: `ε = 2·0.35 / 79.9 = 0.88%`. The
+  sustained figure is `2·0.05 / 79.9 = 0.13%`, and it answers a different
+  question — no allowable in `materials.md` covers a *held* load, so keep it
+  small on principle rather than merely under a ceiling.
+- **Both beads are added, not cut** (`Torus(..., mode=Mode.ADD)`), so each is
+  backed by its member's full wall and `box-closures`' "2 perimeters behind the
+  bead" binds as `wall ≥ 0.8 mm`, not `≥ 0.8 + bead`. Reading it the stricter
+  way for a proud bead double-counts the bead's own height and inflates the
+  wall budget for nothing.
+
+**On material:** 0.88% clears PETG's 1.0% repeated-use figure, which is the one
+that applies to a lid opened and closed often. It does **not** clear PLA — it is
+over PLA's 0.6% repeated limit and close to its 1.0% one-shot ceiling, so this
+joint is a PETG design and earlier text here calling it a PLA case landing
+"exactly on" that ceiling described the older, over-strained `BEAD = 0.4` /
+`CLEARANCE = 0.3` constants (peak 1.25%), not what ships.
 
 ## Sources
 
