@@ -96,6 +96,7 @@ from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
 from . import config as c
 from . import cradle as cr
+from . import gland as gl
 from . import mount_config as m
 from .endcap import CAP_H, CAP_T, CAP_W
 
@@ -118,7 +119,16 @@ LEG_LEN = 250.0
 LEG_HOLE_INSET = 12.0
 LEG_DENSITY = 7.85e-3  # g/mm^3, steel
 
-WELL_H = m.GLAND_PROUD + 2.0
+# The well is cut for the *cable*, not for the gland. Sizing it at
+# ``GLAND_PROUD + 2`` cleared the fitting and left the cable two millimetres --
+# whatever the gland measured, since ``SEAT_Z - FLANGE_T`` reduces to ``WELL_H``
+# -- and the cable needs ``gland.free_length()`` in line before it can be
+# considered turned. Taking the well to that number is what closes the defect
+# design notes §10 recorded: it costs 28 mm of pedestal and ~44 g, and the mass
+# lands at the base, so ``tip_force`` goes *up* (0.840 -> 0.879 N) rather than
+# down. The cable then meets the barrel wall inside the slot's mouth on a
+# ~32 mm radius, against a 26.8 mm minimum -- see ``checks.check_stand_gland_cable``.
+WELL_H = gl.free_length()
 WELL_D = m.GLAND_ENV_D + 2.0
 GLAND_OFFSET = 9.0 - c.HEIGHT / 2  # -6.0: the gland axis, relative to the tube's
 

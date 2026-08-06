@@ -2016,17 +2016,23 @@ def check_stand_gland_cable(part: Part, r: Report) -> None:
 
     The cable is the question nothing in this family had ever asked, and the
     answer does not depend on the gland at all. ``SEAT_Z`` is
-    ``FLANGE_T + WELL_H`` and ``WELL_H`` is ``GLAND_PROUD + 2``, so the in-line
-    room from the cap's face to the top of the flange is *always* the gland
-    plus two millimetres, whatever the gland measures. The cable leaves the
-    nose **along the gland's axis**, i.e. straight down, and ``CABLE_BEND_R``
-    (26.8 mm, 4 x OD for a fixed installation) says it cannot have turned out
-    of that direction inside the next ~27 mm. So the shortfall is
-    ``CABLE_STUB - 2``, and measuring the gland -- which took ``GLAND_PROUD``
-    from an assumed 30 to 18.8 and shrank the well to match -- moved it not at
-    all. The exit that *is* provided, the cable slot through the pedestal, sits
-    at right angles to the gland with its centre line 3.35 mm **above** the
-    nose, and that gap is invariant for the same reason. See
+    ``FLANGE_T + WELL_H``, so the in-line room from the cap's face to the top
+    of the flange is *always* ``WELL_H``, whatever the gland measures. While
+    that was ``GLAND_PROUD + 2`` the cable had two millimetres against the
+    ~30 it needs, and measuring the gland -- which took ``GLAND_PROUD`` from an
+    assumed 30 to 18.8 and shrank the well to match -- moved it not at all.
+    That is why the well is now cut to ``gland.free_length()`` instead: the one
+    number that makes the room track the cable rather than the fitting.
+
+    The cable leaves the nose **along the gland's axis**, i.e. straight down,
+    and ``CABLE_BEND_R`` (26.8 mm, 4 x OD for a fixed installation) says it
+    cannot have turned anywhere meaningful inside the next ~27 mm -- so what
+    the well has to provide is that whole run, not a straight bore for it.
+    Inside the run the cable is already curving: it reaches the barrel wall,
+    ``WELL_D / 2`` out from the gland's axis, after a descent that at the
+    tightest legal radius is 21.2 mm and at the 32 mm radius it actually takes
+    is 23.7 mm, landing it at z=18.4 -- inside the cable slot's 13.0..21.7
+    mouth, which is why the exit that was already there still serves. See
     ``gland.free_length``.
     """
     place = _gland_in_hub()
@@ -2064,10 +2070,12 @@ def check_stand_gland_cable(part: Part, r: Report) -> None:
         f"{stand_mod.WELL_H - mc.GLAND_PROUD:.1f} mm of slack at the bottom",
     )
 
-    # And now the cable. Both of these fail today; they are the finding, not a
-    # tolerance to loosen. Fixing it is a change to the hub -- more room under
-    # the seat, or an exit in line with the gland instead of across it -- and
-    # these two go green when that lands.
+    # And now the cable. Both of these failed until the well was cut for the
+    # cable rather than the gland (``stand.WELL_H = gland.free_length()``, the
+    # "more room under the seat" of the two directions design notes §10 left
+    # open). They are still the assertions that keep it: the in-line room is
+    # ``WELL_H`` by construction, so anything that trims the pedestal back
+    # towards ``GLAND_PROUD + 2`` reopens the defect and fails here.
     in_line = stand_mod.SEAT_Z - stand_mod.FLANGE_T
     need = gland_mod.free_length()
     r.check(
@@ -2075,8 +2083,9 @@ def check_stand_gland_cable(part: Part, r: Report) -> None:
         "the hub leaves the cable its bend radius in line with the gland",
         f"{in_line:.1f} mm from the seat to the flange, {need:.1f} mm needed "
         f"({mc.GLAND_PROUD:.1f} gland + {gland_mod.CABLE_STUB:.0f} cable) "
-        f"-- short by {need - in_line:.1f} mm, which is CABLE_STUB less the "
-        f"well's own 2 mm of slack whatever the gland measures",
+        f"-- {in_line - need:+.1f} mm. WELL_H is free_length itself, so this "
+        f"room tracks the cable and not the fitting; trimming the pedestal "
+        f"back towards GLAND_PROUD + 2 is what would reopen it",
     )
     struck = _shared_volume(cable, part)
     r.check(

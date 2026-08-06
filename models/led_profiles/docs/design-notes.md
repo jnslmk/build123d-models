@@ -502,50 +502,71 @@ part substantially smaller for no optical cost.
 
 ---
 
-## 10. The stand does not fit the cable — open defect
+## 10. The stand did not fit the cable — closed
 
-The stand's well was sized against the *gland* and nothing else, and it clears
+The stand's well was sized against the *gland* and nothing else, and it cleared
 it correctly: `WELL_D` = `GLAND_ENV_D + 2` and `WELL_H` = `GLAND_PROUD + 2`, and
-`gland.py` now draws the fitting so a scene shows it sitting in there with 2 mm
-under its nose. That part is fine, offset and all.
+`gland.py` draws the fitting so a scene shows it sitting in there with 2 mm
+under its nose. That part was always fine, offset and all.
 
-The cable is not. It leaves the gland's nose **along the gland's axis**, which
+The cable was not. It leaves the gland's nose **along the gland's axis**, which
 here points straight down at the flange, and `CABLE_BEND_R` is 26.8 mm
 (4 × 6.7, fixed installation) — so it cannot have turned out of that direction
-inside the next ~27 mm. What the hub offers in line with the gland is
+inside the next ~27 mm. What the hub offered in line with the gland was
 
     SEAT_Z − FLANGE_T = FLANGE_T + WELL_H − FLANGE_T = WELL_H = GLAND_PROUD + 2
 
 **Two millimetres, whatever the gland measures**, against roughly thirty needed.
-That identity is the whole of it, and it is why measuring the gland (§8) changed
+That identity was the whole of it, and it is why measuring the gland (§8) changed
 nothing here: the well shrank from 32 mm to 20.8 mm and the gland shrank from 30
-to 18.8 with it, leaving the same 2 mm. The shortfall is `CABLE_STUB − 2` = 28 mm
-and it is independent of the fitting.
+to 18.8 with it, leaving the same 2 mm. The shortfall was `CABLE_STUB − 2` = 28 mm
+and it was independent of the fitting.
 
-The exit that does exist — the cable slot through the pedestal — is at right
-angles to the gland, and its centre line sits 3.35 mm *above* the gland's own
-nose (also invariant: the nose lands at `FLANGE_T + 2` and the slot's centre at
-`FLANGE_T + 1 + CABLE_SLOT_W/2`). So the cable would have to turn through 90°
-and climb, inside 2 mm, to reach it. It does not fit, and no clearance number
-fixes it.
+The exit that already existed — the cable slot through the pedestal — is at right
+angles to the gland, and with the shallow well its centre line sat 3.35 mm
+*above* the gland's own nose (also invariant: the nose landed at `FLANGE_T + 2`
+and the slot's centre at `FLANGE_T + 1 + CABLE_SLOT_W/2`). So the cable would
+have had to turn through 90° and climb, inside 2 mm, to reach it. It did not fit,
+and no clearance number fixed it — only the well's own depth did.
 
-`checks.check_stand_gland_cable` states both halves: the gland clears (PASS) and
-the cable does not (**FAIL**, by 28 mm). Those two failures are the defect, not a
-tolerance to loosen — they go green when the hub changes. `led_profiles.gland`'s
-30 mm stub is what makes the failure visible in
-`uv run show led_profiles.assemblies.standing`: the cable runs out through the
-flange and below the floor.
+`checks.check_stand_gland_cable` states both halves: the gland clears and, once,
+the cable did not (**FAIL**, by 28 mm). `led_profiles.gland`'s 30 mm stub is what
+made the failure visible in `uv run show led_profiles.assemblies.standing`: the
+cable ran out through the flange and below the floor.
 
-Directions, none of them chosen yet:
+### Closed: the well is cut for the cable, not for the gland
 
-- **Lengthen the pedestal.** Raising `SEAT_Z` by ~30 mm buys the room outright
-  and costs only height and a little mass. It raises the lamp's centre of
-  gravity, but `tip_force` is already dominated by the 1.5 m tube, so the effect
-  on §4's number is small — worth computing before assuming it is free.
+Taken: **lengthen the pedestal**, in the one form that cannot drift back. The
+well is now `WELL_H = gland.free_length()` rather than `GLAND_PROUD + 2`, so the
+identity that caused the defect — in-line room ≡ `WELL_H` — is the same identity
+that now guarantees the fix, and it tracks the cable instead of the fitting. A
+future gland that measures differently moves both together.
+
+What it cost, measured off the built solids rather than assumed:
+
+    pedestal      +28.0 mm  (WELL_H 20.8 → 48.8, hub 144.8 → 172.8 mm tall)
+    hub mass      +44.1 g   (155.4 → 199.6 g, +28 %)
+    F_tip          0.840 → 0.879 N  (+4.6 %), i.e. 86 g → 90 g of push
+
+The centre-of-gravity worry that made this direction look expensive does not
+bite: the mass is added between the flange and the seat, which is *at the base*,
+while §4's lever arm is the 1.5 m tube. The stand gets slightly harder to tip,
+not easier. That is the number this section asked for before choosing.
+
+The exit slot did not have to move. Inside its 30 mm the cable is already
+curving (`gland.py` says so explicitly — the stub is an envelope, not a straight
+length), and it meets the barrel wall 10.35 mm out from the gland's axis after
+descending 23.7 mm on a ~32 mm radius, against a 26.8 mm minimum. That puts its
+centreline at z=18.4, inside the slot's 13.0..21.7 mouth.
+
+The three directions not taken, and why they are still the right list if this
+ever reopens:
+
 - **Exit in line, not across.** Take the cable straight down through the flange
   on the gland's own axis and out under the hub, turning it in the air below
   rather than inside the pedestal. Cheapest in material; needs the flange to
-  stand off the floor, so it lands on the leg pivots and the packing fold.
+  stand off the floor, so it lands on the leg pivots and the packing fold. That
+  cascade is what ruled it out against a change costing 28 mm of barrel.
 - **Turn the gland instead of the cable.** A 90° elbow gland points the cable at
   the slot directly, and the slot is already there. This moves the problem into
   the bought-parts list — the elbow's envelope is bigger than `GLAND_ENV_D` and
