@@ -73,6 +73,11 @@ run the workflow manually with **force_rebuild** ticked.
 
 ## Commands
 
+**Export rule: when asked to export, export the STL unless STEP is explicitly
+asked for.** `uv run export` writes all three formats to `exports/`; the agent's
+job is to hand over the file that prints, which is the STL. Only reach for the
+STEP (or ask which format) when the request names it.
+
 ```bash
 # Install dependencies
 uv sync
@@ -80,7 +85,7 @@ uv sync
 # Show a model in the viewer (starts viewer in background if needed)
 uv run show cube
 
-# Export a model to STEP and STL (no viewer)
+# Export a model to STEP and STL (no viewer); hand over the STL unless STEP was asked for
 uv run export cube
 
 # Render model to SVG (no viewer needed) — preferred for agent workflows
