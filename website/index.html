@@ -823,8 +823,12 @@ function selectModel(name) {
     fetch(previewUrl).then((r) => r.arrayBuffer()).then((buf) => {
       if (current.name !== forName) return;  // model switched while fetching
       const bytes = new Uint8Array(buf);
-      if (isGlb) { showGlb(bytes, firstFrameForModel); setVStatus('prebuilt preview'); }
-      else { showStl(bytes, firstFrameForModel); setVStatus(`prebuilt · ${triCount(bytes).toLocaleString()} triangles`); }
+      if (isGlb) showGlb(bytes, firstFrameForModel);
+      else showStl(bytes, firstFrameForModel);
+      // Nothing to say once the model is on screen: the overlay sits over the
+      // viewport, and "this is the prebuilt one" is not news to anyone who has
+      // not asked for a rebuild. Live builds still report their time and size.
+      setVStatus('');
       firstFrameForModel = false;
     }).catch((e) => { setVStatus('no prebuilt preview', true); log('preview: ' + e); });
   } else {
