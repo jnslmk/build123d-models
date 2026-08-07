@@ -19,19 +19,16 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from build123d import (
-    Axis,
     BuildPart,
     BuildSketch,
     Locations,
     Mode,
     Part,
     Plane,
-    Rectangle,
     RectangleRounded,
     RegularPolygon,
     add,
     extrude,
-    fillet,
     loft,
 )
 
@@ -45,6 +42,7 @@ from ..box import (
     rim_chamfer_tool,
     snap_ring,
 )
+from ..shell import key_slot_tool
 from . import config as c
 
 
@@ -90,34 +88,6 @@ def cavity_mouth_tool() -> Part:
         with BuildSketch(Plane.XY.offset(z_top)):
             RectangleRounded(c.CAVITY_W + 2 * ch, c.CAVITY_W + 2 * ch, c.CAVITY_R + ch)
         loft(ruled=True)
-    return tool.part
-
-
-def key_slot_tool() -> Part:
-    """The slot in the +X cavity wall that receives the cartridge's key rib.
-
-    Runs the full cavity height so the rib slides past the retention bead, and
-    reaches ``KEY_D`` into the wall. It cuts a 2.0 mm wall down to 1.0 mm over a
-    ``KEY_W`` arc on the one face that carries no legend.
-
-    The family's ``drill_storage.shell.key_slot_tool``, unchanged in every
-    respect but which config module it reads from -- including its two-radius
-    mouth fillet. See that function's docstring for why the two ends of the
-    slot need different radii: the near one has to be tangent to the cavity
-    wall itself (anchored at ``CAVITY_W / 2``, not offset short of it), or the
-    fillet crosses the wall mid-arc and leaves an edge sharper than the plain
-    corner it was meant to soften.
-    """
-    x_wall = c.CAVITY_W / 2  # the cavity's own wall -- the slot's mouth
-    x_far = x_wall + c.KEY_D  # the slot's real reach into the wall
-    half_w = (c.KEY_W + c.KEY_SLIP) / 2
-    with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)) as sk:
-            with Locations(((x_wall + x_far) / 2, 0)):
-                Rectangle(x_far - x_wall, 2 * half_w)
-            fillet(sk.vertices().group_by(Axis.X)[0], c.KEY_MOUTH_FILLET)
-            fillet(sk.vertices().group_by(Axis.X)[-1], c.KEY_FILLET)
-        extrude(amount=c.CAVITY_H)
     return tool.part
 
 
@@ -183,7 +153,7 @@ def create_base(
             mode=Mode.SUBTRACT,
         )
 
-        add(key_slot_tool(), mode=Mode.SUBTRACT)
+        add(key_slot_tool(c), mode=Mode.SUBTRACT)
         add(cavity_mouth_tool(), mode=Mode.SUBTRACT)
         add(
             rim_chamfer_tool(c.COLLAR_W, COLLAR_R, c.BASE_TOTAL_H, c.SHELL_TOP_CHAMFER),
@@ -199,5 +169,4 @@ __all__ = [
     "cavity_mouth_tool",
     "create_base",
     "hex_guide_tool",
-    "key_slot_tool",
 ]

@@ -175,9 +175,9 @@ def _is_flush_seam(part: Part, edge) -> bool:
     all, but a residual split where a boolean subtract's own tool boundary
     landed exactly flush with a face the part already had.
 
-    ``base.key_slot_tool``'s mouth fillet is anchored tangent to the cavity
-    wall on purpose (see that function's docstring, and the family's
-    ``drill_storage.shell.key_slot_tool`` it is ported from). OCC leaves the
+    ``drill_storage.shell.key_slot_tool``'s mouth fillet is anchored tangent
+    to the cavity wall on purpose (see that function's docstring). OCC leaves
+    the
     coincident plane as two abutting faces rather than merging them into one,
     so the edge between them survives into ``part.edges()``.
 
@@ -264,7 +264,7 @@ def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
             "the key slot's mouth fillet, anchored flush with the cavity "
             "wall -- a genuine 180 deg split OCC left as two faces rather "
             "than one, confirmed by matching face normals, two per base "
-            "(see base.key_slot_tool)",
+            "(see drill_storage.shell.key_slot_tool)",
         ),
     )
     if has_legend:

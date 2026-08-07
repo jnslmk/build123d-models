@@ -84,7 +84,7 @@ def cavity_mouth_tool() -> Part:
     return tool.part
 
 
-def key_slot_tool() -> Part:
+def key_slot_tool(cfg) -> Part:
     """The slot in the +X cavity wall that receives the cartridge's key rib.
 
     Runs the full cavity height so the rib slides past the retention bead, and
@@ -106,20 +106,20 @@ def key_slot_tool() -> Part:
     the wall (``CAVITY_W / 2``, no offset) rather than short of it, which is
     what makes it tangent by construction instead of by tuning.
     """
-    x_wall = c.CAVITY_W / 2  # the cavity's own wall -- the slot's mouth
-    x_far = x_wall + c.KEY_D  # the slot's real reach into the wall
-    half_w = (c.KEY_W + c.KEY_SLIP) / 2
+    x_wall = cfg.CAVITY_W / 2  # the cavity's own wall -- the slot's mouth
+    x_far = x_wall + cfg.KEY_D  # the slot's real reach into the wall
+    half_w = (cfg.KEY_W + cfg.KEY_SLIP) / 2
     with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)) as sk:
+        with BuildSketch(Plane.XY.offset(cfg.CAVITY_FLOOR_Z)) as sk:
             with Locations(((x_wall + x_far) / 2, 0)):
                 Rectangle(x_far - x_wall, 2 * half_w)
             # One feature per call, re-querying the vertex list between passes
             # (models/lib/edges.py's edge-op discipline, applied to a 2D sketch):
             # the near fillet moves the far vertices' positions imperceptibly,
             # so the far group is re-selected fresh rather than reused stale.
-            fillet(sk.vertices().group_by(Axis.X)[0], c.KEY_MOUTH_FILLET)
-            fillet(sk.vertices().group_by(Axis.X)[-1], c.KEY_FILLET)
-        extrude(amount=c.CAVITY_H)
+            fillet(sk.vertices().group_by(Axis.X)[0], cfg.KEY_MOUTH_FILLET)
+            fillet(sk.vertices().group_by(Axis.X)[-1], cfg.KEY_FILLET)
+        extrude(amount=cfg.CAVITY_H)
     return tool.part
 
 
@@ -238,7 +238,7 @@ def create_shell(
             mode=Mode.SUBTRACT,
         )
 
-        add(key_slot_tool(), mode=Mode.SUBTRACT)
+        add(key_slot_tool(c), mode=Mode.SUBTRACT)
         add(cavity_mouth_tool(), mode=Mode.SUBTRACT)
         add(
             rim_chamfer_tool(COLLAR_W, COLLAR_R, c.SHELL_TOTAL_H, c.SHELL_TOP_CHAMFER),
