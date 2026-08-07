@@ -59,10 +59,11 @@ def parts(
     corner's whole geometry from.
 
     ``glands`` drops both. It is for ``checks.check_assembly``, which measures
-    what the *mounts* have to bore for -- the cap collar, the widest thing on
-    the tube. A fitted gland hangs ``corner.GLAND_DROP`` below the tube's
-    underside and so is outside that stadium by design; it is checked against
-    the plinth that clears it, not against the bore.
+    what the *mounts* have to bore for -- and with the cap flush, that is the
+    tube's own stadium. A fitted gland used to hang ``corner.GLAND_DROP`` below
+    the tube's underside and be outside that stadium by design; centring the
+    gland on the cap took the drop to zero, and it is still checked against the
+    plinth that clears it rather than against the bore.
     """
     fitted: list[Part] = []
     if glands:

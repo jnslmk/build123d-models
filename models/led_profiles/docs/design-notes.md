@@ -26,7 +26,7 @@ That single change fixes five things at once:
 |---|---|
 | A collar shadows 40–60 mm of diffuser | a cradle shadows nothing; only the two 18 mm straps do |
 | A collar traps the diffuser, so the strip cannot be serviced | two screws and the strap is off |
-| A closed ring cannot pass the 27.2 × 31.2 endcap | a cradle never has to |
+| A closed ring cannot pass a seated endcap and its gland | a cradle never has to |
 | A split collar needs support inside a locating bore | a cradle opens upward and prints clean |
 | A closed polygon has to be threaded together | cradles let it be assembled and dismantled in place |
 
@@ -133,8 +133,10 @@ floats on the strap lips.**
 Where a structural stop is needed, the best one is a Ø3.2 hole drilled through
 the tube's belly at u = 0 into an insert boss in the cradle floor — invisible,
 positive, and it touches neither the endcap nor the diffuser. Butting the cradle
-against the endcap's 0.6 mm collar shoulder is a *locating* stop only: it puts
-load into the two M2 self-tappers, which is exactly what §3 says not to do.
+against the endcap is not even a locating stop any more: the cap is flush with
+the tube, so there is no shoulder there to butt against, and anything that did
+would put load into the two M2 self-tappers, which is exactly what §3 says not
+to do.
 
 ---
 
@@ -268,13 +270,15 @@ end) on M6 pivots through clevis ears at 120°, friction held by nyloc and
 washers. The tube sits in a vertical cradle; its lower endcap lands in a well
 with a side cable exit.
 
-**The gland is 6 mm off the tube axis** — `GLAND_Z` = 9.0 against a tube axis at
-15.0 — so the well is offset, not concentric. The measured Ø18.71 envelope at
-6 mm offset reaches to z = −0.35 relative to the tube outline: it still pokes
-*outside* the 26 × 30 footprint at the bottom, though it now stays inside the
-cap's own 0.6 mm collar. A concentric well still does not clear it — the offset
-is set by `GLAND_Z` against the axis, not by how fat the gland is — and this is
-the single easiest thing to get wrong in the part.
+**The gland is on the tube axis** — `GLAND_Z` = `HEIGHT / 2` — so the well is
+concentric. It was 6 mm off-axis (`GLAND_Z` = 9.0 against a tube axis at 15.0)
+while the bore was pushed down the wiring cavity, and at that offset the
+measured Ø18.71 envelope poked 0.35 mm outside the tube's own footprint at the
+bottom. Centring the bore took that to zero. `stand.GLAND_OFFSET` is still
+computed from `endcap.GLAND_Z` rather than assumed away, because the offset is
+set by where the bore is and not by how fat the gland is — move the bore again
+and the well has to follow. It remains the single easiest thing to get wrong in
+the part.
 
 ### The stability number, stated plainly
 
@@ -476,15 +480,16 @@ strip slot and the ceiling of the wiring cavity. It matters because
 
     CAVITY_TOP_Z = STRIP_FLOOR_Z − FLOOR_T = 13.1
 
-is what four things register against — the cavity ceiling in `profile.py`, the
-endcap's register lip in `endcap.py`, the check that the gland bore stays below
-the ceiling, and the depth the PCB gets.
+is what three things register against — the cavity ceiling in `profile.py`, the
+endcap's plug in `endcap.py`, and the depth the PCB gets. (It used to be four:
+the check that the gland bore stayed below the ceiling went when the bore moved
+to the cap's centre, which is above the ceiling by design — see `endcap.py`.)
 
 The concrete failure: if the real web is 2 mm, the ceiling is at 12.1 while the
-endcap's lip is authored to reach 12.7. **The lip stands 0.6 mm proud of the
-aluminium and the cap never seats** — it bears on the web instead of pulling
-flush, and the two M2 screws pull against it. The cradle inherits the same
-reference.
+endcap's plug is authored to reach `CAVITY_TOP_Z − PLUG_TOP_GAP` = 12.7.
+**The plug stands 0.6 mm proud of the aluminium and the cap never seats** — it
+bears on the web instead of pulling flush, and the two M2 screws pull against
+it. The cradle inherits the same reference.
 
 *Measure:* depth gauge into the cavity from the tube's open end, clear internal
 height at the centre line. Expected 12.6 mm. Then

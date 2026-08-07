@@ -83,8 +83,10 @@ from .endcap import CAP_T, GLAND_THREAD_D
 # ------------------------------------------------------------------ the stem
 
 # The bought gland's own male thread. A stock M12 gland carries ~8 mm of it,
-# which is why ``endcap.CAP_T`` is 12: the first 8 engage and the flange seals
-# on the cap's face, and the extra depth accepts a long-thread gland too.
+# which is what sets ``endcap.CAP_T``: the flange is exactly this thick, so the
+# thread engages over its whole length and the gland's flange seals on the cap's
+# face. A thicker cap would be bore the gland cannot reach and screw length the
+# two cap screws could not spend in the aluminium.
 THREAD_D = GLAND_THREAD_D  # 12.0
 THREAD_L = 8.0
 

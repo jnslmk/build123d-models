@@ -32,11 +32,13 @@ Three things the endcap forces on the geometry:
 
 * The gland points straight down and stands ``GLAND_PROUD`` proud of the cap,
   so the hub needs a well that deep before the cap can land on anything.
-* **The gland axis is 6 mm off the tube axis** (``GLAND_Z`` 9.0 against a tube
-  centre at 15.0), so that well is offset, not concentric. A concentric one
-  does not clear it, and it is the easiest thing here to get wrong.
-* The cap collar is 27.2 x 31.2, wider than the tube, so the cradle's bore is
-  opened out over the collar's height.
+* **The gland axis is the tube axis** (``GLAND_Z`` = ``HEIGHT / 2``), so the
+  well is concentric. It was 6 mm off-axis while the bore was pushed down the
+  wiring cavity, which is why ``GLAND_OFFSET`` still exists and is derived from
+  the endcap rather than assumed away -- move the bore again and the well
+  follows.
+* The cap is flush with the tube (26.1 x 30.5), so the bore over ``CAP_T`` is
+  opened out by ``COLLAR_CLEAR`` for assembly clearance, not for a collar.
 
 Print pose: standing on the flange, cradle channel vertical and opening
 sideways. The cradle is a prism extruded straight up, so it is overhang-free by
@@ -98,7 +100,7 @@ from . import config as c
 from . import cradle as cr
 from . import gland as gl
 from . import mount_config as m
-from .endcap import CAP_H, CAP_T, CAP_W
+from .endcap import CAP_H, CAP_T, CAP_W, GLAND_Z
 
 # The cradle section is drawn with the tube's underside a wall above zero; drop
 # it so the tube's axis lands on the hub's own axis, where the mass wants it.
@@ -130,7 +132,10 @@ LEG_DENSITY = 7.85e-3  # g/mm^3, steel
 # ~32 mm radius, against a 26.8 mm minimum -- see ``checks.check_stand_gland_cable``.
 WELL_H = gl.free_length()
 WELL_D = m.GLAND_ENV_D + 2.0
-GLAND_OFFSET = 9.0 - c.HEIGHT / 2  # -6.0: the gland axis, relative to the tube's
+# The gland axis, relative to the tube's. Derived from the endcap rather than
+# typed: it was -6.0 while the bore was pushed down the cavity, and is 0.0 now
+# that the bore is on the cap's own centre, which makes the well concentric.
+GLAND_OFFSET = GLAND_Z - c.HEIGHT / 2
 
 PEDESTAL_D = 48.0
 SEAT_Z = FLANGE_T + WELL_H
@@ -146,20 +151,23 @@ SOCKET_HALF_W = (c.WIDTH + m.BORE_FIT) / 2 + m.CRADLE_WALL  # 17.035
 SOCKET_HALF_H = (c.HEIGHT + m.BORE_FIT) / 2 + m.CRADLE_WALL  # 19.035
 MOUTH_Y = m.CRADLE_DEPTH + SINK  # 1.8 -- the plane the socket is cut off at
 
-# The cap collar is wider than the tube, so the bore is opened out over CAP_T.
+# The bore is opened out over CAP_T so the cap goes in without scraping. The
+# max() used to carry a 0.6 mm collar and now reads zero -- kept because it is
+# the condition, not the answer, and a cap that grew again would take it back.
 # Hoisted out of ``create_stand_hub`` because the selectors have to know where
 # that wider bore's wall is: a fillet at its root would unseat the endcap, which
 # has only 0.5 mm a side to play with.
-COLLAR_CLEAR = max(CAP_W - c.WIDTH, CAP_H - c.HEIGHT) + 1.0  # 2.2
-COLLAR_HALF_W = (c.WIDTH + COLLAR_CLEAR) / 2  # 14.1
-COLLAR_HALF_H = (c.HEIGHT + COLLAR_CLEAR) / 2  # 16.1
+COLLAR_CLEAR = max(CAP_W - c.WIDTH, CAP_H - c.HEIGHT, 0.0) + 1.0  # 1.0
+COLLAR_HALF_W = (c.WIDTH + COLLAR_CLEAR) / 2  # 13.55
+COLLAR_HALF_H = (c.HEIGHT + COLLAR_CLEAR) / 2  # 15.75
 
 # The mouth lips take a smaller radius than everything else. EDGE_FILLET is
 # sized for the corner's 41 mm arms; a lip is only CRADLE_WALL wide, and over
-# the collar band it is narrower still -- SOCKET_HALF_W - COLLAR_HALF_W = 2.94
-# mm -- so R2.5 would leave 0.44 mm of wall there, under what a 0.4 nozzle
-# should be asked to print. Six tenths of it leaves 1.44 mm, three perimeters,
-# and still takes the sharp corner off a 112 mm edge somebody has to carry.
+# the collar band it is narrower still -- SOCKET_HALF_W - COLLAR_HALF_W = 3.54
+# mm -- so R2.5 would leave 1.04 mm of wall there, two perimeters and change.
+# Six tenths of it leaves 2.04 mm, and still takes the sharp corner off a
+# 112 mm edge somebody has to carry. It was 2.94 mm of room and 0.44 mm of wall
+# while the cap carried a collar, which is the case this radius was sized in.
 LIP_FILLET = 0.6 * m.EDGE_FILLET  # 1.5
 
 # The boss pads' underside is the one real overhang in this family: printed
@@ -196,7 +204,31 @@ LEG_COLOR = Color(
     0.62, 0.64, 0.67
 )  # a distinct metallic grey -- reads as steel, not printed ASA
 
-STATIONS = (SEAT_Z + CAP_T + 15.0, SEAT_Z + CAP_T + 55.0, SEAT_Z + CAP_T + 90.0)
+# Strap stations up the socket, measured from the **seat** -- not from the end
+# of the collar bore, which is where they used to be measured from
+# (``SEAT_Z + CAP_T + 15``) and which quietly tracked the endcap's thickness.
+# Taking ``CAP_T`` from 12 to 8 slid the first station 4 mm down the socket and
+# put it inside the reach of two edge ops, and *both* refused: the socket root's
+# own R2.5 and the mouth lips' R1.5. Neither raises -- ``fillet_edge`` isolates
+# the failure by design -- so the hub simply shipped with raw edges on the one
+# part in the family somebody picks up by the socket.
+#
+# ``FIRST_STATION`` is measured, not chosen: at 25 mm the root fillet still
+# refuses, at 27 the rim chamfer does, 28 is clean. It is written from the seat
+# so that the next change to the endcap moves the cap and leaves the bosses
+# where the socket's own geometry wants them.
+# The top station keeps its own 10 mm of headroom under ``TOP_Z`` for the same
+# reason the bottom one keeps 28 above the seat: the rim chamfer up there
+# refuses if a boss crowds it. The socket is 4 mm shorter than it was (``CAP_T``
+# again), so the three are evenly spaced across what is left rather than held at
+# the old 40/35.
+FIRST_STATION = 28.0
+STATION_SPACING = 35.0
+STATIONS = (
+    SEAT_Z + FIRST_STATION,
+    SEAT_Z + FIRST_STATION + STATION_SPACING,
+    SEAT_Z + FIRST_STATION + 2 * STATION_SPACING,
+)
 
 
 def leg_reach() -> float:

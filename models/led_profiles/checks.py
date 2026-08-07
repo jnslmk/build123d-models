@@ -256,114 +256,225 @@ def check_strip(alu: Part, strip: Part, r: Report) -> None:
 
 
 def check_endcap(cap: Part, r: Report) -> None:
-    """The cap itself: collar, gland thread, screw holes, register lip."""
+    """The cap itself: flush flange, gland thread, screw pockets, plug."""
     r.section("Endcap")
     bb = cap.bounding_box()
     r.check(
         abs(bb.size.X - e.CAP_W) < 0.01 and abs(bb.size.Y - e.CAP_H) < 0.01,
-        "collar size",
+        "flange size",
         f"{bb.size.X:.2f} x {bb.size.Y:.2f} mm, {e.CAP_PROUD} proud of the tube",
+    )
+    # The correction that made the cap flush: it used to be CAP_PROUD = 0.6 all
+    # round and measured 0.55 mm too wide per side against the real extrusion.
+    r.check(
+        abs(e.CAP_W - c.WIDTH) < 0.001 and abs(e.CAP_H - c.HEIGHT) < 0.001,
+        "flush with the tube -- no collar",
+        f"cap {e.CAP_W} x {e.CAP_H} against tube {c.WIDTH} x {c.HEIGHT}",
     )
     r.check(
         abs(bb.min.Z) < 0.01, "outer face on z=0 (print pose)", f"min z {bb.min.Z:.3f}"
     )
     r.check(
-        abs(bb.size.Z - (e.CAP_T + e.LIP_DEPTH)) < 0.01,
+        abs(bb.size.Z - (e.CAP_T + e.PLUG_DEPTH)) < 0.01,
         "overall depth",
-        f"{bb.size.Z:.2f} mm = {e.CAP_T} flange + {e.LIP_DEPTH} lip",
+        f"{bb.size.Z:.2f} mm = {e.CAP_T} flange + {e.PLUG_DEPTH} plug",
     )
     r.check(len(cap.solids()) == 1, "one solid", f"{len(cap.solids())}")
 
-    # The collar has to be proud enough that a screw head lands entirely on it.
-    # This is the constraint that stopped the cap being flush with the tube.
-    head_r = 3.8 / 2  # M2 pan head
-    wall = e.CAP_W / 2 - c.SCREW_SPACING / 2 - e.SCREW_CLEAR_D / 2
-    r.check(wall > 1.2, "material outboard of the screw hole", f"{wall:.2f} mm")
+    # The flange is as thin as the gland's own thread, and no thinner: a stock
+    # M12 gland carries ~8 mm of male thread, which is where CAP_T comes from.
     r.check(
-        e.CAP_W / 2 - c.SCREW_SPACING / 2 > head_r,
-        "screw head lands on the face",
-        f"{e.CAP_W / 2 - c.SCREW_SPACING / 2:.2f} mm to the edge, head r {head_r}",
+        abs(e.CAP_T - gland_mod.THREAD_L) < 0.001,
+        "flange is exactly the gland's thread length",
+        f"CAP_T {e.CAP_T} mm vs gland.THREAD_L {gland_mod.THREAD_L} mm",
+    )
+    r.check(
+        e.PLUG_DEPTH > e.CAP_T,
+        "the plug, not the flange, is what holds the cap square",
+        f"{e.PLUG_DEPTH} mm into the cavity behind a {e.CAP_T} mm flange",
+    )
+
+
+def check_screw_pockets(cap: Part, r: Report) -> None:
+    """The sunk screw heads, and the scallop sinking them costs.
+
+    The screws are short, so each head is counterbored down to ``SCREW_FLOOR_T``
+    of the aluminium and the whole of the screw's length goes into the port. A
+    4.4 mm head needs more room outboard of the port than a flush cap has, so
+    the pocket cuts out through the flank -- deliberate, and bounded here so it
+    cannot quietly grow into something that weakens the flank.
+    """
+    r.section("Endcap screw pockets")
+    u = c.SCREW_SPACING / 2
+    v = _loc(c.SCREW_BOSS_Z)
+
+    r.check(
+        e.SCREW_CBORE_D > e.SCREW_HEAD_D,
+        "pocket swallows the head",
+        f"{e.SCREW_CBORE_D:.2f} mm bore for a {e.SCREW_HEAD_D} mm head "
+        f"(FREE, {fits.FREE} diametral)",
+    )
+    r.check(
+        not is_solid_at(cap, u, v, e.SCREW_CBORE_DEPTH - 0.3),
+        "pocket is open to the outer face",
+    )
+    r.check(
+        is_solid_at(cap, u - e.SCREW_CBORE_D / 2 - 0.3, v, e.SCREW_CBORE_DEPTH - 0.3),
+        "...and stops at SCREW_CBORE_D",
+    )
+    # The floor: the only material left carrying the clamp, by design.
+    r.check(
+        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, e.CAP_T - 0.3),
+        "floor under the head is solid",
+        f"{e.SCREW_FLOOR_T} mm -- what the connection needs and nothing more",
+    )
+    r.check(
+        abs(e.SCREW_CBORE_DEPTH + e.SCREW_FLOOR_T - e.CAP_T) < 0.001,
+        "pocket goes all the way down to that floor",
+        f"{e.SCREW_CBORE_DEPTH} + {e.SCREW_FLOOR_T} = {e.CAP_T}",
+    )
+    r.check(
+        not is_solid_at(cap, u, v, e.CAP_T - 0.2),
+        "clearance hole carries on through the floor",
+    )
+
+    # The breakout. Asserted as a bounded range, not merely allowed: below zero
+    # the pocket has stopped reaching the flank (someone widened the cap again),
+    # above ~0.5 it is eating enough of a 0.5 mm-wall tube's seat to matter.
+    breakout = e.screw_breakout()
+    r.check(
+        0.0 < breakout < 0.5,
+        "pocket breaks out through the flank, by a bounded amount",
+        f"{breakout:.2f} mm past a half-width of "
+        f"{e.cap_half_width(c.SCREW_BOSS_Z):.2f} mm",
+    )
+    half = e.cap_half_width(c.SCREW_BOSS_Z)
+    r.check(
+        not is_solid_at(cap, half - 0.1, v, e.SCREW_CBORE_DEPTH / 2),
+        "...and the scallop is really cut, not just arithmetic",
+    )
+    r.check(
+        is_solid_at(cap, half - 0.1, v, e.CAP_T - 0.2),
+        "...but the floor's own flank is still whole",
+        "the bite stops at the pocket floor, so the seat under it is unbroken",
     )
 
 
 def check_gland(cap: Part, r: Report) -> None:
-    """The M12 bore: the tightest thing in the design."""
+    """The M12 bore: on the cap's own centre, and driven clear through."""
     r.section("Gland bore")
     z_mid = e.CAP_T / 2
-    # Cap-local x is the profile's u; cap-local y is the profile's z.
+    # Cap-local x is the profile's u; cap-local y is the profile's z. The gland
+    # is on the cap's centre now, so that is (0, 0).
+    r.check(
+        abs(e.GLAND_Z - c.HEIGHT / 2) < 0.001,
+        "bore is on the cap's centre",
+        f"z {e.GLAND_Z} = HEIGHT / 2",
+    )
     r.check(not is_solid_at(cap, 0, _loc(e.GLAND_Z), z_mid), "bore is open")
     r.check(
         is_solid_at(cap, 0, _loc(e.GLAND_Z) - e.GLAND_MAJOR_D / 2 - 1.0, z_mid),
         "solid below the bore",
     )
 
-    # Wall to the outside of the collar, measured to the nearest arc centre.
+    # Wall to the outside of the cap, measured to the nearest arc centre.
     arc_z = c.BOT_ARC_Z if e.GLAND_Z < c.BOT_ARC_Z else c.TOP_ARC_Z
     reach = hypot(0, e.GLAND_Z - arc_z) + e.GLAND_MAJOR_D / 2
     wall = (c.WIDTH / 2 + e.CAP_PROUD) - reach
     r.check(wall > 1.6, "wall outboard of the bore", f"{wall:.2f} mm")
 
-    # The bore has to open into the cavity, or the cable has nowhere to go.
-    cavity_r = c.WIDTH / 2 - c.WALL
-    into_cavity = cavity_r - hypot(0, e.GLAND_Z - c.BOT_ARC_Z)
+    # Nothing is left standing in the bore: the plug is a solid half-disc and
+    # the bore goes straight through it, so the axis is open over the *whole*
+    # part, not just the flange. This is the instruction "don't put any material
+    # in the way of the M12 hole", read back off the solid.
+    total = e.CAP_T + e.PLUG_DEPTH
+    stations = [0.2, 1.6, 3.0, 4.5, 6.0, 7.5, e.CAP_T - 0.2, 10.0, 15.0, total - 0.2]
+    blocked = [z for z in stations if is_solid_at(cap, 0, _loc(e.GLAND_Z), z)]
     r.check(
-        into_cavity > 3.35,
-        "bore centre clears the cavity wall",
-        f"{into_cavity:.2f} mm of cavity radius at the bore axis",
+        not blocked,
+        "bore axis is clear end to end, flange and plug alike",
+        f"blocked at z={blocked}" if blocked else f"{len(stations)} stations, all open",
     )
+    # Sampled off-axis too, at 80% of the bore radius on the plug's side --
+    # that is where a plug that merely dodged the bore would still show up.
+    plug_probe = e.CAP_T + e.PLUG_DEPTH / 2
     r.check(
-        e.GLAND_Z < c.CAVITY_TOP_Z,
-        "bore axis is below the cavity ceiling",
-        f"{e.GLAND_Z} < {c.CAVITY_TOP_Z}",
+        not is_solid_at(
+            cap, 0, _loc(e.GLAND_Z) - 0.8 * e.GLAND_MAJOR_D / 2, plug_probe
+        ),
+        "...including the crescent the plug would otherwise fill",
+        f"probed {0.8 * e.GLAND_MAJOR_D / 2:.2f} mm below the axis, mid-plug",
     )
 
-    # Thread engagement, against the printed-thread rule of >= 1.0 x D.
+    # What the centred axis costs, stated as a number rather than left implicit:
+    # the cavity's ceiling is below the bore, so only a slot of the bore looks
+    # into the tube, and that slot is narrower than the cable the gland seals
+    # on. The gland is a fitting on a centred axis; it is not a cable route.
+    slot = e.cavity_slot_h()
+    r.check(
+        slot < mc.CABLE_OD,
+        "bore does NOT open a cable route into the wiring cavity",
+        f"{slot:.2f} mm of the bore looks into the cavity, against a "
+        f"{mc.CABLE_OD} mm cable -- see endcap.py's module docstring",
+    )
+
+    # Thread engagement. The rule of thumb wants 1.0 x D of printed thread; the
+    # gland's own male thread is 8 mm, so 1.0 x D was never reachable and the
+    # flange is sized to the gland instead. GLAND_COLLAR eats one pitch of that.
     ratio = e.GLAND_THREAD_L / e.GLAND_THREAD_D
     r.check(
-        ratio > 0.85,
+        e.GLAND_THREAD_L > 4 * e.GLAND_PITCH,
         "thread engagement",
-        f"{e.GLAND_THREAD_L} mm = {ratio:.2f} x D (rule wants 1.0; see module docstring)",
+        f"{e.GLAND_THREAD_L} mm = {ratio:.2f} x D = "
+        f"{e.GLAND_THREAD_L / e.GLAND_PITCH:.1f} turns; the gland's own thread "
+        f"is {gland_mod.THREAD_L} mm and it seals on its flange",
+    )
+    r.check(
+        abs(e.GLAND_THREAD_L + e.GLAND_COLLAR - e.CAP_T) < 0.001,
+        "...and it fills the flange behind the collar",
+        f"{e.GLAND_COLLAR} plain + {e.GLAND_THREAD_L} cut = {e.CAP_T}",
     )
     # Cable has to fit through the thread's crests.
     minor = e.GLAND_MAJOR_D - 1.0825 * e.GLAND_PITCH
     r.check(
         minor > 7.5,
         "cable clears the thread crests",
-        f"minor dia {minor:.2f} mm vs 6.7 cable",
+        f"minor dia {minor:.2f} mm vs {mc.CABLE_OD} cable",
     )
-
-    # A second thread auto-added at the cap's origin (geometry-ops gotchas S6)
-    # survives every envelope check: same bbox, same one solid, +68 mm^3. But
-    # its crests reach GLAND_MAJOR_D / 2 out from x=y=0 and the bore's axis sits
-    # inside that band, so walking the axis is both "the cable has a path" and
-    # "nothing got added twice". Verified against a deliberately broken build:
-    # a stray copy blocks 6 of these 9 stations; the correct cap is clear at all.
-    blocked = [
+    # The thread is really cut, not merely constructed: walk the crest radius up
+    # the flange and expect material at pitch intervals. A thread that failed to
+    # fuse leaves the bore a plain cylinder, which no envelope check would see.
+    r_crest = e.GLAND_MAJOR_D / 2 - 1.0825 * e.GLAND_PITCH / 2 + 0.25
+    turns = [
         z
-        for z in (0.2, 1.6, 3.0, 4.5, 6.0, 7.5, 9.0, 10.5, e.CAP_T - 0.2)
-        if is_solid_at(cap, 0, _loc(e.GLAND_Z), z)
+        for z in [e.GLAND_COLLAR + 0.25 + 0.25 * i for i in range(int(4 * e.CAP_T))]
+        if z < e.CAP_T and is_solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
     ]
     r.check(
-        not blocked,
-        "bore axis is clear end to end -- no stray thread at the origin",
-        f"blocked at z={blocked}" if blocked else "9 stations, all open",
+        len(turns) >= 3 * int(e.GLAND_THREAD_L / e.GLAND_PITCH),
+        "thread crests are actually in the bore",
+        f"{len(turns)} sampled stations carry material at r={r_crest:.2f}",
     )
 
 
 def check_endcap_edges(cap: Part, r: Report) -> None:
-    """The cap's three chamfers are broken, not merely asked for.
+    """The cap's two chamfers are broken, not merely asked for.
 
     ``chamfer_edge`` swallows an OCC refusal by design, and a chamfer that never
     applied is invisible in a projection, so each treatment is read back off the
     solid: one sample inside the material it should have removed, one just
     beyond that must still be solid. An op that ran too small fails the first,
     one that ate the part fails the second.
+
+    There were three. The collar chamfer is gone with the collar: the cap is
+    flush with the tube now, so there is no step at ``CAP_T`` to break, and a
+    chamfer there would only open a gap the extrusion's 0.5 mm wall has to span.
     """
     r.section("Endcap edges")
     half_h = e.CAP_H / 2
-    ch, cc, li = e.EDGE_CHAMFER, e.COLLAR_CHAMFER, e.LIP_LEAD_IN
+    ch, li = e.EDGE_CHAMFER, e.PLUG_LEAD_IN
 
-    # Bed face, sampled down the bottom arc -- clear of both screw lead-in cones.
+    # Bed face, sampled down the bottom arc -- clear of both screw pockets.
     r.check(
         not is_solid_at(cap, 0.0, -(half_h - 0.25 * ch), 0.25 * ch),
         "bed face chamfered -- no elephant's foot",
@@ -374,48 +485,40 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
         "...and no more than that",
     )
 
-    # Collar rim at CAP_T. The toe has to land on the tube's own silhouette:
-    # everything outboard of WIDTH/2 is bevel, everything inboard is the seat
-    # the extrusion's 0.5 mm wall stands on. Sampled at y=0, inside the
-    # stadium's straight flank band, where u really is the outer surface.
+    # The cap face at CAP_T is square, and has to stay square: it is the seat
+    # the extrusion's 0.5 mm wall stands on, edge to edge now that the cap is
+    # flush. An absence check, because a chamfer here would pass silently.
     r.check(
-        not is_solid_at(cap, c.WIDTH / 2 + 0.02, 0.0, e.CAP_T - 0.01),
-        "collar rim chamfered at the cap face",
-        f"{cc} mm = CAP_PROUD, so the toe lands on u={c.WIDTH / 2}",
-    )
-    r.check(
-        is_solid_at(cap, c.WIDTH / 2 - 0.05, 0.0, e.CAP_T - 0.01),
-        "...and the tube's wall seat is untouched",
-    )
-    r.check(
-        is_solid_at(cap, e.CAP_W / 2 - 0.05, 0.0, e.CAP_T - cc - 0.05),
-        "...and the collar is full width below the chamfer",
+        is_solid_at(cap, e.CAP_W / 2 - 0.1, 0.0, e.CAP_T - 0.05),
+        "cap face is square at the flank -- the tube's wall seat",
+        "flush cap: the whole face is seat, so nothing up here gets a bevel",
     )
 
-    # The lip's lead-in, down the bottom of its arc. Shrinking a stadium leaves
-    # its arc centres where they were, so the lip's lower arc is still the
+    # The plug's lead-in, down the bottom of its arc. Shrinking a stadium leaves
+    # its arc centres where they were, so the plug's lower arc is still the
     # profile's, at _loc(BOT_ARC_Z).
-    tip = e.CAP_T + e.LIP_DEPTH
+    tip = e.CAP_T + e.PLUG_DEPTH
     arc_cy = _loc(c.BOT_ARC_Z)
-    lip_r = c.RADIUS - c.WALL - e.LIP_FIT / 2
+    plug_r = c.RADIUS - c.WALL - e.PLUG_FIT / 2
     r.check(
-        not is_solid_at(cap, 0.0, arc_cy - (lip_r - 0.25 * li), tip - 0.25 * li),
-        "lip's leading edge has a lead-in",
-        f"{li} mm on a {e.LIP_T} mm wall, vs {e.LIP_FIT / 2:.2f} mm of clearance",
+        not is_solid_at(cap, 0.0, arc_cy - (plug_r - 0.25 * li), tip - 0.25 * li),
+        "plug's leading edge has a lead-in",
+        f"{li} mm, vs {e.PLUG_FIT / 2:.2f} mm of radial clearance",
     )
     r.check(
-        is_solid_at(cap, 0.0, arc_cy - (lip_r - 2 * li), tip - 0.25 * li),
-        "...and the lip's tip is still there",
+        is_solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
+        "...and the plug's tip is still there",
     )
 
     # The raw-edge rule (AGENTS.md), made falsifiable: every convex edge left
     # without a chamfer or fillet has to be a *stated* exception, not merely
-    # unnoticed. The endcap's own module docstring names its three: the
-    # thread's helix (not a straight or circular edge to begin with), the
-    # whole of the CAP_T face inboard of the collar chamfer (both screw
-    # mouths and the gland bore's faded thread exit sit on it), and the
-    # lip's inner wire at its tip, where only the outer wire got a lead-in.
-    lip_tip_z = e.CAP_T + e.LIP_DEPTH
+    # unnoticed. The endcap's own module docstring names them: the thread's
+    # helix (not a straight or circular edge to begin with), the whole of the
+    # CAP_T face (the tube's wall seat, with the bore's faded thread exit on
+    # it), the plug's flat top where the bore's crescent is taken out of it,
+    # and the two seams where a screw pocket cuts out through the flank.
+    plug_tip_z = e.CAP_T + e.PLUG_DEPTH
+    screw_u = c.SCREW_SPACING / 2
 
     def _is_isothread_helix(edge) -> bool:
         return edge.geom_type == GeomType.BSPLINE
@@ -424,9 +527,20 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
         bb = edge.bounding_box()
         return abs(bb.min.Z - e.CAP_T) < 0.02 and abs(bb.max.Z - e.CAP_T) < 0.02
 
-    def _is_lip_tip_inner_wire(edge) -> bool:
+    def _is_plug_tip_inner_wire(edge) -> bool:
         bb = edge.bounding_box()
-        return abs(bb.min.Z - lip_tip_z) < 0.02 and abs(bb.max.Z - lip_tip_z) < 0.02
+        return abs(bb.min.Z - plug_tip_z) < 0.02 and abs(bb.max.Z - plug_tip_z) < 0.02
+
+    def _is_screw_breakout_seam(edge) -> bool:
+        # The scallop lives inside the flange, outboard of the port axis and
+        # below the pocket floor -- nothing else in the part is out there.
+        bb = edge.bounding_box()
+        centre = bb.center()
+        return (
+            abs(centre.X) > screw_u - e.SCREW_CBORE_D / 2
+            and bb.max.Z < e.SCREW_CBORE_DEPTH + 0.02
+            and abs(centre.Y - _loc(c.SCREW_BOSS_Z)) < e.SCREW_CBORE_D
+        )
 
     _check_sharp_edges(
         cap,
@@ -443,17 +557,23 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
             (
                 "CAP_T face left raw",
                 _is_cap_t_face_edge,
-                "the whole of the CAP_T face inboard of the collar chamfer "
-                "beds against the extrusion's 0.5 mm wall; both screw mouths "
-                "and the gland bore's own faded thread exit sit on it too "
-                "(endcap.py's module docstring)",
+                "the whole of the CAP_T face beds against the extrusion's "
+                "0.5 mm wall, and the gland bore's own faded thread exit sits "
+                "on it (endcap.py's module docstring)",
             ),
             (
-                "lip tip's inner wire left raw",
-                _is_lip_tip_inner_wire,
-                "the lip's lead-in chamfer (LIP_LEAD_IN) only treats the "
-                "outer wire at z=CAP_T+LIP_DEPTH; the inner wire is "
-                "untouched by design (endcap.py's module docstring)",
+                "plug tip's inner wire left raw",
+                _is_plug_tip_inner_wire,
+                "the plug's lead-in chamfer (PLUG_LEAD_IN) only treats the "
+                "outer wire at z=CAP_T+PLUG_DEPTH; the bore's crescent through "
+                "that face is untouched by design (endcap.py's docstring)",
+            ),
+            (
+                "screw pocket's breakout seam left raw",
+                _is_screw_breakout_seam,
+                "the pocket for a 4.4 mm head cuts out through the flank of a "
+                "flush cap -- the deliberate scallop check_screw_pockets "
+                "bounds; a chamfer would only widen the bite",
             ),
         ),
     )
@@ -470,34 +590,47 @@ def check_cap_on_profile(r: Report) -> None:
         overlap < 0.01, "cap does not clash with the profile", f"{overlap:.4f} mm^3"
     )
 
-    # The lip is inside the bore, and the screws line up with the ports.
-    x_lip = 1.0  # 1 mm into the tube, well inside the lip's 6 mm
+    # The plug is a solid half-disc, not a ring: sample the middle of the
+    # cavity, where the old lip was air. The bore is the one thing taken out
+    # of it, so probe well below the bore's underside.
+    x_plug = 1.0  # 1 mm into the tube, well inside the plug's PLUG_DEPTH
+    z_solid = (e.GLAND_Z - e.GLAND_MAJOR_D / 2) / 2
     r.check(
-        is_solid_at(near, x_lip, 0, c.CAVITY_TOP_Z - 3.0) is False,
-        "lip is a ring, not a plug",
+        is_solid_at(near, x_plug, 0, z_solid),
+        "plug is solid, not a ring",
+        f"material on the axis at z={z_solid:.2f}, below the bore",
+    )
+    r.check(
+        not is_solid_at(near, x_plug, 0, e.GLAND_Z),
+        "...but the gland bore is driven straight through it",
+    )
+    r.check(
+        not is_solid_at(near, x_plug, 0, e.plug_top_z() + 0.2),
+        "...and the plug stops PLUG_TOP_GAP below the cavity ceiling",
+        f"top at z={e.plug_top_z():.2f}, ceiling at {c.CAVITY_TOP_Z}",
     )
 
-    # Sample the lip on the lower arc -- it is clipped below CAVITY_TOP_Z, so
-    # there is no straight-sided band of it to probe.
+    # And it stands off the cavity wall all round. Sampled on the lower arc --
+    # the plug is clipped below CAVITY_TOP_Z, so there is no straight-sided
+    # band of it to probe.
     z_probe = 11.0
     rise = c.BOT_ARC_Z - z_probe
-    r_out = c.RADIUS - c.WALL - e.LIP_FIT / 2
+    r_out = c.RADIUS - c.WALL - e.PLUG_FIT / 2
     half_out = sqrt(r_out**2 - rise**2)
-    half_in = sqrt((r_out - e.LIP_T) ** 2 - rise**2)
     r.check(
-        is_solid_at(near, x_lip, (half_out + half_in) / 2, z_probe),
-        "lip wall is inside the cavity",
-        f"ring from {half_in:.2f} to {half_out:.2f} from centre",
+        is_solid_at(near, x_plug, half_out - 0.1, z_probe),
+        "plug reaches out to the cavity wall",
+        f"solid to {half_out:.2f} mm from centre",
     )
     r.check(
-        not is_solid_at(near, x_lip, half_out + 0.05, z_probe),
-        "and stands off the cavity wall",
+        not is_solid_at(near, x_plug, half_out + 0.05, z_probe),
+        "and stands off it",
     )
-    gap = e.LIP_FIT / 2
+    gap = e.PLUG_FIT / 2
     r.check(
         gap > 0.05,
-        "lip clearance per side",
-        f"{gap:.3f} mm ({e.LIP_FIT} diametral, SLIDING)",
+        "plug clearance per side",
+        f"{gap:.3f} mm ({e.PLUG_FIT} diametral, SLIDING)",
     )
 
     # Screw axis: the cap's hole must be centred on the profile's port.
@@ -515,9 +648,9 @@ def check_assembly(r: Report) -> None:
     """Assembled, the whole thing is exactly the stadium it is supposed to be.
 
     ``glands=False`` on purpose: this measures what a *mount* has to bore for,
-    and a fitted gland is not part of that stadium -- it hangs below the tube's
-    underside, which is what a corner's plinth exists to clear. The gland's own
-    reach is measured separately below, against the two numbers
+    and a fitted gland is not part of that stadium -- it used to hang below the
+    tube's underside, which is what a corner's plinth exists to clear. The
+    gland's own reach is measured separately below, against the two numbers
     (``corner.GLAND_DROP``, ``gland.free_length``) that consume it.
     """
     r.section("Assembly")
@@ -544,16 +677,21 @@ def check_assembly(r: Report) -> None:
     # headroom against the second -- so measuring them off a *placed* gland is
     # what stops the two sides drifting apart.
     #
-    # The drop is read off the glands alone, not off the whole scene's box:
-    # since the fitting was measured it hangs 0.35 mm below the tube, less than
-    # the cap's own 0.6 mm collar, so the scene's lowest point is the cap and a
-    # bounding box of the lot would report the collar and call it the gland.
+    # The drop is read off the glands alone, not off the whole scene's box,
+    # because the two are not the same measurement and were only ever close:
+    # the fitting hung 0.35 mm below the tube while the bore was pushed down
+    # the cavity, and the scene's lowest point was the cap's 0.6 mm collar.
+    # Both are zero now -- the bore is on the tube's axis and the cap is flush
+    # -- so the gland is comfortably inside the tube's own outline and the
+    # measurement below reads negative. Clamped, because GLAND_DROP is what a
+    # plinth has to clear and a gland that clears itself needs nothing.
     fitted = Compound(children=gland_mod.seated(cable=False)).bounding_box()
-    drop = -fitted.min.Z  # tube-local z is 0 at the profile's underside
+    drop = max(-fitted.min.Z, 0.0)  # tube-local z is 0 at the profile's underside
     r.check(
         abs(drop - corner_mod.GLAND_DROP) < 0.01,
         "a fitted gland hangs GLAND_DROP below the tube",
-        f"{drop:.2f} mm, and corner.PLINTH_H is {corner_mod.PLINTH_H:.1f} mm",
+        f"{drop:.2f} mm ({-fitted.min.Z:+.2f} unclamped), and corner.PLINTH_H "
+        f"is {corner_mod.PLINTH_H:.1f} mm",
     )
     whole = Compound(children=lamp_parts(c.SECTION_LENGTH)).bounding_box()
     reach = whole.size.X - c.SECTION_LENGTH - 2 * e.CAP_T
@@ -1222,8 +1360,23 @@ def check_corner(r: Report) -> None:
     )
     r.check(
         corner_mod.CHANNEL_W >= CAP_W + 1.0,
-        "channel clears the endcap collar",
-        f"{corner_mod.CHANNEL_W} vs collar {CAP_W}",
+        "channel clears the endcap",
+        f"{corner_mod.CHANNEL_W} vs cap {CAP_W}",
+    )
+    # The channel's *other* constraint, and the one nothing would otherwise
+    # notice. Where the channel wall runs alongside the trough bore it leaves a
+    # land at the rim, and two EDGE_CHAMFERs meet on it: too narrow and OCC
+    # refuses the whole rim chamfer -- all four arms, silently, because
+    # chamfer_edge swallows the refusal by design and a raw rim looks identical
+    # in a projection. Too wide and the body's own R2.5 vertical corners refuse
+    # instead. Both edges of the window are measured (see corner.CHANNEL_W):
+    # 1.52 refuses the chamfer, 1.72 takes it, past ~1.82 the fillets go.
+    land = corner_mod.mouth_land()
+    r.check(
+        1.6 <= land <= 1.8,
+        "channel leaves the rim a land it can chamfer -- and not more",
+        f"{land:.3f} mm between the channel wall and the trough bore; the window "
+        f"is about 0.25 mm wide and this is the middle of it",
     )
     # The insert holes used to bite 0.4 mm into the trough's outer wall, for the
     # same reason the strap's bolts fouled its arch: the bolt circle sat barely
@@ -1524,11 +1677,16 @@ def check_stand(r: Report) -> None:
         "socket depth",
         f"{stand_mod.SOCKET_DEPTH:.0f} mm = {stand_mod.SOCKET_DEPTH / c.HEIGHT:.1f} x the section",
     )
-    # The offset gland well is the easiest thing in the part to get wrong.
+    # Where the well sits is the easiest thing in the part to get wrong, so it
+    # is asserted against the endcap it has to clear rather than against a
+    # remembered number. It read -6.0 while the gland bore was pushed down the
+    # wiring cavity and reads 0.0 now the bore is on the cap's centre; either is
+    # correct, and a well that stopped tracking the bore is not.
     r.check(
-        abs(stand_mod.GLAND_OFFSET + 6.0) < 0.01,
-        "gland well is offset, not concentric",
-        f"{stand_mod.GLAND_OFFSET:.1f} mm below the tube axis",
+        abs(stand_mod.GLAND_OFFSET - (e.GLAND_Z - c.HEIGHT / 2)) < 0.01,
+        "gland well is centred on the endcap's bore, wherever that is",
+        f"{stand_mod.GLAND_OFFSET:+.2f} mm off the tube axis, "
+        f"endcap.GLAND_Z {e.GLAND_Z:.2f} against an axis at {c.HEIGHT / 2:.2f}",
     )
     r.check(
         not is_solid_at(part, 0, stand_mod.GLAND_OFFSET, stand_mod.FLANGE_T + 2),
@@ -1538,12 +1696,17 @@ def check_stand(r: Report) -> None:
         not is_solid_at(part, 0, stand_mod.GLAND_OFFSET, stand_mod.FLANGE_T / 2),
         "and drains through the flange",
     )
-    # The seat is the annulus around the well, so sample clear of the well --
-    # the tube's centre line is inside it, which is the whole point of the offset.
+    # The seat is the annulus around the well, so the sample has to be clear of
+    # the well -- and the well's edge moves with GLAND_OFFSET, so the sample is
+    # derived from WELL_D rather than typed. A fixed y=10.0 used to be outside a
+    # well that sat 6 mm off-axis and is inside the concentric one, which is a
+    # check that would have failed for the wrong reason.
+    y_seat = stand_mod.WELL_D / 2 + 1.5
     r.check(
-        is_solid_at(part, 0, 10.0, stand_mod.SEAT_Z - 1),
+        is_solid_at(part, 0, y_seat, stand_mod.SEAT_Z - 1),
         "seat carries the endcap around the well",
-        "sampled off the centre line, which is well",
+        f"sampled at y={y_seat:.2f}, clear of a well {stand_mod.WELL_D:.2f} across "
+        f"centred at {stand_mod.GLAND_OFFSET:+.2f}",
     )
     r.check(
         not is_solid_at(part, 0, -stand_mod.PEDESTAL_D / 2 + 2, stand_mod.FLANGE_T + 3),
@@ -2235,30 +2398,67 @@ def _end_face_points(
 ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
     """The two points at the ends of a straight tube's own axis, read off the solid.
 
-    Every wall, web and channel face of an extruded profile runs the tube's
-    full length, so at LENGTH it reads in the thousands of mm^2; the two end
-    caps are bounded by the ~400 mm^2 cross-section alone and so are always
-    the smallest two faces on the solid, by a wide margin, and identical to
-    each other (opposite ends of the same straight extrusion). Picking them
-    by area -- rather than by an assumed local axis or normal direction --
-    is what makes this a measurement of the placed solid, not a replay of the
-    Pos/Rotation that built it.
+    The end caps are the **two faces whose centres are farthest apart**. On a
+    1.5 m extrusion that is unambiguous and needs no axis at all: every wall,
+    web and channel face runs the tube's whole length, so its centre sits at
+    mid-length, and any two of those are at most a cross-section apart (~30 mm).
+    A lengthwise face to an end cap is ~750 mm; the two end caps are the full
+    1500. So the maximum is the pair this wants, whichever way the assembly
+    turned the tube -- which keeps this a measurement of the placed solid rather
+    than a replay of the Pos/Rotation that built it.
+
+    Two selections have been retired here, and both failed the same way -- they
+    were sound for the numbers of the day rather than for the shape:
+
+    * *the two smallest faces.* The end caps are bounded by the ~70 mm^2
+      cross-section while lengthwise faces were in the hundreds -- until the
+      cavity's inner flank between ``BOT_ARC_Z`` and ``CAVITY_TOP_Z``, which is
+      only ``CAVITY_TOP_Z - RADIUS`` tall, came down to 0.05 mm at WIDTH 26.1
+      and 75 mm^2. That is 1.07x the end caps, against the 1.5x its own guard
+      demanded, and the guard was right to call it.
+    * *faces whose normal lies along the solid's longest bounding-box extent.*
+      True only for a tube the assembly left axis-aligned; two of the triangle's
+      three are rotated to a bearing, and their longest extent is a diagonal.
     """
     # ty resolves Part.faces() to Mixin2D.faces and rejects the receiver; it is
     # the right call at runtime (see led_psu_enclosure/checks.py for the same).
-    faces = sorted(part.faces(), key=lambda f: f.area)  # ty: ignore[invalid-argument-type]
-    matched = abs(faces[0].area - faces[1].area) / faces[1].area
+    faces = list(part.faces())  # ty: ignore[invalid-argument-type]
+    centres = [f.center() for f in faces]
+    best = max(
+        (
+            ((centres[i] - centres[j]).length, i, j)
+            for i in range(len(faces))
+            for j in range(i + 1, len(faces))
+        ),
+        default=(0.0, 0, 0),
+    )
+    span, i, j = best
+    caps = (faces[i], faces[j])
+
+    # Confirm the pick really is a pair of end caps rather than merely the
+    # farthest-apart pair of something: both have to be planes, and each has to
+    # face *along* the line joining them. On a straight extrusion only the end
+    # caps do; every lengthwise face's normal is square to that line.
+    axis = (centres[j] - centres[i]).normalized()
+    facing = [
+        f
+        for f in caps
+        if f.geom_type == GeomType.PLANE
+        # abs(): build123d makes no promise which way a face's normal points.
+        and abs(abs(f.normal_at(f.center()).dot(axis)) - 1.0) < 1e-3
+    ]
+    r.check(
+        len(facing) == 2,
+        f"{label}: end caps are the farthest-apart pair, and both face along it",
+        f"{span:.1f} mm apart over {len(faces)} faces, {len(facing)} of 2 square to the axis",
+    )
+    matched = abs(caps[0].area - caps[1].area) / caps[1].area
     r.check(
         matched < 0.001,
-        f"{label}: two smallest faces are a matched pair (the end caps)",
-        f"{faces[0].area:.2f} and {faces[1].area:.2f} mm^2, {matched * 100:.3f}% apart",
+        f"{label}: the two end caps are a matched pair",
+        f"{caps[0].area:.2f} and {caps[1].area:.2f} mm^2, {matched * 100:.3f}% apart",
     )
-    r.check(
-        faces[2].area > faces[1].area * 1.5,
-        f"{label}: end caps stand out from the next-smallest face",
-        f"next face is {faces[2].area / faces[1].area:.2f}x bigger -- safe to pick the end caps by area",
-    )
-    c0, c1 = faces[0].center(), faces[1].center()
+    c0, c1 = caps[0].center(), caps[1].center()
     return (c0.X, c0.Y, c0.Z), (c1.X, c1.Y, c1.Z)
 
 
@@ -2621,6 +2821,7 @@ def run() -> Report:
 
     cap = e.create_endcap()
     check_endcap(cap, r)
+    check_screw_pockets(cap, r)
     check_gland(cap, r)
     check_endcap_edges(cap, r)
     check_cap_on_profile(r)

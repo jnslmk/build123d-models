@@ -24,14 +24,15 @@ Shape: a V-shaped bar with a cradle at each end and an open channel down its
 middle, in which the two endcaps, their glands and the jumper loop all sit. Two
 numbers are not free choices:
 
-* ``PLINTH_H`` -- the gland axis is 6 mm *below* the tube axis, so the gland
-  hangs below the tube's underside and would cut into a 4 mm cradle floor. The
-  cradles therefore stand on a plinth. The drop is ``GLAND_DROP``, and measuring
-  the gland took it from 3.0 mm to 0.35 mm: the plinth is now generous rather
-  than tight, and could come down if the corner ever needs the height back.
-* ``ARM_WALL`` -- the channel has to clear the 27.2 mm cap collar, and a bar
-  only as wide as the cradle would be left with 2.4 mm side walls. The arms are
-  widened until the walls carry the out-of-plane load (see ``section_modulus``).
+* ``PLINTH_H`` -- the gland used to sit 6 mm *below* the tube axis, hang below
+  the tube's underside and cut into a 4 mm cradle floor, which is why the
+  cradles stand on a plinth at all. The drop is ``GLAND_DROP``: measuring the
+  gland took it from 3.0 mm to 0.35 mm, and centring the gland on the endcap
+  took it to zero. The plinth is now pure headroom and could come down if the
+  corner ever needs the height back.
+* ``ARM_WALL`` -- the channel has to clear the 26.1 mm cap, and a bar only as
+  wide as the cradle would be left with thin side walls. The arms are widened
+  until the walls carry the out-of-plane load (see ``section_modulus``).
 
 Print pose: back face on the bed, cradles and channel opening up. That is the
 LED direction, so nothing overhangs and the first layer is the whole footprint.
@@ -94,33 +95,73 @@ from build123d import (
 
 from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
+from . import config as c
 from . import cradle as cr
 from . import mount_config as m
-from .endcap import CAP_T, CAP_W
+from .endcap import CAP_T, CAP_W, GLAND_Z
 
 # The gland's axis sits GLAND_Z above the tube's underside and it is
-# GLAND_ENV_D across, so it hangs this far below that underside.
-GLAND_DROP = m.GLAND_ENV_D / 2 - 9.0  # 0.35 -- endcap.GLAND_Z is 9.0
+# GLAND_ENV_D across, so it hangs this far below that underside -- or, once the
+# gland moved to the cap's own centre, it does not hang below at all and the
+# drop clamps to zero. Derived rather than typed, so moving GLAND_Z again lands
+# here instead of in a stale comment.
+GLAND_DROP = max(m.GLAND_ENV_D / 2 - GLAND_Z, 0.0)  # 0.0 with GLAND_Z centred
 PLINTH_H = 8.0  # > GLAND_DROP + a printable floor; see the docstring
 
-# The cap collar wins this by a wide margin now that the gland is measured
-# (27.2 against 18.71), so the max() is doing nothing today -- kept because it
-# is the condition, not the answer, and a fatter gland would take it back.
-CHANNEL_W = max(CAP_W, m.GLAND_ENV_D) + 2.0  # 29.2, clears the cap collar
+# The channel answers to two constraints at once, and the second one is not
+# obvious from the part:
+#
+# * it has to clear a seated cap and a fitted gland by ``CAP_CLEAR`` a side.
+#   The cap wins that max() by a wide margin (26.1 against 18.71) -- kept
+#   because it is the condition, not the answer, and a fatter gland takes it
+#   back;
+# * it has to leave the rim at ``TOP_Z`` a **land it can actually chamfer**,
+#   where the channel's wall runs alongside the trough bore. Two
+#   ``EDGE_CHAMFER``s meet on that land, and if it is narrower than they are
+#   OCC refuses the *whole* rim chamfer -- all four arms, 76 edges, shipped
+#   raw and looking identical in a projection, because ``chamfer_edge``
+#   swallows the refusal by design.
+#
+# That second constraint is a **window, not a floor**, and both edges of it are
+# measured rather than argued: a land of 1.52 mm refuses the rim chamfer, 1.72
+# takes it, and past about 1.82 the body's own R2.5 vertical corners start
+# refusing instead. So this cannot be made generous "to be safe" -- it sits in
+# the middle of a window roughly 0.25 mm wide, and ``check_corner`` asserts it
+# is still in there.
+#
+# Worth knowing how thin the old margin was: at a 26.0 mm tube this landed on
+# 1.565 mm, 0.035 mm inside the lower edge. Correcting the tube to 26.1 was
+# enough to tip it, which is how the constraint got found at all.
+CAP_CLEAR = 2.0
+MOUTH_LAND = 2 * m.EDGE_CHAMFER + 0.1  # 1.7, mid-window
+CHANNEL_W = max(
+    max(CAP_W, m.GLAND_ENV_D) + CAP_CLEAR,
+    c.WIDTH + m.BORE_FIT + 2 * MOUTH_LAND,
+)  # 29.57
+
+
+def mouth_land() -> float:
+    """Rim land between the channel's wall and the trough bore, in mm.
+
+    What ``CHANNEL_W``'s second constraint is really about, so ``checks`` can
+    assert the window rather than re-deriving it.
+    """
+    return CHANNEL_W / 2 - (c.WIDTH + m.BORE_FIT) / 2
+
 
 # The two corners where the channel's side wall meets its end wall are the one
 # pair ``EDGE_FILLET`` does not fit, and the reason is arithmetic rather than
 # taste. That corner is concave, so a fillet of radius R rolls the wall inward
 # by R at the end plane -- and the end plane is the trough's mouth, where the
 # only room there is is the ``(CHANNEL_W - CAP_W) / 2`` = 1.0 mm the channel
-# holds clear of the endcap collar. R2.5 therefore rolled 1.5 mm past the
-# collar's own envelope (0.18 mm^3 of interference per arm, measured against a
-# seated cap, not estimated) and straight through the bore's mouth outline,
-# where it ended dead against the bore wall and left the unblended seam the
-# raw-edge audit reported as an untraced residual near the first strap boss.
+# holds clear of the endcap. R2.5 therefore rolled 1.5 mm past the cap's own
+# envelope (0.18 mm^3 of interference per arm, measured against a seated cap,
+# not estimated) and straight through the bore's mouth outline, where it ended
+# dead against the bore wall and left the unblended seam the raw-edge audit
+# reported as an untraced residual near the first strap boss.
 #
-# Half the collar clearance: the corner still gets a break, and the cap keeps
-# the other half. **Not a free number** -- it is the same species as
+# Half that clearance: the corner still gets a break, and the cap keeps the
+# other half. **Not a free number** -- it is the same species as
 # ``mount_config.BOSS_U`` and ``feet.PAD_WALL``, a radius that has to be
 # derived from the room it sits in rather than typed.
 MOUTH_FILLET = (CHANNEL_W - CAP_W) / 4  # 0.5
@@ -293,7 +334,7 @@ def _mouth_corners(bp: BuildPart, angle: float, start: float) -> ShapeList:
     ends out at the knuckle, and the notch where the two arms' channels cross.
 
     They take ``MOUTH_FILLET`` rather than ``EDGE_FILLET``; see that constant
-    for what the full radius did to the endcap collar and the bore's mouth.
+    for what the full radius did to the endcap and the bore's mouth.
     """
     out = []
     for e in bp.edges().filter_by(Axis.Z):
@@ -319,7 +360,7 @@ def _vertical_corners(bp: BuildPart, angle: float, start: float) -> ShapeList:
     work off a face at all.
 
     The trough-mouth corners are held back for ``_mouth_corners``, which gives
-    them the smaller radius the endcap collar leaves room for. They are a
+    them the smaller radius the endcap leaves room for. They are a
     separate call rather than a smaller radius for everything because
     ``EDGE_FILLET`` is right everywhere else -- these arms are 41 mm across,
     and this is the one corner on the part with 1 mm of room.

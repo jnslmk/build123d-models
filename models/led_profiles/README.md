@@ -31,24 +31,33 @@ designed.
 ### Profile
 
 The extrusion, measured and reconstructed in `config.py` / `profile.py`. It is a
-stadium in section — two R13 half-circles joined by 4 mm straight flanks — not a
-circle and not an ellipse.
+stadium in section — two R13.05 half-circles joined by 4.4 mm straight flanks —
+not a circle and not an ellipse.
 
 | Dimension | Value | |
 |---|---|---|
-| Outer width × height | 26 × 30 mm | measured |
+| Outer width × height | 26.1 × 30.5 mm | drawn, width corrected against hardware |
 | Wall thickness | 0.5 mm | measured |
 | Rim (aluminium stops, diffuser seats) | z = 16.8 | dialled |
 | Shallow recess | 19 mm wide × 1.4 mm deep | dialled |
 | Strip slot | 10 mm wide × 1.3 mm deep | measured |
 | Strip floor / cavity ceiling | z = 14.1 / z = 13.1 | dialled |
 | Endcap screw ports | 22 mm apart, 2 mm self-tappers, z = 14.7 | measured / dialled |
-| Diffuser | 26 mm outside, 25 mm inside, 1.0 mm at the crown | measured |
+| Diffuser | 26.1 mm outside, 25 mm inside, 1.0 mm at the crown | measured |
 | Length | 1500 mm | |
 
+The outline comes off a 1:1 pencil tracing of the extrusion, the diffuser and
+the assembled tube on 5 mm graph paper — `docs/assets/profile-dimensions.jpg`,
+read back against the grid. That sheet measures 26.30 × 30.72 at the pencil's
+centreline; a traced outline runs wide by about half a pencil per side, and the
+printed endcap measured **0.55 mm too wide per side** at a 0.6 mm collar, which
+puts the tube at 26.1. Scaling the sheet's own aspect ratio onto that gives
+30.5. `config.py` lists the three things the sheet says that this package
+deliberately does not follow.
+
 The rim sits just below the top arc's centre, inside the straight band where the
-section is at its full 26 mm — which is why the diffuser measures 26 mm across
-and reads as an unbroken continuation of the outline. Its inner face is a
+section is at its full 26.1 mm — which is why the diffuser measures the same
+across and reads as an unbroken continuation of the outline. Its inner face is a
 separate circle rather than an offset of the outer one, so it is thinner at the
 rim than at the crown, as the real part measures.
 
@@ -70,27 +79,36 @@ pin down — check them before a printed part depends on one.
 ### Endcap
 
 `endcap.py`. One design at both ends, since both carry a pigtail. Screws to the
-two ports with M2 × 12 pan-head self-tappers; the M12 × 1.5 gland thread is
-printed directly into the cap.
+two ports with M2 self-tappers; the M12 × 1.5 gland thread is printed directly
+into the cap.
 
-Two facts about the extrusion dictate the design:
+The cap is a thin **flange** flush with the tube, and a 15 mm **plug** that goes
+down the wiring cavity behind it.
 
-- **The gland only just fits.** An M12 gland needs a ~12.3 mm bore and the
-  largest circle that fits in the wiring cavity is 12.6 mm. The bore is placed,
-  not centred — pushed up to z = 9.0 so it keeps 3.45 mm of plastic to the
-  outside while its axis still opens into the cavity. A gland locknut is not an
-  option at all (17 mm across, 12.6 mm of cavity), hence the printed thread.
-- **The ports sit 2 mm from the outer surface.** A recessed M2 head needs 4.6 mm
-  and would break out through the side. So the cap is a **0.6 mm proud collar**
-  rather than flush, and the screw heads sit on the face.
+- **The flange is as thin as the gland's own thread.** A stock M12 gland carries
+  ~8 mm of male thread and then seals on its flange, so `CAP_T` is 8.0 — it was
+  12. Anything past 8 mm is bore the gland cannot reach and screw length the two
+  cap screws cannot spend on the aluminium.
+- **The plug is solid, not a ring.** A half-disc following the cavity's lower
+  arc, with the gland bore driven straight through it: nothing is left standing
+  in the bore's way, and the same material takes the rocking moment off the two
+  screws that a much longer ring used to.
+- **The gland is on the cap's own centre.** Symmetric, and it costs something —
+  the cavity ceiling is below the bore, so a cable cannot be fed from this gland
+  into the tube's wiring cavity. `check_gland` measures the opening rather than
+  asserting a route that is not there.
+- **The screw heads are sunk, and they break out.** Each 4.4 mm head gets a
+  Ø4.8 pocket down to a 1.2 mm floor. A flush cap has less room outboard of the
+  port than half a head, so the pocket cuts ~0.35 mm out through each flank —
+  deliberate, and bounded by `check_screw_pockets`.
 
 | | |
 |---|---|
-| Collar | 27.2 × 31.2 mm, 0.8 chamfer |
-| Flange thickness | 12 mm |
-| Register lip | 6 mm deep, 1.2 wall, SLIDING fit in the cavity |
-| Gland | M12 × 1.5 printed female, 10.5 mm of thread on a 1.5 mm collar |
-| Screws | 2 × M2 × 12 pan-head, 22 mm apart |
+| Flange | 26.1 × 30.5 mm, flush with the tube, 0.8 bed chamfer |
+| Flange thickness | 8 mm |
+| Plug | 15 mm deep, solid half-disc, SLIDING fit in the cavity |
+| Gland | M12 × 1.5 printed female, 6.5 mm of thread on a 1.5 mm collar |
+| Screws | 2 × M2 pan-head, 22 mm apart, Ø4.4 heads sunk to a 1.2 mm floor |
 
 Prints outer-face-down: largest possible first layer, thread axis vertical, no
 overhangs. Layer height ≤ 0.25 mm (pitch / 6) or the thread staircases.
@@ -99,8 +117,8 @@ overhangs. Layer height ≤ 0.25 mm (pitch / 6) or the thread staircases.
 
 See `docs/design-notes.md` for the reasoning. The short version:
 
-Nothing wraps the tube. The stadium is at its full 26 mm from z = 13 to z = 17,
-so a **cradle** that stops at the rim (z = 16.8) has no undercut at all — the
+Nothing wraps the tube. The stadium is at its full 26.1 mm from z = 13.05 to
+z = 17.45, so a **cradle** that stops at the rim (z = 16.8) has no undercut — the
 tube drops in sideways, the diffuser is never shadowed and never trapped, and a
 closed polygon can be taken apart. Every foot carries its cradle integrally; the
 only wrapping part is a shared 18 mm **strap**, two per station. No mount takes
