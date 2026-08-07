@@ -14,14 +14,20 @@
        ratio — can't drive the whole row (and the viewer) taller than the
        viewport. Without the 0 minimum the row's auto minimum is its tallest
        cell's min-content, which overflows the page. */
-    grid-template-areas: "bar  bar  bar"
-                         "side view edit";
-    grid-template-rows: auto minmax(0, 1fr);
-    /* The code column is 0-wide until .code-open. The editor is hidden by
+    /* The editor is a full-width row *under* the side panel and the viewer, not
+       a third column: a column would add its own min-width to the row, so on a
+       narrow desktop window the grid — and with it #bar, which spans every
+       column — grew wider than the viewport and pushed the Code and GitHub
+       buttons off the right edge. A row can only ever take height. */
+    grid-template-areas: "bar  bar"
+                         "side view"
+                         "edit edit";
+    /* The code row is 0-high until .code-open. The editor is hidden by
        default on every viewport: it is the most expensive thing on the page
        (CodeMirror is only fetched when the panel first opens) and the least
        often wanted. */
-    grid-template-columns: 300px minmax(320px, 1fr) 0;
+    grid-template-rows: auto minmax(0, 1fr) 0;
+    grid-template-columns: 300px minmax(320px, 1fr);
     /* dvh, not vh: on mobile browsers the collapsing URL bar makes 100vh taller
        than the visible viewport, which clips the bottom of the page. */
     height: 100dvh;
@@ -70,7 +76,7 @@
 
   #side { grid-area: side; overflow-y: auto; overscroll-behavior: contain; padding: 14px; border-right: 1px solid #2a2f37; }
   #edit { grid-area: edit; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-  body.code-open #edit { border-left: 1px solid #2a2f37; }
+  body.code-open #edit { border-top: 1px solid #2a2f37; }
   #view { grid-area: view; position: relative; min-width: 0; min-height: 0; }
   #tabs { display: none; }
 
@@ -174,10 +180,12 @@
   #optin .row { display: flex; gap: 8px; justify-content: flex-end; }
 
   /* ---------------------------------------------------------------------- */
-  /* Desktop: opening the code panel gives it a real column.                  */
+  /* Desktop: opening the code panel gives it a real row along the bottom.    */
+  /* Only the row heights change, so the columns — and therefore #bar — stay  */
+  /* exactly where they were and no control in the bar shifts.                */
   /* ---------------------------------------------------------------------- */
   @media (min-width: 901px) {
-    body.code-open { grid-template-columns: 300px minmax(320px, 1fr) minmax(360px, .95fr); }
+    body.code-open { grid-template-rows: auto minmax(140px, 1fr) minmax(200px, .8fr); }
   }
 
   /* ---------------------------------------------------------------------- */
@@ -616,7 +624,7 @@ function markDirty() {
 
 // ---------------------------------------------------------------------------
 // Panel / tab plumbing. One `code-open` class drives both layouts: on desktop it
-// widens the third grid column, on mobile it swaps which panel fills the drawer.
+// grows the bottom grid row, on mobile it swaps which panel fills the drawer.
 // ---------------------------------------------------------------------------
 function showCode(open) {
   document.body.classList.toggle('code-open', open);
