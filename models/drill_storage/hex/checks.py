@@ -626,7 +626,7 @@ def run() -> Report:
         c.BITS_BIT_LEN,
         "BITS",
         False,
-        49.0,
+        42.0,
         10.0,
     )
     return r

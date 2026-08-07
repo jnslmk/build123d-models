@@ -1,7 +1,7 @@
 """The cover for the metal set: Metal engraved up one face.
 
-123 mm (147 mm / 21U assembled) -- the family default, since the 132 mm
-twist drill is the longest tool in the package.
+116 mm (140 mm / 20U assembled) -- sized by the 132 mm twist drill, the longest
+tool in the package, which it clears by exactly COVER_TIP_CLEARANCE.
 
 Interchangeable with the other sets' covers -- every shell seats one the same way
 -- so a taller cover simply leaves more air over shorter tools. See

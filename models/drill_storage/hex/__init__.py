@@ -39,7 +39,13 @@ Bits rest on the guide floor at z=15 and stand proud of the rim by the
 documented amounts:
 
     ALLEN (50 mm bits): 35 mm proud, 52 mm cover -> 70 mm (10U) assembled
-    BITS  (25 mm bits): 10 mm proud, 31 mm cover -> 49 mm (7U) assembled
+    BITS  (25 mm bits): 10 mm proud, 24 mm cover -> 42 mm (6U) assembled
+
+The BITS box lost a whole 7 mm unit when ``box.CAP_H`` went from 2.0 to 1.0:
+its cover height quantises off ``cover_top_min``, which the cap is part of, and
+it had been sitting 1 mm over a unit boundary. It now clears the longest bit by
+exactly ``COVER_TIP_CLEARANCE`` and not a micron more. ALLEN had 4 mm of slack
+above its boundary, so it is untouched.
 
 The geometry is this package's, re-derived from the family's clearances; the
 argument lives with the family in ``drill_storage.config`` and its design notes.

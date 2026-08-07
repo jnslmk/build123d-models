@@ -12,8 +12,8 @@ A scene, not a print job -- three filaments never share a bed. The parts are:
 The 1 and 1.5 mm bores are the smallest in the package and sit at the edge of
 what a 0.4 mm nozzle resolves in TPU. See ``sets.METAL``.
 
-Cover: 123 mm (147 mm / 21U assembled) -- the family default, since the 132 mm
-twist drill is the longest tool in the package.
+Cover: 116 mm (140 mm / 20U assembled) -- sized by the 132 mm twist drill, the
+longest tool in the package, which it clears by exactly COVER_TIP_CLEARANCE.
 
 The set itself -- sizes, lengths, the shank allowance, what the cover says --
 is ``sets.METAL``. The geometry is shared with the other two variants and lives

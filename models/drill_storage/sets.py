@@ -197,9 +197,12 @@ class DrillSet:
         # nominal minus the set's uniform allowance. A drill stands on its shank,
         # so the bore is cut to the shank, never the name.
         bore_of = {
-            d.nominal: d.shank if d.shank is not None else d.nominal - self.shank_allowance
+            d.nominal: d.shank
+            if d.shank is not None
+            else d.nominal - self.shank_allowance
             for d in self.drills
         }
+
         # Packed by the widest thing at each position: the insert's relieved bore
         # (shank-sized) for a drill -- but the *body* stands above the tray at the
         # nominal size, so a reduced-shank drill is packed by whichever is wider,
@@ -348,8 +351,8 @@ FREE_LAYOUT: dict[str, tuple[float, float]] = {
 }
 
 # Ten HSS twist drills on DIN 338 jobber lengths, plus a 4 - 20 mm step drill.
-# The 10 mm at 132 mm is the longest, which lands this set on the family's default
-# 123 mm cover (147 mm / 21U assembled) -- the tallest of the three.
+# The 10 mm at 132 mm is the longest, which lands this set on a 116 mm cover
+# (140 mm / 20U assembled) -- the middle of the three, behind stone's 137.
 #
 # This is the one set that is **not** packed in rows, and the step drill is why.
 # A 4 - 20 mm step drill reserves a 20 mm footprint for a 6.3 mm socket, and

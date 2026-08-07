@@ -18,9 +18,13 @@ uv run check drill_storage.metal
 | Cartridge | `drill_storage.metal.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.metal.cover` | PETG | pillow top down, mouth up |
 
-**Cover: 123 mm**, for a 147 mm (21U) assembled envelope. The 132 mm 10 mm twist
-drill is the longest tool in the whole package, so this is the family's default
-cover height.
+**Cover: 116 mm**, for a 140 mm (20U) assembled envelope. The 132 mm 10 mm twist
+drill is the longest tool in the whole package, and this cover clears its tip by
+exactly the 1 mm `COVER_TIP_CLEARANCE` asks for — no more. It was 123 mm (21U)
+until `box.CAP_H` came down from 2.0 to 1.0: the cap is part of the height the
+quantiser rounds up from, and this set had been sitting 1 mm over a unit
+boundary. Nothing else about the joint moved, so a 123 mm cover from the old
+build still closes on this shell; it just leaves 8 mm of air over the tips.
 
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended
 `TAP` on the walls rather than a bare size, since it is not a drill. The step
@@ -68,7 +72,7 @@ from its own shank length, and `checks.py` asserts the land engagement either
 way.
 
 Nothing about the cover changes: the tip reaches 87 mm where the 132 mm twist
-drill reaches 138, so the 123 mm cover is still sized by the drill.
+drill reaches 138, so the 116 mm cover is still sized by the drill.
 
 ### If you have the 3 – 12 mm one instead
 
