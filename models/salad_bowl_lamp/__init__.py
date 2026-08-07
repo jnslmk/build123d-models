@@ -14,12 +14,17 @@ clamped to the bowl beyond the one hole it already has.
     uv run export salad_bowl_lamp.shade     # the STL to print, in white PLA
     uv run check salad_bowl_lamp            # hold it to the bowl's measurements
 
+Every view here is parametric on the website: ``PARAMS`` on each module offers
+the sliders that actually reach its geometry, and ``config.Lamp.of()`` clamps
+whatever comes back so no combination of them can produce a part that fails to
+build.
+
 ``create()`` is the lamp: bought bowl, printed shade, in the pose they occupy in
 use. Nothing about that mesh is a print job, so the website offers no STL for it
 -- ``salad_bowl_lamp.shade`` is the download, and it is the only part of the
 finished lamp that gets printed. ``salad_bowl_lamp.fit_test`` is its outer band
 on its own, which is what to print first. See ``README.md`` for the hardware, the
-print settings and the one thing worth testing before printing 137 g of filament
+print settings and the one thing worth testing before printing 126 g of filament
 (whether the bowl is magnetic at all).
 """
 
@@ -31,34 +36,44 @@ from ..lib.edges import as_part
 from . import bowl as bowl_mod
 from . import config, shade as shade_mod
 from .bowl import create_bowl
-from .config import bowl_inner_radius
+from .config import DEFAULT, LAMP_PARAMS, Lamp
 from .shade import create_shade
 
 # A scene, not a print job -- see tessellate_models.model_is_assembly.
 IS_ASSEMBLY = True
 
+PARAMS = LAMP_PARAMS
+"""Every slider in the design, because this view holds every part of it."""
 
-def create() -> Compound:
+
+def create(**params) -> Compound:
     """Bowl and shade, assembled the way they hang.
 
     The bowl's rim plane is z = 0 and the shade's own origin is its underside,
     so seating it is the single translation the whole design reduces to:
-    ``RIM_INSET`` up, into the mouth. Everything else -- the band's arc, the
+    ``rim_inset`` up, into the mouth. Everything else -- the band's arc, the
     pads' radii, the tilt of the pockets -- was derived through that same offset
-    in ``config``, so if this scene looks right, the numbers agree.
+    on the same ``Lamp``, so if this scene looks right, the numbers agree.
+
+    That shared object is also what keeps the sliders honest: bowl and shade are
+    cut from one ``Lamp.of()``, so a dragged bowl diameter moves the seat the
+    grille was built for rather than leaving the two views disagreeing.
     """
-    shade = as_part(Pos(0, 0, config.RIM_INSET) * create_shade())
+    lamp = Lamp.of(**params)
+    shade = as_part(Pos(0, 0, lamp.rim_inset) * create_shade(lamp))
     shade.label = "shade (printed)"
     shade.color = shade_mod.SHADE_COLOR
 
-    assembly = Compound(children=[create_bowl(), shade])
+    assembly = Compound(children=[create_bowl(lamp), shade])
     assembly.label = "salad bowl lamp"
     return assembly
 
 
 __all__ = [
+    "DEFAULT",
     "IS_ASSEMBLY",
-    "bowl_inner_radius",
+    "PARAMS",
+    "Lamp",
     "bowl_mod",
     "config",
     "create",

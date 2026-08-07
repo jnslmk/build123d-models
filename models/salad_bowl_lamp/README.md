@@ -14,7 +14,7 @@ uv run export salad_bowl_lamp.shade     # the STL to print
 uv run check salad_bowl_lamp            # hold it to the bowl's measurements
 ```
 
-## Before you print 137 g of filament: is your bowl magnetic?
+## Before you print 126 g of filament: is your bowl magnetic?
 
 **Test it with a fridge magnet.** Stainless steel comes in two families and only
 one of them holds a magnet. Deep-drawn kitchenware is usually 18/10 austenitic,
@@ -30,11 +30,11 @@ where these eight will be.
 ## Then print the fit test
 
 `salad_bowl_lamp.fit_test` is the outer band on its own -- the same
-`create_band()` the shade is built from, so it cannot drift from it -- at 39 g
-instead of 137 g. It answers the three things that a drawing cannot: where the
+`create_band()` the shade is built from, so it cannot drift from it -- at 36 g
+instead of 126 g. It answers the three things that a drawing cannot: where the
 taper seat comes to rest in *your* bowl, whether your discs drop into the
 pockets, and whether eight of them hold at all. It is the whole ring rather than
-a segment on purpose: a 2.6 mm arc of PLA flexes far more than any diameter
+a segment on purpose: a 2.4 mm arc of PLA flexes far more than any diameter
 error worth catching, so a segment would tell you what you want to hear. Its own
 docstring says what to look for.
 
@@ -43,7 +43,7 @@ docstring says what to look for.
 | Item | Qty | Note |
 | --- | --- | --- |
 | Ø20 cm stainless salad bowl, 9.5 cm deep | 1 | with a 42 mm hole drilled at the apex |
-| Ø6 × 2 mm disc magnet, N42 or similar | 8 | `config.MAGNET_D` / `MAGNET_T` if yours differ |
+| Ø6 × 2 mm disc magnet, N42 or similar | 8 | sliders, or `Lamp.magnet_d` / `magnet_t` |
 | Cyanoacrylate or 5-minute epoxy | — | to retain the magnets |
 | E27 lampholder, flex, ceiling rose | 1 | not modelled |
 
@@ -60,25 +60,27 @@ about it works if the discs stand off the steel by even a few tenths.
 ## Printing
 
 White PLA, 0.4 mm nozzle, 0.2 mm layers. **No supports and no rafts**; a brim is
-worth it, because the first layer is 2.6 mm-wide rings and 200 mm across, and a
+worth it, because the first layer is 2.4 mm-wide rings and 200 mm across, and a
 lifted corner on the outer band is a lifted seat.
 
 The part comes out of `create()` already in print pose and the pose is not
 negotiable: the band narrows as it rises, so every layer is inside the one below
 it and nothing overhangs. Turning it over or laying it down gives up both.
 
-It is about **137 g and several hours** -- 2.6 mm × 20 mm of wall, five rings and
+It is about **126 g and several hours** -- 2.4 mm × 20 mm of wall, five rings and
 four arms, at 200 mm diameter. Print it in one piece; there is no seam that would
 survive being split.
 
-Perimeters matter more than infill here. At a 2.6 mm wall the part is perimeters
-all the way through, so set 4 of them (0.45 mm lines, or 5 at 0.4) and let infill
+Perimeters matter more than infill here. At a 2.4 mm wall the part is perimeters
+all the way through, so set 4 of them (0.3 mm lines) or 3 (0.4 mm) and let infill
 be whatever is left. The one place that number matters structurally is behind
-the magnets: a 2 mm pocket in a 2.6 mm wall leaves **0.6 mm** of backing, which
-is two lines and no more. It is enough because the magnet is pulled *outward*
-onto the steel in service and glued besides -- the backing only has to keep the
-disc in its hole on the way to the bowl -- but do not let a slicer decide to
-bridge it with a single thin wall.
+the magnets: a 2 mm pocket in a 2.4 mm wall leaves **0.4 mm** of backing, which
+is a single line at a 0.4 mm nozzle. That is the floor, and the model treats it
+as one -- `MIN_BACKING`, which the wall slider is clamped against rather than the
+pocket. It is enough because the magnet is pulled *outward* onto the steel in
+service and glued besides, so the backing only has to keep the disc in its hole
+on the way to the bowl. If your slicer would rather bridge that 0.4 mm than
+print it, take the wall to 2.8 and get two lines.
 
 ## Fitting
 
@@ -103,7 +105,7 @@ it, at R = 100.13 mm. Everything else follows from the inside of that sphere:
 
 - the band's outer face is the bowl's inner sphere, with **no clearance at all**
   -- a taper seat cannot jam, and it puts the magnets on steel instead of near it;
-- the band's *inner* face is that same sphere 2.6 mm smaller, struck from the
+- the band's *inner* face is that same sphere 2.4 mm smaller, struck from the
   same centre. So the band is an even wall measured along a pocket's own axis,
   its inside is as plain as its outside -- no bosses, no pads, nothing standing
   proud where a hand goes to lift the shade out -- and a pocket bored on that
@@ -112,13 +114,36 @@ it, at R = 100.13 mm. Everything else follows from the inside of that sphere:
   magnet's face is tangent to the steel rather than merely close to it;
 - the shade starts 3 mm above the rim (`RIM_INSET`), clear of whatever a spun
   rim does with its last millimetre or two of rolled lip;
-- five rings, evenly spaced 15.9 mm apart, 2.6 mm thick and 20 mm tall. The ring
+- five rings, evenly spaced 16.1 mm apart, 2.4 mm thick and 20 mm tall. The ring
   diameters are derived from the gap, not typed in -- change `RING_COUNT` or
   `EYE_D` and the rest re-spaces itself;
 - **the cross stops at the innermost circle** rather than crossing it. Four arms
   hang off the hub, each ending half a millimetre inside the hub's wall where the
   fuse swallows it (`ARM_EMBED`), so the eye stays a clean circle and the middle
   of the shade is the one place you can see the lamp from.
+
+## Sliders
+
+Every view is parametric on the website, and each offers only the numbers that
+reach its own geometry — the bowl gets its four, the fit test the nine that cut
+a band, the shade those plus the ring count and eye, the assembled lamp all of
+them. `config.Lamp` holds them; `Lamp.of()` is the door they come in through.
+
+`of()` **clamps rather than rejects**, because a slider that can produce a part
+that fails to build is a bug in the model, not in the person dragging it. Where
+two inputs fight, the one that moves is the one whose being wrong is safe: a wall
+too thin for its magnet grows to fit it, and a magnet never shrinks into a pocket
+it does not fill. The dependency order is fixed — wall, then how much dome the
+band may occupy, then ring spacing, then the eye, then the magnets — and the
+limits it enforces are the geometric ones: `MIN_GAP` of air between rings,
+`MIN_BACKING` behind every magnet, a bowl no deeper than a hemisphere (past that
+the rim stops being the widest circle and nothing can be got in through it), a
+teardrop peak that clears the band's top edge, and enough seat circumference for
+the pockets asked for.
+
+`checks.py` drags every slider to both stops and past them, then *builds* what
+comes back — clamping that quietly stopped clamping shows up as a broken solid,
+not as a bad number.
 
 ## The one thing this model does not know: your bulb
 
@@ -141,4 +166,4 @@ themselves around whatever `EYE_D` becomes.
 | `bowl.py` | the bought bowl, as a mock, in lamp pose |
 | `shade.py` | the printed grille |
 | `fit_test.py` | the outer band alone, to print before the grille |
-| `checks.py` | the geometry assertions `uv run check` runs |
+| `checks.py` | the geometry assertions `uv run check` runs, including the slider sweep |

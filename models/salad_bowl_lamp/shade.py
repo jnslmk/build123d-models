@@ -3,9 +3,10 @@
     uv run show salad_bowl_lamp.shade
     uv run export salad_bowl_lamp.shade      # white PLA, no supports
 
-Five concentric rings, 20 mm tall and 2.6 mm thick, tied together by four cross
+Five concentric rings, 20 mm tall and 2.4 mm thick, tied together by four cross
 arms of the same section, hung in the mouth of the inverted bowl by eight disc
-magnets. From underneath it is the sketch this was drawn from; from the side it
+magnets. All of those numbers are sliders on the website (``PARAMS``); they are
+the lamp this repo built, not the only lamp this module can cut. From underneath it is the sketch this was drawn from; from the side it
 is a baffle -- 20 mm of vertical wall between each 16 mm of air cuts the direct
 view of the bulb at anything but a steep angle, which is the job.
 
@@ -31,14 +32,18 @@ Three decisions carry the design:
   from the bowl's own sphere centre, so it is ``WALL`` thick along every pocket
   axis and its inside is as plain as its outside -- no bosses, no pads, nothing
   standing proud where a hand goes when the shade is lifted out. A 2 mm magnet
-  in a 2.6 mm wall is what makes that possible; the argument is in
-  ``config.pad_backing`` and ``config.band_inner_radius``.
+  in a 2.4 mm wall is what makes that possible, with 0.4 mm left behind it; the
+  argument is in ``config.MIN_BACKING`` and ``Lamp.band_inner_radius``.
 
 One construction note that is easy to get wrong: everything is built oversize
 and trimmed **once**, by ``_seat_envelope``, so the band's outer face and the
 arms' ends are all the same spherical surface and fuse into one. Trimming each
 piece separately would leave coincident faces for the boolean to reconcile,
 which is how OCC returns a subtly wrong solid without raising.
+
+Every builder below takes the ``Lamp`` it is cutting rather than reading module
+constants, which is what makes the sliders safe: two lamps can be built in one
+process and neither can see the other's numbers.
 """
 
 from __future__ import annotations
@@ -71,9 +76,14 @@ from build123d import (
 )
 
 from ..lib.edges import as_part
-from . import config as c
+from .config import DEFAULT, SHADE_PARAMS, Lamp
 
 SHADE_COLOR = Color(0.94, 0.94, 0.92)  # white PLA
+
+PARAMS = SHADE_PARAMS
+"""Every slider that reaches this geometry: the bowl's shape, the band, the
+magnets and the grille. The bowl's drilled hole is absent on purpose -- the
+shade never sees it."""
 
 TRIM_OVERSIZE = 2.0
 """How far past the seat the blanks are built before the single trim.
@@ -82,7 +92,7 @@ Only has to be bigger than any gap it is covering; nothing measures it.
 """
 
 
-def _ring(r_bottom: float, r_top: float, wall: float = c.WALL) -> Part:
+def _ring(lamp: Lamp, r_bottom: float, r_top: float, wall: float | None = None) -> Part:
     """One ring, revolved from a chamfered profile.
 
     The chamfers are cut in the 2D profile rather than on the finished solid,
@@ -91,28 +101,30 @@ def _ring(r_bottom: float, r_top: float, wall: float = c.WALL) -> Part:
     already-broken profile cannot fail the all-or-nothing way an OCC edge op on
     twenty-odd circular edges can (see the ``build123d-geometry-ops`` skill).
     """
+    wall = lamp.wall if wall is None else wall
     with BuildPart() as ring:
         with BuildSketch(Plane.XZ) as profile:
             with BuildLine():
                 Polyline(
                     (r_bottom, 0.0),
-                    (r_top, c.BAND_H),
-                    (r_top - wall, c.BAND_H),
+                    (r_top, lamp.band_h),
+                    (r_top - wall, lamp.band_h),
                     (r_bottom - wall, 0.0),
                     close=True,
                 )
             make_face()
-            chamfer(profile.vertices(), length=c.CHAMFER)
+            if lamp.chamfer > 0:
+                chamfer(profile.vertices(), length=lamp.chamfer)
         revolve(axis=Axis.Z)
     return ring.part
 
 
-def _band() -> Part:
+def _band(lamp: Lamp) -> Part:
     """The outer ring: an arc inside, an oversize blank outside.
 
     The inside is final here and is the one face that has to be right, because
     it is what the magnet pockets bottom out in -- an arc struck from the same
-    centre as the seat, so the wall is ``WALL`` thick measured along a pocket's
+    centre as the seat, so the wall is ``wall`` thick measured along a pocket's
     own axis rather than only in plan. The outside is left long and faced off by
     ``_seat_envelope`` along with everything else, which is why only the two
     inner corners are chamfered here: the outer two do not survive the trim, and
@@ -122,26 +134,27 @@ def _band() -> Part:
         with BuildSketch(Plane.XZ) as profile:
             with BuildLine():
                 Polyline(
-                    (c.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
-                    (c.band_outer_radius(c.BAND_H) + TRIM_OVERSIZE, c.BAND_H),
-                    (c.band_inner_radius(c.BAND_H), c.BAND_H),
+                    (lamp.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
+                    (lamp.band_outer_radius(lamp.band_h) + TRIM_OVERSIZE, lamp.band_h),
+                    (lamp.band_inner_radius(lamp.band_h), lamp.band_h),
                 )
                 ThreePointArc(
-                    (c.band_inner_radius(c.BAND_H), c.BAND_H),
-                    (c.band_inner_radius(c.BAND_H / 2), c.BAND_H / 2),
-                    (c.band_inner_radius(0.0), 0.0),
+                    (lamp.band_inner_radius(lamp.band_h), lamp.band_h),
+                    (lamp.band_inner_radius(lamp.band_h / 2), lamp.band_h / 2),
+                    (lamp.band_inner_radius(0.0), 0.0),
                 )
                 Polyline(
-                    (c.band_inner_radius(0.0), 0.0),
-                    (c.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
+                    (lamp.band_inner_radius(0.0), 0.0),
+                    (lamp.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
                 )
             make_face()
-            chamfer(profile.vertices().sort_by(Axis.X)[:2], length=c.CHAMFER)
+            if lamp.chamfer > 0:
+                chamfer(profile.vertices().sort_by(Axis.X)[:2], length=lamp.chamfer)
         revolve(axis=Axis.Z)
     return band.part
 
 
-def _arm() -> Part:
+def _arm(lamp: Lamp) -> Part:
     """One cross arm, from inside the hub's wall out past the seat.
 
     Sketched as the *cross-section* and extruded along its length, so the
@@ -157,22 +170,23 @@ def _arm() -> Part:
     absorbs it.
     """
     with BuildPart() as arm:
-        with BuildSketch(Plane.YZ.offset(c.arm_root_radius())) as section:
-            Rectangle(c.WALL, c.BAND_H, align=(Align.CENTER, Align.MIN))
-            chamfer(section.vertices(), length=c.CHAMFER)
-        extrude(amount=c.arm_reach() - c.arm_root_radius())
+        with BuildSketch(Plane.YZ.offset(lamp.arm_root_radius())) as section:
+            Rectangle(lamp.wall, lamp.band_h, align=(Align.CENTER, Align.MIN))
+            if lamp.chamfer > 0:
+                chamfer(section.vertices(), length=lamp.chamfer)
+        extrude(amount=lamp.arm_reach() - lamp.arm_root_radius())
     return arm.part
 
 
-def _cross() -> Part:
+def _cross(lamp: Lamp) -> Part:
     """Four arms on the quarters -- a cross with its middle left out."""
     with BuildPart() as cross:
         for angle in (0.0, 90.0, 180.0, 270.0):
-            add(as_part(Rotation(0.0, 0.0, angle) * _arm()))
+            add(as_part(Rotation(0.0, 0.0, angle) * _arm(lamp)))
     return cross.part
 
 
-def _seat_envelope() -> Part:
+def _seat_envelope(lamp: Lamp) -> Part:
     """Everything the shade is allowed to occupy: the bowl's inside, chamfered.
 
     A solid of revolution reaching from the axis out to the seat, so one
@@ -184,23 +198,24 @@ def _seat_envelope() -> Part:
         with BuildSketch(Plane.XZ) as profile:
             with BuildLine():
                 ThreePointArc(
-                    (c.band_outer_radius(0.0), 0.0),
-                    (c.band_outer_radius(c.BAND_H / 2), c.BAND_H / 2),
-                    (c.band_outer_radius(c.BAND_H), c.BAND_H),
+                    (lamp.band_outer_radius(0.0), 0.0),
+                    (lamp.band_outer_radius(lamp.band_h / 2), lamp.band_h / 2),
+                    (lamp.band_outer_radius(lamp.band_h), lamp.band_h),
                 )
                 Polyline(
-                    (c.band_outer_radius(c.BAND_H), c.BAND_H),
-                    (0.0, c.BAND_H),
+                    (lamp.band_outer_radius(lamp.band_h), lamp.band_h),
+                    (0.0, lamp.band_h),
                     (0.0, 0.0),
-                    (c.band_outer_radius(0.0), 0.0),
+                    (lamp.band_outer_radius(0.0), 0.0),
                 )
             make_face()
-            chamfer(profile.vertices().sort_by(Axis.X)[-2:], length=c.CHAMFER)
+            if lamp.chamfer > 0:
+                chamfer(profile.vertices().sort_by(Axis.X)[-2:], length=lamp.chamfer)
         revolve(axis=Axis.Z)
     return envelope.part
 
 
-def pad_plane(angle: float) -> Plane:
+def pad_plane(lamp: Lamp, angle: float) -> Plane:
     """The seating plane of one magnet: on the steel, square to it.
 
     Its origin is a point of the bowl's own inner sphere and its z axis is that
@@ -211,8 +226,8 @@ def pad_plane(angle: float) -> Plane:
     it, and a roof pointing sideways would print no better than no roof at all.
     """
     direction = Vector(cos(radians(angle)), sin(radians(angle)), 0.0)
-    contact = direction * c.pad_face_radius() + Vector(0, 0, c.PAD_DEPTH_Z)
-    inward = (Vector(0, 0, c.sphere_centre_z()) - contact).normalized()
+    contact = direction * lamp.pad_face_radius() + Vector(0, 0, lamp.pad_depth_z)
+    inward = (Vector(0, 0, lamp.sphere_centre_z()) - contact).normalized()
     tangential = Vector(0, 0, 1).cross(direction)
     plane = Plane(origin=contact, x_dir=tangential, z_dir=inward)
     if plane.y_dir.Z < 0:
@@ -220,9 +235,9 @@ def pad_plane(angle: float) -> Plane:
     return plane
 
 
-def pad_planes() -> list[Plane]:
-    step = 360.0 / c.MAGNET_COUNT
-    return [pad_plane(i * step) for i in range(c.MAGNET_COUNT)]
+def pad_planes(lamp: Lamp = DEFAULT) -> list[Plane]:
+    step = 360.0 / lamp.magnet_count
+    return [pad_plane(lamp, i * step) for i in range(lamp.magnet_count)]
 
 
 def _teardrop(radius: float) -> Sketch:
@@ -254,13 +269,13 @@ def _teardrop(radius: float) -> Sketch:
     return drop.sketch
 
 
-def _pockets() -> Part:
+def _pockets(lamp: Lamp) -> Part:
     """The magnet pockets, each with a lead-in all the way round its mouth.
 
-    Depth is exactly ``MAGNET_T``: a pocket deeper than its magnet lets the disc
+    Depth is exactly ``magnet_t``: a pocket deeper than its magnet lets the disc
     sit at an unpredictable depth, and hold falls off fast with any air behind it.
-    What is left behind it is whatever the wall has left to give -- 0.6 mm, and
-    the case for that number is in ``config.pad_backing``.
+    What is left behind it is whatever the wall has left to give -- 0.4 mm on the
+    default lamp, and the case for that number is in ``config.MIN_BACKING``.
 
     The lead-in runs *inward* from the tangent plane rather than outward from it,
     which is the opposite of the obvious construction and is forced by the
@@ -269,42 +284,43 @@ def _pockets() -> Part:
     outside that plane would hang in mid-air and cut nothing, leaving the square
     mouth it was there to break.
     """
-    lead = c.POCKET_LEAD_IN
+    lead = lamp.pocket_lead_in
     with BuildPart() as pockets:
-        for plane in pad_planes():
+        for plane in pad_planes(lamp):
+            if lead > 0:
+                with BuildSketch(plane):
+                    add(_teardrop(lamp.pocket_d / 2 + lead))
+                with BuildSketch(plane.offset(lead)):
+                    add(_teardrop(lamp.pocket_d / 2))
+                loft()
             with BuildSketch(plane):
-                add(_teardrop(c.POCKET_D / 2 + lead))
-            with BuildSketch(plane.offset(lead)):
-                add(_teardrop(c.POCKET_D / 2))
-            loft()
-            with BuildSketch(plane):
-                add(_teardrop(c.POCKET_D / 2))
-            extrude(amount=c.MAGNET_T)
+                add(_teardrop(lamp.pocket_d / 2))
+            extrude(amount=lamp.magnet_t)
     return pockets.part
 
 
-def create_band() -> Part:
+def create_band(lamp: Lamp = DEFAULT) -> Part:
     """The outer ring on its own, seated and pocketed: the shade's whole seat.
 
     Shared with ``fit_test`` so the test print cannot drift from the part it is
     a test of -- it is this function's output and nothing else.
     """
     with BuildPart() as band:
-        add(_band())
-        add(_seat_envelope(), mode=Mode.INTERSECT)
-        add(_pockets(), mode=Mode.SUBTRACT)
+        add(_band(lamp))
+        add(_seat_envelope(lamp), mode=Mode.INTERSECT)
+        add(_pockets(lamp), mode=Mode.SUBTRACT)
     return band.part
 
 
-def create_shade() -> Part:
+def create_shade(lamp: Lamp = DEFAULT) -> Part:
     """The shade, in print pose: widest ring on the bed, band narrowing upward."""
     with BuildPart() as shade:
-        add(_band())
-        for radius in c.ring_radii():
-            add(_ring(radius, radius))
-        add(_cross())
-        add(_seat_envelope(), mode=Mode.INTERSECT)
-        add(_pockets(), mode=Mode.SUBTRACT)
+        add(_band(lamp))
+        for radius in lamp.ring_radii():
+            add(_ring(lamp, radius, radius))
+        add(_cross(lamp))
+        add(_seat_envelope(lamp), mode=Mode.INTERSECT)
+        add(_pockets(lamp), mode=Mode.SUBTRACT)
 
     part = shade.part
     part.label = "shade"
@@ -312,12 +328,13 @@ def create_shade() -> Part:
     return part
 
 
-def create() -> Part:
+def create(**params) -> Part:
     """Entry point for ``uv run show/export/render salad_bowl_lamp.shade``."""
-    return create_shade()
+    return create_shade(Lamp.of(**params))
 
 
 __all__ = [
+    "PARAMS",
     "SHADE_COLOR",
     "TRIM_OVERSIZE",
     "create",

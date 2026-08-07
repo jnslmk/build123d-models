@@ -3,17 +3,20 @@
     uv run show salad_bowl_lamp.fit_test
     uv run export salad_bowl_lamp.fit_test
 
-The shade is 137 g and two hours of a 200 mm bed, and everything that can go
+The shade is 126 g and two hours of a 200 mm bed, and everything that can go
 wrong with it goes wrong at the band: whether a taper seat cut for *your* bowl
 actually beds where it was meant to, whether your discs drop into a 6.3 mm
 pocket, and whether eight of them hold the weight. This is that band and nothing
 else -- the same ``create_band()`` the shade is built from, so it cannot drift
 from the part it is a test of -- at a bit over a quarter of the filament
-(38 g against 137 g).
+(36 g against 126 g).
+
+It takes the same sliders the band is cut from (``PARAMS``), so a bowl that is
+not this bowl gets a test print for *its* seat rather than for this one.
 
 **It is the whole ring, not a sample of it, and that is the point.** A segment
 tells you the pocket size and the magnet grip, both of which are honest, and
-then lies about the fit, because a 2.6 mm arc of PLA flexes far more than the
+then lies about the fit, because a 2.4 mm arc of PLA flexes far more than the
 50 mm of diameter error it would take to matter. A closed ring cannot: it either
 drops in and stops where the seat says, or it does not.
 
@@ -42,15 +45,21 @@ from __future__ import annotations
 
 from build123d import Part
 
+from .config import SEAT_PARAMS, Lamp
 from .shade import SHADE_COLOR, create_band
 
+PARAMS = SEAT_PARAMS
+"""The sliders that reach the band: the bowl it seats in, the band itself and
+the magnets. Ring count and eye diameter are not offered, because the part
+this builds has neither."""
 
-def create() -> Part:
+
+def create(**params) -> Part:
     """The band, in print pose -- the shade's seat with the grille left off."""
-    part = create_band()
+    part = create_band(Lamp.of(**params))
     part.label = "band fit test"
     part.color = SHADE_COLOR
     return part
 
 
-__all__ = ["create"]
+__all__ = ["PARAMS", "create"]

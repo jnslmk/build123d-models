@@ -20,7 +20,7 @@ in directions that cannot flatter the fit:
 
 * **The rim is modelled as a plain rounded edge**, not the rolled or hemmed lip
   a spun bowl actually has. That is exactly why the shade starts
-  ``config.RIM_INSET`` above the rim instead of flush with it: at 3 mm up, what
+  ``rim_inset`` above the rim instead of flush with it: at 3 mm up, what
   the real bowl does with its last millimetre or two stops mattering.
 * **Wall thickness is nominal.** The shade fits the *inside* sphere, so if the
   steel is thicker than 0.8 mm the shade seats a little shallower, and if it is
@@ -45,21 +45,26 @@ from build123d import (
 )
 
 from ..lib.edges import as_part, fillet_edge
-from . import config as c
+from .config import BOWL_PARAMS, DEFAULT, Lamp
 
 # A scene, not a print job -- see tessellate_models.model_is_assembly.
 IS_ASSEMBLY = True
 
+PARAMS = BOWL_PARAMS
+"""The bowl's own four numbers. The grille's sliders are not offered here:
+nothing about the shade changes this mock, and a slider that does nothing is
+worse than no slider."""
+
 STEEL = Color(0.78, 0.80, 0.83)
 
 
-def create_bowl() -> Part:
+def create_bowl(lamp: Lamp = DEFAULT) -> Part:
     """The bowl in lamp pose: rim plane on z = 0, dome up, hole at the apex."""
-    rim_from_centre = c.BOWL_H - c.BOWL_R  # negative: the rim is below the centre
+    rim_from_centre = lamp.bowl_h - lamp.bowl_r  # negative: the rim is below the centre
 
     with BuildPart() as bowl:
-        Sphere(c.BOWL_R)
-        Sphere(c.BOWL_R_IN, mode=Mode.SUBTRACT)
+        Sphere(lamp.bowl_r)
+        Sphere(lamp.bowl_r_in, mode=Mode.SUBTRACT)
         # Keep the cap below the rim plane; the sphere is still centred on the
         # origin here, so the rim sits at a negative z. Note the ``Locations``:
         # a ``Cylinder`` is a ``BasePartObject`` and joins the builder the
@@ -69,26 +74,26 @@ def create_bowl() -> Part:
         # that still looks plausible -- see the build123d-geometry-ops skill.
         with Locations((0, 0, rim_from_centre)):
             Cylinder(
-                radius=c.BOWL_R + 1,
-                height=2 * c.BOWL_R,  # clears the far pole; R + 1 leaves a cap behind
+                radius=lamp.bowl_r + 1,
+                height=2 * lamp.bowl_r,  # clears the far pole; R + 1 leaves a cap behind
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.SUBTRACT,
             )
-        # Round the cut rim over, on a decreasing ladder: 0.4 mm is half the
-        # wall and OCC will not fillet an annulus to its own half-width. A
+        # Round the cut rim over, on a decreasing ladder: half the wall is the
+        # most OCC will fillet an annulus to, and it often refuses even that. A
         # failure here costs nothing but a squarer mock, and fillet_edge
         # restores the builder rather than poisoning it.
         rim = bowl.edges().filter_by_position(
             Axis.Z, rim_from_centre - 0.01, rim_from_centre + 0.01
         )
-        for radius in (0.35, 0.25, 0.15):
-            if fillet_edge(bowl, rim, radius):
+        for fraction in (0.45, 0.3, 0.2):
+            if fillet_edge(bowl, rim, lamp.bowl_wall * fraction):
                 break
         # The lampholder hole, drilled through the bottom pole.
-        with Locations((0, 0, -c.BOWL_R)):
+        with Locations((0, 0, -lamp.bowl_r)):
             Cylinder(
-                radius=c.BOWL_HOLE_D / 2,
-                height=4 * c.BOWL_WALL,
+                radius=lamp.bowl_hole_d / 2,
+                height=4 * lamp.bowl_wall,
                 mode=Mode.SUBTRACT,
             )
 
@@ -100,9 +105,9 @@ def create_bowl() -> Part:
     return part
 
 
-def create() -> Part:
-    """Entry point for ``uv run show salad_bowl_lamp.bowl``."""
-    return create_bowl()
+def create(**params) -> Part:
+    """Entry point for ``uv run show salad_bowl_lamp.bowl`` and the website."""
+    return create_bowl(Lamp.of(**params))
 
 
-__all__ = ["IS_ASSEMBLY", "STEEL", "create", "create_bowl"]
+__all__ = ["IS_ASSEMBLY", "PARAMS", "STEEL", "create", "create_bowl"]
