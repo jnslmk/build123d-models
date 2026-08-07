@@ -3,11 +3,11 @@
     uv run show salad_bowl_lamp.shade
     uv run export salad_bowl_lamp.shade      # white PLA, no supports
 
-Five concentric rings, 20 mm tall and 3 mm thick, tied together by two full-
-diameter cross arms of the same section, hung in the mouth of the inverted bowl
-by eight disc magnets. From underneath it is the sketch this was drawn from;
-from the side it is a baffle -- 20 mm of vertical wall between each 15 mm of air
-cuts the direct view of the bulb at anything but a steep angle, which is the job.
+Five concentric rings, 20 mm tall and 2.6 mm thick, tied together by four cross
+arms of the same section, hung in the mouth of the inverted bowl by eight disc
+magnets. From underneath it is the sketch this was drawn from; from the side it
+is a baffle -- 20 mm of vertical wall between each 16 mm of air cuts the direct
+view of the bulb at anything but a steep angle, which is the job.
 
 **Print pose is use pose**, and it is the good one either way. The outer band
 follows the bowl, so it *narrows* going up: every layer is smaller than the one
@@ -27,22 +27,23 @@ Three decisions carry the design:
   here it meets a thin spun bowl that is a mediocre keeper already, and the force
   is wanted in shear. Air gap is the one thing that kills such a joint, so the
   plastic gets out of the way and glue does the retaining.
-* **Bosses grow inward, and taper.** A 3 mm magnet needs more than a 3 mm band,
-  and the material has to come from somewhere without leaving a sharp edge or an
-  overhang. It comes from a tapered boss on the *inside* face, which meets the
-  band concavely -- the earlier attempt, a pad with 45 deg flanks in plan, met
-  the band's inner face at an acute 34 deg and was rejected by ``checks.py``.
+* **The band is one even wall, inside and out.** Both of its faces are struck
+  from the bowl's own sphere centre, so it is ``WALL`` thick along every pocket
+  axis and its inside is as plain as its outside -- no bosses, no pads, nothing
+  standing proud where a hand goes when the shade is lifted out. A 2 mm magnet
+  in a 2.6 mm wall is what makes that possible; the argument is in
+  ``config.pad_backing`` and ``config.band_inner_radius``.
 
 One construction note that is easy to get wrong: everything is built oversize
-and trimmed **once**, by ``_seat_envelope``, so the band's outer face, the arms'
-ends and the bosses' faces are all the same spherical surface and fuse into one.
-Trimming each piece separately would leave coincident faces for the boolean to
-reconcile, which is how OCC returns a subtly wrong solid without raising.
+and trimmed **once**, by ``_seat_envelope``, so the band's outer face and the
+arms' ends are all the same spherical surface and fuse into one. Trimming each
+piece separately would leave coincident faces for the boolean to reconcile,
+which is how OCC returns a subtly wrong solid without raising.
 """
 
 from __future__ import annotations
 
-from math import cos, radians, sin, sqrt, tan
+from math import cos, radians, sin, sqrt
 
 from build123d import (
     Align,
@@ -52,8 +53,6 @@ from build123d import (
     BuildSketch,
     Circle,
     Color,
-    Cone,
-    Locations,
     Mode,
     Part,
     Plane,
@@ -109,42 +108,77 @@ def _ring(r_bottom: float, r_top: float, wall: float = c.WALL) -> Part:
 
 
 def _band() -> Part:
-    """The outer ring, built past the seat so the envelope can face it.
+    """The outer ring: an arc inside, an oversize blank outside.
 
-    Its inner surface is final here (the band is ``WALL`` thick where it
-    matters); only the outer surface is left long.
+    The inside is final here and is the one face that has to be right, because
+    it is what the magnet pockets bottom out in -- an arc struck from the same
+    centre as the seat, so the wall is ``WALL`` thick measured along a pocket's
+    own axis rather than only in plan. The outside is left long and faced off by
+    ``_seat_envelope`` along with everything else, which is why only the two
+    inner corners are chamfered here: the outer two do not survive the trim, and
+    the envelope carries their chamfer instead.
     """
-    return _ring(
-        c.band_outer_radius(0.0) + TRIM_OVERSIZE,
-        c.band_outer_radius(c.BAND_H) + TRIM_OVERSIZE,
-        wall=c.WALL + TRIM_OVERSIZE,
-    )
+    with BuildPart() as band:
+        with BuildSketch(Plane.XZ) as profile:
+            with BuildLine():
+                Polyline(
+                    (c.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
+                    (c.band_outer_radius(c.BAND_H) + TRIM_OVERSIZE, c.BAND_H),
+                    (c.band_inner_radius(c.BAND_H), c.BAND_H),
+                )
+                ThreePointArc(
+                    (c.band_inner_radius(c.BAND_H), c.BAND_H),
+                    (c.band_inner_radius(c.BAND_H / 2), c.BAND_H / 2),
+                    (c.band_inner_radius(0.0), 0.0),
+                )
+                Polyline(
+                    (c.band_inner_radius(0.0), 0.0),
+                    (c.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
+                )
+            make_face()
+            chamfer(profile.vertices().sort_by(Axis.X)[:2], length=c.CHAMFER)
+        revolve(axis=Axis.Z)
+    return band.part
 
 
 def _arm() -> Part:
-    """One cross arm: the ring section, laid on its side and run across the part.
+    """One cross arm, from inside the hub's wall out past the seat.
 
     Sketched as the *cross-section* and extruded along its length, so the
     chamfers run the full length of the arm's top and bottom edges. Sketching
     the silhouette instead and extruding sideways would chamfer the four short
     ends and leave the long horizontal edges raw, which is the opposite of what
     the rule asks for.
+
+    It starts at ``arm_root_radius`` rather than at the axis, which is what
+    keeps the innermost circle a circle instead of a cross in a circle. The
+    inner end is a plain flat face and never needs treating, because it is not
+    a surface of the finished part: it stops inside the hub's wall and the fuse
+    absorbs it.
     """
     with BuildPart() as arm:
-        with BuildSketch(Plane.YZ) as section:
+        with BuildSketch(Plane.YZ.offset(c.arm_root_radius())) as section:
             Rectangle(c.WALL, c.BAND_H, align=(Align.CENTER, Align.MIN))
             chamfer(section.vertices(), length=c.CHAMFER)
-        extrude(amount=c.arm_reach(), both=True)
+        extrude(amount=c.arm_reach() - c.arm_root_radius())
     return arm.part
+
+
+def _cross() -> Part:
+    """Four arms on the quarters -- a cross with its middle left out."""
+    with BuildPart() as cross:
+        for angle in (0.0, 90.0, 180.0, 270.0):
+            add(as_part(Rotation(0.0, 0.0, angle) * _arm()))
+    return cross.part
 
 
 def _seat_envelope() -> Part:
     """Everything the shade is allowed to occupy: the bowl's inside, chamfered.
 
     A solid of revolution reaching from the axis out to the seat, so one
-    intersection faces the band, docks the arms and flattens the bosses in a
-    single operation. The two outer corners carry the chamfer that the band's
-    own profile cannot, since its outer face is cut away here.
+    intersection faces the band and docks all four arms in a single operation.
+    The two outer corners carry the chamfer that the band's own profile cannot,
+    since its outer face is cut away here.
     """
     with BuildPart() as envelope:
         with BuildSketch(Plane.XZ) as profile:
@@ -171,9 +205,10 @@ def pad_plane(angle: float) -> Plane:
 
     Its origin is a point of the bowl's own inner sphere and its z axis is that
     sphere's radius pointing *inward*, so the pocket is bored normal to the
-    surface the magnet has to grab. Local +y is forced upward (``y_dir.Z > 0``)
-    because the teardrop's roof is built along it, and a roof pointing sideways
-    would print no better than no roof at all.
+    surface the magnet has to grab -- and, because the band's inside face is a
+    sphere about the same centre, square to that face as well. Local +y is
+    forced upward (``y_dir.Z > 0``) because the teardrop's roof is built along
+    it, and a roof pointing sideways would print no better than no roof at all.
     """
     direction = Vector(cos(radians(angle)), sin(radians(angle)), 0.0)
     contact = direction * c.pad_face_radius() + Vector(0, 0, c.PAD_DEPTH_Z)
@@ -188,28 +223,6 @@ def pad_plane(angle: float) -> Plane:
 def pad_planes() -> list[Plane]:
     step = 360.0 / c.MAGNET_COUNT
     return [pad_plane(i * step) for i in range(c.MAGNET_COUNT)]
-
-
-def _bosses() -> Part:
-    """The eight tapered bosses that give the magnets something to sit in.
-
-    Each is a cone on its pad's axis, started outside the seat so the envelope
-    can face it off flush, and narrowing inward at ``BOSS_TAPER``. Everything
-    that matters about the shape is argued in ``config``: why 30 deg, why 9 mm,
-    and why this is a boss on the inside rather than a pad on the outside.
-    """
-    over = TRIM_OVERSIZE
-    depth = c.boss_depth()
-    with BuildPart() as bosses:
-        for plane in pad_planes():
-            with Locations(plane.offset(-over)):
-                Cone(
-                    bottom_radius=c.BOSS_R + over * tan(radians(c.BOSS_TAPER)),
-                    top_radius=c.boss_end_radius(),
-                    height=over + depth,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                )
-    return bosses.part
 
 
 def _teardrop(radius: float) -> Sketch:
@@ -246,6 +259,8 @@ def _pockets() -> Part:
 
     Depth is exactly ``MAGNET_T``: a pocket deeper than its magnet lets the disc
     sit at an unpredictable depth, and hold falls off fast with any air behind it.
+    What is left behind it is whatever the wall has left to give -- 0.6 mm, and
+    the case for that number is in ``config.pad_backing``.
 
     The lead-in runs *inward* from the tangent plane rather than outward from it,
     which is the opposite of the obvious construction and is forced by the
@@ -268,15 +283,26 @@ def _pockets() -> Part:
     return pockets.part
 
 
+def create_band() -> Part:
+    """The outer ring on its own, seated and pocketed: the shade's whole seat.
+
+    Shared with ``fit_test`` so the test print cannot drift from the part it is
+    a test of -- it is this function's output and nothing else.
+    """
+    with BuildPart() as band:
+        add(_band())
+        add(_seat_envelope(), mode=Mode.INTERSECT)
+        add(_pockets(), mode=Mode.SUBTRACT)
+    return band.part
+
+
 def create_shade() -> Part:
     """The shade, in print pose: widest ring on the bed, band narrowing upward."""
     with BuildPart() as shade:
         add(_band())
         for radius in c.ring_radii():
             add(_ring(radius, radius))
-        add(_arm())
-        add(as_part(Rotation(0.0, 0.0, 90.0) * _arm()))
-        add(_bosses())
+        add(_cross())
         add(_seat_envelope(), mode=Mode.INTERSECT)
         add(_pockets(), mode=Mode.SUBTRACT)
 
@@ -295,6 +321,7 @@ __all__ = [
     "SHADE_COLOR",
     "TRIM_OVERSIZE",
     "create",
+    "create_band",
     "create_shade",
     "pad_plane",
     "pad_planes",

@@ -9,11 +9,12 @@ bowl beyond the hole it already has, and the grille comes out by pulling on it.
 ```bash
 uv run show salad_bowl_lamp             # bowl and shade together
 uv run show salad_bowl_lamp.shade       # the printed part, in print pose
+uv run export salad_bowl_lamp.fit_test  # the STL to print FIRST -- see below
 uv run export salad_bowl_lamp.shade     # the STL to print
 uv run check salad_bowl_lamp            # hold it to the bowl's measurements
 ```
 
-## Before you print 170 g of filament: is your bowl magnetic?
+## Before you print 137 g of filament: is your bowl magnetic?
 
 **Test it with a fridge magnet.** Stainless steel comes in two families and only
 one of them holds a magnet. Deep-drawn kitchenware is usually 18/10 austenitic,
@@ -26,12 +27,23 @@ hooks over the lip) before anything gets printed.
 If a magnet does hold, check it holds *near the rim*, on the inside, which is
 where these eight will be.
 
+## Then print the fit test
+
+`salad_bowl_lamp.fit_test` is the outer band on its own -- the same
+`create_band()` the shade is built from, so it cannot drift from it -- at 39 g
+instead of 137 g. It answers the three things that a drawing cannot: where the
+taper seat comes to rest in *your* bowl, whether your discs drop into the
+pockets, and whether eight of them hold at all. It is the whole ring rather than
+a segment on purpose: a 2.6 mm arc of PLA flexes far more than any diameter
+error worth catching, so a segment would tell you what you want to hear. Its own
+docstring says what to look for.
+
 ## Hardware
 
 | Item | Qty | Note |
 | --- | --- | --- |
 | Ø20 cm stainless salad bowl, 9.5 cm deep | 1 | with a 42 mm hole drilled at the apex |
-| Ø8 × 3 mm disc magnet, N42 or similar | 8 | `config.MAGNET_D` / `MAGNET_T` if yours differ |
+| Ø6 × 2 mm disc magnet, N42 or similar | 8 | `config.MAGNET_D` / `MAGNET_T` if yours differ |
 | Cyanoacrylate or 5-minute epoxy | — | to retain the magnets |
 | E27 lampholder, flex, ceiling rose | 1 | not modelled |
 
@@ -39,22 +51,34 @@ where these eight will be.
 magnet, so there is no way to fit one the wrong way round -- unusual enough among
 magnet closures to be worth saying.
 
+Note what the load actually is. The band is a taper, so the shade's weight hangs
+in **shear** across eight magnet faces, not in tension pulling them off; what
+carries it is friction under the magnets' own clamping force. That is the good
+direction for a joint like this, and it is also why an air gap is fatal: nothing
+about it works if the discs stand off the steel by even a few tenths.
+
 ## Printing
 
 White PLA, 0.4 mm nozzle, 0.2 mm layers. **No supports and no rafts**; a brim is
-worth it, because the first layer is 3 mm-wide rings and 200 mm across, and a
+worth it, because the first layer is 2.6 mm-wide rings and 200 mm across, and a
 lifted corner on the outer band is a lifted seat.
 
 The part comes out of `create()` already in print pose and the pose is not
 negotiable: the band narrows as it rises, so every layer is inside the one below
 it and nothing overhangs. Turning it over or laying it down gives up both.
 
-It is about **170 g and several hours** -- 3 mm × 20 mm of wall, five rings and
-a cross, at 200 mm diameter. Print it in one piece; there is no seam that would
+It is about **137 g and several hours** -- 2.6 mm × 20 mm of wall, five rings and
+four arms, at 200 mm diameter. Print it in one piece; there is no seam that would
 survive being split.
 
-Perimeters matter more than infill here. At 3 mm wall the part is perimeters all
-the way through, so set 4-5 of them and let infill be whatever is left.
+Perimeters matter more than infill here. At a 2.6 mm wall the part is perimeters
+all the way through, so set 4 of them (0.45 mm lines, or 5 at 0.4) and let infill
+be whatever is left. The one place that number matters structurally is behind
+the magnets: a 2 mm pocket in a 2.6 mm wall leaves **0.6 mm** of backing, which
+is two lines and no more. It is enough because the magnet is pulled *outward*
+onto the steel in service and glued besides -- the backing only has to keep the
+disc in its hole on the way to the bowl -- but do not let a slicer decide to
+bridge it with a single thin wall.
 
 ## Fitting
 
@@ -62,13 +86,14 @@ the way through, so set 4-5 of them and let infill be whatever is left.
    surface. The pockets are teardrop-shaped -- round at the bottom, pointed at
    the top -- so they print without a sagging bridge; a round magnet still drops
    straight in. They are cut 0.3 mm oversize on the diameter (`fits.FREE` for
-   PLA) precisely so the magnet is never forced: sintered magnet chips rather
+   PLA) precisely so the magnet is never forced: a sintered magnet chips rather
    than deforms, and the glue is what retains it.
 2. Turn the bowl over, hang it, and push the shade up into the mouth until it
    stops. It is a taper seat, so it stops by itself, roughly 3 mm above the rim.
 3. If it sits noticeably deeper or shallower than that, the print is running
    under or over size. Nothing is wrong with it -- the seat is a 10.5 deg cone
-   and it simply beds where the diameters agree.
+   and it simply beds where the diameters agree, converting a diameter error into
+   about 2.7× as much depth error. 2 mm of depth is 0.7 mm of diameter.
 
 ## What decides the geometry
 
@@ -78,13 +103,22 @@ it, at R = 100.13 mm. Everything else follows from the inside of that sphere:
 
 - the band's outer face is the bowl's inner sphere, with **no clearance at all**
   -- a taper seat cannot jam, and it puts the magnets on steel instead of near it;
+- the band's *inner* face is that same sphere 2.6 mm smaller, struck from the
+  same centre. So the band is an even wall measured along a pocket's own axis,
+  its inside is as plain as its outside -- no bosses, no pads, nothing standing
+  proud where a hand goes to lift the shade out -- and a pocket bored on that
+  axis meets the back face square instead of skewed;
 - the eight magnet pockets are bored along that sphere's own radii, so each
   magnet's face is tangent to the steel rather than merely close to it;
 - the shade starts 3 mm above the rim (`RIM_INSET`), clear of whatever a spun
   rim does with its last millimetre or two of rolled lip;
-- five rings, evenly spaced, 3 mm thick and 20 mm tall, with two full-diameter
-  cross arms of the same section. The ring diameters are derived from the gap,
-  not typed in -- change `RING_COUNT` or `EYE_D` and the rest re-spaces itself.
+- five rings, evenly spaced 15.9 mm apart, 2.6 mm thick and 20 mm tall. The ring
+  diameters are derived from the gap, not typed in -- change `RING_COUNT` or
+  `EYE_D` and the rest re-spaces itself;
+- **the cross stops at the innermost circle** rather than crossing it. Four arms
+  hang off the hub, each ending half a millimetre inside the hub's wall where the
+  fuse swallows it (`ARM_EMBED`), so the eye stays a clean circle and the middle
+  of the shade is the one place you can see the lamp from.
 
 ## The one thing this model does not know: your bulb
 
@@ -106,4 +140,5 @@ themselves around whatever `EYE_D` becomes.
 | `config.py` | every measured and derived number, and the arguments for them |
 | `bowl.py` | the bought bowl, as a mock, in lamp pose |
 | `shade.py` | the printed grille |
+| `fit_test.py` | the outer band alone, to print before the grille |
 | `checks.py` | the geometry assertions `uv run check` runs |

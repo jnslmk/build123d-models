@@ -4,16 +4,23 @@
     uv run python -m models.salad_bowl_lamp.checks
 
 Almost nothing here is visible in a projection. Whether the band clears the bowl,
-whether the pads touch it, whether a 3 mm magnet has 3 mm of plastic behind it,
-and -- the one that decides whether the part prints -- which way up the teardrop
-pockets point, are all interior facts about a solid, so they get point-sampled
-rather than eyeballed. The shade is checked in its own coordinates (underside at
-z = 0) and the seating is checked by actually placing it in the bowl.
+whether the magnets touch it, whether 0.6 mm of plastic really survives behind a
+2 mm pocket in a 2.6 mm wall, whether the band's inside stayed plain, and -- the
+one that decides whether the part prints -- which way up the teardrop pockets
+point, are all interior facts about a solid, so they get point-sampled rather
+than eyeballed. The shade is checked in its own coordinates (underside at z = 0)
+and the seating is checked by actually placing it in the bowl.
+
+Two angles recur and are chosen, not arbitrary. Magnets sit every 45 deg and
+cross arms every 90 deg, so **0 deg is both a pad and an arm** and **22.5 deg is
+neither**. A probe meant to find the band's bare inside face has to be taken
+where no arm runs, or it finds the arm and reports a bulge that is not there.
 """
 
 from __future__ import annotations
 
 import sys
+from math import cos, radians, sin, sqrt
 
 from build123d import Part, Pos
 
@@ -26,24 +33,36 @@ from ..lib.checks import (
 from ..lib.edges import as_part
 from . import config as c
 from .bowl import create_bowl
+from .fit_test import create as create_fit_test
 from .shade import create_shade, pad_planes
 
 PLA_DENSITY = 1.24e-3  # g/mm3
 
-MASS_BUDGET_G = 250.0
+MASS_BUDGET_G = 175.0
 """What the eight magnets are sized against.
 
 Not a measured holding force -- magnet grade and the bowl's own steel decide
 that, and neither is known here (see README). It is a budget: the part is
 allowed to be a certain weight for a given number of magnets, and a change that
 blows through it has to answer for itself rather than quietly halving the margin.
+
+It came down with the magnets. A 6 x 2 disc has well under half the pull of the
+8 x 3 this started with, so the 250 g that budget once allowed would have been a
+number that no longer stood for anything. 175 g is about 1.3x the part.
 """
+
+BETWEEN = [22.5 + 90.0 * k for k in range(4)]
+"""Angles with neither a magnet pad nor a cross arm on them -- see the module docstring."""
 
 
 def _at(plane, along: float, up: float = 0.0, across: float = 0.0):
     """A point ``along`` mm down a pad's axis, offset in its own plane."""
     p = plane.origin + plane.z_dir * along + plane.y_dir * up + plane.x_dir * across
     return (p.X, p.Y, p.Z)
+
+
+def _polar(radius: float, angle: float, z: float):
+    return (radius * cos(radians(angle)), radius * sin(radians(angle)), z)
 
 
 def check_bowl(bowl: Part, r: Report) -> None:
@@ -94,13 +113,14 @@ def check_shade_body(shade: Part, r: Report) -> None:
     r.check(abs(box.max.Z - c.BAND_H) < 1e-6, "20 mm tall", f"{box.max.Z:.3f}")
 
     mass = shade.volume * PLA_DENSITY
-    r.check(mass < MASS_BUDGET_G, "within the mass budget the magnets are sized against", f"{mass:.0f} g of PLA, budget {MASS_BUDGET_G:.0f} g")
+    r.check(
+        mass < MASS_BUDGET_G,
+        "within the mass budget the magnets are sized against",
+        f"{mass:.0f} g of PLA, budget {MASS_BUDGET_G:.0f} g",
+    )
 
-    # Every ring is WALL thick and the gaps between them are open, sampled at
-    # 22.5 deg where neither a cross arm nor a pad can be mistaken for a ring.
-    from math import cos, radians, sin
-
-    ang = radians(22.5)
+    # Every ring is WALL thick and the gaps between them are open, sampled where
+    # neither a cross arm nor a pad can be mistaken for a ring.
     mid = c.BAND_H / 2
     for radius in c.ring_radii():
         for probe, want, label in (
@@ -108,36 +128,100 @@ def check_shade_body(shade: Part, r: Report) -> None:
             (radius + 0.5, False, "clear outside"),
             (radius - c.WALL - 0.5, False, "clear inside"),
         ):
-            got = is_solid_at(shade, probe * cos(ang), probe * sin(ang), mid)
+            got = is_solid_at(shade, *_polar(probe, BETWEEN[0], mid))
             r.check(got is want, f"ring r={radius:.1f} {label}")
 
+
+def check_eye(shade: Part, r: Report) -> None:
+    """The innermost circle is a circle: the cross stops at it, not through it."""
+    r.section("eye")
+    mid = c.BAND_H / 2
+    eye = c.EYE_D / 2
+
+    # Along both arm axes and the diagonal between them, and at the very centre
+    # where the two arms used to meet.
+    for angle in (0.0, 90.0, 180.0, 270.0, 45.0):
+        r.check(
+            not is_solid_at(shade, *_polar(eye / 2, angle, mid)),
+            f"the eye is clear of the cross at {angle:.0f} deg",
+        )
+    r.check(not is_solid_at(shade, 0.0, 0.0, mid), "the eye is clear at the centre")
+
+    # The sharpest test of ARM_EMBED: an arm that started a hair too far in would
+    # break the eye's cylinder here, on the arm's own axis, just inside the face.
+    for angle in (0.0, 90.0, 180.0, 270.0):
+        for z in (0.5, mid, c.BAND_H - 0.5):
+            r.check(
+                not is_solid_at(shade, *_polar(eye - 0.2, angle, z)),
+                f"the eye's face is unbroken at {angle:.0f} deg, z={z:.1f}",
+            )
+
+    # ...and the arm is still there, on the far side of the hub.
     r.check(
-        not is_solid_at(shade, c.EYE_D / 2 - 1.0, c.EYE_D / 2 - 1.0, mid),
-        "the middle eye is open",
+        is_solid_at(shade, *_polar(eye + c.WALL / 2, 0.0, mid)),
+        "the hub itself is solid on the arm's axis",
     )
-    # ...but the cross runs through it, which is what ties the hub to the rest.
-    r.check(is_solid_at(shade, c.EYE_D / 4, 0, mid), "the cross crosses the eye")
+    r.check(
+        is_solid_at(shade, *_polar(c.hub_outer_radius() + 1.0, 0.0, mid)),
+        "an arm leaves the hub and carries on outward",
+    )
+    r.check(
+        not is_solid_at(shade, *_polar(c.hub_outer_radius() + 1.0, BETWEEN[0], mid)),
+        "and there is air between the arms",
+    )
+
+
+def check_band_wall(shade: Part, r: Report) -> None:
+    """The band is one even wall, and its inside face has nothing standing on it.
+
+    This is the brief's "no bulges on the inside" made falsifiable. Probed
+    radially between the arms, where the only thing that could be inboard of
+    ``band_inner_radius`` is a boss, and along each pocket's own axis, where the
+    only thing that could be behind a magnet is the same.
+    """
+    r.section("band wall")
+    for angle in BETWEEN:
+        for z in (1.0, c.BAND_H / 2, c.BAND_H - 1.0):
+            inner = c.band_inner_radius(z)
+            at = f"{angle:.1f} deg, z={z:.0f}"
+            r.check(
+                is_solid_at(shade, *_polar(inner + 0.3, angle, z)),
+                f"band is material at its inside face at {at}",
+            )
+            r.check(
+                not is_solid_at(shade, *_polar(inner - 0.3, angle, z)),
+                f"nothing bulges inboard of the band at {at}",
+            )
+
+    # 2.6 mm measured the way the pocket is bored, which is the measurement that
+    # decides whether the pocket breaks out -- not the radial one, which reads
+    # 2.65 at the bottom and 2.71 at the top because the normal is not radial.
+    for i, plane in enumerate(pad_planes()):
+        r.check(
+            is_solid_at(shade, *_at(plane, c.WALL - 0.2, across=4.0)),
+            f"wall {i} is a full {c.WALL} mm along the pocket axis",
+        )
+        r.check(
+            not is_solid_at(shade, *_at(plane, c.WALL + 0.3, across=4.0)),
+            f"wall {i} ends there -- no boss behind the magnet",
+        )
 
 
 def check_seat(shade: Part, bowl: Part, r: Report) -> None:
     """The band's face *is* the bowl's inner surface, and the part drops in."""
     r.section("seat")
-    from math import cos, radians, sin
-
-    # Sampled *between* the bosses: on a boss's own axis the seat is correctly
-    # not there, because that is exactly where the pocket is.
-    step = 360.0 / c.MAGNET_COUNT
-    for angle in (step / 2, 3 * step / 2, 5 * step / 2):
+    # Sampled *between* the pads: on a pad's own axis the seat is correctly not
+    # there, because that is exactly where the pocket is.
+    for angle in BETWEEN:
         for z in (1.0, c.BAND_H / 2, c.BAND_H - 1.0):
             face = c.band_outer_radius(z)
-            ux, uy = cos(radians(angle)), sin(radians(angle))
-            at = f"{angle:.0f} deg, z={z:.0f}"
+            at = f"{angle:.1f} deg, z={z:.0f}"
             r.check(
-                is_solid_at(shade, (face - 0.2) * ux, (face - 0.2) * uy, z),
+                is_solid_at(shade, *_polar(face - 0.2, angle, z)),
                 f"band reaches the seat at {at}",
             )
             r.check(
-                not is_solid_at(shade, (face + 0.2) * ux, (face + 0.2) * uy, z),
+                not is_solid_at(shade, *_polar(face + 0.2, angle, z)),
                 f"band stops at the seat at {at}",
             )
 
@@ -159,11 +243,6 @@ def check_seat(shade: Part, bowl: Part, r: Report) -> None:
             not is_solid_at(shade, *_at(plane, -0.3, across=beside)),
             f"pad {i} stops at the steel",
         )
-        # The boss is the whole reason a 3 mm magnet fits a 3 mm band.
-        r.check(
-            is_solid_at(shade, *_at(plane, c.WALL + 1.0, across=4.0)),
-            f"boss {i} carries material past the band",
-        )
 
     seated = as_part(Pos(0, 0, c.RIM_INSET) * shade)
     r.check(
@@ -180,9 +259,10 @@ def check_seat(shade: Part, bowl: Part, r: Report) -> None:
 
 
 def check_pockets(shade: Part, r: Report) -> None:
-    """A magnet's worth of hole, a wall's worth of plastic, and a roof on top."""
+    """A magnet's worth of hole, a backing that survives it, and a roof on top."""
     r.section("magnet pockets")
     bore = c.POCKET_D / 2
+    backing = c.pad_backing()
 
     for i, plane in enumerate(pad_planes()):
         tag = f"pocket {i}"
@@ -196,9 +276,18 @@ def check_pockets(shade: Part, r: Report) -> None:
             f"{tag} has a floor at exactly the magnet's thickness",
         )
         r.check(
-            is_solid_at(shade, *_at(plane, c.MAGNET_T + c.PAD_BACKING - 0.3)),
-            f"{tag} keeps its {c.PAD_BACKING:.0f} mm of backing",
+            is_solid_at(shade, *_at(plane, c.MAGNET_T + backing - 0.3)),
+            f"{tag} keeps its {backing:.1f} mm of backing",
         )
+        # The floor is whole, not just present on the axis. Off-axis the wall has
+        # more to give, not less -- both faces are spheres about one centre --
+        # so a hole here would mean the pocket had been bored somewhere the band
+        # is not, which is the failure the even wall exists to prevent.
+        for up in (-bore + 0.3, 0.0, bore - 0.3, bore * sqrt(2) - 0.3):
+            r.check(
+                is_solid_at(shade, *_at(plane, c.MAGNET_T + 0.2, up=up)),
+                f"{tag} floor is unbroken {up:+.1f} mm up",
+            )
         # Bore width, and -- the print-critical one -- that the teardrop's roof
         # is above the bore and not beside it. A pocket built on a plane whose
         # y axis had flipped would pass every test but this one, and would print
@@ -222,17 +311,58 @@ def check_pockets(shade: Part, r: Report) -> None:
         )
 
 
+def check_fit_test(band: Part, shade: Part, r: Report) -> None:
+    """The test print is the shade's own seat, with the grille left off."""
+    r.section("fit test")
+    r.check(len(band.solids()) == 1, "the band is one solid", f"{len(band.solids())}")
+
+    box, shade_box = band.bounding_box(), shade.bounding_box()
+    r.check(
+        abs(box.max.X - shade_box.max.X) < 1e-6 and abs(box.max.Z - c.BAND_H) < 1e-6,
+        "same diameter and height as the shade it tests",
+        f"{2 * box.max.X:.2f} mm across, {box.max.Z:.2f} mm tall",
+    )
+
+    mid = c.BAND_H / 2
+    face, inner = c.band_outer_radius(mid), c.band_inner_radius(mid)
+    for angle in BETWEEN:
+        r.check(
+            is_solid_at(band, *_polar(face - 0.2, angle, mid)),
+            f"seat is intact at {angle:.1f} deg",
+        )
+    # Probed on the arm axes as well as between them: the grille really is gone,
+    # not merely thinned, and the band is the same band either way.
+    for angle in (0.0, 45.0, 90.0, BETWEEN[0]):
+        r.check(
+            not is_solid_at(band, *_polar(inner - 0.5, angle, mid)),
+            f"nothing inboard of the band at {angle:.1f} deg",
+        )
+
+    for i, plane in enumerate(pad_planes()):
+        r.check(
+            not is_solid_at(band, *_at(plane, c.MAGNET_T / 2)),
+            f"pocket {i} came with it",
+        )
+
+    ratio = band.volume / shade.volume
+    r.check(
+        ratio < 0.35,
+        "cheap enough to be worth printing first",
+        f"{band.volume * PLA_DENSITY:.0f} g, {100 * ratio:.0f}% of the shade",
+    )
+
+
 def check_edges(shade: Part, r: Report) -> None:
     """The house rule, made falsifiable: no raw square edge ships.
 
     The unmeasurable edges get a stronger treatment than an ``allow`` list. Every
-    revolved face here -- the seat's sphere, and each of the eight boss cones --
-    closes on itself, and OCC lists one face twice for the seam where it does, so
-    ``interior_angle`` has no second surface to take a dihedral against and
-    correctly answers ``None``. Rather than excusing those edges by where they
-    sit, which is how a predicate in this repo has already gone stale once, this
-    asserts the *reason*: every edge this check could not measure must be one of
-    those seams. A new unmeasurable edge that is not a seam fails the run.
+    revolved face here closes on itself, and OCC lists one face twice for the
+    seam where it does, so ``interior_angle`` has no second surface to take a
+    dihedral against and correctly answers ``None``. Rather than excusing those
+    edges by where they sit, which is how a predicate in this repo has already
+    gone stale once, this asserts the *reason*: every edge this check could not
+    measure must be one of those seams. A new unmeasurable edge that is not a
+    seam fails the run.
     """
     r.section("edges")
     survey = sharp_convex_edges(shade)
@@ -259,10 +389,14 @@ def run() -> Report:
     r = Report()
     bowl = create_bowl()
     shade = create_shade()
+    band = create_fit_test()
     check_bowl(bowl, r)
     check_shade_body(shade, r)
+    check_eye(shade, r)
+    check_band_wall(shade, r)
     check_seat(shade, bowl, r)
     check_pockets(shade, r)
+    check_fit_test(band, shade, r)
     check_edges(shade, r)
     return r
 

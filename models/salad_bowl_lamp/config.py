@@ -27,7 +27,7 @@ slightly shallower than a true hemisphere. That matches the photographs.
 
 from __future__ import annotations
 
-from math import radians, sqrt, tan
+from math import sqrt
 
 from ..lib import fits
 
@@ -83,8 +83,8 @@ def bowl_outer_height(radius: float) -> float:
 
 
 # --- The printed shade -------------------------------------------------------
-BAND_H = 20.0  # "about 2 cm high": every ring and both cross arms
-WALL = 3.0  # "3 mm thick": radial on a ring, tangential on a cross arm
+BAND_H = 20.0  # "about 2 cm high": every ring and every cross arm
+WALL = 2.6  # radial on a ring, tangential on a cross arm, normal on the band
 CHAMFER = 0.6  # every horizontal edge, cut in the revolved profile
 
 RIM_INSET = 3.0
@@ -120,11 +120,23 @@ bulb that hangs below the rim has somewhere to go; see README."""
 RING_COUNT = 5
 """Concentric rings, counting the outer band and the hub. The cross is separate."""
 
+ARM_EMBED = 0.5
+"""How far into the hub's wall a cross arm starts, past the eye's own face.
+
+The cross stops at the innermost circle rather than crossing it, so each arm has
+a real end, and that end has to land *somewhere*. Buried half a millimetre
+inside the hub it is swallowed whole: it never reaches the eye (which stays a
+clean cylinder) and it never reaches the hub's outer face (where it would leave
+a coincident face for the fuse to reconcile). Any value that keeps the arm's
+corners strictly between the hub's two faces works; this is the small end of
+that range, so the arm is as short as it can be while still being absorbed.
+"""
+
 # --- Magnets -----------------------------------------------------------------
 # Round N42-class discs, glued into pockets around the outer band, meeting the
 # steel face-on with nothing between them.
-MAGNET_D = 8.0
-MAGNET_T = 3.0
+MAGNET_D = 6.0
+MAGNET_T = 2.0
 MAGNET_COUNT = 8
 
 MAGNET_FIT = fits.for_material(fits.FREE, MATERIAL)
@@ -138,54 +150,27 @@ deforms, so the pocket must never be the thing holding it. Glue is.
 POCKET_D = MAGNET_D + MAGNET_FIT
 POCKET_LEAD_IN = 0.5  # 45 deg all round the mouth, lofted, per the house rule
 
-PAD_BACKING = 3.0
-"""Material left behind a seated magnet: four perimeters at a 0.4 mm nozzle.
-
-This is what forces the bosses to exist at all. The band is 3 mm thick and the
-magnet is 3 mm deep, so a pocket cut into the plain band would come straight out
-the other side.
-"""
-
-BOSS_R = 9.0
-"""Radius of a magnet boss where it leaves the band's outer face.
-
-Bounded on both sides, and not by much. Below about 8 mm the pocket's own
-teardrop breaks out through the boss's taper at the pocket floor; above 10 mm the
-boss -- centred at mid-height -- runs past the top and bottom of a 20 mm band and
-dies out in a feather edge instead of landing on a face. 9 mm leaves ~2.4 mm of
-material around the pocket's mouth, ~1 mm around the teardrop's peak at the
-floor, and ~1.2 mm of band above and below the boss.
-"""
-
-BOSS_TAPER = 35.0
-"""Half-angle of the boss, from its own axis.
-
-The rim where the boss's flank meets its end face measures ``90 + BOSS_TAPER``
-through the material, so this is the constant that decides whether that rim is a
-broken edge or a square one. 30 deg lands on exactly 120, which is the *inside*
-of ``sharp_convex_edges``' ``max_interior`` -- it reported all eight rims, and
-was right to: 120 is where the rule stops complaining, not where the edge starts
-being blunt. 35 deg clears it by five, at the cost of a smaller end face, the boss still leaves ~1 mm of material around the
-teardrop's peak at the pocket floor. The boss meets the band *concavely*, so the
-junction that killed the first design -- a 45 deg flank in plan, which dies into
-the band's inner face at an acute 34 deg -- does not arise here at all. Printing
-does not constrain this: the flank's underside lands ~25 deg above horizontal
-over a 3 mm run, a small overhang on an internal face, no support anywhere.
-"""
-
 PAD_DEPTH_Z = BAND_H / 2
 """Height of the pocket axis. Mid-band, so the eight magnets pull on a single
 circle through the part's own centre of mass and nothing tips."""
 
 
-def boss_depth() -> float:
-    """How deep a boss reaches along its own axis: the magnet, then its backing."""
-    return MAGNET_T + PAD_BACKING
+def pad_backing() -> float:
+    """Material left behind a seated magnet, on the pocket's own axis: 0.6 mm.
 
+    Derived, not chosen, and the number that decides the band is buildable at
+    all: a 2 mm magnet in a 2.6 mm wall leaves what it leaves. Two extrusions at
+    a 0.4 mm nozzle is thin, and it is enough here because the backing is never
+    the loaded part -- in service the magnet is pulled *outward* onto the steel
+    and the glue holds it, so the backing only has to keep the disc in its hole
+    while the shade is being carried to the bowl.
 
-def boss_end_radius() -> float:
-    """Radius of the boss's flat end face, after the taper has run its course."""
-    return BOSS_R - boss_depth() * tan(radians(BOSS_TAPER))
+    Off-axis it is thicker: both faces are spheres about the same centre, so the
+    pocket's flat floor sits a further 0.05 mm clear at the bore's edge and
+    0.10 mm at the teardrop's peak. That is why the pocket cannot break out
+    through the inside face anywhere, which ``checks.py`` asserts point by point.
+    """
+    return WALL - MAGNET_T
 
 
 def band_outer_radius(z: float) -> float:
@@ -199,12 +184,29 @@ def band_outer_radius(z: float) -> float:
     return bowl_inner_radius(RIM_INSET + z) - SEAT_CLEAR
 
 
+def band_inner_radius(z: float) -> float:
+    """The band's inside face: the seat's sphere again, ``WALL`` smaller.
+
+    Concentric with the outer face rather than parallel to a chord of it, so the
+    band is exactly ``WALL`` thick measured the only way that matters here --
+    along the surface normal, which is the direction the magnet pockets are
+    bored. A chord-sided band looks the same from below and is not the same
+    part: it runs half a millimetre fat at mid-height and, worse, *thin* at the
+    ends, and a 2 mm pocket in the thin place breaks out through the inside.
+
+    It also settles what the brief asked for directly: with both faces on the
+    same centre there is nothing to bulge inward, because a bulge is what a band
+    of uneven thickness needs in order to swallow a pocket.
+    """
+    return sqrt((BOWL_R_IN - SEAT_CLEAR - WALL) ** 2 - (RIM_INSET + z + RIM_DROP) ** 2)
+
+
 def pad_face_radius() -> float:
     """Radius at which a magnet meets the steel: the band's face, at pad height.
 
     The magnet is flush with the tangent plane there, and the spherical face
-    around it falls away from that plane by 0.09 mm across the magnet's own
-    8 mm. So the magnet -- not the plastic -- is what touches, which is the
+    around it falls away from that plane by 0.05 mm across the magnet's own
+    6 mm. So the magnet -- not the plastic -- is what touches, which is the
     whole point of putting the pocket here rather than under a printed cap.
     """
     return band_outer_radius(PAD_DEPTH_Z)
@@ -213,9 +215,11 @@ def pad_face_radius() -> float:
 def sphere_centre_z() -> float:
     """The bowl's sphere centre in *shade-local* coordinates -- below z = 0.
 
-    A boss's axis is a radius of this point, which is what makes each pocket
+    A pocket's axis is a radius of this point, which is what makes each pocket
     square to the steel rather than merely near it, and each magnet's face
-    tangent to it rather than merely close.
+    tangent to it rather than merely close. It is also the centre both of the
+    band's faces are struck from, so a pocket bored on this axis meets the
+    inside face square as well.
     """
     return -(RIM_INSET + RIM_DROP)
 
@@ -224,12 +228,12 @@ def ring_gap() -> float:
     """Radial air between neighbouring rings, and it is one number by choice.
 
     Evenly spaced reads as concentric; anything else reads as a mistake. The
-    The band's inner radius at the *bottom* is the datum because that is where
-    the band is widest, so that is where the gap is largest -- it closes by
-    3.7 mm over the height, which is invisible from below and is the price of a
-    band that follows the bowl.
+    band's inner radius at the *bottom* is the datum because that is where the
+    band is widest, so that is where the gap is largest -- it closes by 3.8 mm
+    over the height, which is invisible from below and is the price of a band
+    that follows the bowl.
     """
-    span = band_outer_radius(0.0) - WALL - hub_outer_radius()
+    span = band_inner_radius(0.0) - hub_outer_radius()
     inner_rings = RING_COUNT - 2
     return (span - inner_rings * WALL) / (inner_rings + 1)
 
@@ -241,13 +245,21 @@ def hub_outer_radius() -> float:
 def ring_radii() -> list[float]:
     """Outer radii of every ring *except* the band, widest first, hub last."""
     gap = ring_gap()
-    start = band_outer_radius(0.0) - WALL
-    radii = [
-        start - (i + 1) * gap - i * WALL for i in range(RING_COUNT - 2)
-    ]
+    start = band_inner_radius(0.0)
+    radii = [start - (i + 1) * gap - i * WALL for i in range(RING_COUNT - 2)]
     return [*radii, hub_outer_radius()]
 
 
+def arm_root_radius() -> float:
+    """Where a cross arm begins: just inside the hub's inner face.
+
+    The cross does not cross the innermost circle -- it is four arms hung off
+    the hub, not two diameters through it -- so this is the end that has to be
+    hidden rather than finished. See ``ARM_EMBED``.
+    """
+    return EYE_D / 2 + ARM_EMBED
+
+
 def arm_reach() -> float:
-    """Half-length of a cross arm before the seat envelope trims it back."""
+    """Outer end of a cross arm, before the seat envelope trims it back."""
     return band_outer_radius(0.0) + 1.0

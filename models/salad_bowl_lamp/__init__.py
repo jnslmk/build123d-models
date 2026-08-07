@@ -10,15 +10,17 @@ clamped to the bowl beyond the one hole it already has.
     uv run show salad_bowl_lamp             # bowl and shade together
     uv run show salad_bowl_lamp.shade       # the printed part, in print pose
     uv run show salad_bowl_lamp.bowl        # the bought bowl, as measured
+    uv run show salad_bowl_lamp.fit_test    # the outer band alone, to print first
     uv run export salad_bowl_lamp.shade     # the STL to print, in white PLA
     uv run check salad_bowl_lamp            # hold it to the bowl's measurements
 
 ``create()`` is the lamp: bought bowl, printed shade, in the pose they occupy in
 use. Nothing about that mesh is a print job, so the website offers no STL for it
--- ``salad_bowl_lamp.shade`` is the download, and it is the only printed part
-here. See ``README.md`` for the hardware, the print settings and the one thing
-worth testing before printing 175 g of filament (whether the bowl is magnetic at
-all).
+-- ``salad_bowl_lamp.shade`` is the download, and it is the only part of the
+finished lamp that gets printed. ``salad_bowl_lamp.fit_test`` is its outer band
+on its own, which is what to print first. See ``README.md`` for the hardware, the
+print settings and the one thing worth testing before printing 137 g of filament
+(whether the bowl is magnetic at all).
 """
 
 from __future__ import annotations
