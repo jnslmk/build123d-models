@@ -63,8 +63,12 @@ from .box import (
 SHELL_MATERIAL = "asa"
 CART_MATERIAL = "tpu"
 
-SHELL_COLOR = Color(0.62, 0.64, 0.67)  # matches box.BASE_COLOR -- same family
-CART_COLOR = Color(0.25, 0.55, 0.72)  # a distinctly different part, on purpose
+# Both parts black, matching ``hex.config``: the shell prints in black ASA and the
+# cartridge in black TPU, so the scene shows the filaments that are actually on
+# the shelf. What separates them in a view is the geometry -- the collar sitting
+# proud of the shell's mouth -- not a colour the print does not have.
+SHELL_COLOR = Color(0.1, 0.1, 0.1)
+CART_COLOR = Color(0.1, 0.1, 0.1)
 
 # --- Shell --------------------------------------------------------------------
 # The cartridge enters through the collar, so the collar bore is the throat, and

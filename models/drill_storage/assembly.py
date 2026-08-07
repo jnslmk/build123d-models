@@ -3,8 +3,8 @@
 One builder for all three variants -- ``wood``, ``metal`` and ``stone`` each call
 it with their own ``DrillSet`` and get the same scene cut to their own set. It is
 the one view where the whole argument is visible at once: the tools stand on the
-shell's **ASA** floor and are guided by ASA over 23.2 mm, and only the short blue
-TPU collar at the top touches them with any interference.
+shell's **ASA** floor and are guided by ASA over 23.2 mm, and only the short TPU
+collar at the top touches them with any interference.
 
 A scene, not a print job. The three printable parts are downloadable on their own
 (``<set>.shell``, ``<set>.insert``, ``<set>.cover``), which they must be -- they
