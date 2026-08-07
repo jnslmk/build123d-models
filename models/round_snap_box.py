@@ -32,6 +32,7 @@ from build123d import (
     BuildPart,
     Compound,
     Cylinder,
+    GeomType,
     Locations,
     Mode,
     Part,
@@ -43,7 +44,12 @@ from build123d import (
 )
 
 from models.lib import fits
-from models.lib.checks import Report, is_solid_at, sharp_convex_edges
+from models.lib.checks import (
+    Report,
+    is_periodic_seam,
+    is_solid_at,
+    sharp_convex_edges,
+)
 
 # --- Box interior (the two numbers the user actually cares about) -----------
 INNER_DIA = 78.0  # ID of the box
@@ -699,18 +705,65 @@ def check() -> Report:
         b = e.bounding_box()
         return abs(b.min.Z - shoulder_z) < 0.05 and abs(b.max.Z - shoulder_z) < 0.05
 
+    def _is_round_wall_seam(part: Part, e) -> bool:
+        # sharp_convex_edges now reports the None edges used to drop unseen
+        # (see its docstring). Point-sampling the 7 edges this caught (4 on
+        # the box, 3 on the lid, before this predicate existed) shows every
+        # one sits at a fixed (x, y) -- i.e. a fixed radius -- and runs
+        # vertically: the box's cavity/bore ID (r=inner_r, one seam, FLOOR to
+        # the rim lead-in), lip OD (r=lip_r, two seams) and body OD
+        # (r=out_r, one seam, the bottom chamfer to the shoulder); the lid's
+        # OD (r=out_r, one seam) and bore ID (r=lid_inner_r, two seams). Each
+        # of those is a plain revolved/extruded cylinder -- nothing ever cuts
+        # sideways into one -- so it carries its own closing seam purely from
+        # OCC's periodic parametrisation, with no nearby boolean cut for that
+        # seam to coincide with (unlike a seam that lands on a genuine
+        # near-tangent sliver elsewhere in this repo; see
+        # ``is_periodic_seam``'s docstring for why that distinction matters
+        # and why this does not stop at "same face"). Where a wall also
+        # carries the interlocking bead (lip OD, lid bore ID), the fused
+        # torus locally interrupts the wall and splits its one seam into two
+        # -- still the same untrimmed periodic seam on either side, not a
+        # second feature, which is why this predicate matches 4 edges on 3
+        # walls on the box and 3 on 2 on the lid rather than one apiece.
+        # Scoped to a straight, purely-vertical LINE so this cannot also
+        # claim some other, differently-shaped edge -- in particular, not the
+        # bead's own closing seam (a circular arc, not a straight vertical
+        # line), which is a classic source of a genuine tangent-runout sliver
+        # elsewhere but is not among the edges this predicate has ever
+        # matched here.
+        if e.geom_type != GeomType.LINE:
+            return False
+        b = e.bounding_box()
+        if b.size.X > 1e-6 or b.size.Y > 1e-6:
+            return False
+        return is_periodic_seam(part, e)
+
     box_allow = (
         (
             on_shoulder,
             "lid mouth seats flat-on-flat on this shoulder -- box-closures says "
             "explicitly: do not chamfer it",
         ),
+        (
+            lambda e: _is_round_wall_seam(box, e),
+            "a concentric round wall's own untrimmed cylindrical seam -- "
+            "confirmed via is_periodic_seam, no nearby cut for it to "
+            "coincide with",
+        ),
     )
-    bad_box = sharp_convex_edges(box, allow=box_allow)
+    box_edges = sharp_convex_edges(box, allow=box_allow)
     r.check(
-        not bad_box,
+        not box_edges.sharp,
         "box has no unexplained sharp convex edges",
-        f"{len(bad_box)} found" if bad_box else "all treated or named",
+        f"{len(box_edges.sharp)} found" if box_edges.sharp else "all treated or named",
+    )
+    r.check(
+        not box_edges.unclassifiable,
+        "box has no unexplained unclassifiable convex edges",
+        f"{len(box_edges.unclassifiable)} found"
+        if box_edges.unclassifiable
+        else "all measured or named",
     )
 
     # The lid's own mouth-outer edge, in its print pose (mouth up), sits at
@@ -745,12 +798,25 @@ def check() -> Report:
             "lid's side (verified above by replaying the seating transform) "
             "-- chamfering it would break the flush mate",
         ),
+        (
+            lambda e: _is_round_wall_seam(lid, e),
+            "a concentric round wall's own untrimmed cylindrical seam -- "
+            "confirmed via is_periodic_seam, no nearby cut for it to "
+            "coincide with",
+        ),
     )
-    bad_lid = sharp_convex_edges(lid, allow=lid_allow)
+    lid_edges = sharp_convex_edges(lid, allow=lid_allow)
     r.check(
-        not bad_lid,
+        not lid_edges.sharp,
         "lid has no unexplained sharp convex edges",
-        f"{len(bad_lid)} found" if bad_lid else "all treated or named",
+        f"{len(lid_edges.sharp)} found" if lid_edges.sharp else "all treated or named",
+    )
+    r.check(
+        not lid_edges.unclassifiable,
+        "lid has no unexplained unclassifiable convex edges",
+        f"{len(lid_edges.unclassifiable)} found"
+        if lid_edges.unclassifiable
+        else "all measured or named",
     )
 
     return r

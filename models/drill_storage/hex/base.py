@@ -19,16 +19,19 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 
 from build123d import (
+    Axis,
     BuildPart,
     BuildSketch,
     Locations,
     Mode,
     Part,
     Plane,
+    Rectangle,
     RectangleRounded,
     RegularPolygon,
     add,
     extrude,
+    fillet,
     loft,
 )
 
@@ -96,16 +99,24 @@ def key_slot_tool() -> Part:
     Runs the full cavity height so the rib slides past the retention bead, and
     reaches ``KEY_D`` into the wall. It cuts a 2.0 mm wall down to 1.0 mm over a
     ``KEY_W`` arc on the one face that carries no legend.
+
+    The family's ``drill_storage.shell.key_slot_tool``, unchanged in every
+    respect but which config module it reads from -- including its two-radius
+    mouth fillet. See that function's docstring for why the two ends of the
+    slot need different radii: the near one has to be tangent to the cavity
+    wall itself (anchored at ``CAVITY_W / 2``, not offset short of it), or the
+    fillet crosses the wall mid-arc and leaves an edge sharper than the plain
+    corner it was meant to soften.
     """
-    over = 0.5  # start inside the cavity so the boolean has no coincident face
-    depth = c.KEY_D + over
-    x_mid = c.CAVITY_W / 2 + c.KEY_D / 2 - over / 2
+    x_wall = c.CAVITY_W / 2  # the cavity's own wall -- the slot's mouth
+    x_far = x_wall + c.KEY_D  # the slot's real reach into the wall
+    half_w = (c.KEY_W + c.KEY_SLIP) / 2
     with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)):
-            with Locations((x_mid, 0)):
-                # Rounded, so the slot leaves the cavity wall filleted vertical
-                # edges rather than two raw corners.
-                RectangleRounded(depth, c.KEY_W + c.KEY_SLIP, c.KEY_FILLET)
+        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)) as sk:
+            with Locations(((x_wall + x_far) / 2, 0)):
+                Rectangle(x_far - x_wall, 2 * half_w)
+            fillet(sk.vertices().group_by(Axis.X)[0], c.KEY_MOUTH_FILLET)
+            fillet(sk.vertices().group_by(Axis.X)[-1], c.KEY_FILLET)
         extrude(amount=c.CAVITY_H)
     return tool.part
 

@@ -363,6 +363,19 @@ KEY_D = 0.8  # how far the rib stands proud of the cartridge / into the shell
 KEY_ROOT = 1.0  # how far it reaches back *into* the cartridge, so the rounded
 #                 profile still meets the wall along its whole length
 KEY_FILLET = 0.6  # vertical edges are filleted, not left square
+KEY_MOUTH_FILLET = 0.15  # the *other* end of the same slot: a small fillet
+#                 tangent to the cavity wall itself, at the slot's mouth. This is
+#                 deliberately its own, smaller radius rather than a second use of
+#                 KEY_FILLET: it has to sit flush with the cavity wall (radius
+#                 anchored exactly at CAVITY_W/2, not offset from it) to blend
+#                 tangentially -- any offset short of that leaves the mouth's own
+#                 arc crossing the wall mid-curve, at an angle strictly *less*
+#                 favourable than a plain unfilleted corner (a acute "feather"
+#                 edge, not a blunt one -- confirmed 80 deg at the old 0.5 mm
+#                 offset, worse than the 90 deg a bare square corner leaves). Sized
+#                 to leave KEY_D - KEY_MOUTH_FILLET - KEY_FILLET = 0.05 mm of flat
+#                 run between the two fillets, so both fit inside the slot's real
+#                 0.8 mm depth without the "over" hack the far corner still needs.
 KEY_LEAD_IN = 0.4  # lofted bottom -- the rib is the first thing to enter the slot
 KEY_SLIP = fits.for_material(fits.SLIDING, CART_MATERIAL)  # sliding fit, TPU
 
@@ -436,6 +449,7 @@ __all__ = [
     "KEY_D",
     "KEY_FILLET",
     "KEY_LEAD_IN",
+    "KEY_MOUTH_FILLET",
     "KEY_ROOT",
     "KEY_SLIP",
     "KEY_W",

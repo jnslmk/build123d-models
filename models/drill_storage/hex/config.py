@@ -93,6 +93,7 @@ HEX_LAND_FIT = fam.HEX_LAND_FIT
 KEY_D = fam.KEY_D
 KEY_FILLET = fam.KEY_FILLET
 KEY_LEAD_IN = fam.KEY_LEAD_IN
+KEY_MOUTH_FILLET = fam.KEY_MOUTH_FILLET
 KEY_ROOT = fam.KEY_ROOT
 KEY_SLIP = fam.KEY_SLIP
 KEY_W = fam.KEY_W
@@ -417,6 +418,7 @@ __all__ = [
     "KEY_D",
     "KEY_FILLET",
     "KEY_LEAD_IN",
+    "KEY_MOUTH_FILLET",
     "KEY_ROOT",
     "KEY_SLIP",
     "KEY_W",

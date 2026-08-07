@@ -29,6 +29,7 @@ from build123d import (
     BuildPart,
     BuildSketch,
     Circle,
+    GeomType,
     Mode,
     Part,
     Pos,
@@ -36,7 +37,7 @@ from build123d import (
     extrude,
 )
 
-from models.lib.checks import Report, is_solid_at, sharp_convex_edges
+from models.lib.checks import Report, is_periodic_seam, is_solid_at, sharp_convex_edges
 
 INNER_DIA = 51.0
 WALL_THICKNESS = 1.2
@@ -204,16 +205,60 @@ def check() -> Report:
     )
 
     r.section("edges")
-    bad = sharp_convex_edges(part)
+
+    def _is_wall_seam(edge) -> bool:
+        # sharp_convex_edges now reports the None edges used to drop unseen
+        # (see its docstring). Both of this cap's are straight, purely
+        # vertical LINEs on the bore and outer wall respectively -- the
+        # closing seam of each wall's own cylindrical surface. Neither wall
+        # is ever cut into (this is a plain extruded ring, nothing subtracts
+        # from its side), so the "seam" is the untrimmed cylinder's own
+        # periodic parametrisation closing up on itself, nothing else: OCC
+        # always needs one somewhere on a bounded face cut from a periodic
+        # surface, and here there is no boolean cut anywhere nearby for it to
+        # coincide with, unlike a seam that happens to land on a genuine
+        # near-tangent sliver elsewhere in this repo (see
+        # ``is_periodic_seam``'s docstring on why that distinction matters
+        # and why this check does not stop at "same face").
+        if edge.geom_type != GeomType.LINE:
+            return False
+        bb = edge.bounding_box()
+        if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
+            return False
+        return is_periodic_seam(part, edge)
+
+    edges = sharp_convex_edges(
+        part,
+        allow=(
+            (
+                _is_wall_seam,
+                "the bore or outer wall's own untrimmed cylindrical seam -- "
+                "confirmed via is_periodic_seam, no nearby cut for it to "
+                "coincide with",
+            ),
+        ),
+    )
     r.check(
-        not bad,
+        not edges.sharp,
         "no unchamfered sharp convex edges",
         (
-            f"{len(bad)} found at z={sorted({round(e.center().Z, 2) for e in bad})} "
+            f"{len(edges.sharp)} found at "
+            f"z={sorted({round(e.center().Z, 2) for e in edges.sharp})} "
             "-- the mouth (the edge that has to ride onto the barrel without "
             "catching) has no lead-in chamfer; only the bed-side closed face does"
         )
-        if bad
+        if edges.sharp
+        else "clean",
+    )
+    r.check(
+        not edges.unclassifiable,
+        "no unclassifiable convex edges (angle could not be measured)",
+        (
+            f"{len(edges.unclassifiable)} found at "
+            f"z={sorted({round(e.center().Z, 2) for e in edges.unclassifiable})} "
+            "-- unmeasured is not the same claim as clean"
+        )
+        if edges.unclassifiable
         else "clean",
     )
 

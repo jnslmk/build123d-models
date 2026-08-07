@@ -33,6 +33,7 @@ from models.lib import fits
 from models.lib.checks import (
     Report,
     interior_angle,
+    is_periodic_seam,
     is_solid_at,
     sharp_convex_edges,
 )
@@ -333,33 +334,79 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     v = _loc(c.SCREW_BOSS_Z)
 
     r.check(
-        e.SCREW_CBORE_D > e.SCREW_HEAD_D,
-        "pocket swallows the head",
-        f"{e.SCREW_CBORE_D:.2f} mm bore for a {e.SCREW_HEAD_D} mm head "
-        f"(FREE, {fits.FREE} diametral)",
+        e.SCREW_SEAT_D > e.SCREW_HEAD_D,
+        "seat swallows the head",
+        f"{e.SCREW_SEAT_D:.2f} mm rim for a {e.SCREW_HEAD_D} mm taper head "
+        f"({fits.for_material(fits.FREE, 'asa'):.2f} FREE for ASA, plus "
+        f"2 x {e.SCREW_HEAD_SINK} of deliberate sink)",
     )
     r.check(
-        not is_solid_at(cap, u, v, e.SCREW_CBORE_DEPTH - 0.3),
-        "pocket is open to the outer face",
+        not is_solid_at(cap, u, v, 0.05),
+        "seat is open at the outer face",
+    )
+    # The taper: a 90 deg head is 45 deg per side, so at any depth into the seat
+    # the cone's radius has dropped by exactly that depth. Sampled either side of
+    # the cone's own wall at two depths -- a cylindrical pocket would be solid
+    # outside the wall at both, and a cone that came out at the wrong angle would
+    # fail one of them.
+    for depth in (0.25, 0.75):
+        radius = e.SCREW_SEAT_D / 2 - depth
+        r.check(
+            not is_solid_at(cap, u - (radius - 0.15), v, depth),
+            f"seat is still open {depth} mm down, out to r={radius:.2f}",
+        )
+        r.check(
+            is_solid_at(cap, u - (radius + 0.15), v, depth),
+            "...and closed again just outside it -- 45 deg, not a counterbore",
+        )
+    r.check(
+        abs(e.SCREW_SEAT_DEPTH - (e.SCREW_SEAT_D - e.SCREW_CLEAR_D) / 2) < 0.001,
+        "seat bottoms out exactly where the clearance hole starts",
+        f"{e.SCREW_SEAT_DEPTH:.3f} mm deep for a {e.SCREW_SEAT_D:.2f} -> "
+        f"{e.SCREW_CLEAR_D} taper, which is what 45 deg per side means",
+    )
+    # There is no flat pocket floor left to print out over. That was the point of
+    # the change, so it is asserted rather than assumed: a counterbore would
+    # leave material at the old floor depth just outside the clearance hole.
+    # No flat annular floor. Stated as the cone arriving at exactly the
+    # clearance hole: just above the seat's bottom it is open a hair wider than
+    # the hole, and just outside that it is closed. A counterbore would be open
+    # all the way out to its own radius at the same depth. (The first version of
+    # this probed *below* the seat and outside the hole and asserted "not solid"
+    # there, which is wrong -- that is the floor, and it is meant to be solid.)
+    r.check(
+        not is_solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, e.SCREW_SEAT_DEPTH - 0.05),
+        "seat arrives at the clearance hole",
     )
     r.check(
-        is_solid_at(cap, u - e.SCREW_CBORE_D / 2 - 0.3, v, e.SCREW_CBORE_DEPTH - 0.3),
-        "...and stops at SCREW_CBORE_D",
+        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, e.SCREW_SEAT_DEPTH - 0.05),
+        "...with no flat annular floor around it",
+        "a pan-head counterbore left a 1.075 mm ring of unsupported ceiling here",
     )
-    # The floor: the only material left carrying the clamp, by design.
     r.check(
         is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, e.CAP_T - 0.3),
-        "floor under the head is solid",
-        f"{e.SCREW_FLOOR_T} mm -- what the connection needs and nothing more",
+        "material alongside the clearance hole is solid",
+        f"{e.SCREW_FLOOR_T:.2f} mm between the seat and the aluminium -- it was "
+        f"1.2, and the port is a continuous channel so nothing caps it",
     )
     r.check(
-        abs(e.SCREW_CBORE_DEPTH + e.SCREW_FLOOR_T - e.CAP_T) < 0.001,
-        "pocket goes all the way down to that floor",
-        f"{e.SCREW_CBORE_DEPTH} + {e.SCREW_FLOOR_T} = {e.CAP_T}",
+        abs(e.SCREW_SEAT_DEPTH + e.SCREW_FLOOR_T - e.CAP_T) < 0.001,
+        "seat plus floor is the whole flange",
+        f"{e.SCREW_SEAT_DEPTH:.3f} + {e.SCREW_FLOOR_T:.3f} = {e.CAP_T}",
     )
     r.check(
         not is_solid_at(cap, u, v, e.CAP_T - 0.2),
-        "clearance hole carries on through the floor",
+        "clearance hole carries on through to the aluminium",
+    )
+    # ...and the screw actually gets there. Nothing checked this before, and the
+    # floor grew twelvefold in this design, so it is precisely the thing that
+    # could have quietly stopped being true.
+    r.check(
+        e.screw_reach() > 3.0,
+        "screw still reaches the aluminium",
+        f"{e.screw_reach():.2f} mm into the port -- an M2 x {e.SCREW_LEN:.0f} "
+        f"countersunk (length measured overall, head included) spending "
+        f"{e.SCREW_FLOOR_T:.2f} mm of itself in plastic first",
     )
 
     # The breakout. Asserted as a bounded range, not merely allowed: below zero
@@ -367,20 +414,41 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     # above ~0.5 it is eating enough of a 0.5 mm-wall tube's seat to matter.
     breakout = e.screw_breakout()
     r.check(
-        0.0 < breakout < 0.5,
-        "pocket breaks out through the flank, by a bounded amount",
+        0.2 < breakout < 0.5,
+        "seat breaks out through the flank, by a bounded amount",
         f"{breakout:.2f} mm past a half-width of "
         f"{e.cap_half_width(c.SCREW_BOSS_Z):.2f} mm",
     )
     half = e.cap_half_width(c.SCREW_BOSS_Z)
     r.check(
-        not is_solid_at(cap, half - 0.1, v, e.SCREW_CBORE_DEPTH / 2),
+        not is_solid_at(cap, half - 0.1, v, e.SCREW_SEAT_DEPTH / 2),
         "...and the scallop is really cut, not just arithmetic",
     )
     r.check(
         is_solid_at(cap, half - 0.1, v, e.CAP_T - 0.2),
-        "...but the floor's own flank is still whole",
-        "the bite stops at the pocket floor, so the seat under it is unbroken",
+        "...but the flank below it is whole",
+        "the bite stops where the seat does, 1.10 mm in, so the 14.75 mm of "
+        "flank under it is unbroken -- it used to stop 14.65 mm in",
+    )
+    # The seams the breakout leaves are filleted now. They used to be a stated
+    # exception ("breaking those would only widen the bite"); that argument is
+    # retired. screw_seam_edges returns what is still sharp in the seat's
+    # neighbourhood, so an empty result IS the assertion that the fillet took --
+    # and it went red at 0.25, where the roll ran below the bed plane.
+    still_sharp = e.screw_seam_edges(cap)
+    slivers = [x for x in still_sharp if interior_angle(cap, x) is None]
+    r.check(
+        len(still_sharp) == len(slivers),
+        "every measurable seam at the seats is broken",
+        f"{len(still_sharp)} sharp edges left, {len(slivers)} of them slivers "
+        f"no probe can measure; {e.SCREW_SEAM_FILLET} mm fillet",
+    )
+    r.check(
+        len(slivers) <= 2 and all(x.length < 1.0 for x in slivers),
+        "...and the slivers are the tail of the breakout, nothing more",
+        f"{[round(x.length, 3) for x in slivers]} mm long -- where the seat's "
+        f"cone leaves the flank all but tangentially, one per side. OCC will "
+        f"not roll these; they are named here rather than left unexplained",
     )
 
 
@@ -594,7 +662,7 @@ def check_strap_slot(cap: Part, r: Report) -> None:
 
     # Nowhere near either screw feature -- asserted rather than eyeballed off a
     # drawing, since both are driven from config and could move.
-    gap = (y + e.STRAP_SLOT_H / 2) - (_loc(c.SCREW_BOSS_Z) - e.SCREW_CBORE_D / 2)
+    gap = (y + e.STRAP_SLOT_H / 2) - (_loc(c.SCREW_BOSS_Z) - e.SCREW_SEAT_D / 2)
     r.check(
         gap < -1.0,
         "slot clears the screw pockets",
@@ -639,17 +707,21 @@ def check_strap_slot(cap: Part, r: Report) -> None:
         f"{len(mouth)} edges inside the slot's own y/z envelope, out at a flank",
     )
     # The unmeasurable ones are the whole point, and this is the check that
-    # would have caught a raw mouth when nothing else could. Left raw, the
+    # names *which* edges and *why* when nothing else could. Left raw, the
     # slot's floor meets a flank curving away from it at about 50 deg, and
     # ``interior_angle`` cannot stand a probe inside a wedge that thin: it
-    # returns None. ``sharp_convex_edges`` skips a None, so **the sharp-edge
-    # audit is blind to exactly this class of edge** -- six of the eight raw
-    # mouth edges never appear in it. A treated mouth measures cleanly.
+    # returns None. ``sharp_convex_edges`` now reports a None edge too, in its
+    # ``unclassifiable`` bucket rather than dropping it -- but only as "an
+    # edge somewhere on this part could not be measured"; it has no idea this
+    # is the strap mouth, or that six of the eight raw mouth edges are the
+    # ones responsible. That specificity is this check's job, not the
+    # audit's. A treated mouth measures cleanly either way.
     r.check(
         not [a for a in angles if a is None],
         "...and every one is blunt enough to measure at all",
         f"{len(measured)} of {len(angles)} measurable; a feather edge comes "
-        f"back None, which is also how it hides from sharp_convex_edges",
+        f"back None here just as it would from sharp_convex_edges' own "
+        f"unclassifiable bucket, only with this check's mouth-specific detail",
     )
     r.check(
         bool(angles) and all(a is not None and a > 120.0 for a in angles),
@@ -733,16 +805,57 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
         bb = edge.bounding_box()
         return abs(bb.min.Z - plug_tip_z) < 0.02 and abs(bb.max.Z - plug_tip_z) < 0.02
 
-    def _is_screw_breakout_seam(edge) -> bool:
-        # The scallop lives inside the flange, outboard of the port axis and
-        # below the pocket floor -- nothing else in the part is out there.
+    def _is_screw_seat_sliver(edge) -> bool:
+        # The tail of a seat's breakout: out near a flank, level with the ports,
+        # inside the seat's own 1.10 mm depth. Nothing else in the part is
+        # there. This is a much smaller claim than the entry it replaces, which
+        # excused the whole scallop -- the scallop is filleted now, and what is
+        # left is one short line per side, under a millimetre.
         bb = edge.bounding_box()
         centre = bb.center()
         return (
-            abs(centre.X) > screw_u - e.SCREW_CBORE_D / 2
-            and bb.max.Z < e.SCREW_CBORE_DEPTH + 0.02
-            and abs(centre.Y - _loc(c.SCREW_BOSS_Z)) < e.SCREW_CBORE_D
+            abs(centre.X) > screw_u - e.SCREW_SEAT_D / 2
+            and bb.max.Z < e.SCREW_SEAT_DEPTH + 0.02
+            and abs(centre.Y - _loc(c.SCREW_BOSS_Z)) < e.SCREW_SEAT_D
+            and edge.length < 1.0
         )
+
+    def _is_periodic_bore_seam(edge) -> bool:
+        # sharp_convex_edges now reports the None edges min_length used to
+        # let through unseen (see its docstring), and three of this cap's are
+        # new to this file for that reason -- not new to the geometry, only
+        # to what could be said about it. Each is a straight LINE that opens
+        # through the CAP_T face and runs down a bore or pocket wall: the
+        # screw seats' own 45 deg cones (both sides -- this is the *rest* of
+        # the same cone _is_screw_seat_sliver names the sub-mm tail of, not a
+        # different feature) and the gland collar's cylindrical wall.
+        #
+        # ``is_periodic_seam`` does the actual proof, against OCC's own
+        # topology rather than position: each of these edges' two "adjacent"
+        # faces are the literal same ``TopoDS_Face``, so there is no second
+        # surface to take a dihedral angle against, which is exactly why
+        # interior_angle answers None here (its documented "not shared by
+        # exactly two faces" case) -- not a sign the wedge is too acute to
+        # probe, the other documented reason for a None. See that function's
+        # own docstring for why this is checked directly instead of inferred
+        # from where the edge happens to sit.
+        #
+        # That test alone is not scope enough on its own (its docstring says
+        # so): it would just as happily match the sub-mm screw-seat tail
+        # sliver _is_screw_seat_sliver already names with its own, more
+        # specific reason. ``bb.max.Z`` at CAP_T narrows this predicate to
+        # "opens through the top face"; requiring more than 1 mm of span
+        # rules out both that sub-mm sliver and the *other* CAP_T-adjacent
+        # edges this file already names (_is_cap_t_face_edge's, which lie
+        # flat *at* CAP_T rather than climbing away from it, so their own
+        # span is ~0) -- so the two predicates partition disjointly rather
+        # than racing to claim the same edge.
+        if edge.geom_type != GeomType.LINE:
+            return False
+        bb = edge.bounding_box()
+        if not (abs(bb.max.Z - e.CAP_T) < 0.02 and (bb.max.Z - bb.min.Z) > 1.0):
+            return False
+        return is_periodic_seam(cap, edge)
 
     _check_sharp_edges(
         cap,
@@ -771,11 +884,24 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
                 "that face is untouched by design (endcap.py's docstring)",
             ),
             (
-                "screw pocket's breakout seam left raw",
-                _is_screw_breakout_seam,
-                "the pocket for a 4.4 mm head cuts out through the flank of a "
-                "flush cap -- the deliberate scallop check_screw_pockets "
-                "bounds; a chamfer would only widen the bite",
+                "screw seat's tail sliver left raw",
+                _is_screw_seat_sliver,
+                "where the seat's 45 deg cone leaves the flank all but "
+                "tangentially, one short line per side. The seams either side "
+                "of it are filleted (SCREW_SEAM_FILLET) -- this is the "
+                "sub-millimetre tail OCC will not roll, and no probe can even "
+                "measure its angle. check_screw_pockets bounds its length",
+            ),
+            (
+                "periodic bore/pocket seam opening through CAP_T",
+                _is_periodic_bore_seam,
+                "the closing seam of a cone or cylinder's own periodic "
+                "parametrisation (both screw seats' cones, the gland "
+                "collar's wall), where it happens to open through the flat "
+                "CAP_T face -- not a real material edge at all, confirmed by "
+                "the seam's two 'adjacent' faces being IsSame() in OCC's own "
+                "topology map, so there is no second surface for "
+                "interior_angle to measure a dihedral angle against",
             ),
         ),
     )
@@ -1491,15 +1617,58 @@ def check_strap_edges(part: Part, r: Report) -> None:
         "and the head's bearing land is solid under it",
     )
 
+    def _is_bolt_bore_seam(edge) -> bool:
+        # sharp_convex_edges now reports the None edges min_length used to
+        # let through unseen (see its docstring): one per boss, on the bolt
+        # clearance bore's own cylindrical wall (the ``Cylinder`` cut in
+        # ``create_strap``, between its two lead-in cones). That wall is a
+        # periodic surface -- OCC always parametrises a cylinder's
+        # circumference to wrap rather than genuinely start and stop -- so it
+        # needs a seam edge in its own wire, and where that seam lands there
+        # is no second face to take a dihedral angle against, which is why
+        # interior_angle answers None (the "not shared by exactly two faces"
+        # case its docstring documents, not an acute wedge the probe failed
+        # on). ``is_periodic_seam`` confirms this against OCC's own topology
+        # rather than the edge's position -- see that function's docstring
+        # for why. Scoped to a straight, purely-vertical LINE (both ends at
+        # the same X and Y) so this cannot also claim some other edge that
+        # merely happens to share a seam somewhere else on the part; checked
+        # against every edge on the strap, not assumed, and only these two
+        # -- one per boss -- match both conditions at once.
+        if edge.geom_type != GeomType.LINE:
+            return False
+        bb = edge.bounding_box()
+        if bb.size.X > 0.05 or bb.size.Y > 0.05:
+            return False
+        return is_periodic_seam(part, edge)
+
     # The raw-edge rule, made falsifiable. Unlike every other part in the
-    # family, the strap needs no allow list at all: every sample pair above
-    # (bed, bore mouth, foot land, corners, arch silhouette, bore mouth over
-    # the crown) already accounts for the part's own edges, and the arch
-    # root's absence check confirms the one concave edge that stays raw on
-    # purpose is concave -- so it cannot appear in a *convex*-edge audit
-    # regardless. Kept as an explicit assertion rather than an assumption:
-    # allow=() here is a claim about the geometry, and this is what checks it.
-    _check_sharp_edges(part, "strap", r, ())
+    # family, the strap needed no allow list at all for its *sharp* edges:
+    # every sample pair above (bed, bore mouth, foot land, corners, arch
+    # silhouette, bore mouth over the crown) already accounts for the part's
+    # own edges, and the arch root's absence check confirms the one concave
+    # edge that stays raw on purpose is concave -- so it cannot appear in a
+    # *convex*-edge audit regardless. That claim still holds (checked below,
+    # not assumed): ``sharp_convex_edges``'s own ``.sharp`` bucket is empty
+    # here. Its ``.unclassifiable`` bucket is not, though -- the bolt bore
+    # seams above -- so the one-entry allow list is what keeps that promise
+    # honest instead of silently going stale the moment this file started
+    # reporting a bucket that did not used to exist.
+    _check_sharp_edges(
+        part,
+        "strap",
+        r,
+        (
+            (
+                "bolt clearance bore's own periodic seam",
+                _is_bolt_bore_seam,
+                "the cylindrical wall between the bolt hole's two lead-in "
+                "cones is a periodic surface with no second face at its own "
+                "seam -- not a real edge, confirmed via is_periodic_seam, "
+                "one per boss",
+            ),
+        ),
+    )
 
 
 def check_bolt_clears_arch(part: Part, r: Report) -> None:
@@ -2247,6 +2416,38 @@ def check_stand_edges(part: Part, r: Report) -> None:
             and abs(stand_mod._collar_dist(ctr.X, ctr.Y)) < 0.5
         )
 
+    def _is_stand_periodic_seam(edge) -> bool:
+        # sharp_convex_edges now reports the None edges min_length used to
+        # let through unseen (see its docstring), and the hub is where that
+        # bites hardest in this family: 16 straight LINE edges, none of them
+        # sharp, at every bore/boss/well the hub carries -- the two long
+        # (~48 mm) ones running the collar/tube bore's full height, six more
+        # at the boss pads (z 3-9), and six repeating at three heights up the
+        # cable well (z 88.8/123.8/158.8, one predicate-defeating detail: on
+        # these six the seam runs *horizontally* along Y at fixed Z rather
+        # than vertically, which is exactly the shape a position- or
+        # orientation-based predicate would need a new clause for and a
+        # topology-based one does not care about at all.
+        #
+        # Every one of these is a cylindrical or conical bore/boss wall's own
+        # periodic seam -- OCC always parametrises that circumference to
+        # wrap rather than genuinely start and stop -- landing somewhere on
+        # the part's boundary because of where the boolean cuts happened to
+        # trim it. ``is_periodic_seam`` confirms this against OCC's own
+        # topology (both "adjacent" faces are the literal same
+        # ``TopoDS_Face``) for all 16, checked rather than assumed: this is
+        # not a guess extended from the two or three edges spotted by hand.
+        # There being 16 rather than the handful this file's other periodic-
+        # seam predicates name is why this is one broad entry instead of
+        # sixteen narrow ones threaded through one-off position windows --
+        # the existing family-specific entries above (bore/wall seam, pivot
+        # counterbore, collar bore root, ...) already carry their own
+        # specific reasons for the *sharp* edges each feature leaves; this
+        # entry is what the same features' *unmeasurable* seams get, since
+        # "why is this edge here" is one shared, geometric answer regardless
+        # of which bore or boss it belongs to.
+        return edge.geom_type == GeomType.LINE and is_periodic_seam(part, edge)
+
     _check_sharp_edges(
         part,
         "stand hub",
@@ -2306,6 +2507,16 @@ def check_stand_edges(part: Part, r: Report) -> None:
                 "corner's own mouth fillet (corner.MOUTH_FILLET) -- but "
                 "widening the exclusion only moves the run-out onto the "
                 "mouth plane, it does not remove it",
+            ),
+            (
+                "bore/boss/well periodic seam (unmeasurable, not unsafe)",
+                _is_stand_periodic_seam,
+                "16 straight seams across the tube bore, collar bore, boss "
+                "pads and cable well, none of them sharp -- confirmed via "
+                "is_periodic_seam against OCC's own topology, not position, "
+                "since these span two different edge orientations and three "
+                "repeated well heights that no single bounding-box window "
+                "would catch without becoming a new predicate per feature",
             ),
         ),
     )
@@ -2491,6 +2702,23 @@ def check_feet(r: Report) -> None:
                 "feet.py's module docstring: an 0.8 lead-in there would eat "
                 "half of PAD_WALL, the only wall between an M6/M5 nyloc and "
                 "open air; the nut is dropped in by hand, not found blind",
+            ),
+            (
+                "counterbore mouth left raw -- the same mouth, where it "
+                "crosses the pad's own inner-rim chamfer as an ellipse "
+                "instead of the flat top",
+                lambda edge, cd=cbore_d: _is_cbore_inner_tangency_edge(
+                    edge, feet_mod.HOLE_U, cd / 2
+                ),
+                "only the eye foot's Ø12 counterbore reaches inward far "
+                "enough (to HOLE_U - 6 = 14.0) to land inside the chamfered "
+                "strip at PAD_U_IN..PAD_U_IN+EDGE_CHAMFER (13.5..14.3); the "
+                "chamfer plane and the hole wall are exactly tangent at "
+                "z=20.5, where the remaining sliver of chamfer pinches to "
+                "zero width -- the same tangency cradle.py's module "
+                "docstring already accepts for the trough's bed sliver, "
+                "'a chamfer would only turn a shallow edge into a knife "
+                "edge'; there is nothing left there to round",
             ),
         )
         check_cradle_edges(part, name, r, extra_sharp_allow=foot_sharp_allow)
@@ -2971,6 +3199,49 @@ def _is_cbore_mouth_edge(edge, cbore_r: float) -> bool:
     )
 
 
+def _is_cbore_inner_tangency_edge(edge, hole_u: float, cbore_r: float) -> bool:
+    """The same counterbore mouth as ``_is_cbore_mouth_edge``, on the short
+    stretch where the hole's cylindrical wall crosses the pad's own
+    inner-rim chamfer instead of the flat top.
+
+    ``cradle.treat_edges`` chamfers the whole rim -- including the pad's
+    inner-top edge, at ``feet_mod.PAD_U_IN`` (13.5) rising to
+    ``PAD_U_IN + EDGE_CHAMFER`` (14.3) over ``z`` = ``CRADLE_DEPTH -
+    EDGE_CHAMFER`` (20.0) to ``CRADLE_DEPTH`` (20.8) -- *before* ``feet.py``
+    cuts the counterbore. The eye foot's Ø12 counterbore reaches inward to
+    ``hole_u - cbore_r`` = 14.0, which lands inside that chamfered strip
+    rather than clear of it (the wall foot's Ø10 counterbore stops at 15.0,
+    past ``PAD_U_IN + EDGE_CHAMFER``, so it never shows this edge). Where the
+    two surfaces cross, the hole's wall no longer meets flat material: it
+    meets the sloped chamfer plane, so the mouth's boundary there is an
+    ellipse (a cylinder cutting a 45 deg plane), not a circle, and does not
+    match ``_is_cbore_mouth_edge``'s radius test even though it is the same
+    raw mouth.
+
+    It is also a genuine tangency, not just a differently-shaped edge: the
+    chamfer plane and the hole wall coincide exactly at
+    ``z = CRADLE_DEPTH - EDGE_CHAMFER + (hole_u - cbore_r - PAD_U_IN)``
+    (20.5 on the eye foot), where the remaining wedge of chamfer material
+    pinches to zero width -- confirmed by point-sampling on either side of
+    it. That is the same shape of artifact ``cradle.py``'s own module
+    docstring already accepts for the trough's bed sliver: 'its corner is
+    already a ~4 deg tangency, so there is nothing there to break, and a
+    chamfer would only turn a shallow edge into a knife edge.' There is no
+    material left near the pinch point to round without manufacturing a
+    sharper edge than the one being left raw.
+    """
+    if edge.geom_type != GeomType.ELLIPSE:
+        return False
+    bb = edge.bounding_box()
+    inner = hole_u - cbore_r
+    y = abs(edge.center().Y)
+    return (
+        abs(bb.max.Z - mc.CRADLE_DEPTH) < 0.05
+        and bb.min.Z > mc.CRADLE_DEPTH - mc.EDGE_CHAMFER - 0.05
+        and abs(y - inner) < mc.EDGE_CHAMFER
+    )
+
+
 def _check_sharp_edges(
     part: Part,
     name: str,
@@ -2981,30 +3252,69 @@ def _check_sharp_edges(
 
     Calls ``sharp_convex_edges`` exactly once with no ``allow`` of its own --
     building the adjacency map is the expensive part of that function, and
-    the raw, unfiltered list is also the only way to report *how many* edges
-    each exception actually accounts for. Every classification below is
-    therefore done in plain Python against that one list, not by asking the
-    kernel again. ``allow`` is a list of ``(label, predicate, reason)``
-    triples, applied in order; whatever no predicate claims is asserted to be
-    empty -- the hard gate the rest of the family never had before this file.
+    the raw, unfiltered lists are also the only way to report *how many*
+    edges each exception actually accounts for. Every classification below is
+    therefore done in plain Python against those two lists, not by asking the
+    kernel again.
+
+    ``sharp_convex_edges`` now returns a ``SharpEdgeSurvey`` -- a measured,
+    too-sharp bucket and a could-not-be-measured bucket, which are different
+    claims (see that type's docstring). Both are walked through the *same*
+    ``allow`` triples here, because an allow predicate matches an edge's
+    geometry, not its angle: the same "screw seat's tail sliver" reason, say,
+    is just as valid an explanation whether that edge happened to measure
+    sharp or came back unmeasurable. ``allow`` is a list of
+    ``(label, predicate, reason)`` triples, applied in order to each bucket;
+    whatever no predicate claims, in *either* bucket, is asserted to be empty
+    -- the hard gate the rest of the family never had before this file, and
+    now covering both claims instead of only the one ``ShapeList`` could
+    represent.
     """
-    raw = sharp_convex_edges(part)
+    survey = sharp_convex_edges(part)
     r.check(
-        True, f"{name}: sharp convex edges found before allow-listing", f"{len(raw)}"
+        True,
+        f"{name}: sharp convex edges found before allow-listing",
+        f"{len(survey.sharp)}",
     )
-    remaining = list(raw)
-    for label, predicate, reason in allow:
-        matched = [edge for edge in remaining if predicate(edge)]
-        remaining = [edge for edge in remaining if not predicate(edge)]
-        r.check(True, f"{name}: {label}", f"{len(matched)} edges -- {reason}")
-    detail = "all accounted for"
-    if remaining:
-        detail = f"{len(remaining)} left: " + "; ".join(
+    r.check(
+        True,
+        f"{name}: unclassifiable convex edges found before allow-listing",
+        f"{len(survey.unclassifiable)}",
+    )
+
+    def _account_for(edges: list, bucket: str) -> list:
+        remaining = list(edges)
+        for label, predicate, reason in allow:
+            matched = [edge for edge in remaining if predicate(edge)]
+            remaining = [edge for edge in remaining if not predicate(edge)]
+            r.check(
+                True, f"{name}: {bucket}: {label}", f"{len(matched)} edges -- {reason}"
+            )
+        return remaining
+
+    def _detail(remaining: list) -> str:
+        if not remaining:
+            return "all accounted for"
+        return f"{len(remaining)} left: " + "; ".join(
             f"{edge.geom_type} len={edge.length:.2f} at "
             f"{tuple(round(v, 2) for v in edge.bounding_box().center())}"
             for edge in remaining
         )
-    r.check(not remaining, f"{name}: no unexplained sharp convex edges", detail)
+
+    remaining_sharp = _account_for(list(survey.sharp), "sharp")
+    remaining_unclassifiable = _account_for(
+        list(survey.unclassifiable), "unclassifiable"
+    )
+    r.check(
+        not remaining_sharp,
+        f"{name}: no unexplained sharp convex edges",
+        _detail(remaining_sharp),
+    )
+    r.check(
+        not remaining_unclassifiable,
+        f"{name}: no unexplained unclassifiable convex edges",
+        _detail(remaining_unclassifiable),
+    )
 
 
 def run() -> Report:

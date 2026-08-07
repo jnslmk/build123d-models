@@ -28,6 +28,8 @@ properties nobody could have violated had they been checkable, so:
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 from build123d import Axis, Edge, Part, ShapeList, Vector
 
 # OCP ships no stubs for these; they resolve fine at runtime.
@@ -61,31 +63,177 @@ def _probe(part: Part):
     return inside
 
 
-def _outward(face, at: Vector, inside, step: float) -> Vector | None:
+def _outward(face, at: Vector, inside, step: float, edge: Edge) -> Vector | None:
     """A face's normal at a point, flipped to point out of the material.
 
     OCC does not promise a consistent orientation across the faces of a fused
     solid, so this is established by probing rather than trusted.
+
+    Stepping straight off ``at`` along the face's own normal (``n``) is
+    enough whenever the material wedge at this edge is at least 90 deg wide,
+    which is the common case and all this ever had to handle before a real
+    ~50 deg "feather" edge exposed the gap -- led_profiles' strap mouth,
+    where the slot's flat floor meets a shell flank that grazes past it.
+    For a wedge *narrower* than 90 deg, neither ``+n`` nor ``-n`` can ever
+    land inside it, at *any* step size: that is a geometric fact, not a
+    tolerance problem. A face's normal is 90 deg from its own tangent by
+    construction, and an acute wedge's material lies entirely within less
+    than 90 deg of that tangent, so the normal always overshoots into air on
+    both sides. Shrinking ``step`` does not rescue it either -- probed the
+    real feather edge above from ``step=1`` down to ``step=1e-9`` and it
+    stayed indecisive the whole way, right up until the step dropped below
+    the classifier's own ``TOL`` (1e-6). At that point *both* directions
+    started reading "inside", not because either genuinely is, but because
+    both probe points are now within tolerance of the surface itself --
+    a false positive, not a resolution.
+
+    So when the straight probe is indecisive, this nudges the probe's origin
+    sideways first, along the face's own surface and perpendicular to the
+    shared edge (``tangent x n``). That walks the origin out of the acute
+    wedge's tip and into the face's interior, where the local material
+    reliably spans more than 90 deg and the plain normal test works again.
+    Which of the two sideways directions actually heads into the face is not
+    known up front, so both are tried, at each rung of a small offset
+    ladder -- 0.01 mm, then a 10x-wider 0.1 mm safety margin. Every real
+    acute edge found so far (the strap mouth's 8, plus 2 more elsewhere on
+    the same endcap this fix also newly caught -- see ``checks.py``'s
+    ``sharp_convex_edges`` docs) resolves at the very first rung; the second
+    exists for a model this repo has not built yet, not for one already in
+    hand. Checked across all of those edges (the acute ones and the
+    already-working ones alike): exactly one direction ever resolves, the
+    other stays indecisive, and the resolved sign never disagrees between
+    rungs -- so there is nothing here to arbitrate between candidates, only
+    a search for the first one that answers. A genuine sliver -- a real edge
+    this still cannot classify, as opposed to a wedge merely narrower than
+    90 deg -- exhausts the whole ladder before answering ``None``, which is
+    the expensive path; keeping the ladder at two rungs instead of a longer
+    one bounds that cost at 4x today's per-edge probe count instead of a
+    larger multiple, without giving up the margin.
+
+    Before trusting a nudged reading, this also checks the nudge is still
+    *on* the face at all (``face.distance_to(origin)`` small relative to the
+    offset just taken), not merely that some direction happened to read
+    decisively. Two directions off a real face are not symmetric: the one
+    that heads into the face's own interior stays within a thousandth of the
+    surface at either rung; the one that heads off its trimmed edge lands
+    essentially the full offset away, because the closest point left on the
+    face is now the boundary it just walked past. That gap is three orders
+    of magnitude, on both a large plain face and the smallest real face this
+    was checked against (a 0.0076 mm^2 sliver off one of led_profiles'
+    endcap's own IsoThread flanks) -- cheap to tell apart, and worth telling
+    apart: a solid-classifier reading from a point that has wandered off the
+    face it claims to represent is answering a question about whatever
+    unrelated geometry it landed near, not about this edge, and would look
+    exactly as decisive as a real answer. Re-deriving ``face.normal_at`` at
+    the nudged point was considered and rejected: it is not obviously
+    cheaper than the distance check, and it is subtly wrong on a curved face
+    -- the sign decision would use the *nudged* point's normal while the
+    value this must return is ``n`` (or ``-n``) *at* ``at``, and those only
+    agree while the surface turns by under 90 deg over the offset, which is
+    exactly the kind of thing a small, tightly-curved face is not
+    guaranteed to satisfy.
+
+    The sideways ladder only runs once the direct probe has already failed,
+    so an edge that resolves on the direct probe -- true 90 deg corners, the
+    case ``sharp_convex_edges`` spent its time on before this existed --
+    costs exactly what it did before this existed: two ``inside`` calls, no
+    ``tangent_at``, no loop, no ``distance_to``.
+
+    That is not, however, most probes on real production geometry, and the
+    docstring used to imply otherwise. Measured on led_profiles.endcap's
+    normal (fully filleted, threaded) build, across all 254 edges with a
+    resolvable two-face pair (508 ``_outward`` calls): 84 calls (~17%) fall
+    through to this ladder, not a handful of pathological outliers. Most of
+    them cluster in two places: the IsoThread gland thread's own flank
+    geometry (z roughly 0-7.7 mm, radius roughly 6.15-6.2 mm -- BSPLINE,
+    CIRCLE and ELLIPSE edges from the helical flank, 46+12+10 of the 84
+    fallback-triggering probes) and the shell's own genuinely-acute edges
+    this fix newly caught (see ``sharp_convex_edges``'s docs). Of the 84,
+    54 resolve via the ladder (some correctly reveal more real sharp angles,
+    the same way the shell edges did); 30 exhaust it and correctly answer
+    ``None`` -- spot-checked one of those and it is the 0.0076 mm^2 sliver
+    face mentioned above, consistent with a genuine sliver, though the other
+    29 were not each individually re-verified. None of this is a defect to
+    fix on the fast path: Section one already showed, as a geometric fact
+    and not an implementation gap, that any face bounding a wedge under
+    90 deg needs more than a straight ``+-n`` probe to classify at all, at
+    any step size -- ISO thread flanks routinely are that narrow, so this
+    cost is inherent to correctly classifying real threaded geometry, not a
+    rare-sliver tax. On the same build, ``sharp_convex_edges`` wall-clock
+    rose across three back-to-back runs (this machine's own variance is
+    part of the honest number: ~29 s -> ~32 s, ~32 s -> ~34 s, ~32 s ->
+    ~36 s -- roughly a 6-13%, call it ~10%, increase) -- a real cost, not
+    "the common case is unchanged" for this part as a whole, only for the
+    individual edges that do resolve on the direct probe. It would be worse
+    without the on-face check above: measured before that existed, the same
+    before/after comparison was a ~40% increase (~24 s -> ~34 s) -- most of
+    that gap was `inside` calls spent on nudge points that had already
+    walked off a tiny face and were never going to answer anything real, and
+    the on-face check turns out to be a genuine performance fix for that, on
+    top of being the correctness safeguard it was added for.
     """
     try:
         n = face.normal_at(at)
     except Exception:  # noqa: BLE001 -- degenerate faces answer by raising
         return None
-    out, into = inside(at + n * step), inside(at - n * step)
-    if into and not out:
-        return n
-    if out and not into:
-        return -n
-    return None  # a knife edge or a sliver: neither side is decisive
+
+    def resolve(origin: Vector) -> Vector | None:
+        out, into = inside(origin + n * step), inside(origin - n * step)
+        if into and not out:
+            return n
+        if out and not into:
+            return -n
+        return None
+
+    found = resolve(at)
+    if found is not None:
+        return found
+
+    # Indecisive at the edge itself -- try again from a point nudged along
+    # the face's own surface, away from the (possibly acute) wedge tip. See
+    # the docstring above for why this, and not a smaller ``step``, is the
+    # fix. ``tangent x n`` is perpendicular to the edge and lies in the
+    # face's tangent plane; which of its two directions moves *into* the
+    # face isn't known without walking the face's actual trim boundary, so
+    # both are tried, smallest offset first.
+    tangent = edge.tangent_at(0.5)
+    u = tangent.cross(n)
+    if u.length < TOL:
+        return None  # tangent parallel to the normal: no sideways direction exists
+    u = u.normalized()
+    for offset in (0.01, 0.1):
+        for direction in (u, -u):
+            origin = at + direction * offset
+            # A face that is small relative to the offset (a real case: an
+            # IsoThread flank's boundary sliver) can have BOTH sideways
+            # directions walk clean off its trimmed edge. A point that has
+            # done that is no longer on this face at all, so a "decisive"
+            # inside/outside reading from there answers a question about
+            # whatever geometry it landed near, not about this face -- see
+            # the docstring for why re-deriving the normal there instead is
+            # not the fix. ``distance_to`` is a single nearest-point query
+            # against one face, cheaper than the ``inside`` classification
+            # against the whole solid it would otherwise spend two calls on,
+            # so skipping here is not just safer, it is not obviously a
+            # pessimisation of the sliver's already-expensive dead end.
+            if face.distance_to(origin) > offset * 0.1:
+                continue
+            found = resolve(origin)
+            if found is not None:
+                return found
+    return None  # a genuine sliver: not even the sideways nudge found material
 
 
 def interior_angle(part: Part, edge: Edge, faces=None, probe=None) -> float | None:
     """The dihedral angle *through the material* at an edge, in degrees.
 
     A square corner answers ~90, the two edges a 45 deg chamfer leaves ~135
-    each, a tangent or filleted edge ~180, and a concave step ~270. ``None``
-    means the edge could not be classified -- a sliver, or not shared by exactly
-    two faces.
+    each, a tangent or filleted edge ~180, a concave step ~270, and an acute
+    "feather" edge (a face grazing past another at a shallow angle) whatever
+    is left below 90. ``None`` means the edge genuinely could not be
+    classified: not shared by exactly two faces, or a sliver where even
+    ``_outward``'s sideways nudge (see its docstring) never lands decisively
+    in or out of the material.
 
     The magnitude comes from the two faces' outward normals, but their *sign*
     cannot: a convex 90 deg edge and a concave one have the **same** pair of
@@ -102,8 +250,8 @@ def interior_angle(part: Part, edge: Edge, faces=None, probe=None) -> float | No
         return None
 
     at = edge.position_at(0.5)
-    n_a = _outward(pair[0], at, inside, step)
-    n_b = _outward(pair[1], at, inside, step)
+    n_a = _outward(pair[0], at, inside, step, edge)
+    n_b = _outward(pair[1], at, inside, step, edge)
     if n_a is None or n_b is None:
         return None
 
@@ -142,16 +290,104 @@ def _adjacent_faces(part: Part) -> dict:
     return faces
 
 
+def is_periodic_seam(part: Part, edge: Edge) -> bool:
+    """True when ``edge``'s only two topological neighbours are the same face
+    -- the closing seam of a periodic surface, not a boundary between two.
+
+    OCC always parametrises a cone or cylinder's circumference to wrap rather
+    than genuinely start and stop, so a bounded face cut from one needs a
+    seam edge somewhere in its own wire. Where a model's boolean cuts happen
+    to route that seam through the part's boundary (a bore or pocket wall
+    opening through a flat face, say), it shows up in ``part.edges()`` as an
+    ordinary-looking edge -- but ``_adjacent_faces`` can never find it a
+    second neighbour: ``part.faces()`` visits the one real face once, and
+    that face's own wire lists its own seam only once, so the dict entry the
+    seam's key hashes to never accumulates a second face. ``interior_angle``
+    then answers ``None`` for it (the "not shared by exactly two faces" case
+    its docstring already documents) -- correctly: there genuinely is no
+    second surface to take a dihedral angle against, so "unmeasurable" is the
+    right answer here, not a gap in the probe.
+
+    This checks that directly, against OCC's own edge-to-face ancestor map
+    (``TopExp.MapShapesAndAncestors``), rather than inferring it from an
+    edge's position, length or which face's bounding box it sits near. That
+    distinction is not academic: this repo has already had a same-reasoning
+    allow predicate go stale exactly that way once geometry it matched by
+    position moved a few tenths of a millimetre under an unrelated redesign
+    (see led_profiles' ``checks.py`` git history around its screw-seat
+    predicates). A seam is a seam regardless of where the boolean cuts happen
+    to have left it, so this answers the topology question once, robustly,
+    for every caller that would otherwise re-derive a position heuristic.
+
+    Not, on its own, a safety verdict. A same-face seam is *necessary*
+    evidence that ``interior_angle`` cannot have measured a dihedral angle
+    here, but it is not *sufficient* evidence that the edge is safe to leave
+    unexplained: a genuine, reportable sliver -- the kind ``sharp_convex_edges``
+    exists to surface, not hide (see its docstring) -- can satisfy this test
+    too, since a real near-tangent boolean cut can itself land its seam at
+    the cut. So a caller's ``allow`` predicate should combine this with its
+    own scoping (location, length, which feature) and its own stated reason;
+    this function only answers "is there a second surface here at all."
+    """
+    from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # ty: ignore[unresolved-import]
+    from OCP.TopExp import TopExp  # ty: ignore[unresolved-import]
+    from OCP.TopTools import TopTools_IndexedDataMapOfShapeListOfShape  # ty: ignore[unresolved-import]
+
+    ancestors = TopTools_IndexedDataMapOfShapeListOfShape()
+    TopExp.MapShapesAndAncestors_s(part.wrapped, TopAbs_EDGE, TopAbs_FACE, ancestors)
+    if not ancestors.Contains(edge.wrapped):
+        return False
+    faces = list(ancestors.FindFromKey(edge.wrapped))
+    return len(faces) == 2 and faces[0].IsSame(faces[1])
+
+
+class SharpEdgeSurvey(NamedTuple):
+    """The result of one ``sharp_convex_edges`` pass: two claims, not one.
+
+    ``sharp`` is "measured, and the angle is too tight" -- the house rule's
+    original complaint. ``unclassifiable`` is a different claim entirely: "the
+    angle could not be measured at all," which covers a genuine sliver, a
+    non-manifold or self-seaming edge, or a face OCC would not hand a normal
+    to (see ``_outward``'s and ``interior_angle``'s docstrings for what drives
+    a ``None``). An edge nobody can classify is not evidence that it is safe --
+    it is evidence that this check has nothing to say about it -- so it gets
+    reported instead of merged into, or silently dropped from, ``sharp``.
+
+    Deliberately a plain ``NamedTuple`` with no ``__bool__``/``__len__``
+    override, which matters for a reason beyond style: a 2-item tuple is
+    always truthy and always ``len() == 2``, so a caller written against the
+    *old* ``ShapeList`` contract -- ``bad = sharp_convex_edges(part); if not
+    bad: ...`` -- does not quietly keep working with half the picture. ``not
+    bad`` is now always ``False`` (a tuple with items in it is truthy), so
+    that caller's "no sharp edges" assertion starts failing outright the
+    moment this lands, on every run, until it is rewritten against
+    ``.sharp``/``.unclassifiable``. A loud, permanent failure is the point:
+    the alternative -- keeping some backward-compatible ``ShapeList``-like
+    shape so old call sites "still work" -- is exactly the false-green this
+    type exists to rule out, just moved one level up. Every caller in this
+    repo has already been migrated (see the ones listed in
+    ``sharp_convex_edges``'s own docstring); this guard is for whichever one
+    gets missed.
+    """
+
+    sharp: ShapeList[Edge]
+    unclassifiable: ShapeList[Edge]
+
+
 def sharp_convex_edges(
     part: Part,
     min_length: float = 2.0,
     max_interior: float = 120.0,
     allow: tuple = (),
-) -> ShapeList[Edge]:
-    """Convex edges sharp enough to want breaking, that carry no treatment.
+) -> SharpEdgeSurvey:
+    """Convex edges sharp enough to want breaking, that carry no treatment --
+    plus every edge this check could not even measure.
 
-    The house rule -- chamfer horizontal edges, fillet vertical ones -- turned
-    into something a check can fail on. An edge is reported when both of:
+    Returns a ``SharpEdgeSurvey(sharp, unclassifiable)``. Every caller must read
+    both fields; see that type's docstring for why a caller that only reads
+    ``.sharp`` cannot silently pass. The house rule -- chamfer horizontal
+    edges, fillet vertical ones -- turned into something a check can fail on.
+    An edge lands in ``sharp`` when both of:
 
     * it is at least ``min_length`` long, so slivers and tangency seams do not
       drown the signal;
@@ -160,16 +396,50 @@ def sharp_convex_edges(
       reports a raw 90 deg corner and passes the ~135 an existing 45 deg chamfer
       leaves behind, so a treated part comes back clean.
 
-    ``allow`` holds ``(predicate, reason)`` pairs. Anything a predicate matches
-    is excluded, and the reason is what the caller prints. Real parts have
-    legitimate square edges -- sealing faces, thread flanks, heat-set insert
-    mouths -- and the point of the pair is that each one has to be *stated*
-    rather than merely not noticed. That is the whole difference between this
-    check and the prose rule it replaces.
+    An edge lands in ``unclassifiable`` instead when it clears the same
+    ``min_length``/``allow`` gates but ``interior_angle`` answers ``None`` --
+    it could not be measured, not that it was measured and found blunt. Both
+    lists are subject to the *same* ``min_length`` and ``allow`` filtering,
+    for the same reason in both directions: ``min_length`` existing to keep a
+    tangency seam's harmless residue out of ``sharp`` applies just as much to
+    ``unclassifiable`` -- a sub-``min_length`` sliver nobody can measure is
+    exactly the kind of noise that rule was written to drop, on either side of
+    the sharp/unmeasurable line. This was checked against a real case rather
+    than assumed: led_profiles.endcap has four short (<1.6 mm) ``None`` edges
+    at 45 deg screw-seat cone tails/gland lead-in seams that ``min_length``
+    quietly excludes from ``unclassifiable`` the same way it always excluded
+    their sharp counterparts, and three longer (>=8 mm) ``None`` edges -- the
+    periodic seam of a bore or pocket wall opening through a flat face, where
+    OCC's own topology explorer confirms the edge's two "adjacent" faces are
+    literally the same ``TopoDS_Face`` (there is no second surface to take a
+    dihedral angle against) -- that do clear ``min_length`` and do need a
+    named reason; see led_profiles' ``checks.py`` for that entry.
+
+    ``allow`` holds ``(predicate, reason)`` pairs, applied identically to both
+    buckets before classification -- a predicate matches an edge's geometry,
+    not its angle, so it does not care which list would otherwise have caught
+    it. Anything a predicate matches is excluded from both, and the reason is
+    what the caller prints. Real parts have legitimate square edges --
+    sealing faces, thread flanks, heat-set insert mouths -- and legitimate
+    unmeasurable ones too -- a genuine sliver at the tail of a tangent cut,
+    the seam of a periodic bore wall. The point of the pair is that each one
+    has to be *stated* rather than merely not noticed, for either bucket.
+    That is the whole difference between this check and the prose rule it
+    replaces, and it is also why ``unclassifiable`` is reported at all
+    instead of quietly folded into ``sharp`` or dropped: "measured and sharp"
+    and "could not be measured" are different claims, and an ``allow`` entry
+    for one is not evidence about the other.
+
+    Callers, all migrated to the two-field return: ``door_latch.py``,
+    ``lens_cap.py``, ``round_snap_box.py``, ``drill_storage/checks.py``,
+    ``drill_storage/hex/checks.py``, and ``led_profiles/checks.py`` (through
+    its own ``_check_sharp_edges`` wrapper, which applies its allow-list
+    triples to both fields).
     """
     inside = _probe(part)
     adjacency = _adjacent_faces(part)  # built once; it is the expensive part
     sharp = []
+    unclassifiable = []
     for edge in part.edges():  # ty: ignore[invalid-argument-type]
         if edge.length < min_length:
             continue
@@ -178,9 +448,11 @@ def sharp_convex_edges(
         angle = interior_angle(
             part, edge, faces=adjacency.get(_edge_key(edge)), probe=inside
         )
-        if angle is not None and angle <= max_interior:
+        if angle is None:
+            unclassifiable.append(edge)
+        elif angle <= max_interior:
             sharp.append(edge)
-    return ShapeList(sharp)
+    return SharpEdgeSurvey(ShapeList(sharp), ShapeList(unclassifiable))
 
 
 def fastener_clearance(

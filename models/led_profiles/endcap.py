@@ -25,10 +25,12 @@ off ``CAP_T``. The thread is cut over the outer ``GLAND_MALE_L`` only --
 everything behind it is plain bore the gland was never going to reach. That is
 not a compromise; it is what a thicker cap has always meant.
 
-The screws are unchanged: ``SCREW_CBORE_DEPTH`` still tracks ``CAP_T``, so the
-same short M2 self-tappers still land the same 1.2 mm above the aluminium. The
-pocket they sit at the bottom of is deeper now, which is a screwdriver problem
-rather than a geometry one.
+**The screws are taper heads, and that is what shapes their seat.** M2 x 20
+countersunk, DIN 965: a 90 deg head, which is 45 deg per side. A pan head needed
+a cylindrical pocket, and the bottom of that pocket was a flat annulus -- in this
+print pose, a ring of ceiling printed out over the pocket's own void. A taper
+head needs a cone, and a 45 deg cone is self-supporting the whole way down, so
+the seat *is* the lead-in and there is no flat floor left in the part at all.
 
 **The plug is solid, not a ring.** It fills the cavity's lower half-disc for
 ``PLUG_DEPTH``, with the gland bore driven straight through it -- nothing is
@@ -47,14 +49,17 @@ gland into the tube's wiring cavity**; the gland is a fitting on a centred axis,
 not a route into the cavity. ``check_gland`` measures that slot rather than
 asserting a route that is not there.
 
-**The screw heads are sunk, and they break out.** The screws are short and their
-heads are ``SCREW_HEAD_D`` = 4.4 mm across, so each gets a pocket from the outer
-face down to a ``SCREW_FLOOR_T`` floor -- the head goes in, the screw spends its
-length in the aluminium, and only the floor carries the clamp. The ports sit
-``c.SCREW_SPACING / 2`` from the axis and the cap is flush with the tube, so
-that pocket reaches about 0.35 mm past the flank and bites a shallow scallop out
-of each side. Deliberate, and the size of the bite is asserted in
-``check_screw_pockets`` so it cannot quietly grow.
+**The seats still break out, and now that is a choice rather than a coin flip.**
+The ports sit ``c.SCREW_SPACING / 2`` = 11.0 from the axis and a flush cap's
+flank is at 13.05, so a bare 3.8 head plus its running clearance would land
+0.025 mm inside the flank -- close enough that print tolerance, not the model,
+would decide which side it fell, and either way the part would carry a
+near-tangent sliver down the flank. ``SCREW_HEAD_SINK`` opens the seat
+decisively past the flank instead, and the seam that leaves is filleted rather
+than left raw. ``check_screw_pockets`` bounds the bite so it cannot quietly
+grow, and ``SCREW_FLOOR_T`` is no longer a minimum anybody has to defend: the
+profile's port is a continuous channel down the whole extrusion, not a blind
+hole, so nothing constrains how much of a 20 mm screw is spent in plastic.
 
 Print pose: outer face down on the bed, plug up. That puts the gland thread on a
 vertical axis (the only axis worth printing a thread on), gives the largest
@@ -86,8 +91,14 @@ Edges left square on purpose, and which should stay that way: the whole of the
 gland bore's mouth there, which is the thread's own faded exit and the one place
 a lead-in would hand OCC a degenerate fuse (see ``GLAND_COLLAR``); the bore's
 crescent through the plug's tip, where only the outer wire got the lead-in; and
-the seams where a screw pocket cuts out through the flank, which are the scallop
-the paragraph above owns up to -- breaking those would only widen the bite.
+one short line at the tail of each screw seat's breakout, where the seat's cone
+leaves the flank all but tangentially. That last one is a genuine sliver -- no
+probe can even measure its angle -- and it is the one edge here OCC will not
+roll. It is named in ``check_screw_pockets``'s allow list rather than ignored.
+
+The screw seams themselves are *not* on that list any more. They used to be,
+with the argument that breaking them would only widen the bite; they get
+``SCREW_SEAM_FILLET`` now.
 """
 
 from __future__ import annotations
@@ -118,6 +129,7 @@ from build123d import (
 )
 
 from models.lib import fits
+from models.lib.checks import interior_angle
 from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
 from . import config as c
@@ -255,18 +267,60 @@ PLUG_SEAM_FILLET = 0.5
 # ---------------------------------------------------------------- the screws
 
 SCREW_CLEAR_D = 2.65  # M2 normal clearance + the FDM adder
-SCREW_LEAD_IN = 0.5
 
-# The heads are 4.4 mm across and the screws are short, so each head is sunk to
-# within SCREW_FLOOR_T of the aluminium and the whole of the screw's length is
-# available to the port. FREE, not a named bore fit: this pocket locates
-# nothing, it only has to swallow a head.
-SCREW_HEAD_D = 4.4
-SCREW_CBORE_D = SCREW_HEAD_D + fits.FREE
-# What is left under the head. Six 0.2 mm layers -- enough to carry the clamp of
-# a 2 mm screw and nothing more, which is the whole point of sinking the head.
-SCREW_FLOOR_T = 1.2
-SCREW_CBORE_DEPTH = CAP_T - SCREW_FLOOR_T
+# M2 x 20 countersunk, DIN 965: a 90 deg taper head 3.8 mm across. The head angle
+# is the whole change here. A pan head needs a cylindrical pocket to swallow it,
+# and the bottom of that pocket is a flat annulus -- which, in this print pose,
+# is a ring of ceiling printed out over the pocket's own void, 1.075 mm of
+# unsupported overhang at every layer of it. A taper head needs a cone instead,
+# and a 90 deg head is 45 deg per side, so the seat is self-supporting the whole
+# way down and the lead-in into the clearance hole *is* the seat. There is no
+# flat floor left in the part to print over, and no separate lead-in cone.
+SCREW_HEAD_D = 3.8
+SCREW_HEAD_ANGLE = 90.0  # included angle; 45 deg per side, hence the taper
+# Overall, head included -- that is how a countersunk screw's length is
+# specified (DIN 965), unlike a pan head where it is measured under the head.
+# Getting that backwards would overstate the reach by a head height.
+SCREW_LEN = 20.0
+
+# How far the head's rim is sunk below the outer face, and not a styling choice.
+# The ports sit c.SCREW_SPACING / 2 = 11.0 out and a flush cap's flank is at
+# 13.05, so a bare 3.8 head plus its running clearance reaches 13.025 -- 0.025 mm
+# inside the flank. That is not "inside" in any useful sense: print tolerance
+# decides which side of the flank it lands, and whichever way it falls the part
+# gets a near-tangent sliver running down the flank, which is exactly the feather
+# edge models/lib/checks.py had to be taught to see. So the seat is opened
+# decisively past the flank instead, by the same order the old pan-head pocket
+# broke out by, and the seam that leaves is filleted rather than left raw.
+SCREW_HEAD_SINK = 0.4
+SCREW_SEAT_D = SCREW_HEAD_D + fits.for_material(fits.FREE, "asa") + 2 * SCREW_HEAD_SINK
+# 45 deg per side means the depth and the radial drop are the same number.
+SCREW_SEAT_DEPTH = (SCREW_SEAT_D - SCREW_CLEAR_D) / 2
+
+# What is left between the head's seat and the aluminium. It used to be 1.2 mm --
+# six layers, all the clamp needed and nothing more -- because the screw was
+# short and every millimetre of it was wanted in the port. Two things removed
+# that constraint at once: the screws are 20 mm now, and the profile's port is a
+# continuous channel running the whole extrusion rather than a blind hole, so
+# there is no depth the screw has to reach and no minimum the aluminium demands.
+# The floor is therefore simply the rest of the flange, which is most of it.
+SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
+
+# The seam where the seat opens out through the flank. A fillet, and the house
+# rule is not what decides it: this edge is neither cleanly horizontal nor
+# cleanly vertical, it is the curve where a 45 deg cone cuts a cylinder. It gets
+# a radius because it is on the outside of the part where a hand goes.
+#
+# 0.2 and not more, measured rather than chosen. OCC will take up to 0.2956 here
+# (``max_fillet`` on the real seam set), but at 0.25 the roll runs about 45
+# microns *below* z=0 where it dies out at the outer face -- OCC extrapolates a
+# fillet slightly past the edge it terminates on, and that edge ends on the bed.
+# The part then no longer sits on the bed, which ``check_endcap`` asserts and a
+# first layer cares about. It cannot be cut back afterwards either: a boolean
+# whose cutting face is coplanar with the part's own bed face is a silent no-op
+# in OCC, subtract and intersect alike. At 0.2 the excursion is gone entirely
+# (min.Z back to -0.000000), so the radius is the fix.
+SCREW_SEAM_FILLET = 0.2
 
 CAP_COLOR = Color(0.25, 0.27, 0.30)
 
@@ -352,6 +406,49 @@ def strap_mouth_half_width() -> tuple[float, float]:
     return (
         cap_half_width(STRAP_SLOT_Y - STRAP_SLOT_H / 2 + c.HEIGHT / 2),
         cap_half_width(STRAP_SLOT_Y + STRAP_SLOT_H / 2 + c.HEIGHT / 2),
+    )
+
+
+def screw_seam_edges(shape: BuildPart | Part) -> ShapeList:
+    """Edges still sharp where a screw seat opens out through the cap's flank.
+
+    The seat's rim is wider than the room outboard of the port, so it cuts out
+    through the flank -- and it does so right where the bed chamfer has already
+    pulled that flank inward, and where the flank itself stops being straight
+    and turns into the bottom arc. The result is not the two tidy seams a
+    cylindrical pocket left: it is a pair of parabolas, an ellipse where the cut
+    crosses onto the arc, and a short line that no probe can classify at all.
+
+    Selected in two passes, because neither alone is enough. A box test finds
+    the seat's neighbourhood -- out near a flank, within the seat's own depth and
+    footprint -- and then the *angle* decides, because that box also contains the
+    bed chamfer's own perimeter and the flank's straight run, both of which are
+    already treated. Filtering on sharpness rather than on position is what makes
+    this precise, and it is also what lets ``checks`` reuse it: run it again on
+    the finished part and an empty result is the assertion that the fillet took.
+    """
+    part = shape.part if isinstance(shape, BuildPart) else shape
+    if part is None:
+        return ShapeList([])  # nothing built yet
+    v = _loc(c.SCREW_BOSS_Z)
+    inboard = cap_half_width(c.SCREW_BOSS_Z) - SCREW_SEAT_DEPTH - 0.1
+
+    def near_a_seat(edge) -> bool:
+        bb = edge.bounding_box()
+        return (
+            abs(bb.center().X) > inboard
+            and bb.max.Z < SCREW_SEAT_DEPTH + 0.05
+            and abs(bb.center().Y - v) < SCREW_SEAT_D / 2 + 0.25
+        )
+
+    edges = part.edges()  # ty: ignore[invalid-argument-type]
+    near = [edge for edge in edges if near_a_seat(edge)]
+    return ShapeList(
+        [
+            edge
+            for edge in near
+            if (angle := interior_angle(part, edge)) is None or angle <= 120.0
+        ]
     )
 
 
@@ -461,33 +558,29 @@ def create_endcap() -> Part:
             Circle(GLAND_MAJOR_D / 2)
         extrude(amount=CAP_T + PLUG_DEPTH, mode=Mode.SUBTRACT)
 
-        # Screw pockets: the head's counterbore from the outer face down to the
-        # floor, with the clearance hole carrying on through it. Through the
-        # flange only -- the plug is a half-disc and the ports sit above it.
-        with BuildSketch():
-            with Locations(*_screw_centres()):
-                Circle(SCREW_CBORE_D / 2)
-        extrude(amount=SCREW_CBORE_DEPTH, mode=Mode.SUBTRACT)
+        # Screw seats: a 90 deg taper head's own cone, taken straight out of the
+        # outer face, with the clearance hole carrying on through the rest of the
+        # flange. Through the flange only -- the plug is a half-disc and the
+        # ports sit above it. One cone and one cylinder is the whole feature now;
+        # the counterbore, its flat floor and its separate lead-in cone are all
+        # gone, and with them the only unsupported overhang the screws had.
+        for u, v in _screw_centres():
+            with Locations((u, v, 0)):
+                Cone(
+                    bottom_radius=SCREW_SEAT_D / 2,
+                    top_radius=SCREW_CLEAR_D / 2,
+                    height=SCREW_SEAT_DEPTH,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    mode=Mode.SUBTRACT,
+                )
         with BuildSketch():
             with Locations(*_screw_centres()):
                 Circle(SCREW_CLEAR_D / 2)
         extrude(amount=CAP_T, mode=Mode.SUBTRACT)
 
-        # Lead-ins at every bed-facing hole mouth, cut as boolean cones rather
-        # than edge chamfers -- house style, and OCC chamfers are flaky next to
-        # a thread. The screws' cone sits on the *counterbore floor*, where the
-        # screw has to find its hole blind from inside the pocket; the pocket's
-        # own mouth at the bed is part of the outer wire the EDGE_CHAMFER above
-        # already treated, because it breaks out through the flank.
-        for u, v in _screw_centres():
-            with Locations((u, v, SCREW_CBORE_DEPTH)):
-                Cone(
-                    bottom_radius=SCREW_CLEAR_D / 2 + SCREW_LEAD_IN,
-                    top_radius=SCREW_CLEAR_D / 2,
-                    height=SCREW_LEAD_IN,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                    mode=Mode.SUBTRACT,
-                )
+        # The gland's lead-in. The screws no longer have one: their seat is a
+        # 45 deg cone opening at the bed face, so it is its own lead-in and there
+        # is no blind floor left for a screw to find its hole from.
         Cone(
             bottom_radius=GLAND_MAJOR_D / 2 + GLAND_LEAD_IN,
             top_radius=GLAND_MAJOR_D / 2,
@@ -502,6 +595,7 @@ def create_endcap() -> Part:
         # chamfer -- and taken here, after the bore and before the thread, they
         # are the only edges in the part at that (x, y).
         fillet_edge(bp, _plug_bore_seams(bp), PLUG_SEAM_FILLET)
+        fillet_edge(bp, _plug_top_corners(bp), PLUG_SEAM_FILLET)
 
         # The strap slot, driven clean through the flange under the bore. Both
         # ways from Plane.YZ, so one cut makes both mouths and neither depends
@@ -519,6 +613,14 @@ def create_endcap() -> Part:
         # radius still leaves the mouths broken rather than raw.
         for radius in (STRAP_MOUTH_R, 0.4, 0.3, 0.2):
             if fillet_edge(bp, strap_mouth_edges(bp), radius):
+                break
+
+        # The seams where the two screw seats open through the flank. Taken
+        # last of the edge work and before the thread, so the selection is
+        # made against a part that is otherwise finished. Same ladder
+        # discipline as the strap mouths.
+        for radius in (SCREW_SEAM_FILLET, 0.15, 0.1):
+            if fillet_edge(bp, screw_seam_edges(bp), radius):
                 break
 
         # Sits on top of the plain collar, so it never meets the lead-in above.
@@ -563,6 +665,34 @@ def _plug_bore_seams(bp: BuildPart) -> ShapeList:
     return ShapeList([edge for edge in bp.edges().filter_by(Axis.Z) if is_seam(edge)])
 
 
+def _plug_top_corners(bp: BuildPart) -> ShapeList:
+    """The two lengthwise corners where the plug's flat top meets its arc.
+
+    Not previously visible. ``PLUG_TOP_GAP`` clips the plug's stadium 0.35 mm
+    *below* its own arc centre, so the flat top meets the arc at a grazing angle
+    and the corner it leaves measures 88 deg -- but no probe could stand in it
+    until ``models/lib/checks.py`` learned to nudge sideways, so
+    ``sharp_convex_edges`` reported nothing here for as long as the plug has
+    existed. It is a 19.6 mm square edge running the plug's whole length, and it
+    is vertical in print pose, so the house rule wants a fillet.
+
+    Selected the same way as the bore seams and distinguished from them by x:
+    those sit at ``plug_bore_half_width()``, these out at the plug's own flank.
+    """
+    y_top = _loc(plug_top_z())
+    half = (c.WIDTH - 2 * c.WALL - PLUG_FIT) / 2
+
+    def is_corner(edge) -> bool:
+        bb = edge.bounding_box()
+        return (
+            bb.min.Z > CAP_T - 0.01
+            and abs(bb.max.Y - y_top) < 0.01
+            and abs(abs(bb.center().X) - half) < 0.2
+        )
+
+    return ShapeList([edge for edge in bp.edges().filter_by(Axis.Z) if is_corner(edge)])
+
+
 def _screw_centres() -> list[tuple[float, float]]:
     """Cap-local centres of the two screw holes, on the profile's ports."""
     return [
@@ -584,15 +714,31 @@ def cap_half_width(z: float) -> float:
     return sqrt(max((CAP_W / 2) ** 2 - rise**2, 0.0))
 
 
-def screw_breakout() -> float:
-    """How far a screw pocket reaches past the cap's flank, in mm.
+def screw_reach() -> float:
+    """How far the screw goes into the aluminium past the cap's seat face.
 
-    Positive means the pocket cuts out through the side -- the scallop the
-    module docstring owns up to. It is the price of a flush cap: the head is
-    4.4 mm across and the port sits ``c.SCREW_SPACING / 2`` out, which leaves
-    less room outboard than half a head.
+    Worth asserting rather than assuming, because ``SCREW_FLOOR_T`` went from
+    1.2 mm to 14.75 mm when the strap slot deepened the flange: every extra
+    millimetre of floor is a millimetre the screw spends in plastic instead of
+    in the port. The floor is free to grow -- the port is a continuous channel
+    down the extrusion, so nothing caps it from that end -- but the screw is
+    still only ``SCREW_LEN`` long, and that is what runs out.
     """
-    return c.SCREW_SPACING / 2 + SCREW_CBORE_D / 2 - cap_half_width(c.SCREW_BOSS_Z)
+    head_top = (SCREW_SEAT_D - SCREW_HEAD_D) / 2
+    return head_top + SCREW_LEN - CAP_T
+
+
+def screw_breakout() -> float:
+    """How far a screw seat reaches past the cap's flank, in mm.
+
+    Positive means the seat cuts out through the side. It is the price of a
+    flush cap, and it is now deliberately positive rather than nearly zero: a
+    bare ``SCREW_HEAD_D`` plus clearance lands 0.025 mm inside the flank, which
+    print tolerance would turn into a knife-edge sliver either way, so
+    ``SCREW_HEAD_SINK`` opens it decisively past instead. The seam is filleted
+    (``SCREW_SEAM_FILLET``), not left raw.
+    """
+    return c.SCREW_SPACING / 2 + SCREW_SEAT_D / 2 - cap_half_width(c.SCREW_BOSS_Z)
 
 
 def seated(at_far_end: bool = False, length: float = c.LENGTH) -> Part:
@@ -628,6 +774,8 @@ __all__ = [
     "create_endcap",
     "seated",
     "strap_floor",
+    "screw_reach",
+    "screw_seam_edges",
     "strap_mouth_edges",
     "strap_mouth_half_width",
     "strap_roof",

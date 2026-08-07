@@ -120,9 +120,13 @@ wiring cavity behind it, and a **strap slot** through the flange under the bore.
 | Gland | M12 × 1.5 printed female, 6.5 mm of thread on a 1.5 mm collar |
 | Screws | 2 × M2 pan-head, 22 mm apart, Ø4.4 heads sunk to a 1.2 mm floor |
 
-The screws are unchanged — `SCREW_CBORE_DEPTH` still tracks `CAP_T`, so the same
-short M2 self-tappers still land 1.2 mm above the aluminium. The pocket they sit
-at the bottom of is 14.65 mm deep now, which wants a long thin driver.
+The screws are M2 × 20 countersunk (DIN 965). A 90° taper head is 45° per side,
+so the seat is a cone that is self-supporting the whole way down and *is* its own
+lead-in — there is no flat pocket floor left to print out over, which is what the
+old pan-head counterbore left as a 1.075 mm ring of unsupported ceiling. The seat
+is 1.10 mm deep and the remaining 14.75 mm of flange sits between it and the
+aluminium; the profile's port is a continuous channel down the whole extrusion,
+not a blind hole, so nothing constrains that split.
 
 Prints outer-face-down: largest possible first layer, thread axis vertical, no
 overhangs. The strap slot suits that pose — a tall letterbox through a vertical

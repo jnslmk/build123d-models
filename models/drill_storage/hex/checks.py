@@ -32,7 +32,7 @@ import itertools
 import math
 import sys
 
-from build123d import BuildSketch, Part, Text
+from build123d import BuildSketch, GeomType, Part, Text
 
 from ...lib.checks import TOL as TOL
 from ...lib.checks import Report as Report
@@ -144,10 +144,71 @@ def _cover_allow(
     return ((on_label_glyph, "engraved cover label -- bevelling a glyph destroys it"),)
 
 
-def _hex_base_allow(has_legend: bool) -> tuple:
+def _edge_faces(part: Part, edge) -> list:
+    """The faces of ``part`` that share ``edge``, matched by position.
+
+    The same identity ``models.lib.checks._adjacent_faces`` uses internally --
+    re-derived here rather than imported, because that helper is private to
+    the module that owns the edge-checking machinery (house rule: no private
+    cross-module imports). Ported straight from
+    ``drill_storage.checks._edge_faces``.
+    """
+    at, length = edge.center(), edge.length
+    key = (round(at.X, 4), round(at.Y, 4), round(at.Z, 4), round(length, 4))
+    faces = []
+    for face in part.faces():  # ty: ignore[invalid-argument-type]
+        for e in face.edges():  # ty: ignore[invalid-argument-type]
+            c2 = e.center()
+            if (
+                round(c2.X, 4),
+                round(c2.Y, 4),
+                round(c2.Z, 4),
+                round(e.length, 4),
+            ) == key:
+                faces.append(face)
+                break
+    return faces
+
+
+def _is_flush_seam(part: Part, edge) -> bool:
+    """A convex edge that measures a genuine, exact 180 deg -- not a corner at
+    all, but a residual split where a boolean subtract's own tool boundary
+    landed exactly flush with a face the part already had.
+
+    ``base.key_slot_tool``'s mouth fillet is anchored tangent to the cavity
+    wall on purpose (see that function's docstring, and the family's
+    ``drill_storage.shell.key_slot_tool`` it is ported from). OCC leaves the
+    coincident plane as two abutting faces rather than merging them into one,
+    so the edge between them survives into ``part.edges()``.
+
+    Confirmed independently of ``sharp_convex_edges``'s own probe (which
+    reports it as *unclassifiable*, not sharp -- a different claim, "could not
+    measure" rather than "measured and safe"): both adjacent faces' normals,
+    sampled at three points along the edge so a seam only *partly* flush
+    cannot slip through, are antiparallel -- the same plane, seen from both
+    sides. Ported straight from ``drill_storage.checks._is_flush_seam``.
+    """
+    if edge.geom_type != GeomType.LINE:
+        return False
+    faces = _edge_faces(part, edge)
+    if len(faces) != 2:
+        return False
+    for t in (0.1, 0.5, 0.9):
+        at = edge.position_at(t)
+        try:
+            n0 = faces[0].normal_at(at)
+            n1 = faces[1].normal_at(at)
+        except Exception:
+            return False
+        if n0.get_angle(n1) < 180 - 1e-3:
+            return False
+    return True
+
+
+def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
     """The hex base's legitimate exceptions, each named with its reason.
 
-    The same three the shell claims (``drill_storage.checks._shell_allow``),
+    The same ones the shell claims (``drill_storage.checks._shell_allow``),
     re-derived against this base's own shortened body -- and the legend one only
     for the box that actually carries a legend, so the BITS base is held to the
     stricter standard its blank walls deserve.
@@ -197,6 +258,13 @@ def _hex_base_allow(has_legend: bool) -> tuple:
             on_a_groove,
             "round snap-groove rims -- the grooves are the mating "
             "features, and rounding their lips would shrink engagement",
+        ),
+        (
+            lambda e: _is_flush_seam(base, e),
+            "the key slot's mouth fillet, anchored flush with the cavity "
+            "wall -- a genuine 180 deg split OCC left as two faces rather "
+            "than one, confirmed by matching face normals, two per base "
+            "(see base.key_slot_tool)",
         ),
     )
     if has_legend:
@@ -574,26 +642,53 @@ def check_box(
 
     # Edge treatment, per the house rule: chamfer horizontal edges, fillet
     # vertical ones, and name every legitimate exception.
-    bad_base = sharp_convex_edges(base, allow=_hex_base_allow(has_legend))
+    base_edges = sharp_convex_edges(base, allow=_hex_base_allow(base, has_legend))
     r.check(
-        not bad_base,
+        not base_edges.sharp,
         "base has no unexplained sharp convex edges",
-        f"{len(bad_base)} found" if bad_base else "all treated or named",
+        f"{len(base_edges.sharp)} found"
+        if base_edges.sharp
+        else "all treated or named",
     )
-    bad_insert = sharp_convex_edges(insert)
     r.check(
-        not bad_insert,
-        "insert has no sharp convex edges at all",
-        f"{len(bad_insert)} found" if bad_insert else "none, no exceptions",
+        not base_edges.unclassifiable,
+        "base has no unexplained unclassifiable convex edges",
+        f"{len(base_edges.unclassifiable)} found"
+        if base_edges.unclassifiable
+        else "all measured or named",
     )
-    bad_cover = sharp_convex_edges(
+    insert_edges = sharp_convex_edges(insert)
+    r.check(
+        not insert_edges.sharp,
+        "insert has no sharp convex edges at all",
+        f"{len(insert_edges.sharp)} found"
+        if insert_edges.sharp
+        else "none, no exceptions",
+    )
+    r.check(
+        not insert_edges.unclassifiable,
+        "insert has no unclassifiable convex edges at all",
+        f"{len(insert_edges.unclassifiable)} found"
+        if insert_edges.unclassifiable
+        else "none, no exceptions",
+    )
+    cover_edges = sharp_convex_edges(
         cover,
         allow=_cover_allow(label, size, label_z, cover_h, horizontal, c.COVER_W),
     )
     r.check(
-        not bad_cover,
+        not cover_edges.sharp,
         "cover has no unexplained sharp convex edges",
-        f"{len(bad_cover)} found" if bad_cover else "all treated or named",
+        f"{len(cover_edges.sharp)} found"
+        if cover_edges.sharp
+        else "all treated or named",
+    )
+    r.check(
+        not cover_edges.unclassifiable,
+        "cover has no unexplained unclassifiable convex edges",
+        f"{len(cover_edges.unclassifiable)} found"
+        if cover_edges.unclassifiable
+        else "all measured or named",
     )
 
 

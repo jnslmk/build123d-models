@@ -8,6 +8,7 @@ from build123d import (
     BuildSketch,
     Circle,
     Face,
+    GeomType,
     Kind,
     Locations,
     Mode,
@@ -22,7 +23,7 @@ from build123d import (
     offset,
 )
 
-from models.lib.checks import Report, is_solid_at, sharp_convex_edges
+from models.lib.checks import Report, is_periodic_seam, is_solid_at, sharp_convex_edges
 from models.lib.edges import as_part
 
 LATCH_LENGTH = 85.0
@@ -222,11 +223,39 @@ def check() -> Report:
     )
 
     r.section("sharp edges")
-    bad = sharp_convex_edges(part)
+
+    def _is_pivot_bore_seam(edge) -> bool:
+        # sharp_convex_edges now reports the None edges used to drop unseen
+        # (see its docstring). One of them is a plain, purely-vertical LINE
+        # on the pivot screw hole's own cylindrical wall -- nothing cuts
+        # sideways into that bore, so it is OCC's own periodic seam and
+        # nothing else, not a sign of the KNOWN rim-chamfer defect below.
+        # Confirmed via is_periodic_seam rather than assumed from position
+        # (see that function's docstring for why "same face" alone is not
+        # enough elsewhere in this repo, and why it is enough here: no
+        # nearby boolean cut for this seam to coincide with).
+        if edge.geom_type != GeomType.LINE:
+            return False
+        bb = edge.bounding_box()
+        if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
+            return False
+        return is_periodic_seam(part, edge)
+
+    edges = sharp_convex_edges(
+        part,
+        allow=(
+            (
+                _is_pivot_bore_seam,
+                "the pivot screw hole's own untrimmed cylindrical seam -- "
+                "confirmed via is_periodic_seam, unrelated to the rim-"
+                "chamfer defect below",
+            ),
+        ),
+    )
     r.check(
-        not bad,
+        not edges.sharp,
         "no unexplained sharp convex edges (chamfer horizontal, fillet vertical)",
-        f"{len(bad)} found -- KNOWN, UNRESOLVED: two mirrored pairs (front and "
+        f"{len(edges.sharp)} found -- KNOWN, UNRESOLVED: two mirrored pairs (front and "
         "back) right where _rim_chamfer_tool's shrink-loft meets the hook "
         "cap's R(ARM_WIDTH/2) curve. Every OCC chamfer/fillet retry on just "
         "these edges failed down to 0.02 mm, and every RIM_CHAMFER in the "
@@ -235,7 +264,28 @@ def check() -> Report:
         "real edge treatment, so this stays failing rather than being "
         "faked or allow-listed. See the implementer report for the full "
         "search."
-        if bad
+        if edges.sharp
+        else "none",
+    )
+    r.check(
+        not edges.unclassifiable,
+        "no unexplained unclassifiable convex edges (angle could not be measured)",
+        f"{len(edges.unclassifiable)} found -- the SAME underlying defect as "
+        "the KNOWN sharp-edge failure above, not a separate one: both "
+        "BSPLINE edges sit in the same small patch (X 71-75, Y 5-9) where "
+        "_rim_chamfer_tool's shrink-loft crosses the concave "
+        "OUTER_FILLET_RADIUS notch at the stem/arm step, a few mm from the "
+        "hook cap's own R(ARM_WIDTH/2) tangent -- too acute even for the "
+        "sideways-nudge probe (interior_angle) to classify, not merely "
+        "sharp. Confirmed empirically, not just by position: excluding that "
+        "notch corner from the R4 fillet does not remove this residue, it "
+        "only relocates it a few mm closer to the cap -- so this is the "
+        "shrink-loft/tight-curvature interaction itself, not an artifact of "
+        "the notch's own fillet radius, and there is no local radius left "
+        "to retune. A sliver or non-manifold edge is not evidence the part "
+        "is clean, so this stays a separate, explicit failure rather than "
+        "being folded into the sharp count above or allow-listed away"
+        if edges.unclassifiable
         else "none",
     )
 

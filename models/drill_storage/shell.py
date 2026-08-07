@@ -31,6 +31,7 @@ from collections.abc import Mapping, Sequence
 
 from build123d import (
     Align,
+    Axis,
     BuildPart,
     BuildSketch,
     Cone,
@@ -39,10 +40,12 @@ from build123d import (
     Mode,
     Part,
     Plane,
+    Rectangle,
     RectangleRounded,
     RegularPolygon,
     add,
     extrude,
+    fillet,
     loft,
 )
 
@@ -87,16 +90,35 @@ def key_slot_tool() -> Part:
     Runs the full cavity height so the rib slides past the retention bead, and
     reaches ``KEY_D`` into the wall. It cuts a 2.0 mm wall down to 1.0 mm over a
     ``KEY_W`` arc on the one face that carries no legend.
+
+    The two ends of the slot are rounded with *different* radii, deliberately:
+    the far end (``KEY_FILLET``, deep in the wall) is the visible corner a
+    single ``RectangleRounded`` used to round symmetrically -- but the near
+    end, at the cavity wall itself, cannot share that radius and be tangent to
+    the wall at the same time, because a fillet only reaches full tangency
+    (interior angle 180 deg) once its arc runs the *whole* way from one flat
+    side to the other. Offsetting the tool into the cavity so a KEY_FILLET-sized
+    arc would fit (the old ``over`` margin) means the wall crosses that arc
+    partway round -- and a partial arc is *always* a tighter angle than the
+    plain 90 deg corner it replaces, never a gentler one: this shipped an 80
+    deg acute "feather" edge at the wall, worse than doing nothing. So the
+    near corner gets its own small ``KEY_MOUTH_FILLET``, anchored exactly at
+    the wall (``CAVITY_W / 2``, no offset) rather than short of it, which is
+    what makes it tangent by construction instead of by tuning.
     """
-    over = 0.5  # start inside the cavity so the boolean has no coincident face
-    depth = c.KEY_D + over
-    x_mid = c.CAVITY_W / 2 + c.KEY_D / 2 - over / 2
+    x_wall = c.CAVITY_W / 2  # the cavity's own wall -- the slot's mouth
+    x_far = x_wall + c.KEY_D  # the slot's real reach into the wall
+    half_w = (c.KEY_W + c.KEY_SLIP) / 2
     with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)):
-            with Locations((x_mid, 0)):
-                # Rounded, so the slot leaves the cavity wall filleted vertical
-                # edges rather than two raw corners.
-                RectangleRounded(depth, c.KEY_W + c.KEY_SLIP, c.KEY_FILLET)
+        with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z)) as sk:
+            with Locations(((x_wall + x_far) / 2, 0)):
+                Rectangle(x_far - x_wall, 2 * half_w)
+            # One feature per call, re-querying the vertex list between passes
+            # (models/lib/edges.py's edge-op discipline, applied to a 2D sketch):
+            # the near fillet moves the far vertices' positions imperceptibly,
+            # so the far group is re-selected fresh rather than reused stale.
+            fillet(sk.vertices().group_by(Axis.X)[0], c.KEY_MOUTH_FILLET)
+            fillet(sk.vertices().group_by(Axis.X)[-1], c.KEY_FILLET)
         extrude(amount=c.CAVITY_H)
     return tool.part
 

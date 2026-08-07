@@ -26,11 +26,12 @@ import itertools
 import math
 import sys
 
-from build123d import BuildSketch, Part, Text
+from build123d import BuildSketch, GeomType, Part, Text
 
 from ..lib import fits
 from ..lib.checks import TOL as TOL
 from ..lib.checks import Report as Report
+from ..lib.checks import is_periodic_seam
 from ..lib.checks import is_solid_at as is_solid_at
 from ..lib.checks import sharp_convex_edges
 from . import config as c
@@ -878,8 +879,95 @@ def check_key(s: DrillSet, shell: Part, insert: Part, r: Report) -> None:
 # --- Sharp edges --------------------------------------------------------------
 
 
-def _shell_allow() -> tuple:
-    """The shell's three legitimate exceptions to the chamfer-everything rule.
+def _is_bore_seam(part: Part, edge) -> bool:
+    """A round bore's own untrimmed cylindrical seam, on the shell or the
+    cartridge insert -- not a real edge, just OCC's periodic parametrisation
+    closing up on itself.
+
+    ``sharp_convex_edges`` now reports the ``None`` edges ``min_length`` used
+    to let through unseen (see its docstring), and every drill bore this
+    family cuts is where that shows up: eleven per shell (one per bit
+    socket), twenty-two per insert (each socket's land and its relief bore).
+    Nothing cuts *sideways* into a bore's own wall, so there is no boolean
+    cut nearby for the seam to coincide with -- unlike a seam that happens to
+    land on a genuine near-tangent sliver elsewhere in this repo (see
+    ``is_periodic_seam``'s docstring for why that distinction matters and why
+    this does not stop at "same face"). Confirmed against OCC's own topology
+    rather than assumed from the repeating grid position: checked for every
+    one of the 11 (shell) and 22 (insert) matches on the wood set, not just a
+    couple spot-checked by hand.
+    """
+    if edge.geom_type != GeomType.LINE:
+        return False
+    bb = edge.bounding_box()
+    if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
+        return False
+    return is_periodic_seam(part, edge)
+
+
+def _edge_faces(part: Part, edge) -> list:
+    """The faces of ``part`` that share ``edge``, matched by position.
+
+    The same identity ``models.lib.checks._adjacent_faces`` uses internally
+    (an edge's centre + length, since two calls to ``Face.edges()`` hand back
+    separate Python objects for the same geometry) -- re-derived here rather
+    than imported, because that helper is private to the module that owns the
+    edge-checking machinery (house rule: no private cross-module imports).
+    """
+    at, length = edge.center(), edge.length
+    key = (round(at.X, 4), round(at.Y, 4), round(at.Z, 4), round(length, 4))
+    faces = []
+    for face in part.faces():  # ty: ignore[invalid-argument-type]
+        for e in face.edges():  # ty: ignore[invalid-argument-type]
+            c = e.center()
+            if (round(c.X, 4), round(c.Y, 4), round(c.Z, 4), round(e.length, 4)) == key:
+                faces.append(face)
+                break
+    return faces
+
+
+def _is_flush_seam(part: Part, edge) -> bool:
+    """A convex edge that measures a genuine, exact 180 deg -- not a corner at
+    all, but a residual split where a boolean subtract's own tool boundary
+    landed exactly flush with a face the part already had.
+
+    ``shell.key_slot_tool``'s mouth fillet is anchored tangent to the cavity
+    wall on purpose (see that function's docstring for why: a fillet offset
+    *short* of the wall is always a tighter, worse angle than the plain
+    corner it replaces, so full tangency is the only geometry that actually
+    helps). OCC leaves the coincident plane as two abutting faces rather than
+    silently merging them into one -- ``Part.clean()`` does not remove it
+    either, checked rather than assumed -- so the edge between them survives
+    into ``part.edges()`` with nothing on either side of it.
+
+    ``sharp_convex_edges`` reports it as *unclassifiable*, not sharp: its own
+    probe cannot find an "inside" wedge here because there genuinely isn't
+    one to find, which is a different claim from "could not be measured".
+    This confirms that claim independently of the probe, by a direct
+    measurement rather than an absence of one: both adjacent faces' normals,
+    sampled at three points along the edge (not just its centre, so a seam
+    that is only *partly* flush cannot slip through), are antiparallel --
+    the same plane, seen from both sides.
+    """
+    if edge.geom_type != GeomType.LINE:
+        return False
+    faces = _edge_faces(part, edge)
+    if len(faces) != 2:
+        return False
+    for t in (0.1, 0.5, 0.9):
+        at = edge.position_at(t)
+        try:
+            n0 = faces[0].normal_at(at)
+            n1 = faces[1].normal_at(at)
+        except Exception:
+            return False
+        if n0.get_angle(n1) < 180 - 1e-3:
+            return False
+    return True
+
+
+def _shell_allow(shell: Part) -> tuple:
+    """The shell's legitimate exceptions to the chamfer-everything rule.
 
     Named with their reason, never silently omitted -- that is the whole point of
     ``sharp_convex_edges`` taking an allow list rather than a threshold.
@@ -921,6 +1009,18 @@ def _shell_allow() -> tuple:
             on_a_groove,
             "round snap-groove rims -- the groove is the mating "
             "feature, and rounding its lips would shrink engagement",
+        ),
+        (
+            lambda e: _is_bore_seam(shell, e),
+            "a bit socket's own untrimmed bore wall seam -- confirmed via "
+            "is_periodic_seam, one per socket",
+        ),
+        (
+            lambda e: _is_flush_seam(shell, e),
+            "the key slot's mouth fillet, anchored flush with the cavity "
+            "wall -- a genuine 180 deg split OCC left as two faces rather "
+            "than one, confirmed by matching face normals, two per shell "
+            "(see shell.key_slot_tool)",
         ),
     )
 
@@ -998,27 +1098,64 @@ def check_sharp_edges(
     """House rule: chamfer horizontal edges, fillet vertical ones. Exceptions are
     named with their reason, never silently omitted."""
     r.section(f"{s.name}: sharp edges")
-    bad_shell = sharp_convex_edges(shell, allow=_shell_allow())
+    shell_edges = sharp_convex_edges(shell, allow=_shell_allow(shell))
     r.check(
-        not bad_shell,
+        not shell_edges.sharp,
         "shell has no unexplained sharp convex edges",
-        f"{len(bad_shell)} found" if bad_shell else "all treated or named",
+        f"{len(shell_edges.sharp)} found"
+        if shell_edges.sharp
+        else "all treated or named",
     )
-    bad_insert = sharp_convex_edges(insert)
     r.check(
-        not bad_insert,
+        not shell_edges.unclassifiable,
+        "shell has no unexplained unclassifiable convex edges",
+        f"{len(shell_edges.unclassifiable)} found"
+        if shell_edges.unclassifiable
+        else "all measured or named",
+    )
+    insert_edges = sharp_convex_edges(
+        insert,
+        allow=(
+            (
+                lambda e: _is_bore_seam(insert, e),
+                "a bit socket's own untrimmed bore wall seam (land and "
+                "relief bore alike) -- confirmed via is_periodic_seam, two "
+                "per socket",
+            ),
+        ),
+    )
+    r.check(
+        not insert_edges.sharp,
         "cartridge has no sharp convex edges at all",
-        f"{len(bad_insert)} found" if bad_insert else "none, no exceptions",
+        f"{len(insert_edges.sharp)} found"
+        if insert_edges.sharp
+        else "none, no exceptions",
+    )
+    r.check(
+        not insert_edges.unclassifiable,
+        "cartridge has no unclassifiable convex edges at all",
+        f"{len(insert_edges.unclassifiable)} found"
+        if insert_edges.unclassifiable
+        else "none, no exceptions",
     )
     # create_cover_for takes box's own label defaults, so the window is measured
     # from exactly what was engraved.
-    bad_cover = sharp_convex_edges(
+    cover_edges = sharp_convex_edges(
         cover, allow=_cover_allow(s.label, LABEL_SIZE, LABEL_Z, s.cover_h, False)
     )
     r.check(
-        not bad_cover,
+        not cover_edges.sharp,
         "cover has no unexplained sharp convex edges",
-        f"{len(bad_cover)} found" if bad_cover else "all treated or named",
+        f"{len(cover_edges.sharp)} found"
+        if cover_edges.sharp
+        else "all treated or named",
+    )
+    r.check(
+        not cover_edges.unclassifiable,
+        "cover has no unexplained unclassifiable convex edges",
+        f"{len(cover_edges.unclassifiable)} found"
+        if cover_edges.unclassifiable
+        else "all measured or named",
     )
 
 
