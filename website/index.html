@@ -79,6 +79,28 @@
     width: 100%; background: #0f1216; color: #e6e8eb; border: 1px solid #333a44;
     border-radius: 6px; padding: 6px 8px; font-size: 14px;
   }
+
+  /* The model picker below the family select: one chip row per level of the
+     model's dotted name, each row holding only the siblings that exist under
+     what is already chosen. 41 models never appear at once — a family shows
+     between zero and nine chips. See buildTree()/renderPicker(). */
+  #picker { margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
+  #picker .pk-cap { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 4px; }
+  #picker .pk-row { display: flex; flex-wrap: wrap; gap: 5px; }
+  /* Depth reads as indentation, so a three-level family (drill_storage / hex /
+     allen / base) still shows which row narrows which. */
+  #picker .pk-lvl + .pk-lvl { margin-left: 9px; padding-left: 9px; border-left: 1px solid #262b33; }
+  .chip {
+    padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: 999px;
+    background: #1b2027; border: 1px solid #2a2f37; color: #9aa4b2;
+  }
+  /* Two states, not one: `path` is an ancestor of what is on screen, `sel` is
+     the model on screen. Collapsing them would make "Wood" and "Wood / Shell"
+     look identical. */
+  .chip.path { color: #cdd3db; border-color: #3a4250; }
+  .chip.sel { background: #2b3441; border-color: #4a90ff; color: #fff; }
+  .chip .asm { font-size: 9px; letter-spacing: .04em; opacity: .55; margin-left: 5px; }
+
   h2.sec { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #9aa4b2; margin: 20px 0 8px; }
   #params.disabled { opacity: .4; pointer-events: none; }
   .prow { margin: 0 0 12px; }
@@ -193,6 +215,7 @@
     #bar button, #edit .ehead button { min-height: 38px; padding: 8px 12px; font-size: 13px; }
     #bar a.icon { width: 38px; height: 38px; }
     select, .prow input[type=number] { font-size: 16px; padding: 8px; }
+    .chip { font-size: 13px; padding: 7px 12px; }
     .prow input[type=number] { width: 92px; }
     .prow input[type=range] { height: 28px; margin-top: 10px; }
     .prow { margin-bottom: 18px; }
@@ -249,8 +272,9 @@
 </nav>
 
 <aside id="side">
-  <label class="fld" for="model">Model</label>
-  <select id="model"></select>
+  <label class="fld" for="family">Model</label>
+  <select id="family"></select>
+  <div id="picker"></div>
 
   <h2 class="sec">Parameters</h2>
   <div id="params"></div>
@@ -491,7 +515,8 @@ function triCount(bytes) {  // binary STL: uint32 triangle count at byte 80
 // UI element handles
 // ---------------------------------------------------------------------------
 const el = {
-  model: document.getElementById('model'),
+  family: document.getElementById('family'),
+  picker: document.getElementById('picker'),
   params: document.getElementById('params'),
   noparams: document.getElementById('noparams'),
   log: document.getElementById('log'),
@@ -528,6 +553,7 @@ const LS_GRID = 'b123d.grid';         // 'off' once the visitor has hidden the g
 let manifest = null;         // { models: [...] }
 let sources = {};            // { "models/lens_cap.py": "<text>" }
 let current = null;          // current model manifest entry
+let tree = null;             // the dotted names as a tree — see buildTree()
 let firstFrameForModel = true;
 let editorDirty = false;
 let lastStl = null;          // Uint8Array from the worker (live geometry)
@@ -800,9 +826,137 @@ function showDownloads(on) {
   el.btnStep.classList.toggle('hidden', !on);
 }
 
+// A model's name is a module path -- `drill_storage.hex.allen.base` -- so the
+// hierarchy the picker needs is already in the roster and nothing has to be
+// declared twice. The tree is that name grammar, one node per segment; a node
+// carries a model only if that exact path is in MODELS (`drill_storage.hex.allen`
+// is a naming layer, `drill_storage.hex` is a scene, both have children).
+function buildTree(models) {
+  const root = { seg: '', path: '', model: null, children: new Map() };
+  for (const m of models) {
+    let node = root;
+    const segs = m.name.split('.');
+    segs.forEach((seg, i) => {
+      let child = node.children.get(seg);
+      if (!child) {
+        child = { seg, path: segs.slice(0, i + 1).join('.'), model: null, children: new Map() };
+        node.children.set(seg, child);
+      }
+      node = child;
+    });
+    node.model = m;
+  }
+  return root;
+}
+function nodeAt(path) {
+  let node = tree;
+  for (const seg of path.split('.')) { node = node && node.children.get(seg); }
+  return node;
+}
+// Depth-first, so a naming layer resolves to the first part under it in roster
+// order rather than to nothing.
+function firstModel(node) {
+  if (!node) return null;
+  if (node.model) return node.model;
+  for (const child of node.children.values()) { const m = firstModel(child); if (m) return m; }
+  return null;
+}
+// website.py's _label(), per segment: the chips are labelled from the tree, and
+// a naming layer has no manifest entry to take a label from.
+const pretty = (seg) => seg.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+// Switching one level keeps the levels below it when they exist: wood/shell ->
+// metal/shell, not metal. That is the whole point of chip rows over a flat
+// list -- comparing the same part across variants is one click, not a hunt.
+// Falls back up the path (hex has no `shell`), then down into the subtree.
+function chooseAt(depth, seg) {
+  const segs = current.name.split('.');
+  const next = [...segs.slice(0, depth), seg, ...segs.slice(depth + 1)];
+  for (let end = next.length; end > depth; end--) {
+    const node = nodeAt(next.slice(0, end).join('.'));
+    if (node && node.model) return selectModel(node.model.name);
+  }
+  const m = firstModel(nodeAt(next.slice(0, depth + 1).join('.')));
+  if (m) selectModel(m.name);
+}
+
+// `self` is the row-owner's own model shown as the row's first chip. Only the
+// family level uses it, and it has to: every other node is already a chip in
+// the row above, so `drill_storage.wood` is one click away from
+// `drill_storage.wood.shell` -- but `drill_storage` would be unreachable
+// without this, the family select having no change event to fire when the
+// family is the one already chosen.
+function chip(node, depth, self) {
+  const b = document.createElement('button');
+  b.className = 'chip';
+  b.textContent = self ? 'Overview' : pretty(node.seg);
+  const sel = node.path === current.name;
+  if (sel) b.classList.add('sel');
+  else if (!self && current.name.startsWith(node.path + '.')) b.classList.add('path');
+  b.setAttribute('aria-pressed', String(sel));
+  // A scene is not a print job, so say so here rather than let someone click
+  // through to a missing STL button and wonder.
+  if (node.model && node.model.assembly) {
+    const tag = document.createElement('span');
+    tag.className = 'asm'; tag.textContent = 'asm';
+    tag.title = 'assembly view — no STL/STEP download';
+    b.append(tag);
+  }
+  b.addEventListener('click', () => (self ? selectModel(node.model.name) : chooseAt(depth, node.seg)));
+  return b;
+}
+
+// One row per level of the current path, each showing only the siblings valid
+// under the levels above it. Rebuilt from `current` on every selection, so the
+// picker never holds state of its own to fall out of sync.
+function renderPicker() {
+  const segs = current.name.split('.');
+  el.family.value = segs[0];
+  el.picker.textContent = '';
+  let node = tree.children.get(segs[0]);
+  for (let depth = 1; node && node.children.size; depth++) {
+    const lvl = document.createElement('div'); lvl.className = 'pk-lvl';
+    // No caption on the first row: the family select sits directly above it.
+    if (depth > 1) {
+      const cap = document.createElement('div');
+      cap.className = 'pk-cap'; cap.textContent = pretty(segs[depth - 1]);
+      lvl.append(cap);
+    }
+    const row = document.createElement('div'); row.className = 'pk-row';
+    if (depth === 1 && node.model) row.append(chip(node, depth, true));
+    for (const child of node.children.values()) row.append(chip(child, depth));
+    lvl.append(row);
+    el.picker.append(lvl);
+    if (!segs[depth]) break;         // nothing chosen this deep: stop here
+    node = node.children.get(segs[depth]);
+  }
+}
+
+// Left/right walk the siblings of the deepest chosen level -- next part, next
+// variant -- which is the row you are actually reading when you use them. At
+// the top level that is the families themselves.
+function stepSibling(dir) {
+  const segs = current.name.split('.');
+  const depth = segs.length - 1;
+  const parent = depth === 0 ? tree : nodeAt(segs.slice(0, depth).join('.'));
+  if (!parent) return;
+  const keys = [...parent.children.keys()];
+  const i = keys.indexOf(segs[depth]);
+  chooseAt(depth, keys[(i + dir + keys.length) % keys.length]);
+}
+addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  e.preventDefault();
+  stepSibling(e.key === 'ArrowRight' ? 1 : -1);
+});
+
 function selectModel(name) {
   current = manifest.models.find((x) => x.name === name);
   if (!current) return;
+  renderPicker();
   firstFrameForModel = true;
   editorDirty = false; el.editDirty.textContent = ''; el.btnRevert.disabled = true;
   el.params.classList.remove('disabled');
@@ -840,7 +994,7 @@ function selectModel(name) {
 // ---------------------------------------------------------------------------
 // Buttons
 // ---------------------------------------------------------------------------
-el.model.addEventListener('change', () => selectModel(el.model.value));
+el.family.addEventListener('change', () => chooseAt(0, el.family.value));
 el.btnRun.addEventListener('click', () => {
   sendJob({ model: current.name, payload: { source: currentSource() } });
 });
@@ -881,13 +1035,13 @@ setRuntimePill();
   } catch (e) {
     setVStatus('failed to load model manifest: ' + e, true); return;
   }
-  for (const mdl of manifest.models) {
-    const o = document.createElement('option'); o.value = mdl.name; o.textContent = mdl.label;
-    el.model.append(o);
+  tree = buildTree(manifest.models);
+  for (const family of tree.children.values()) {
+    const o = document.createElement('option'); o.value = family.seg; o.textContent = pretty(family.seg);
+    el.family.append(o);
   }
   const wanted = new URL(location).searchParams.get('model');
   const start = manifest.models.find((x) => x.name === wanted) ? wanted : manifest.models[0].name;
-  el.model.value = start;
   selectModel(start);
   el.btnRun.disabled = false;
   // A visitor who has opted in before shouldn't have to ask twice.

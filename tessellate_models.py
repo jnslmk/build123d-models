@@ -42,12 +42,12 @@ MODELS = [
     "drill_storage.stone.insert",
     "drill_storage.stone.cover",
     "drill_storage.hex",
-    "drill_storage.hex.allen_base",
-    "drill_storage.hex.allen_insert",
-    "drill_storage.hex.allen_cover",
-    "drill_storage.hex.bits_base",
-    "drill_storage.hex.bits_insert",
-    "drill_storage.hex.bits_cover",
+    "drill_storage.hex.allen.base",
+    "drill_storage.hex.allen.insert",
+    "drill_storage.hex.allen.cover",
+    "drill_storage.hex.bits.base",
+    "drill_storage.hex.bits.insert",
+    "drill_storage.hex.bits.cover",
     # The lamp system: the whole stick, the three ways it gets mounted, and
     # each printed part on its own in print pose.
     "led_profiles",

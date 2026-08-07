@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from build123d import Part
 
-from . import config as c
-from .base import create_base
+from .. import config as c
+from ..base import create_base
 
 
 def create() -> Part:

@@ -50,6 +50,8 @@ packages = [
     "models.lib",
     "models.drill_storage",
     "models.drill_storage.hex",
+    "models.drill_storage.hex.allen",
+    "models.drill_storage.hex.bits",
     "models.drill_storage.metal",
     "models.drill_storage.stone",
     "models.drill_storage.wood",

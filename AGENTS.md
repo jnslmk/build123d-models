@@ -252,6 +252,18 @@ built from (`drill_storage.box`, `led_profiles.cradle`, `led_psu_enclosure.confi
 `[tool.setuptools] packages` in `pyproject.toml` — subpackages are not implied by
 their parent, so a missing line ships a wheel without that model.
 
+The dots earn their keep on the site as well: the page's picker is built from
+the name grammar alone (`website/index.html`, `buildTree`/`renderPicker`), one
+row of chips per level, each row holding only the siblings valid under what is
+already chosen. So a well-named model lands in the right group for free, and
+switching one level keeps the levels below it where they exist —
+`drill_storage.wood.shell` → `drill_storage.metal.shell` is one click. Two
+things follow. A name that encodes hierarchy in underscores flattens its whole
+family into one long row, which is the practical cost of breaking the
+"underscores are only for multi-word single names" rule. And a naming layer
+with no `create()` of its own is fine (`drill_storage.hex.allen`,
+`led_profiles.assemblies`): its chip resolves to the first model under it.
+
 ### Known deviations
 
 Nothing to copy here — these are gaps, and closing one is welcome work:

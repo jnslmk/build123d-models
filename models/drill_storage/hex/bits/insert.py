@@ -17,8 +17,8 @@ from __future__ import annotations
 
 from build123d import Part
 
-from . import config as c
-from .insert import create_insert
+from .. import config as c
+from ..insert import create_insert
 
 
 def create() -> Part:

@@ -11,23 +11,23 @@ and the translucent PETG cover snaps over the collar.
 
 ```bash
 uv run show drill_storage.hex                # both boxes, all 24 tools standing
-uv run export drill_storage.hex.allen_base   # rigid, foot down, cavity up
-uv run export drill_storage.hex.allen_insert # TPU, flat down, bores up
-uv run export drill_storage.hex.allen_cover  # translucent, pillow top down
-uv run export drill_storage.hex.bits_base    # 1x1, foot down, cavity up
-uv run export drill_storage.hex.bits_insert  # TPU, flat down, bores up
-uv run export drill_storage.hex.bits_cover   # translucent, pillow top down
+uv run export drill_storage.hex.allen.base   # rigid, foot down, cavity up
+uv run export drill_storage.hex.allen.insert # TPU, flat down, bores up
+uv run export drill_storage.hex.allen.cover  # translucent, pillow top down
+uv run export drill_storage.hex.bits.base    # 1x1, foot down, cavity up
+uv run export drill_storage.hex.bits.insert  # TPU, flat down, bores up
+uv run export drill_storage.hex.bits.cover   # translucent, pillow top down
 uv run check drill_storage.hex
 ```
 
 | part | model | material | print pose |
 | --- | --- | --- | --- |
-| ALLEN base | `drill_storage.hex.allen_base` | ASA, black | foot down, cavity up |
-| ALLEN insert | `drill_storage.hex.allen_insert` | TPU, black | flat bottom down, bores up |
-| ALLEN cover | `drill_storage.hex.allen_cover` | PETG, translucent | pillow top down, mouth up |
-| BITS base | `drill_storage.hex.bits_base` | ASA, black | foot down, cavity up |
-| BITS insert | `drill_storage.hex.bits_insert` | TPU, black | flat bottom down, bores up |
-| BITS cover | `drill_storage.hex.bits_cover` | PETG, translucent | pillow top down, mouth up |
+| ALLEN base | `drill_storage.hex.allen.base` | ASA, black | foot down, cavity up |
+| ALLEN insert | `drill_storage.hex.allen.insert` | TPU, black | flat bottom down, bores up |
+| ALLEN cover | `drill_storage.hex.allen.cover` | PETG, translucent | pillow top down, mouth up |
+| BITS base | `drill_storage.hex.bits.base` | ASA, black | foot down, cavity up |
+| BITS insert | `drill_storage.hex.bits.insert` | TPU, black | flat bottom down, bores up |
+| BITS cover | `drill_storage.hex.bits.cover` | PETG, translucent | pillow top down, mouth up |
 
 **ALLEN** — 1x1 Gridfinity (41.5 mm, pad, body and cover alike), eight sockets, the sizes engraved on the
 body walls largest → smallest, so the set reads as an ordered grid.

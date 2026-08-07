@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from build123d import Part
 
-from . import config as c
-from .cover import create_cover, label_fit
+from .. import config as c
+from ..cover import create_cover, label_fit
 
 
 def create() -> Part:

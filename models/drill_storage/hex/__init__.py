@@ -27,12 +27,12 @@ print undersize, so the real ones are better.
 A scene, not a print job -- three materials (black ASA base, black TPU insert,
 translucent PETG cover) never share a bed. The parts are:
 
-    uv run show drill_storage.hex.allen_base    # rigid, foot down, cavity up
-    uv run show drill_storage.hex.allen_insert  # TPU, flat down, bores up
-    uv run show drill_storage.hex.allen_cover   # translucent, pillow top down
-    uv run show drill_storage.hex.bits_base     # 1x1, foot down, cavity up
-    uv run show drill_storage.hex.bits_insert   # TPU, flat down, bores up
-    uv run show drill_storage.hex.bits_cover    # translucent, pillow top down
+    uv run show drill_storage.hex.allen.base    # rigid, foot down, cavity up
+    uv run show drill_storage.hex.allen.insert  # TPU, flat down, bores up
+    uv run show drill_storage.hex.allen.cover   # translucent, pillow top down
+    uv run show drill_storage.hex.bits.base     # 1x1, foot down, cavity up
+    uv run show drill_storage.hex.bits.insert   # TPU, flat down, bores up
+    uv run show drill_storage.hex.bits.cover    # translucent, pillow top down
 
 Bases are 30 mm, not the family's 36 -- a bit needs none of a drill's depth.
 Bits rest on the guide floor at z=15 and stand proud of the rim by the
