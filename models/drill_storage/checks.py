@@ -39,6 +39,7 @@ from .box import (
     BASE_H,
     BODY_W,
     CAP_H,
+    CAP_SOLID_LAYERS,
     COLLAR_R,
     COLLAR_W,
     CORNER_R,
@@ -54,10 +55,12 @@ from .box import (
     LABEL_DEPTH,
     LABEL_SIZE,
     LABEL_Z,
+    LAYER_H,
     PAD,
     SLIP,
     SNAP_GROOVE_R,
     SNAP_Z,
+    TOP_FILLET,
     WALL_LABEL_SIZE,
     WALL_LABEL_Z,
     cover_height_for,
@@ -304,6 +307,24 @@ def check_wall_budget(r: Report) -> None:
         rim >= 0.4 - TOL,
         "cover's rim still has a flat to seat on after both its chamfers",
         f"{rim:.2f} mm of flat rim (seat {COVER_SEAT_CH}, mouth {MOUTH_CH})",
+    )
+    # The cap, bounded from both sides. It is not held to MIN_WALL: it is a plate
+    # spanning the bore, not a wall, so what matters is that the pillow has not
+    # eaten it at the rim and that it still slices solid without infill.
+    #
+    # A bore offset COVER_WALL in from the side meets the pillow at this depth --
+    # below it, the cut leaves the ceiling and opens the rounded shoulder.
+    pillow = TOP_FILLET - math.sqrt(TOP_FILLET**2 - (TOP_FILLET - COVER_WALL) ** 2)
+    r.check(
+        CAP_H >= pillow + MIN_WALL / 2 - TOL,
+        "cap outlasts the pillow, so the bore cannot open the rounded shoulder",
+        f"{CAP_H:.2f} mm cap, {pillow:.2f} mm of pillow at the bore, "
+        f"{CAP_H - pillow:.2f} mm left (min one 0.4 mm perimeter)",
+    )
+    r.check(
+        CAP_H <= CAP_SOLID_LAYERS * LAYER_H + TOL,
+        "cap slices solid at 0% infill -- its bottom and top solid layers meet",
+        f"{CAP_H:.2f} mm vs {CAP_SOLID_LAYERS} x {LAYER_H} mm of solid layers",
     )
     # The label pocket, as a *named* exception -- it legitimately fails MIN_WALL,
     # so it is held to the number that actually matters (one 0.4 mm perimeter, so

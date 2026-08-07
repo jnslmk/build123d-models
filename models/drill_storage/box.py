@@ -104,8 +104,32 @@ COVER_WALL = (COVER_W - INNER_W) / 2  # 0.95 -- what is left, and it is enough:
 #                 the snap bead than the old 1.2 did, which this joint wants --
 #                 SNAP_PROTRUSION was already trimmed once because the cover
 #                 fought going on.
-CAP_H = 3.0  # solid rounded cap at the top
 TOP_FILLET = 4.0
+# The solid cap at the top -- and only as thick as it has to be to slice solid.
+# Two bounds bracket it, and 2.0 is the round number between them:
+#
+#   floor   1.41  By the time the pillow (TOP_FILLET) is COVER_WALL in from the
+#                 side, it has already curved 1.412 mm down. A cap thinner than
+#                 that does not thin the ceiling -- the bore breaks out through
+#                 the rounded shoulder and the cover ships with a hole in it.
+#   ceiling 2.00  CAP_SOLID_LAYERS x LAYER_H. The cap is the *only* region of
+#                 this part that can slice as infill (the 0.95 mm wall is two
+#                 perimeters and nothing else), and at the 3.0 this used to be,
+#                 it did: 15 layers, of which a typical 5 bottom + 5 top left
+#                 ~5 layers of air for the ceiling to begin over. At 2.0 the
+#                 bottom and top solid layers meet, so the cap comes out solid
+#                 at 0% infill with nothing to bridge.
+#
+# Both bounds are held in checks.py rather than left to this note.
+#
+# It is still a plate and not a membrane -- ~1.1 mm at the bore rim (CAP_FILLET
+# puts material back into that corner) rising to the full 2.0 over the flat top.
+# Do not be tempted to take it all the way down to COVER_WALL: the wall is a
+# closed tube braced against itself, the cap is a 39.6 mm plate you press on to
+# seat the snap bead, and plate stiffness goes as t^3.
+LAYER_H = 0.2  # the layer height the cap's "slices solid" argument assumes
+CAP_SOLID_LAYERS = 10  # bottom + top solid layers at that height
+CAP_H = 2.0
 CAP_FILLET = 1.5  # inner fillet where the bore ceiling meets walls
 MOUTH_CH = 0.3  # lead-in on the *inner* rim of the open end (see create_cover)
 # A true inward offset of the outer profile, so the wall is COVER_WALL at the
