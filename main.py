@@ -177,7 +177,6 @@ def main() -> None:
 
     if not stale:
         print(f"All {len(MODELS)} models up to date.")
-        _save_stamps(stamps)
         return
 
     print(f"Building {len(stale)} of {len(MODELS)} models:")
