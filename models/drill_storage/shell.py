@@ -47,14 +47,12 @@ from build123d import (
 )
 
 from .box import (
-    BASE_H,
     COLLAR_R,
     COLLAR_W,
-    CORNER_R,
-    PAD,
     SNAP_GROOVE_R,
     SNAP_Z,
     WALL_LABEL_Z,
+    create_body,
     engrave_row_legend,
     gridfinity_foot,
     rim_chamfer_tool,
@@ -182,12 +180,10 @@ def create_shell(
     with BuildPart() as shell:
         add(gridfinity_foot())
 
-        # Full-width body up to the shoulder the cover seats on. Left a flat
-        # shoulder (no chamfer) so the cover's chamfered bottom rim seats flush
-        # on it -- box.create_cover's COVER_SEAT_CH has the argument.
-        with BuildSketch(Plane.XY.offset(BASE_H)):
-            RectangleRounded(PAD, PAD, CORNER_R)
-        extrude(amount=c.SHELL_FOOT_TOP - BASE_H)
+        # Full-width body up to the shoulder the cover seats on -- BODY_W wide,
+        # so the shell and the cover are one flush silhouette, and left a flat
+        # shoulder for the cover's chamfered rim to land on. See box.create_body.
+        add(create_body(c.SHELL_FOOT_TOP))
 
         # Collar that plugs into the cover, with the cover's snap groove.
         with BuildSketch(Plane.XY.offset(c.SHELL_FOOT_TOP)):

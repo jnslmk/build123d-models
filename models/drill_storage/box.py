@@ -8,15 +8,23 @@ Two-part telescoping holder: a bored base and a tall labelled cover that
 friction-fits over it, on a **1x1 Gridfinity foot** so the holder drops into any
 Gridfinity baseplate.
 
-* Base  -- 42 mm Gridfinity footprint (41.5 mm pad, standard 0.7/1.8/1.9 mm
-  foot profile), 42 mm tall (6U). A 41.5 mm body steps down to a 35 mm collar
-  that plugs into the cover; graduated drill bores are sunk from the top face.
-  The three drill sets do not use this: they are two-material (``shell`` +
-  ``insert``), and the hex-bit boxes are two-material too (``drill_storage.hex``),
-  so ``create_base`` survives as the one-material baseline the split replaced.
-* Cover -- 42 mm rounded square, 123 mm tall, pillow-rounded closed top, open
-  bottom that snaps over the base collar. The material name is engraved (with
-  chamfered mouths) up one flat face. Every variant shares it.
+* Base  -- 1x1 Gridfinity footprint (41.5 mm pad, standard 0.7/1.8/1.9 mm foot
+  profile), 42 mm tall (6U). A 41.5 mm body -- ``BODY_W``, the pad and the
+  cover's width alike, so the assembly has no lip at the seam -- steps down to a
+  35 mm collar that plugs into the cover; graduated drill bores are sunk from the
+  top face. The three drill sets do not use this: they are two-material
+  (``shell`` + ``insert``), and the hex-bit boxes are two-material too
+  (``drill_storage.hex``), so ``create_base`` survives as the one-material
+  baseline the split replaced.
+* Cover -- 41.5 mm rounded square (the pad, flush with the body), 123 mm tall,
+  pillow-rounded closed top, open bottom that snaps over the base collar. The
+  material name is engraved (with chamfered mouths) up one flat face. Every
+  variant shares it.
+
+Nothing on either part reaches outside the 41.5 mm pad, at any height. That is
+the whole envelope Gridfinity gives a 1x1 -- the 0.5 mm held back from the 42 mm
+pitch is the gap to the next bin -- so an assembled holder sits in a baseplate
+cell beside another bin, cover and all.
 
 The cover height is derived so the *assembled* holder (cover top above the
 baseplate) is a whole number of Gridfinity Z units (147 mm = 21U) and encloses
@@ -73,49 +81,89 @@ HEIGHT_UNIT = 7.0  # Gridfinity Z unit
 
 # --- Cover --------------------------------------------------------------------
 # (COVER_H is derived under "Assembled height" once the base + cap are known.)
-COVER_W = 42.0  # rounded-square outer (roughly flush with body)
-COVER_WALL = 1.2  # thin wall (flexes for the snap)
-INNER_W = COVER_W - 2 * COVER_WALL  # 39.6 mm bore -- close slip fit over collar
+# The cover is one Gridfinity pad, exactly like the body. Both numbers below are
+# now *given* -- the outer by the standard, the bore by the joint -- and the wall
+# is what falls out between them. That is the opposite of how this used to read,
+# and the inversion is the point:
+#
+#   was:  COVER_W 42.0 (the grid pitch) -> COVER_WALL 1.2 -> INNER_W 39.6
+#   now:  COVER_W 41.5 (the pad)  and  INNER_W 39.6  ->  COVER_WALL 0.95
+#
+# Taking the 0.5 mm out of the *wall* rather than the bore is deliberate. INNER_W
+# is the joint: COLLAR_W is derived from it, and the shell and cartridge from
+# COLLAR_W, so moving it re-cuts the snap fit and orphans every shell and cover
+# already printed -- in both directions. A new 39.1 bore will not go over an old
+# 39.2 collar at all, and an old 39.6 cover over a new 38.7 collar has 0.9 mm of
+# slip against a 0.45 mm bead, which is no detent left. Freezing INNER_W costs
+# 0.25 mm of wall; moving it costs the shelf.
+COVER_W = PAD  # 41.5 -- one Gridfinity pad, flush with the body (see BODY_W)
+INNER_W = 39.6  # frozen: the bore every collar this package has ever cut plugs
+#                 into. Not derived from COVER_WALL any more -- it outranks it.
+COVER_WALL = (COVER_W - INNER_W) / 2  # 0.95 -- what is left, and it is enough:
+#                 above MIN_WALL (0.8), and a mouth that flexes more easily over
+#                 the snap bead than the old 1.2 did, which this joint wants --
+#                 SNAP_PROTRUSION was already trimmed once because the cover
+#                 fought going on.
 CAP_H = 3.0  # solid rounded cap at the top
 TOP_FILLET = 4.0
 CAP_FILLET = 1.5  # inner fillet where the bore ceiling meets walls
 MOUTH_CH = 0.3  # lead-in on the *inner* rim of the open end (see create_cover)
-INNER_R = 2.0
+# A true inward offset of the outer profile, so the wall is COVER_WALL at the
+# corners too. It was a flat 2.0, which made the corners the *thinnest* part of
+# the tube rather than the thickest -- 0.87 mm against a 1.2 mm flat at the old
+# width, and 0.52 mm at this one, which is under MIN_WALL and under two
+# perimeters. The same "offset, don't re-guess" rule CAVITY_R follows against
+# COLLAR_W.
+#
+# It costs corner clearance and can afford to: the bore still stands 0.469 mm
+# outside the collar on the diagonal, down from 0.904 at the old flat 2.0 but
+# still more than twice the 0.200 mm the flats carry. Nothing binds, because the
+# corners are not the fit -- the flats are, at exactly SLIP/2, and that is where
+# the snap bead engages. Held in checks.py rather than left to this note.
+INNER_R = CORNER_R - COVER_WALL  # 3.05
 LABEL_SIZE = 13.0
 LABEL_Z = 45.0
-LABEL_DEPTH = 0.6  # engrave depth into the flat face (< COVER_WALL, no punch-through)
-# That leaves COVER_WALL - LABEL_DEPTH = 0.6 mm of wall behind every glyph, under
+LABEL_DEPTH = 0.5  # engrave depth into the flat face (< COVER_WALL, no punch-through)
+# That leaves COVER_WALL - LABEL_DEPTH = 0.45 mm of wall behind every glyph, under
 # the package's own MIN_WALL (0.8, checks.py). Accepted, deliberately, and here is
 # the whole argument so nobody has to re-derive it:
 #
-# * There is no room to satisfy both. `printed-text` puts the floor for a legible
-#   engrave at 0.5 mm, so an 0.8 mm residual needs COVER_WALL >= 1.3. That is not
-#   a free 0.1 mm: INNER_W is derived from COVER_WALL, COLLAR_W from INNER_W, and
-#   the shell and cartridge from COLLAR_W, so it re-cuts the whole snap joint.
-#   Nothing would *jam* -- at 1.3 both mixes come out looser, an old cover (39.6
-#   bore) over a new collar (39.0) by 0.6 mm and a new cover (39.4) over an old
-#   collar (39.2) by 0.2 -- but looser is the problem: SNAP_PROTRUSION is 0.45
-#   against a designed 0.4 mm slip, and 0.6 mm of slip leaves 0.15 mm of bead
-#   engagement instead of 0.25. The real cost is a re-verified snap fit across a
-#   mixed shelf, not a seized one. Shaving LABEL_DEPTH instead buys only 0.1 mm
-#   before the engrave drops under the legibility floor, and the label is on a
-#   *vertical* wall crossing the layer lines, which is the orientation
-#   `printed-text` says to spend extra depth on, not save it.
+# * There is no room to satisfy both, and less than there was. COVER_WALL is no
+#   longer a knob at all -- it is COVER_W minus INNER_W, and both of those are
+#   fixed by something outside this file (the Gridfinity pad, and a joint that
+#   must stay interchangeable). An 0.8 mm residual would need LABEL_DEPTH = 0.15,
+#   which is a third of `printed-text`'s 0.5 mm floor for a legible engrave, on a
+#   *vertical* wall crossing the layer lines -- the orientation that skill says to
+#   spend extra depth on, not save it. So 0.5 is the floor, and the residual is
+#   whatever is left over.
+# * 0.45 mm is still more than one 0.4 mm perimeter, which is the number that
+#   actually matters here: the glyph floor still slices as material rather than
+#   as a hole. It was 0.6 before, so this trade cost 0.15 mm of an allowance that
+#   was already a stated exception -- not a new category of risk.
 # * MIN_WALL's own stated reason does not reach here. It is the floor for a wall
 #   that has to *be* something -- a free-standing rib, or a bore that closes up
-#   under two extrusions. This is the floor of a blind pocket with a full 1.2 mm
+#   under two extrusions. This is the floor of a blind pocket with a full 0.95 mm
 #   of wall all around it, and its worst case is that the slicer lays one 0.4 mm
-#   perimeter instead of a filled 0.6: a translucent patch behind a label, on a
+#   perimeter instead of a filled 0.45: a translucent patch behind a label, on a
 #   lid, which is cosmetic and arguably an improvement.
 # * It is nowhere near the load. What flexes on this part is the mouth, over the
 #   snap bead at SNAP_Z = 6 mm from the opening. LABEL_Z is 45, so the nearest
 #   glyph edge is ~40 mm of full-section tube away from anything that deflects.
 #
-# So: not a defect, a priced trade. What would make it a defect is COVER_WALL
-# dropping or LABEL_DEPTH rising, so the pair is pinned in `checks.py` by
-# `check_wall_budget` -- named there as a stated exception to MIN_WALL rather
-# than compared against it, since it legitimately fails that comparison.
-LABEL_CHAMFER = 0.5  # near-full-depth bevel -> a continuous V-groove wall, no step
+# So: not a defect, a priced trade. What would make it a defect is LABEL_DEPTH
+# rising or the residual dropping under a perimeter, so the pair is pinned in
+# `checks.py` by `check_wall_budget` -- named there as a stated exception to
+# MIN_WALL rather than compared against it, since it legitimately fails that
+# comparison.
+# Bevel on the engraved glyph mouths -> a continuous V-groove wall, no step. It
+# has to stay *under* LABEL_DEPTH: a bevel as deep as the pocket it is cut into
+# is degenerate, and OCC answers by refusing the whole edge set (this is the
+# all-or-nothing failure `build123d-geometry-ops` describes). At the old 0.6 mm
+# depth 0.5 was merely near-full; at 0.5 it was exactly full, and the Wood cover
+# -- the one variant whose label chamfer OCC had always accepted -- started
+# skipping it. Sized off the depth rather than typed as a literal so the two
+# cannot drift into that state again.
+LABEL_CHAMFER = LABEL_DEPTH - 0.15  # 0.35
 
 # --- Snap fit -----------------------------------------------------------------
 # A shallow *ramped* bead runs around the inside of the cover near its opening
@@ -135,13 +183,33 @@ SNAP_TIP_FLAT = 0.3  # short flat at the tip so it isn't a fragile knife edge
 SNAP_GROOVE_R = 0.8  # rounded groove radius on the collar (receives the bead tip)
 
 # --- Base ---------------------------------------------------------------------
+# The body, the cover and the Gridfinity pad are all one number. They were not
+# always: the body took PAD (41.5) while the cover took GRID (42.0), and an
+# assembled holder stepped out by 0.25 mm per side at the seam -- a lip you can
+# feel all the way up a 109 mm cover, and a silhouette 0.5 mm wider than the base
+# under it. BODY_W exists to make the agreement structural rather than a
+# coincidence of two literals, and 41.5 is the right value for both because the
+# pad is the *whole* envelope Gridfinity gives a 1x1: the 0.5 mm it holds back
+# from the 42 mm pitch is the gap between neighbours, and anything that spends it
+# stops sitting next to another bin. So the holder is one flush rounded square
+# from the foot to the top of the cover, and it is a well-behaved bin at every
+# height rather than only below 4.4 mm.
+BODY_W = PAD  # 41.5 -- the pad, and COVER_W too, so the two are flush
 FOOT_TOP = 24.0  # top of the full-width body (cover seats here)
 COLLAR_W = INNER_W - SLIP  # collar is a close slip fit inside the cover bore
 COLLAR_R = 3.5
 COLLAR_H = 18.0
 BASE_TOTAL_H = FOOT_TOP + COLLAR_H  # 42 mm (6U)
-COVER_SEAT_CH = 0.4  # cover bottom-edge chamfer so it seats flush on
-#                                 the flat body shoulder without overhanging it
+# Cover bottom-edge chamfer. With BODY_W == COVER_W the cover no longer overhangs
+# the body, so this is no longer clearance -- it is elephant-foot relief on the
+# rim the cover prints on, plus a hair of lead-in onto the shoulder for the
+# 0.1-0.2 mm the two parts really differ by (different filaments, different
+# shrinkage -- a printed PETG cover measured 41.9 against an ASA shell on
+# nominal). Trimmed from 0.4 because it and MOUTH_CH are now cut from a 0.95 mm
+# wall, not a 1.2: at 0.4 the flat rim left to seat on would be 0.25 mm, under a
+# single perimeter. At 0.2 it is 0.45, which is what the old 1.2 mm wall left
+# anyway (0.5). checks.py holds the rim rather than trusting the arithmetic.
+COVER_SEAT_CH = 0.2
 BORE_DEPTH = 36.0  # bores sunk from the top face (stops above foot)
 BORE_MOUTH_CHAMFER = 0.8  # 45-deg lead-in chamfer depth at every insert-hole mouth
 BASE_TOP_CHAMFER = 1.0  # 45-deg chamfer on the base's top outer rim
@@ -281,6 +349,32 @@ def gridfinity_foot() -> Part:
                 RectangleRounded(size, size, radius)
         loft(ruled=True)
     return foot.part
+
+
+def create_body(foot_top: float = FOOT_TOP) -> Part:
+    """The full-width body: from the Gridfinity pad top up to the cover seat.
+
+    One function rather than three copies of the same two sketches, because all
+    three bases in this package (``create_base``, ``shell.create_shell_for``,
+    ``hex.base``) grow the same body and used to each spell it out -- which is
+    how the pad-versus-cover width mismatch would have had to be fixed three
+    times and stayed fixed in only two.
+
+    ``BODY_W`` wide -- which is the pad the foot below already ends at, so the
+    two meet with no step, and is the cover's width too, so the assembled holder
+    is one flush silhouette. All three of those being the same number is the
+    whole point of ``BODY_W``; see it for why 41.5 and not 42.
+
+    The top is left a flat shoulder, no chamfer, so the cover's chamfered bottom
+    rim lands flat-on-flat on it (``create_cover``'s ``COVER_SEAT_CH``). Both
+    ``checks.py`` files name that as a stated exception to the chamfer-everything
+    rule rather than quietly omitting it.
+    """
+    with BuildPart() as body:
+        with BuildSketch(Plane.XY.offset(BASE_H)):
+            RectangleRounded(BODY_W, BODY_W, CORNER_R)
+        extrude(amount=foot_top - BASE_H)
+    return body.part
 
 
 def snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
@@ -540,7 +634,11 @@ def layout_bores(
 # z_dir) as a function of the in-face lateral offset and height. Used to engrave
 # the size legend into the base body's four walls.
 def face_frame(face: str, lateral: float, z: float):
-    half = PAD / 2
+    # BODY_W, not PAD: this plane is the wall the glyphs are cut *from*, and the
+    # engrave runs inward from it. Left at the pad it would sit BODY_STEP inside
+    # the real wall, and every number would come out as a sealed void behind
+    # 0.25 mm of skin rather than as an engraving.
+    half = BODY_W / 2
     return {
         "N": ((lateral, half, z), (-1, 0, 0), (0, 1, 0)),
         "S": ((lateral, -half, z), (1, 0, 0), (0, -1, 0)),
@@ -578,7 +676,7 @@ def engrave_row_legend(
     n = len(rows)
     line_h = WALL_LABEL_SIZE + 1.6 if line_h is None else line_h
     z_top = z_center + (n - 1) * line_h / 2
-    flat_half = PAD / 2 - CORNER_R  # numbers must stay on the flat wall face
+    flat_half = BODY_W / 2 - CORNER_R  # numbers must stay on the flat wall face
 
     def engrave(text: str, face: str, lateral: float, z: float) -> None:
         # Keep the (centre-aligned) glyphs clear of the rounded corners.
@@ -770,13 +868,10 @@ def create_base(
     with BuildPart() as base:
         add(gridfinity_foot())
 
-        # Full-width body from the pad top up to the shoulder.
-        with BuildSketch(Plane.XY.offset(BASE_H)):
-            RectangleRounded(PAD, PAD, CORNER_R)
-        extrude(amount=foot_top - BASE_H)
-        # Leave the body top a flat shoulder (no chamfer) so the cover's bottom
-        # rim seats flush on it. The cover carries the matching bottom chamfer
-        # (COVER_SEAT_CH) so it clears the body edge instead of overhanging it.
+        # Full-width body from the pad top up to the shoulder -- BODY_W wide,
+        # flush with the cover, and left a flat shoulder on top for it to seat
+        # on. See ``create_body``.
+        add(create_body(foot_top))
 
         # Collar that plugs into the cover.
         with BuildSketch(Plane.XY.offset(foot_top)):

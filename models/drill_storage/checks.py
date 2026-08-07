@@ -37,8 +37,15 @@ from . import config as c
 from . import sets
 from .box import (
     BASE_H,
+    BODY_W,
     CAP_H,
+    COLLAR_R,
+    COLLAR_W,
+    CORNER_R,
+    COVER_SEAT_CH,
     COVER_W,
+    COVER_WALL,
+    MOUTH_CH,
     FOOT_TOP,
     HEIGHT_UNIT,
     INNER_R,
@@ -48,6 +55,7 @@ from .box import (
     LABEL_SIZE,
     LABEL_Z,
     PAD,
+    SLIP,
     SNAP_GROOVE_R,
     SNAP_Z,
     WALL_LABEL_SIZE,
@@ -240,6 +248,73 @@ def check_wall_budget(r: Report) -> None:
         "the cover seat sits where the engine puts it, so covers interchange",
         f"{c.SHELL_FOOT_TOP:.1f} mm -- lower it and shared covers are lost",
     )
+    # The flush silhouette, as an identity rather than as two numbers that happen
+    # to agree today. This is the whole reason BODY_W exists: the body used to be
+    # PAD while the cover was GRID, and the 0.25 mm/side lip that left is exactly
+    # what a check on "are they equal" would have caught.
+    r.check(
+        abs(BODY_W - COVER_W) < TOL,
+        "body and cover are the same width, so the assembly has no lip",
+        f"body {BODY_W:.2f} mm, cover {COVER_W:.2f} mm",
+    )
+    # ...and that the pair of them is inside the envelope Gridfinity allows a 1x1,
+    # which is the reason both are 41.5 and not 42: PAD is the pitch with the
+    # inter-bin gap already deducted, so anything wider stops sitting beside
+    # another bin at *any* height, cover included.
+    r.check(
+        COVER_W <= PAD + TOL,
+        "nothing reaches outside the 1x1 pad, so boxes sit in adjacent cells",
+        f"widest {max(BODY_W, COVER_W):.2f} mm of {PAD:.2f} mm pad",
+    )
+    # The cover's wall is now derived (COVER_W - INNER_W), not chosen, so it is
+    # the thing to hold to MIN_WALL -- and the bore is a true inward offset, so
+    # this one number is the wall at the corners too, not just on the flats.
+    r.check(
+        COVER_WALL >= MIN_WALL - TOL,
+        "cover wall survives being derived from the pad and a frozen bore",
+        f"{COVER_WALL:.2f} mm (min {MIN_WALL})",
+    )
+    r.check(
+        abs((CORNER_R - INNER_R) - COVER_WALL) < TOL,
+        "cover bore is a true inward offset, so its corners are not the thin spot",
+        f"corner wall {CORNER_R - INNER_R:.2f} mm vs flat {COVER_WALL:.2f} mm",
+    )
+
+    # Squaring the bore's corners buys that uniform wall by spending corner
+    # clearance over the collar. It has room to spend -- the corners are not the
+    # fit, the flats are -- but not unlimited room, so the collar's diagonal must
+    # still clear the bore's. Reach of a rounded square along a direction.
+    def _reach(w: float, rad: float, ux: float, uy: float) -> float:
+        return (w / 2 - rad) * (ux + uy) + rad
+
+    diag = 2**-0.5
+    corner_gap = _reach(INNER_W, INNER_R, diag, diag) - _reach(
+        COLLAR_W, COLLAR_R, diag, diag
+    )
+    r.check(
+        corner_gap >= SLIP / 2 - TOL,
+        "collar's corners still clear the bore's, which the offset ate into",
+        f"{corner_gap:.3f} mm on the diagonal, vs {SLIP / 2:.3f} on the flats",
+    )
+    # The cover still has somewhere flat to land. With body and cover flush, the
+    # rim is inset by its own two chamfers and nothing else, and both come out of
+    # the same 0.95 mm wall.
+    rim = COVER_WALL - COVER_SEAT_CH - MOUTH_CH
+    r.check(
+        rim >= 0.4 - TOL,
+        "cover's rim still has a flat to seat on after both its chamfers",
+        f"{rim:.2f} mm of flat rim (seat {COVER_SEAT_CH}, mouth {MOUTH_CH})",
+    )
+    # The label pocket, as a *named* exception -- it legitimately fails MIN_WALL,
+    # so it is held to the number that actually matters (one 0.4 mm perimeter, so
+    # the glyph floor slices as material rather than as a hole) and to the
+    # legibility floor on the other side. See box.LABEL_DEPTH for the argument.
+    residual = COVER_WALL - LABEL_DEPTH
+    r.check(
+        residual >= 0.4 - TOL and LABEL_DEPTH >= 0.5 - TOL,
+        "engraved label stays legible without punching through the wall",
+        f"{residual:.2f} mm behind a {LABEL_DEPTH} mm engrave (stated MIN_WALL exception)",
+    )
 
 
 def check_sets_table(r: Report) -> None:
@@ -295,9 +370,12 @@ def check_envelope(s: DrillSet, shell: Part, insert: Part, r: Report) -> None:
     """Gridfinity envelope, and the cartridge actually fitting its cavity."""
     r.section(f"{s.name}: envelope")
     sb = shell.bounding_box()
+    # BODY_W is PAD, so the widest thing on the shell is one Gridfinity pad from
+    # the foot to the shoulder -- nothing on this part reaches outside the
+    # envelope, which is what lets a bare shell sit next to another bin.
     r.check(
-        abs(sb.size.X - PAD) < 0.01 and abs(sb.size.Y - PAD) < 0.01,
-        "shell footprint is one Gridfinity pad",
+        abs(sb.size.X - BODY_W) < 0.01 and abs(sb.size.Y - BODY_W) < 0.01,
+        "shell footprint is one Gridfinity pad, flush with the cover",
         f"{sb.size.X:.2f} x {sb.size.Y:.2f} mm",
     )
     r.check(
@@ -442,7 +520,9 @@ def _packing_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
     Not ``_bore_footprints``: for a hex tool this is whichever is wider, its head
     or its relieved socket. The two differ by a factor of three on a step drill
     -- a 20 mm body over a 6.3 mm socket -- and it is the head that decides
-    whether the layout was possible.
+    whether the layout was possible. A reduced-shank drill is the same story in
+    miniature: the bore is cut to the shank, but the *body* stands above the tray
+    at the nominal size, so the wider of the two is what has to be packed.
     """
     items = [
         (
@@ -786,7 +866,7 @@ def _shell_allow() -> tuple:
 
     def on_wall_face(e) -> bool:
         b = e.bounding_box()
-        half = PAD / 2
+        half = BODY_W / 2
         return (
             abs(abs(b.min.X) - half) < 0.05 and abs(abs(b.max.X) - half) < 0.05
         ) or (abs(abs(b.min.Y) - half) < 0.05 and abs(abs(b.max.Y) - half) < 0.05)
