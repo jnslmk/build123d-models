@@ -70,6 +70,11 @@ MODELS = [
     "led_psu_enclosure.vent",
     "led_psu_enclosure.gasket",
     "lens_cap",
+    # The salad-bowl pendant: the hung lamp, the printed grille that is the only
+    # print job in it, and the bought bowl the grille is fitted to.
+    "salad_bowl_lamp",
+    "salad_bowl_lamp.shade",
+    "salad_bowl_lamp.bowl",
     "round_snap_box",
     "spiral_vase_lampshade",
 ]
