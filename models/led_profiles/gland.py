@@ -78,17 +78,23 @@ from models.lib.edges import as_part
 
 from . import config as c
 from . import mount_config as m
-from .endcap import CAP_T, GLAND_THREAD_D
+from .endcap import CAP_T, GLAND_MALE_L, GLAND_THREAD_D
 
 # ------------------------------------------------------------------ the stem
 
-# The bought gland's own male thread. A stock M12 gland carries ~8 mm of it,
-# which is what sets ``endcap.CAP_T``: the flange is exactly this thick, so the
-# thread engages over its whole length and the gland's flange seals on the cap's
-# face. A thicker cap would be bore the gland cannot reach and screw length the
-# two cap screws could not spend in the aluminium.
+# The bought gland's own male thread. A stock M12 gland carries ~8 mm of it, and
+# it is what sizes the *printed thread* -- ``endcap.GLAND_THREAD_L`` is this
+# less the collar. It used to size the flange as well, back when the flange was
+# exactly this deep; the strap slot took that job over, so the cap is now
+# thicker than the gland reaches and the extra is plain bore. What has not
+# changed, and is the part that matters, is that the gland still seals on its
+# own flange against the cap's face.
+#
+# Aliased from ``endcap`` rather than restated. That module already owns the
+# printed thread this number sizes, and ``gland`` already imports from it, so
+# stating it here as well would be a second source that could drift.
 THREAD_D = GLAND_THREAD_D  # 12.0
-THREAD_L = 8.0
+THREAD_L = GLAND_MALE_L  # 8.0
 
 # ------------------------------------------------------------ what stands out
 

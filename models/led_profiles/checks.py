@@ -30,7 +30,12 @@ from build123d import (
 )
 
 from models.lib import fits
-from models.lib.checks import Report, is_solid_at, sharp_convex_edges
+from models.lib.checks import (
+    Report,
+    interior_angle,
+    is_solid_at,
+    sharp_convex_edges,
+)
 from models.lib.edges import as_part
 
 from . import assemblies
@@ -281,17 +286,36 @@ def check_endcap(cap: Part, r: Report) -> None:
     )
     r.check(len(cap.solids()) == 1, "one solid", f"{len(cap.solids())}")
 
-    # The flange is as thin as the gland's own thread, and no thinner: a stock
-    # M12 gland carries ~8 mm of male thread, which is where CAP_T comes from.
+    # The flange used to be exactly the gland's thread length, and this used to
+    # assert that. The strap slot took over sizing it, so the claim splits in
+    # two: the *printed thread* is still the gland's own male thread, and the
+    # flange is now at least that, which is all the gland ever needed -- it
+    # seals on its flange against the cap's face, and the face has not moved.
     r.check(
-        abs(e.CAP_T - gland_mod.THREAD_L) < 0.001,
-        "flange is exactly the gland's thread length",
-        f"CAP_T {e.CAP_T} mm vs gland.THREAD_L {gland_mod.THREAD_L} mm",
+        abs(e.GLAND_MALE_L - gland_mod.THREAD_L) < 0.001,
+        "printed thread is sized off the gland's own male thread",
+        f"GLAND_MALE_L {e.GLAND_MALE_L} mm vs gland.THREAD_L "
+        f"{gland_mod.THREAD_L} mm -- one source, aliased not restated",
+    )
+    r.check(
+        e.CAP_T >= e.GLAND_MALE_L,
+        "...and the flange is deep enough for all of it",
+        f"{e.CAP_T} mm of flange for {e.GLAND_MALE_L} mm of male thread; "
+        f"the {e.CAP_T - e.GLAND_MALE_L:.2f} mm behind it is plain bore",
+    )
+    # The flange is the strap slot plus its two walls, and nothing else. Stated
+    # so that a change to CAP_T has to come through the slot rather than be
+    # typed over the top of it.
+    r.check(
+        abs(e.CAP_T - (e.STRAP_SLOT_W + 2 * e.STRAP_WALL)) < 0.001,
+        "flange is derived from the strap slot",
+        f"{e.STRAP_SLOT_W} slot + 2 x {e.STRAP_WALL} wall = {e.CAP_T} mm",
     )
     r.check(
         e.PLUG_DEPTH > e.CAP_T,
         "the plug, not the flange, is what holds the cap square",
-        f"{e.PLUG_DEPTH} mm into the cavity behind a {e.CAP_T} mm flange",
+        f"{e.PLUG_DEPTH} mm into the cavity behind a {e.CAP_T} mm flange -- "
+        f"and the flange now carries a strap pulling on that lever arm",
     )
 
 
@@ -388,7 +412,21 @@ def check_gland(cap: Part, r: Report) -> None:
     # part, not just the flange. This is the instruction "don't put any material
     # in the way of the M12 hole", read back off the solid.
     total = e.CAP_T + e.PLUG_DEPTH
-    stations = [0.2, 1.6, 3.0, 4.5, 6.0, 7.5, e.CAP_T - 0.2, 10.0, 15.0, total - 0.2]
+    # Derived rather than a hand-written list of tenths: the flange doubled when
+    # the strap slot arrived, and a fixed list would have quietly stopped
+    # sampling the plug at all while still reporting ten open stations.
+    stations = [
+        0.2,
+        e.GLAND_COLLAR,
+        e.GLAND_MALE_L / 2,
+        e.GLAND_MALE_L + 0.2,
+        e.CAP_T / 2,
+        sum(e.strap_slot_z()) / 2,
+        e.CAP_T - 0.2,
+        e.CAP_T + 0.2,
+        e.CAP_T + e.PLUG_DEPTH / 2,
+        total - 0.2,
+    ]
     blocked = [z for z in stations if is_solid_at(cap, 0, _loc(e.GLAND_Z), z)]
     r.check(
         not blocked,
@@ -430,9 +468,23 @@ def check_gland(cap: Part, r: Report) -> None:
         f"is {gland_mod.THREAD_L} mm and it seals on its flange",
     )
     r.check(
-        abs(e.GLAND_THREAD_L + e.GLAND_COLLAR - e.CAP_T) < 0.001,
-        "...and it fills the flange behind the collar",
-        f"{e.GLAND_COLLAR} plain + {e.GLAND_THREAD_L} cut = {e.CAP_T}",
+        abs(e.GLAND_THREAD_L + e.GLAND_COLLAR - e.GLAND_MALE_L) < 0.001,
+        "...and it fills the gland's reach behind the collar",
+        f"{e.GLAND_COLLAR} plain + {e.GLAND_THREAD_L} cut = {e.GLAND_MALE_L} "
+        f"of male thread (not {e.CAP_T} of flange -- the rest is plain bore)",
+    )
+    # And the bore behind the thread really is plain, rather than the thread
+    # having quietly followed the flange when it got deeper. Sampled at the
+    # crest radius, where a thread would show and a plain bore cannot.
+    r.check(
+        not is_solid_at(
+            cap,
+            e.GLAND_MAJOR_D / 2 - 1.0825 * e.GLAND_PITCH / 2 + 0.25,
+            _loc(e.GLAND_Z),
+            (e.GLAND_MALE_L + e.CAP_T) / 2,
+        ),
+        "...and the bore behind it is plain, not threaded",
+        f"probed midway between z={e.GLAND_MALE_L} and z={e.CAP_T}",
     )
     # Cable has to fit through the thread's crests.
     minor = e.GLAND_MAJOR_D - 1.0825 * e.GLAND_PITCH
@@ -445,15 +497,165 @@ def check_gland(cap: Part, r: Report) -> None:
     # the flange and expect material at pitch intervals. A thread that failed to
     # fuse leaves the bore a plain cylinder, which no envelope check would see.
     r_crest = e.GLAND_MAJOR_D / 2 - 1.0825 * e.GLAND_PITCH / 2 + 0.25
+    # Bounded by where the thread actually stops, not by the flange: the two
+    # were the same number until the strap slot deepened the cap, and walking
+    # past GLAND_MALE_L only samples plain bore and reports missing crests.
+    thread_top = e.GLAND_COLLAR + e.GLAND_THREAD_L
     turns = [
         z
-        for z in [e.GLAND_COLLAR + 0.25 + 0.25 * i for i in range(int(4 * e.CAP_T))]
-        if z < e.CAP_T and is_solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
+        for z in [
+            e.GLAND_COLLAR + 0.25 + 0.25 * i for i in range(int(4 * e.GLAND_MALE_L))
+        ]
+        if z < thread_top and is_solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
     ]
     r.check(
         len(turns) >= 3 * int(e.GLAND_THREAD_L / e.GLAND_PITCH),
         "thread crests are actually in the bore",
         f"{len(turns)} sampled stations carry material at r={r_crest:.2f}",
+    )
+
+
+def check_strap_slot(cap: Part, r: Report) -> None:
+    """The 12 mm velcro strap goes through, and takes nothing with it.
+
+    Read off the solid rather than off the constants, because the slot is cut on
+    ``Plane.YZ`` and a section built on that plane instead of returned local
+    gets its transform applied twice -- which cuts the slot cleanly *outside*
+    the part and leaves a valid solid, the right bounding box and no slot. That
+    shipped once during this feature's own development, so the first thing here
+    is a probe that a plain envelope check cannot pass by accident.
+    """
+    r.section("Endcap strap slot")
+    z_lo, z_hi = e.strap_slot_z()
+    z_mid = (z_lo + z_hi) / 2
+    y = e.STRAP_SLOT_Y
+    half_lo, half_hi = e.strap_mouth_half_width()
+
+    r.check(
+        abs((z_hi - z_lo) - e.STRAP_SLOT_W) < 0.001,
+        "slot takes the strap's width along the tube",
+        f"{z_hi - z_lo:.2f} mm for a {e.STRAP_W} mm strap "
+        f"({fits.for_material(fits.FREE, 'asa'):.2f} FREE for ASA)",
+    )
+    r.check(not is_solid_at(cap, 0.0, y, z_mid), "slot is open on the centre line")
+
+    # Open all the way across, sampled at eight stations rather than at the
+    # middle: a slot that failed to reach one flank is still open at x=0.
+    span = [
+        -half_lo + 0.3,
+        -7.0,
+        -4.0,
+        -1.5,
+        1.5,
+        4.0,
+        7.0,
+        half_lo - 0.3,
+    ]
+    blocked = [x for x in span if is_solid_at(cap, x, y, z_mid)]
+    r.check(
+        not blocked,
+        "...and open flank to flank, so the strap threads through",
+        f"blocked at x={blocked}" if blocked else f"{len(span)} stations, all open",
+    )
+
+    # Closed at both ends along the cap's axis. This is what keeps the strap
+    # captive and what leaves the tube's wall seat at CAP_T unbroken.
+    r.check(
+        is_solid_at(cap, 0.0, y, z_lo - e.STRAP_WALL / 2),
+        "closed toward the outer face",
+        f"{e.STRAP_WALL} mm of wall, slot starts at z={z_lo:.2f}",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, y, z_hi + e.STRAP_WALL / 2),
+        "...and toward the seat, so the tube's wall still beds on solid",
+        f"{e.STRAP_WALL} mm of wall, slot stops at z={z_hi:.2f} of {e.CAP_T}",
+    )
+
+    # The loaded member: the web between the slot's roof and the gland bore.
+    r.check(
+        e.strap_roof() >= 2.5,
+        "web between the slot and the gland bore",
+        f"{e.strap_roof():.2f} mm -- what the strap pulls on",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, y + e.STRAP_SLOT_H / 2 + 0.3, z_mid)
+        and is_solid_at(cap, 0.0, -e.GLAND_MAJOR_D / 2 - 0.3, z_mid),
+        "...and it is really there, top and bottom",
+    )
+    r.check(
+        e.strap_floor() >= 3.0,
+        "material below the slot",
+        f"{e.strap_floor():.2f} mm to the bottom of the shell",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, y - e.STRAP_SLOT_H / 2 - 0.3, z_mid),
+        "...and it is really there too",
+    )
+
+    # Nowhere near either screw feature -- asserted rather than eyeballed off a
+    # drawing, since both are driven from config and could move.
+    gap = (y + e.STRAP_SLOT_H / 2) - (_loc(c.SCREW_BOSS_Z) - e.SCREW_CBORE_D / 2)
+    r.check(
+        gap < -1.0,
+        "slot clears the screw pockets",
+        f"{-gap:.2f} mm below the lowest point of a pocket",
+    )
+    r.check(
+        is_solid_at(cap, c.SCREW_SPACING / 2, y, z_mid) is False
+        or not is_solid_at(cap, c.SCREW_SPACING / 2, _loc(c.SCREW_BOSS_Z), z_mid),
+        "...and the screw hole is still its own hole",
+    )
+
+    # The mouths. The slot breaks out through a *curved* flank, so the two are
+    # not at one half-width -- which is why they get an OCC fillet rather than a
+    # boolean frustum, no single frustum being able to break both evenly.
+    r.check(
+        half_hi > half_lo,
+        "mouths sit on the shell's arc, not on a flat",
+        f"half-width runs {half_lo:.2f} to {half_hi:.2f} mm up the mouth",
+    )
+    r.check(
+        not is_solid_at(cap, half_lo - 0.2, y, z_mid)
+        and not is_solid_at(cap, -(half_lo - 0.2), y, z_mid),
+        "slot really breaks out through both flanks",
+    )
+    # The fillet, measured as an angle rather than by point probes. Both mouths
+    # sit *on* the shell, which curves away from them, so every point a probe
+    # could stand at just outside a nominal corner is either already inside the
+    # slot or already outside the part: the first version of this check probed
+    # 0.9 mm beyond the shell and failed for that reason rather than for any
+    # fault in the geometry. The angle is the property that actually matters and
+    # it is not marginal -- raw, the floor edge is where the slot's flat wall
+    # meets a flank curving away from it and measures about 50 deg; filleted, it
+    # is tangency.
+    mouth = e.strap_mouth_edges(cap)
+    angles = [interior_angle(cap, ed) for ed in mouth]
+    measured = [a for a in angles if a is not None]
+    sharpest = f"{min(measured):.1f} deg" if measured else "nothing measurable"
+
+    r.check(
+        len(mouth) >= 4,
+        "mouth edges are where the slot says they are",
+        f"{len(mouth)} edges inside the slot's own y/z envelope, out at a flank",
+    )
+    # The unmeasurable ones are the whole point, and this is the check that
+    # would have caught a raw mouth when nothing else could. Left raw, the
+    # slot's floor meets a flank curving away from it at about 50 deg, and
+    # ``interior_angle`` cannot stand a probe inside a wedge that thin: it
+    # returns None. ``sharp_convex_edges`` skips a None, so **the sharp-edge
+    # audit is blind to exactly this class of edge** -- six of the eight raw
+    # mouth edges never appear in it. A treated mouth measures cleanly.
+    r.check(
+        not [a for a in angles if a is None],
+        "...and every one is blunt enough to measure at all",
+        f"{len(measured)} of {len(angles)} measurable; a feather edge comes "
+        f"back None, which is also how it hides from sharp_convex_edges",
+    )
+    r.check(
+        bool(angles) and all(a is not None and a > 120.0 for a in angles),
+        "both mouths are broken, not left raw",
+        f"sharpest mouth edge {sharpest} after a {e.STRAP_MOUTH_R} mm fillet "
+        f"-- the strap drags over these every time it is threaded",
     )
 
 
@@ -2823,6 +3025,7 @@ def run() -> Report:
     check_endcap(cap, r)
     check_screw_pockets(cap, r)
     check_gland(cap, r)
+    check_strap_slot(cap, r)
     check_endcap_edges(cap, r)
     check_cap_on_profile(r)
     check_assembly(r)

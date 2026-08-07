@@ -3,14 +3,32 @@
 One design, used at both ends -- every lamp has an input and an output pigtail,
 so both caps are glanded.
 
-The cap is two pieces of one solid: a thin **flange** the width of the tube, and
-a 15 mm **plug** that goes down the wiring cavity behind it.
+The cap is three things in one solid: a **flange** the width of the tube, a
+**plug** that goes down the wiring cavity behind it, and a **strap slot** driven
+straight through the flange under the gland bore.
 
-**The flange is as thin as the gland's own thread.** A stock M12x1.5 gland
-carries ~8 mm of male thread and seals on its flange against the cap's face, so
-anything past 8 mm of cap is depth the gland cannot reach into and screw length
-the two cap screws cannot spend on the aluminium. ``CAP_T`` is therefore 8.0,
-of which ``GLAND_COLLAR`` is plain bore and the rest is cut thread.
+**The strap slot is what sizes the flange.** A 12 mm velcro strap threads
+through the cap and goes round a rigging bar, and it runs *perpendicular to the
+profile* -- it travels round the cap's cross-section rather than along the tube.
+That fixes the axis of everything: the strap's **width** lies along the tube, so
+the flange has to be at least 12 mm deep before the slot fits at all. ``CAP_T``
+is therefore derived, ``STRAP_SLOT_W + 2 * STRAP_WALL``, and is about twice what
+it used to be.
+
+**The flange is no longer sized by the gland, and the gland no longer reaches
+all of it.** A stock M12x1.5 gland carries ~8 mm of male thread and then seals
+on its flange against the cap's *face*, which is the only part of this that
+matters: the face is still at z=0, so the gland still seats. What changed is
+that ``GLAND_MALE_L`` is now stated here as its own number rather than read back
+off ``CAP_T``. The thread is cut over the outer ``GLAND_MALE_L`` only --
+``GLAND_COLLAR`` of plain bore and ``GLAND_THREAD_L`` of cut thread -- and
+everything behind it is plain bore the gland was never going to reach. That is
+not a compromise; it is what a thicker cap has always meant.
+
+The screws are unchanged: ``SCREW_CBORE_DEPTH`` still tracks ``CAP_T``, so the
+same short M2 self-tappers still land the same 1.2 mm above the aluminium. The
+pocket they sit at the bottom of is deeper now, which is a screwdriver problem
+rather than a geometry one.
 
 **The plug is solid, not a ring.** It fills the cavity's lower half-disc for
 ``PLUG_DEPTH``, with the gland bore driven straight through it -- nothing is
@@ -41,7 +59,13 @@ of each side. Deliberate, and the size of the bite is asserted in
 Print pose: outer face down on the bed, plug up. That puts the gland thread on a
 vertical axis (the only axis worth printing a thread on), gives the largest
 possible first layer, and leaves no overhang anywhere -- the plug grows *out of*
-the flange rather than hanging off it.
+the flange rather than hanging off it. The strap slot suits that pose too: with
+the tube's axis vertical the slot is a tall letterbox through a vertical wall,
+so its side walls are vertical, its floor is printed onto solid material, and
+its only unsupported run is a ceiling ``STRAP_SLOT_H`` wide. That is a 1.5 mm
+bridge, which is not a bridge worth the name. The load path suits it as well:
+the strap pulls down on the web between the slot and the bore, which bends about
+an axis that puts its stress *in* the layer plane rather than across it.
 
 Edge treatments, house rule: chamfer horizontal, fillet vertical. Two chamfers
 are taken while the part is still a plain two-step prism, before the bore, the
@@ -52,6 +76,10 @@ has nothing to fillet -- it is a stadium, so its flanks run into its arcs
 tangentially and it has no vertical corners at all -- but the plug does: the
 gland bore leaves two lengthwise seams down its flat top where the cylinder
 breaks out through it, and those get ``PLUG_SEAM_FILLET`` after the bore is cut.
+The strap slot's two mouths get ``STRAP_MOUTH_R``, a fillet rather than a
+chamfer: the strap drags over them every time it is threaded, and a radius is
+what fabric wants. It is an OCC edge op on a closed mixed wire, so it goes
+through ``fillet_edge`` down a shrinking ladder -- see ``create_endcap``.
 
 Edges left square on purpose, and which should stay that way: the whole of the
 ``CAP_T`` face, which is what beds against the extrusion's 0.5 mm wall; the
@@ -105,15 +133,94 @@ CAP_PROUD = 0.0
 CAP_W = c.WIDTH + 2 * CAP_PROUD
 CAP_H = c.HEIGHT + 2 * CAP_PROUD
 
-# Set by the gland's own thread, not by the printed-thread engagement rule: a
-# stock M12x1.5 cable gland carries ~8 mm of male thread and then seals on its
-# flange, so a cap thicker than 8 mm is bore the gland never reaches and screw
-# length spent in plastic instead of in the aluminium.
-CAP_T = 8.0
 # Same 0.8 as ``mount_config.EDGE_CHAMFER``, kept local because this module sits
 # *upstream* of that one -- corner.py imports CAP_T and CAP_W from here, and
 # mount_config carries the mounts' ASA material with it.
 EDGE_CHAMFER = 0.8
+
+# ---------------------------------------------------------------- the gland
+#
+# Moved above the strap slot and the flange, because that is now the direction
+# the dependencies run: the bore is fixed hardware, the slot hangs off its
+# underside, and the flange is whatever the slot needs. Nothing here reads
+# ``CAP_T`` any more.
+
+GLAND_THREAD_D = 12.0  # M12 x 1.5, the size the README specifies
+GLAND_PITCH = 1.5
+# Printed female against a real metal gland: +0.30 mm on the female major
+# diameter. IsoThread emits the basic profile with zero allowance, so every bit
+# of printing clearance has to be added here.
+THREAD_CLEARANCE = 0.30
+GLAND_MAJOR_D = GLAND_THREAD_D + THREAD_CLEARANCE
+
+# The bought gland's own male thread, and the one number the printed thread is
+# allowed to be sized from. It used to be stated in ``gland.py`` and read back
+# here through ``CAP_T``; that only worked while the flange happened to be
+# exactly this deep. It lives here now and ``gland.THREAD_L`` aliases it, so
+# there is still one source and the arrow points the right way.
+GLAND_MALE_L = 8.0
+
+# One full pitch of plain bore below the thread, chamfered, per the printed-
+# thread rule against starting a thread at z=0. It also keeps the mouth's
+# lead-in cone clear of the thread: cut the two into each other and OCC's fuse
+# quietly returns the thread alone instead of the cap.
+GLAND_COLLAR = GLAND_PITCH
+GLAND_THREAD_L = GLAND_MALE_L - GLAND_COLLAR  # 6.5
+GLAND_LEAD_IN = 0.8
+
+# On the cap's own centre -- see the module docstring, including what that costs
+# the cable route.
+GLAND_Z = c.HEIGHT / 2
+
+# ------------------------------------------------------------ the strap slot
+
+# A 12 mm velcro strap, threaded through the cap so the lamp can be strapped to
+# a rigging bar. It runs *perpendicular to the profile*, which is the whole
+# reason this block sits above ``CAP_T`` instead of below it: the strap travels
+# round the cap's cross-section, so its width lies along the tube and the flange
+# has to be deep enough to hold it. Measured off the strap in hand.
+STRAP_W = 12.0
+STRAP_T = 1.0
+
+# FREE, for this family's ASA: the slot locates nothing, the strap only has to
+# thread through it and lie still.
+STRAP_SLOT_W = STRAP_W + fits.for_material(fits.FREE, "asa")  # 12.25
+
+# FREE twice over, and deliberately, on the one dimension that decides whether
+# the strap goes through at all. The fit classes are calibrated for rigid parts
+# meeting rigid parts; this is a woven strap being threaded 20 mm through a
+# blind slot, and 0.25 mm total on a 1 mm tape is inside the tape's own
+# compressibility. Doubling a named class rather than inventing a number keeps
+# it traceable to ``fits`` the way every other clearance here is.
+STRAP_SLOT_H = STRAP_T + 2 * fits.for_material(fits.FREE, "asa")  # 1.5
+
+# What is left of the flange either side of the slot, along the tube. This is
+# the material the strap tears out through if it ever goes, so it is not a
+# rounding: 1.8 mm is several perimeters at any line width this family prints
+# at, and more than three times the aluminium wall the cap beds against.
+STRAP_WALL = 1.8
+
+# The web between the slot's roof and the gland bore's underside. The loaded
+# member: the strap pulls up on it and it spans the flange's full width.
+STRAP_ROOF = 3.0
+
+# Fillet, not chamfer, and for once not because of the print pose -- the strap
+# drags over these two mouths every time it is threaded, and a radius is what
+# fabric wants. Sized against the slot's own end arcs (``STRAP_SLOT_H / 2``,
+# 0.75) so OCC has something to roll onto; the ladder in ``create_endcap`` takes
+# it down from here if OCC still refuses.
+STRAP_MOUTH_R = 0.5
+
+# ------------------------------------------------------------------ the cap
+
+# Derived, not chosen. The flange is exactly what the strap slot needs plus its
+# two walls -- see the module docstring for why the gland stopped setting this.
+CAP_T = STRAP_SLOT_W + 2 * STRAP_WALL  # 15.85
+
+# Cap-local centre of the slot, hung off the roof web rather than picked: the
+# web is what carries the strap, so it is the number worth stating, and the
+# floor below the slot is whatever is left (4.60 mm, asserted in checks).
+STRAP_SLOT_Y = -(GLAND_MAJOR_D / 2 + STRAP_ROOF + STRAP_SLOT_H / 2)  # -9.90
 
 # ----------------------------------------------------------------- the plug
 
@@ -121,7 +228,14 @@ EDGE_CHAMFER = 0.8
 # cavity's lower arc, not a ring: the gland bore is driven straight through it,
 # and a ring would have had to dodge the bore rather than simply lose the
 # material to it.
-PLUG_DEPTH = 15.0
+#
+# 20, up from 15, and the strap is why. The plug is what holds the cap square
+# against a moment applied at the flange -- ``check_endcap`` asserts it is the
+# deeper of the two -- and both halves of that argument got worse at once: the
+# flange nearly doubled, so its lever arm did, and the strap is a load pulling
+# on that lever which the cap never used to carry. Cheap to give: the plug is
+# inside 1.5 m of tube and costs nothing but print time.
+PLUG_DEPTH = 20.0
 # SLIDING, not SNUG -- it has to go together against a 1.5 m aluminium
 # extrusion's straightness, not a printed hole.
 PLUG_FIT = fits.SLIDING
@@ -137,28 +251,6 @@ PLUG_LEAD_IN = 0.4
 # crescent's own walls are what carry the plug, and a big radius here would eat
 # into them for no gain -- nothing mates against these edges.
 PLUG_SEAM_FILLET = 0.5
-
-# ---------------------------------------------------------------- the gland
-
-GLAND_THREAD_D = 12.0  # M12 x 1.5, the size the README specifies
-GLAND_PITCH = 1.5
-# Printed female against a real metal gland: +0.30 mm on the female major
-# diameter. IsoThread emits the basic profile with zero allowance, so every bit
-# of printing clearance has to be added here.
-THREAD_CLEARANCE = 0.30
-GLAND_MAJOR_D = GLAND_THREAD_D + THREAD_CLEARANCE
-
-# One full pitch of plain bore below the thread, chamfered, per the printed-
-# thread rule against starting a thread at z=0. It also keeps the mouth's
-# lead-in cone clear of the thread: cut the two into each other and OCC's fuse
-# quietly returns the thread alone instead of the cap.
-GLAND_COLLAR = GLAND_PITCH
-GLAND_THREAD_L = CAP_T - GLAND_COLLAR
-GLAND_LEAD_IN = 0.8
-
-# On the cap's own centre -- see the module docstring, including what that costs
-# the cable route.
-GLAND_Z = c.HEIGHT / 2
 
 # ---------------------------------------------------------------- the screws
 
@@ -208,6 +300,94 @@ def _cavity_outline(inset: float, top_gap: float) -> Sketch:
 def plug_section() -> Sketch:
     """The plug: the cavity's half-disc, solid, less its running clearance."""
     return _cavity_outline(PLUG_FIT / 2, PLUG_TOP_GAP)
+
+
+def strap_slot_z() -> tuple[float, float]:
+    """Where the strap slot starts and stops along the cap's own axis.
+
+    Centred in the flange, so ``STRAP_WALL`` is left at the bed face and the
+    same again at the seat -- the slot never reaches either, which is what keeps
+    the strap captive and the tube's wall seat whole.
+    """
+    return STRAP_WALL, CAP_T - STRAP_WALL
+
+
+def strap_slot_section() -> Sketch:
+    """The strap slot's section, in the plane the strap threads through.
+
+    An obround rather than a rectangle: the strap turns through the mouth under
+    load, and a rectangle would put that load into two square corners.
+
+    Returned **local**, like every other section in this file, for the caller to
+    put on ``Plane.YZ``. Building it on that plane here and adding it to a
+    builder already on that plane applies the transform twice and cuts the slot
+    clean outside the part -- which leaves a valid solid, the right bounding box
+    and no slot at all. On that plane local x is the profile's z and local y is
+    the cap's own axis, which is what the ``rotation=90`` is for.
+    """
+    with BuildSketch() as s:
+        with Locations((STRAP_SLOT_Y, sum(strap_slot_z()) / 2)):
+            SlotOverall(STRAP_SLOT_W, STRAP_SLOT_H, rotation=90)
+    return s.sketch
+
+
+def strap_roof() -> float:
+    """Material between the slot's roof and the gland bore's underside."""
+    return -(STRAP_SLOT_Y + STRAP_SLOT_H / 2) - GLAND_MAJOR_D / 2
+
+
+def strap_floor() -> float:
+    """Material between the slot's floor and the bottom of the shell."""
+    return (STRAP_SLOT_Y - STRAP_SLOT_H / 2) + CAP_H / 2
+
+
+def strap_mouth_half_width() -> tuple[float, float]:
+    """Half-width of the shell where the slot breaks out, floor and roof.
+
+    The mouths sit on the shell's lower arc, so they are not at one half-width
+    but at a range of them -- which is exactly why the mouth gets an OCC fillet
+    rather than a boolean frustum, since no single frustum breaks a curved mouth
+    evenly. Returned floor-first, so the pair is (smaller, larger).
+    """
+    return (
+        cap_half_width(STRAP_SLOT_Y - STRAP_SLOT_H / 2 + c.HEIGHT / 2),
+        cap_half_width(STRAP_SLOT_Y + STRAP_SLOT_H / 2 + c.HEIGHT / 2),
+    )
+
+
+def strap_mouth_edges(shape: BuildPart | Part) -> ShapeList:
+    """The two mouth outlines, where the slot breaks out through the flanks.
+
+    Takes a builder mid-build or a finished ``Part``, because both are wanted:
+    ``create_endcap`` selects the raw mouths to fillet them, and ``checks``
+    selects what is left afterwards to measure that the fillet took.
+
+    Selected by geometry, not off a face: the shell's lower arc is one face and
+    it carries both mouths, the two screw-pocket scallops and the bed chamfer,
+    so there is no face here whose wires are all the ones wanted. Everything
+    inside the slot's own y/z envelope but out near a flank is a mouth edge; the
+    slot's four lengthwise seams sit on the centre line and are excluded by the
+    same test.
+    """
+    z_lo, z_hi = strap_slot_z()
+    y_lo = STRAP_SLOT_Y - STRAP_SLOT_H / 2
+    y_hi = STRAP_SLOT_Y + STRAP_SLOT_H / 2
+    inboard = min(strap_mouth_half_width()) - 1.0
+
+    def is_mouth(edge) -> bool:
+        bb = edge.bounding_box()
+        return (
+            abs(bb.center().X) > inboard
+            and bb.min.Y > y_lo - 0.05
+            and bb.max.Y < y_hi + 0.05
+            and bb.min.Z > z_lo - 0.05
+            and bb.max.Z < z_hi + 0.05
+        )
+
+    # ty reads Part.edges()'s own self as Mixin1D and rejects the union; the
+    # same suppression is already on part.edges() in models/lib/checks.py.
+    edges = shape.edges()  # ty: ignore[invalid-argument-type]
+    return ShapeList([edge for edge in edges if is_mouth(edge)])
 
 
 def plug_top_z() -> float:
@@ -323,6 +503,24 @@ def create_endcap() -> Part:
         # are the only edges in the part at that (x, y).
         fillet_edge(bp, _plug_bore_seams(bp), PLUG_SEAM_FILLET)
 
+        # The strap slot, driven clean through the flange under the bore. Both
+        # ways from Plane.YZ, so one cut makes both mouths and neither depends
+        # on which flank OCC happens to reach first.
+        with BuildSketch(Plane.YZ):
+            add(strap_slot_section())
+        extrude(amount=CAP_W, both=True, mode=Mode.SUBTRACT)
+
+        # The mouths. An OCC edge op, against this skill's own advice to prefer
+        # a boolean on a face carrying other features -- taken deliberately,
+        # because the mouths lie on a *curved* flank and a lofted frustum would
+        # break them by a different amount at the floor than at the roof, which
+        # is the one thing a lead-in tool must not do. Isolated through
+        # ``fillet_edge`` and walked down a ladder so a refusal at the full
+        # radius still leaves the mouths broken rather than raw.
+        for radius in (STRAP_MOUTH_R, 0.4, 0.3, 0.2):
+            if fillet_edge(bp, strap_mouth_edges(bp), radius):
+                break
+
         # Sits on top of the plain collar, so it never meets the lead-in above.
         with Locations((0, 0, GLAND_COLLAR)):
             add(thread)
@@ -425,4 +623,14 @@ def create() -> Part:
     return create_endcap()
 
 
-__all__ = ["create", "create_endcap", "seated"]
+__all__ = [
+    "create",
+    "create_endcap",
+    "seated",
+    "strap_floor",
+    "strap_mouth_edges",
+    "strap_mouth_half_width",
+    "strap_roof",
+    "strap_slot_section",
+    "strap_slot_z",
+]

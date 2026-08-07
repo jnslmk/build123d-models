@@ -82,17 +82,25 @@ pin down — check them before a printed part depends on one.
 two ports with M2 self-tappers; the M12 × 1.5 gland thread is printed directly
 into the cap.
 
-The cap is a thin **flange** flush with the tube, and a 15 mm **plug** that goes
-down the wiring cavity behind it.
+The cap is a **flange** flush with the tube, a 20 mm **plug** that goes down the
+wiring cavity behind it, and a **strap slot** through the flange under the bore.
 
-- **The flange is as thin as the gland's own thread.** A stock M12 gland carries
-  ~8 mm of male thread and then seals on its flange, so `CAP_T` is 8.0 — it was
-  12. Anything past 8 mm is bore the gland cannot reach and screw length the two
-  cap screws cannot spend on the aluminium.
+- **The strap slot is what sizes the flange.** A 12 mm velcro strap threads
+  through the cap and goes round a rigging bar, and it runs *perpendicular to
+  the profile* — round the cap's cross-section, not along the tube. So the
+  strap's width lies along the tube and the flange has to hold all 12 mm of it.
+  `CAP_T` is derived, `STRAP_SLOT_W + 2 × STRAP_WALL` = 15.85; it was 8.0, and
+  before that 12.
+- **The gland no longer sizes the flange, and no longer reaches all of it.** A
+  stock M12 gland carries ~8 mm of male thread and then seals on its flange
+  against the cap's *face* — which has not moved, so the gland still seats. The
+  thread is cut over the outer 8 mm only and the rest is plain bore.
 - **The plug is solid, not a ring.** A half-disc following the cavity's lower
   arc, with the gland bore driven straight through it: nothing is left standing
   in the bore's way, and the same material takes the rocking moment off the two
-  screws that a much longer ring used to.
+  screws that a much longer ring used to. 20 mm now rather than 15: the flange
+  nearly doubled, so its lever arm did, and the strap is a load on that lever
+  the cap never used to carry.
 - **The gland is on the cap's own centre.** Symmetric, and it costs something —
   the cavity ceiling is below the bore, so a cable cannot be fed from this gland
   into the tube's wiring cavity. `check_gland` measures the opening rather than
@@ -105,13 +113,21 @@ down the wiring cavity behind it.
 | | |
 |---|---|
 | Flange | 26.1 × 30.5 mm, flush with the tube, 0.8 bed chamfer |
-| Flange thickness | 8 mm |
-| Plug | 15 mm deep, solid half-disc, SLIDING fit in the cavity |
+| Flange thickness | 15.85 mm, derived from the strap slot |
+| Strap slot | 12.25 × 1.5 mm obround, through the flanks, 0.5 fillet at each mouth |
+| Strap | 12 × 1 mm velcro, perpendicular to the profile |
+| Plug | 20 mm deep, solid half-disc, SLIDING fit in the cavity |
 | Gland | M12 × 1.5 printed female, 6.5 mm of thread on a 1.5 mm collar |
 | Screws | 2 × M2 pan-head, 22 mm apart, Ø4.4 heads sunk to a 1.2 mm floor |
 
+The screws are unchanged — `SCREW_CBORE_DEPTH` still tracks `CAP_T`, so the same
+short M2 self-tappers still land 1.2 mm above the aluminium. The pocket they sit
+at the bottom of is 14.65 mm deep now, which wants a long thin driver.
+
 Prints outer-face-down: largest possible first layer, thread axis vertical, no
-overhangs. Layer height ≤ 0.25 mm (pitch / 6) or the thread staircases.
+overhangs. The strap slot suits that pose — a tall letterbox through a vertical
+wall, whose only unsupported run is a 1.5 mm ceiling. Layer height ≤ 0.25 mm
+(pitch / 6) or the thread staircases.
 
 ### Mounting, standing and corners
 

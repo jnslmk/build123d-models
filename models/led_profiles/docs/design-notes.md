@@ -152,12 +152,14 @@ spheres, so the clearance condition is not "twice the radius":
 
     a > r_gland / tan(angle/2) = 9.35 / tan 30°   = 16.2 mm
     s = a + gland protrusion   = 16.2 + 18.8      = 35.0 mm
-    dark run = 2 × (s + CAP_T) = 2 × 47.0         = 94 mm
+    dark run = 2 × (s + CAP_T) = 2 × 50.85        = 101.7 mm
 
-**94 mm of unlit tube at every vertex**, or about 6 % of an equilateral
-triangle's perimeter. The aluminium starts 12 mm behind the cap face, because
+**101.7 mm of unlit tube at every vertex**, or about 6 % of an equilateral
+triangle's perimeter. The aluminium starts `CAP_T` behind the cap face, because
 `endcap.seated()` puts the flange *outside* the tube — forgetting that term is
-worth 24 mm and it is easy to do.
+worth twice `CAP_T` and it is easy to do. Written as the symbol rather than the
+number on purpose: this line read 12 mm through the whole of the period when
+`CAP_T` was 8, and the strap slot has since taken it to 15.85.
 
 Those were 20.8 / 50.8 / **126 mm** for as long as the gland's two numbers were
 assumed (§8). Measuring the fitting brought the envelope from 24 to 18.71 mm and
@@ -469,8 +471,15 @@ triangle's side from 1625.6 to 1594.4 mm, and `corner.GLAND_DROP` from 3.0 mm to
 come down if the corner ever wants the height back.
 
 Still assumed about the gland: `gland.THREAD_L` = 8 mm, the male thread's own
-length. Nothing is sized against it — `CAP_T` is 12 for the printed-thread
-engagement rule, not for this — so it is a mock detail, not a design input.
+length. It is a design input now, and this paragraph used to say the opposite
+twice over — it claimed nothing was sized against it, and that `CAP_T` was 12.
+`CAP_T` went to 8 to match this number, and then to 15.85 when the strap slot
+took over sizing the flange. What the number sizes today is the *printed
+thread*: `endcap.GLAND_MALE_L` is the one source, `gland.THREAD_L` aliases it,
+and `GLAND_THREAD_L` is it less the collar. The flange is deeper than the gland
+reaches and the remainder is plain bore, which is what a thicker cap has always
+meant. If the real male thread is not 8 mm, the printed thread is wrong by that
+much; the flange is not.
 
 ### The one that is still assumed
 
