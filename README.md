@@ -16,7 +16,7 @@ uv sync
 ## Viewing Models
 
 ```bash
-uv run show cube
+uv run show lens_cap
 ```
 
 The viewer starts in the background on first use and stays open, so subsequent
@@ -38,9 +38,9 @@ The same name works for `export`, `render`, `render-a4` and `check`.
 Generate SVG projections without a viewer:
 
 ```bash
-uv run render cube                    # exports/cube_iso.svg
-uv run render cube --view top         # exports/cube_top.svg
-uv run render cube --view front       # exports/cube_front.svg
+uv run render lens_cap                    # exports/lens_cap_iso.svg
+uv run render lens_cap --view top         # exports/lens_cap_top.svg
+uv run render lens_cap --view front       # exports/lens_cap_front.svg
 ```
 
 Available views: `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`
@@ -50,7 +50,7 @@ Available views: `iso`, `front`, `back`, `left`, `right`, `top`, `bottom`
 Generate a DIN A4 PDF with top, front, left, and isometric views:
 
 ```bash
-uv run render-a4 cube
+uv run render-a4 lens_cap
 uv run render-a4 door_latch exports/door_latch_views.pdf
 ```
 
@@ -59,8 +59,8 @@ uv run render-a4 door_latch exports/door_latch_views.pdf
 A single model, to `exports/`:
 
 ```bash
-uv run export cube                    # STL (+ per-child STLs, + GLB)
-uv run export cube --step             # also STEP
+uv run export lens_cap                    # STL (+ per-child STLs, + GLB)
+uv run export lens_cap --step             # also STEP
 ```
 
 All of them — incremental, so this only rebuilds what your change can reach, and
@@ -96,7 +96,7 @@ docs/plans/      design documents
 tests/           unittest suite (uv run python -m unittest discover -s tests -t .)
 ```
 
-A model is either a **single file** (`models/cube.py`) or a **package**
+A model is either a **single file** (`models/lens_cap.py`) or a **package**
 (`models/led_psu_enclosure/`) — nothing in between. Both expose a zero-arg
 `create()` returning the part in its print pose, which is the only thing every
 entry point needs. A package additionally carries its own `config.py`, one
@@ -137,11 +137,7 @@ Single-file models:
 
 | Model | Description |
 |-------|-------------|
-| `cube` | Simple parametric cube — the minimal example |
 | `door_latch` | Rounded L-shaped door latch that pivots around a screw hole |
-| `slotted_plate` | Door latch plate: slot with a tapered entry ramp |
 | `lens_cap` | Parametric push-on lens cap |
 | `round_snap_box` | Round box with a snap-on lid that closes flush |
-| `satellite_led` | Hexagonal rod with WS2811 strips, parabolic mirror and diffuser |
 | `spiral_vase_lampshade` | Spiral-vase lampshade with twisted ribs and a breathing wave profile |
-| `wall_bar_lamp` | Wall-mounted linear bar lamp, double-ended tube sconce |

@@ -35,9 +35,8 @@ rationale:
 | `LID_PLUG_CLEAR` | `models/led_psu_enclosure/config.py` | `0.3` |
 | `VENT_CLEAR` | `models/led_psu_enclosure/config.py` | `0.35` |
 | `HEX_CLEARANCE` | `models/drill_storage/hex/config.py` | `0.15` |
-| `STEP_CLEARANCE` | `models/satellite_led.py` | `0.5` |
 
-Five numbers, five different intents, none of them stated. A later reader cannot tell
+Four numbers, four different intents, none of them stated. A later reader cannot tell
 whether `0.3` was measured, guessed, or copied from a page about an industrial machine —
 so nobody can safely change it. Naming the fit class fixes that: the next argument is
 about *the fit*, not about an anonymous float.

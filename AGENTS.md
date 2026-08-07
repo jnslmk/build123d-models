@@ -45,8 +45,8 @@ You no longer have to work that blast radius out by hand — `model_deps` walks 
 import graph, which is what `main.py` selects on and what `uv run deps` reports:
 
 ```bash
-uv run deps models/lib/edges.py          # 31 of 39 models
-uv run deps models/cube.py               # just cube
+uv run deps models/lib/edges.py          # 38 of 41 models
+uv run deps models/lens_cap.py           # just lens_cap
 uv run deps --files led_profiles.stand   # the other direction
 ```
 
@@ -55,7 +55,7 @@ Prefer that over a `grep`. The obvious pattern is wrong in two directions: `from
 ..box import` and `from ..sets import` that every `drill_storage.<set>.*` module
 uses to reach a directory up — and without `--include=*.py`, stale
 `__pycache__/*.pyc` inflate the count instead. `uv run deps
-models/drill_storage/box.py` reports 14 of 39 models; no grep will.
+models/drill_storage/box.py` reports 20 of 41 models; no grep will.
 
 The per-model commands are still the fastest loop while iterating on one part,
 and they take the same names as everything else:
@@ -83,23 +83,23 @@ STEP (or ask which format) when the request names it.
 uv sync
 
 # Show a model in the viewer (starts viewer in background if needed)
-uv run show cube
+uv run show lens_cap
 
 # Export a model to STEP and STL (no viewer); hand over the STL unless STEP was asked for
-uv run export cube
+uv run export lens_cap
 
 # Render model to SVG (no viewer needed) — preferred for agent workflows
-uv run render cube                    # exports/cube_iso.svg
-uv run render cube --view top         # exports/cube_top.svg
-uv run render cube --view front       # exports/cube_front.svg
-uv run render cube out.svg --scale 2  # custom output and scale
+uv run render lens_cap                    # exports/lens_cap_iso.svg
+uv run render lens_cap --view top         # exports/lens_cap_top.svg
+uv run render lens_cap --view front       # exports/lens_cap_front.svg
+uv run render lens_cap out.svg --scale 2  # custom output and scale
 # Views: iso (default), front, back, left, right, top, bottom
 
 # Run a model's geometry assertions, exit non-zero on failure
-uv run check cube
+uv run check lens_cap
 
 # Build ONE model (this is the one to reach for -- see "Build only what changed")
-uv run export cube
+uv run export lens_cap
 
 # Build every stale model, in parallel. Cheap when little changed, minutes from
 # cold; --all forces the whole roster. See "Build only what changed".
@@ -149,7 +149,7 @@ This is a collection of 3D printable models using build123d (Python CAD library)
 - `website.py` - Builds the static site bundle from `MODELS`
 
 Every entry point addresses a model by **name**, and a name is a *module path under
-`models`* with dots for directories: `cube` is `models/cube.py`,
+`models`* with dots for directories: `lens_cap` is `models/lens_cap.py`,
 `led_profiles.stand` is `models/led_profiles/stand.py`,
 `led_profiles.assemblies.standing` is nested one deeper. They all do the same
 thing — import `models.<name>` and call its zero-arg `create()`. Nothing else is

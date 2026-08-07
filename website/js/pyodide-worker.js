@@ -33,8 +33,8 @@ const status = (text) => self.postMessage({ type: "status", text });
 const log = (text) => self.postMessage({ type: "log", text });
 
 // Install OpenCASCADE (the big one) + build123d from the OCP.wasm index, then
-// stub out ocp_vscode so models that `from ocp_vscode import show` at module top
-// level (lens_cap, satellite_led) import cleanly in the headless runtime.
+// stub out ocp_vscode so any model that `from ocp_vscode import show` at module
+// top level imports cleanly in the headless runtime.
 const SETUP = `
 import micropip
 micropip.set_index_urls(["https://yeicor.github.io/OCP.wasm", "https://pypi.org/simple"])
@@ -134,7 +134,7 @@ async function boot() {
   const sources = await (await fetch("../py-sources.json")).json();
   pyodide.FS.mkdirTree("/models");
   for (const [path, text] of Object.entries(sources)) {
-    // path is like "models/cube.py"; write it at the FS root so "import models.x" works
+    // path is like "models/lens_cap.py"; write it at the FS root so "import models.x" works
     const full = "/" + path;
     const dir = full.slice(0, full.lastIndexOf("/"));
     pyodide.FS.mkdirTree(dir);

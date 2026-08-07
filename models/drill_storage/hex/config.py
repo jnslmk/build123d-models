@@ -266,7 +266,7 @@ BITS_PITCH = (CART_W / 2 - HEX_SOCKET_R - (CART_WALL + BITS_CART_MOUTH_CH)) / (
 )
 
 # --- Colours ------------------------------------------------------------------
-# Base and insert both black (``wall_bar_lamp.BLACK`` precedent); covers
+# Base and insert both black; covers
 # translucent so the bits read through them (``tools.COVER_GLASS`` precedent).
 BASE_COLOR = Color(0.1, 0.1, 0.1)
 INSERT_COLOR = Color(0.1, 0.1, 0.1)

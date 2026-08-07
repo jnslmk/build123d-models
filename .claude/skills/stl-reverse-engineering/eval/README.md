@@ -18,11 +18,11 @@ real script output. **No LLM judging is involved anywhere in this harness.**
 
 ## What it checks, and why
 
-Three scenarios, one per model in SKILL.md's round-trip table:
+Two scenarios, drawn from SKILL.md's round-trip table (a third, `cube`, was
+retired when that model left the roster -- its run history stays below):
 
 | id | model | required `mesh_compare` exit |
 |---|---|---|
-| `cube` | `cube` | 0 (pass) |
 | `door_latch` | `door_latch` | 0 (pass) |
 | `led_profiles.stand` | `led_profiles.stand` | 1 (REQUIRED NEGATIVE) |
 

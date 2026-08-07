@@ -4,7 +4,7 @@ Usage:
     uv run render-a4 <model_name> [output.pdf]
 
 Example:
-    uv run render-a4 cube
+    uv run render-a4 lens_cap
     uv run render-a4 door_latch exports/door_latch_views.pdf
 """
 

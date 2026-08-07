@@ -13,9 +13,9 @@ Views:
     bottom   - Bottom up
 
 Examples:
-    uv run render cube
-    uv run render cube exports/cube_top.svg --view top
-    uv run render cube --view iso --scale 2.0
+    uv run render lens_cap
+    uv run render lens_cap exports/lens_cap_top.svg --view top
+    uv run render lens_cap --view iso --scale 2.0
 """
 
 from __future__ import annotations

@@ -10,7 +10,7 @@ from viewer import ensure_server
 def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: uv run show <name>")
-        print("Example: uv run show cube")
+        print("Example: uv run show lens_cap")
         sys.exit(1)
 
     name = sys.argv[1]

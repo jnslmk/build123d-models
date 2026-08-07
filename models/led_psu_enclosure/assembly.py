@@ -5,8 +5,8 @@
 ``create_print_layout()`` -- the printed parts spread out, each in its print pose
 ``create_mocks_only()``   -- just the contents, for checking the layout
 
-Following the dual-entry-point pattern of ``models/wall_bar_lamp.py``: the
-assembled view is for understanding, the print layout is what goes to the slicer.
+Two entry points, two audiences: the assembled view is for understanding, the
+print layout is what goes to the slicer.
 Note the house rule -- each printed part is *authored* in its own print pose, and
 the assembled view is the thing that moves parts around, never the reverse.
 """

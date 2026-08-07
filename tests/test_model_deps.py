@@ -34,7 +34,7 @@ def rel(paths) -> set[str]:
 
 class ModelFilesTests(unittest.TestCase):
     def test_single_file_model_pulls_in_its_own_source(self) -> None:
-        self.assertIn("models/cube.py", rel(model_deps.model_files("cube")))
+        self.assertIn("models/lens_cap.py", rel(model_deps.model_files("lens_cap")))
 
     def test_every_model_includes_the_package_init_python_runs_first(self) -> None:
         # models/__init__.py executes on the way to any model, so a change to it
@@ -69,7 +69,8 @@ class ModelFilesTests(unittest.TestCase):
 class AffectedModelsTests(unittest.TestCase):
     def test_a_models_own_file_selects_only_it(self) -> None:
         self.assertEqual(
-            model_deps.affected_models(["models/cube.py"], list(MODELS)), ["cube"]
+            model_deps.affected_models(["models/lens_cap.py"], list(MODELS)),
+            ["lens_cap"],
         )
 
     def test_unrelated_file_selects_nothing(self) -> None:
@@ -89,21 +90,26 @@ class AffectedModelsTests(unittest.TestCase):
         self.assertIn("drill_storage.wood", hits)
         self.assertIn("drill_storage.stone.shell", hits)
         self.assertIn("drill_storage.hex", hits)
-        self.assertNotIn("cube", hits)
+        self.assertNotIn("lens_cap", hits)
 
 
 class FingerprintTests(unittest.TestCase):
     def test_is_stable_across_calls(self) -> None:
-        self.assertEqual(model_deps.fingerprint("cube"), model_deps.fingerprint("cube"))
+        self.assertEqual(
+            model_deps.fingerprint("lens_cap"), model_deps.fingerprint("lens_cap")
+        )
 
     def test_differs_between_models(self) -> None:
         self.assertNotEqual(
-            model_deps.fingerprint("cube"), model_deps.fingerprint("lens_cap")
+            model_deps.fingerprint("lens_cap"), model_deps.fingerprint("round_snap_box")
         )
 
     def test_changing_a_global_input_changes_every_fingerprint(self) -> None:
         lock = ROOT / "uv.lock"
-        before = {name: model_deps.fingerprint(name) for name in ("cube", "lens_cap")}
+        before = {
+            name: model_deps.fingerprint(name)
+            for name in ("lens_cap", "round_snap_box")
+        }
         original = lock.read_bytes()
         try:
             lock.write_bytes(original + b"\n# scratch\n")

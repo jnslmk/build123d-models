@@ -21,7 +21,6 @@ import importlib
 # a zero-arg ``create()`` belong here; the shared pieces a part is built from
 # (``led_profiles.cradle``, ``drill_storage.box``, ``models.lib``) are not models.
 MODELS = [
-    "cube",
     "door_latch",
     # Gridfinity drill storage: the family view, then one variant per tool set.
     # A variant is an assembled scene plus its three printed parts -- ASA shell,
@@ -72,10 +71,7 @@ MODELS = [
     "led_psu_enclosure.gasket",
     "lens_cap",
     "round_snap_box",
-    "satellite_led",
-    "slotted_plate",
     "spiral_vase_lampshade",
-    "wall_bar_lamp",
 ]
 
 

@@ -12,7 +12,7 @@ def main() -> None:
 
     if not args:
         print("Usage: uv run export <name> [--step]")
-        print("Example: uv run export cube")
+        print("Example: uv run export lens_cap")
         sys.exit(1)
 
     name = args[0]

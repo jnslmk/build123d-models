@@ -190,9 +190,6 @@ Read the real thing before inventing a new one.
   symmetric half-round bump fought the user going on. `snap_bead_ring(outward=True)`
   is the same profile seen from the other side of the joint, for a compliant male
   part detenting into a rigid female one.
-- **Telescoping tube into a shroud** — `models/wall_bar_lamp.py:36-37`.
-  `SHROUD_BORE_DIAMETER = TUBE_OUTER_DIAMETER + 0.4` over a 40 mm tube: a clean
-  +0.4 mm diametral slip fit, matching the table above.
 - **Hex socket slip fit** — `models/drill_storage/hex/config.py`
   (`HEX_SHANK_AF`, `HEX_CLEARANCE`). `HEX_CLEARANCE = 0.15` across the flats on
   a 6.35 mm 1/4" shank, with the comment explaining that the fit lives

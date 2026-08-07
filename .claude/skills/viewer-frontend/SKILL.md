@@ -61,7 +61,7 @@ cp dist/three-cad-viewer.css   ~/git-projects/vscode-ocp-cad-viewer/ocp_vscode/s
 
 # 4. Test with a model from this repo
 cd ~/git-projects/build123d/build123d-models
-uv run show cube
+uv run show lens_cap
 ```
 
 `npm run build` runs `scripts/copy_version.cjs` then rollup with

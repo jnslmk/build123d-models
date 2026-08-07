@@ -21,9 +21,9 @@ class ExportTests(unittest.TestCase):
             original_dir = export_module.EXPORTS_DIR
             export_module.EXPORTS_DIR = Path(tmpdir)
             try:
-                export_module._export_child_stls(part, "wall_bar_lamp")
-                self.assertTrue((Path(tmpdir) / "wall_bar_lamp_left_tube.stl").exists())
-                self.assertTrue((Path(tmpdir) / "wall_bar_lamp_right_cap.stl").exists())
+                export_module._export_child_stls(part, "bar_lamp")
+                self.assertTrue((Path(tmpdir) / "bar_lamp_left_tube.stl").exists())
+                self.assertTrue((Path(tmpdir) / "bar_lamp_right_cap.stl").exists())
             finally:
                 export_module.EXPORTS_DIR = original_dir
 
