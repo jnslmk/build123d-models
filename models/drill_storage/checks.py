@@ -905,14 +905,15 @@ def _is_bore_seam(part: Part, edge) -> bool:
     return is_periodic_seam(part, edge)
 
 
-def _edge_faces(part: Part, edge) -> list:
+def edge_faces(part: Part, edge) -> list:
     """The faces of ``part`` that share ``edge``, matched by position.
 
     The same identity ``models.lib.checks._adjacent_faces`` uses internally
     (an edge's centre + length, since two calls to ``Face.edges()`` hand back
     separate Python objects for the same geometry) -- re-derived here rather
-    than imported, because that helper is private to the module that owns the
-    edge-checking machinery (house rule: no private cross-module imports).
+    than imported, because that helper stays private to its owner module.
+    Shared with the hex checks, which import this one
+    (``drill_storage.hex.checks``).
     """
     at, length = edge.center(), edge.length
     key = (round(at.X, 4), round(at.Y, 4), round(at.Z, 4), round(length, 4))
@@ -926,7 +927,7 @@ def _edge_faces(part: Part, edge) -> list:
     return faces
 
 
-def _is_flush_seam(part: Part, edge) -> bool:
+def is_flush_seam(part: Part, edge) -> bool:
     """A convex edge that measures a genuine, exact 180 deg -- not a corner at
     all, but a residual split where a boolean subtract's own tool boundary
     landed exactly flush with a face the part already had.
@@ -951,7 +952,7 @@ def _is_flush_seam(part: Part, edge) -> bool:
     """
     if edge.geom_type != GeomType.LINE:
         return False
-    faces = _edge_faces(part, edge)
+    faces = edge_faces(part, edge)
     if len(faces) != 2:
         return False
     for t in (0.1, 0.5, 0.9):
@@ -1016,7 +1017,7 @@ def _shell_allow(shell: Part) -> tuple:
             "is_periodic_seam, one per socket",
         ),
         (
-            lambda e: _is_flush_seam(shell, e),
+            lambda e: is_flush_seam(shell, e),
             "the key slot's mouth fillet, anchored flush with the cavity "
             "wall -- a genuine 180 deg split OCC left as two faces rather "
             "than one, confirmed by matching face normals, two per shell "
