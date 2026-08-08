@@ -59,6 +59,7 @@ packages = [
     "models.led_profiles.assemblies",
     "models.led_psu_enclosure",
     "models.salad_bowl_lamp",
+    "models.spiral_vase_lampshade",
 ]
 py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "model_deps", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
 

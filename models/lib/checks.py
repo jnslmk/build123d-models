@@ -47,12 +47,20 @@ def is_solid_at(part: Part, x: float, y: float, z: float) -> bool:
     return clf.State() in (TopAbs_IN, TopAbs_ON)
 
 
-def _probe(part: Part):
+def solid_probe(part: Part):
     """A reusable inside/outside test, for when one point is not enough.
 
     ``is_solid_at`` builds a fresh classifier per call, which is right for a
     handful of samples and far too slow for the thousands ``interior_angle``
     needs. This builds it once.
+
+    Public because the cost is not a footnote on complicated parts: constructing
+    the classifier scales with face count, and on a lofted shell of 168 B-spline
+    faces (``spiral_vase_lampshade``) one ``is_solid_at`` measures 2.7 seconds
+    against roughly a millisecond through a probe built once. Any ``checks.py``
+    taking more than a handful of samples of the same solid should take them
+    through this instead. Note the argument type: it takes a ``Vector``, not
+    three floats, matching ``interior_angle``'s ``probe`` parameter.
     """
     clf = BRepClass3d_SolidClassifier(part.wrapped)
 
@@ -243,7 +251,7 @@ def interior_angle(part: Part, edge: Edge, faces=None, probe=None) -> float | No
     along the normals' *sum* is the intuitive test and it is wrong for both
     cases at once, silently.
     """
-    inside = probe or _probe(part)
+    inside = probe or solid_probe(part)
     step = 1e-3
     pair = faces if faces is not None else _adjacent_faces(part).get(_edge_key(edge))
     if pair is None or len(pair) != 2:
@@ -329,16 +337,41 @@ def is_periodic_seam(part: Part, edge: Edge) -> bool:
     own scoping (location, length, which feature) and its own stated reason;
     this function only answers "is there a second surface here at all."
     """
+    return periodic_seams(part)(edge)
+
+
+def periodic_seams(part: Part):
+    """A reusable ``is_periodic_seam``, for when one edge is not enough.
+
+    Exactly the relationship ``solid_probe`` has to ``is_solid_at``, and for
+    exactly the same reason: ``is_periodic_seam`` rebuilds OCC's entire
+    edge-to-face ancestor map on every call, which is right for the handful of
+    edges a boolean-built part needs it for and quadratic anywhere a large
+    fraction of the edges are seams. ``spiral_vase_lampshade`` is a lofted shell
+    of 168 faces in which 166 of the 334 edges are the periodic closure of a
+    loft patch, so asking one at a time means rebuilding a 168-face map 166
+    times; built once, the whole survey costs a second.
+
+    Returns a predicate over a single ``Edge``, which is the shape an ``allow``
+    entry wants. Everything ``is_periodic_seam``'s docstring says about what the
+    answer does and does not license applies unchanged -- in particular that it
+    is necessary but not sufficient evidence that an edge is safe to leave
+    unexplained, so a caller should still scope it and still state its reason.
+    """
     from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE  # ty: ignore[unresolved-import]
     from OCP.TopExp import TopExp  # ty: ignore[unresolved-import]
     from OCP.TopTools import TopTools_IndexedDataMapOfShapeListOfShape  # ty: ignore[unresolved-import]
 
     ancestors = TopTools_IndexedDataMapOfShapeListOfShape()
     TopExp.MapShapesAndAncestors_s(part.wrapped, TopAbs_EDGE, TopAbs_FACE, ancestors)
-    if not ancestors.Contains(edge.wrapped):
-        return False
-    faces = list(ancestors.FindFromKey(edge.wrapped))
-    return len(faces) == 2 and faces[0].IsSame(faces[1])
+
+    def is_seam(edge: Edge) -> bool:
+        if not ancestors.Contains(edge.wrapped):
+            return False
+        faces = list(ancestors.FindFromKey(edge.wrapped))
+        return len(faces) == 2 and faces[0].IsSame(faces[1])
+
+    return is_seam
 
 
 class SharpEdgeSurvey(NamedTuple):
@@ -436,7 +469,7 @@ def sharp_convex_edges(
     its own ``_check_sharp_edges`` wrapper, which applies its allow-list
     triples to both fields).
     """
-    inside = _probe(part)
+    inside = solid_probe(part)
     adjacency = _adjacent_faces(part)  # built once; it is the expensive part
     sharp = []
     unclassifiable = []
