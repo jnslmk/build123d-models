@@ -1,0 +1,60 @@
+{
+  "_comment": "Baselines are the numbers published in SKILL.md's 'What the tools were measured to do' table. Do not edit them to make a run pass -- see eval/README.md.",
+  "scenarios": [
+    {
+      "id": "self_match",
+      "runner": "self_match",
+      "note": "A silhouette against itself. Establishes that the rasteriser and the aligner are self-consistent; every other IoU here is meaningless if this is not exactly 1.",
+      "config": { "model": "lens_cap", "view": "top", "px_per_mm": 8.0 },
+      "assertions": {
+        "iou": { "min": 0.9999, "max": 1.0 },
+        "width_ratio": { "min": 0.999, "max": 1.001 }
+      }
+    },
+    {
+      "id": "scale_error_2pct",
+      "runner": "scale_error",
+      "note": "REQUIRED NEAR-MISS. A part 2% too large must still clear the 95% IoU gate (measured 0.96124, closed form 1/1.02^2 = 0.96117). If IoU ever collapsed here, SKILL.md's 'read the ratio, not the IoU' rule would be wrong.",
+      "config": {
+        "model": "lens_cap",
+        "view": "top",
+        "px_per_mm": 8.0,
+        "scale_factor": 1.02
+      },
+      "assertions": {
+        "iou": { "min": 0.956, "max": 0.966 },
+        "width_ratio": { "min": 0.974, "max": 0.984 }
+      }
+    },
+    {
+      "id": "hidden_cavity",
+      "runner": "hidden_cavity",
+      "note": "REQUIRED NEGATIVE. A sealed internal void removes 25% of the material and changes no silhouette at all. IoU must stay at 1.0 for SKILL.md's 'a silhouette gate is blind to internal geometry' warning to hold.",
+      "config": {
+        "outer_mm": [40, 30, 20],
+        "cavity_mm": [30, 20, 10],
+        "views": ["front", "right", "top"],
+        "px_per_mm": 8.0
+      },
+      "assertions": {
+        "iou": { "min": 0.9999, "max": 1.0 },
+        "volume_ratio": { "min": 0.7499, "max": 0.7501 }
+      }
+    },
+    {
+      "id": "rectify_roundtrip",
+      "runner": "rectify",
+      "note": "End-to-end homography check on a synthetic oblique shot: a known 40 mm segment must come back as 40 mm, and the rectified board must fill its frame.",
+      "config": {
+        "board_mm": [100.0, 60.0],
+        "segment_mm": 40.0,
+        "synthetic_px_per_mm": 10.0,
+        "oblique_offsets_px": [[60, 40], [-40, 15], [25, -30], [-15, -20]]
+      },
+      "assertions": {
+        "error_mm": { "min": 0.0, "max": 0.05 },
+        "rectified_fill": { "min": 0.99, "max": 1.0 }
+      }
+    }
+  ]
+}

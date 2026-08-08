@@ -85,3 +85,13 @@ mesh = [
     "shapely>=2.1.2",
     "trimesh>=5.0.0",
 ]
+# The image maths behind the ``photo-reverse-engineering`` skill: homography
+# rectification and silhouette rasterising. Both packages are already in the
+# tree as transitive dependencies of the OCP stack, so this group costs an
+# install nothing -- it is declared so the scripts import something this
+# project asked for rather than something it happened to inherit. Not a default
+# group, and no model imports it, so the CI build never resolves it.
+photo = [
+    "numpy>=2.0",
+    "pillow>=11.0",
+]

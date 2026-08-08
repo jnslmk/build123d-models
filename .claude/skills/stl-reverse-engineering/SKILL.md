@@ -128,6 +128,38 @@ Full detail, the per-geometry technique table, and the tolerance/accuracy
 measurements are in `references/reconstruction-guide.md`. Read it before any
 reconstruction that is not a plain extrusion.
 
+## Closing the loop
+
+Steps 2 and 3 are a decomposition and a numeric gate, which is everything a
+builder/critic loop needs — but nothing above says to *run* one, and doing it by
+hand one zone at a time is the slow way through a multi-zone part.
+
+Fan out instead: one subagent per zone from `mesh_zones.py`, each with a
+separate critic subagent that sees the zone's slice contours and its
+`mesh_compare.py` output but **not** the builder's reasoning. Loop a zone until
+its gate passes; cap it at three rounds, because a zone that has not converged
+by then is blocked on information the mesh does not contain, and the useful
+result is saying which.
+
+Two rules make this work rather than burn tokens:
+
+1. **The bar is the exit code, never an opinion.** `mesh_compare.py` already
+   exits non-zero below 95%. A critic that reports "looks close" has reported
+   nothing. This is the one thing to get right if you are adapting a loop
+   pattern from elsewhere — see `photo-reverse-engineering`'s
+   `references/gauntlet-loop.md` for where that framing comes from and what it
+   costs to copy an aesthetic bar verbatim.
+2. **Do not start with the loop.** `swept/actual` is already this rule in
+   numeric form: above 1.3, no number of critic rounds will turn the generated
+   extrusion into the right part, and the loop will spend hours refining a shape
+   that was never close. Decompose first, then loop per zone.
+
+An IoU gate has the same blind spot a visual one does, and it is worth naming:
+`mesh_compare.py` grades a *solid*, so it does see internal voids — but the
+zone-level slice contours a critic reads do not distinguish a blind pocket from
+a through hole at the same diameter. Point-sample the rebuilt solid
+(`is_solid_at`, per `build123d-geometry-ops`) rather than trusting a contour.
+
 ## Round-trip validation
 
 Export a model this repo already has, reconstruct it blind, compare to the
@@ -158,6 +190,10 @@ Reconstructed models are also the one case where the mesh's own dimensions are
 untrustworthy input: they already include the source designer's tolerances,
 shrinkage compensation and printer quirks. Re-derive fits from
 `fdm-fits-and-clearances` instead of copying them.
+
+`photo-reverse-engineering` ends at the same place from a weaker input. If only
+photos exist, go there; if both exist, start here, because a mesh has real
+dimensions and a photo does not.
 
 ## Attribution
 

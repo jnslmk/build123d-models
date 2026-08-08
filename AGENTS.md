@@ -301,5 +301,7 @@ OCC edge `fillet`/`chamfer` calls are all-or-nothing and can cascade-corrupt a `
 - `snap-fits` — sizing a cantilever, annular, or torsional snap fit against a material's permissible strain and checking deflection/mating force.
 - `part-joints` — non-lid, non-fastener joints between two printed parts: dovetails, T-slots, pins, hinges, crush ribs, telescoping collars.
 - `printed-text` — sizing and placing engraved or embossed labels so a 0.4 mm nozzle can actually resolve them.
+- `photo-reverse-engineering` — turning photographs into a parametric model: scale references, perspective rectification, the measured-versus-assumed ledger, and why a silhouette gate cannot see a 2% scale error or a sealed void.
+- `stl-reverse-engineering` — turning a downloaded or scanned mesh into parametric build123d source, and grading the result by IoU before trusting it.
 - `viewer-frontend` — the cross-repo build loop for changing the viewer's frontend (three-cad-viewer → vscode-ocp-cad-viewer → this repo).
 - `viewer-inspection` — using the viewer's Element Picker and `uv run selection` to turn a click into a build123d selector.

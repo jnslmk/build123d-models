@@ -1,0 +1,1 @@
+{"iteration": 0, "kind": "run", "timestamp": "2026-08-08T15:07:14+00:00", "score": 100.0, "passed": 4, "total": 4, "failed_assertions": [], "skill_version_hash": "5c96e223b655", "change_description": "first run of this harness, on the tree as committed"}
