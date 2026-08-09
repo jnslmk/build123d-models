@@ -3,27 +3,16 @@
 A wall cradle for the round Philips Sonicare charging puck. The charger drops
 into a closed cup, the brush stands upright out of the top, and the whole thing
 is held to the tile by double-sided foam tape on a flat bar across its back.
-The cable is the only opening: a channel through the back, open from the bed to
-the rim, deep enough that the cord lies below the surface the tape sticks to.
+The floor is a ring: a ⌀41.6 mm hole through the middle with the charger
+resting on a 3 mm seat around it, so you can push it back out with a finger once
+the holder is glued to the wall. The cable leaves through a notch in the back
+wall which is closed at the top and open at the bottom into that hole, then runs
+left or right along a channel across the tape face toward the outlet.
 
-The channel is open at the top so the cord can be **laid in from above** with
-the puck following it down. Closed at the top it would have to be threaded, and
-the free end of this cord has a mains plug on it — which is to say the earlier
-closed-top version could not be assembled at all.
-
-| | |
-|---|---|
-| Model | `sonicare_charger_holder` |
-| Parts | one |
-| Material | PETG |
-| Size | 52.4 mm across, 21 mm tall |
-| Supports | none |
-
-```bash
-uv run show sonicare_charger_holder
-uv run export sonicare_charger_holder   # STL + STEP + GLB
-uv run check sonicare_charger_holder
-```
+The notch is open at the bottom for a reason worth stating: closed at *both*
+ends it could only be threaded, and the free end of this cord has a mains plug
+on it. An earlier version of this model was assembled-impossible for exactly
+that reason while passing every geometric check written for it.
 
 ## Read this before you print
 
@@ -115,36 +104,43 @@ layer is what rocks the tape pad off the tile.
 ## Notes for whoever changes this next
 
 The defect worth learning from is the one no check caught: the cable channel was
-closed at the top, so the cable could not be fitted. Every geometric assertion
-passed, the renders looked right, and the part was unusable — because everything
+closed at both ends, so the cable could not be fitted. Every geometric assertion
+passed, the renders looked right, and the part was unusable -- because everything
 being verified was a property of the *solid*, and nothing asserted a property of
-*assembly*. The check that now covers it sweeps the channel's full height at
-three points across its width, and it goes red on the old shape.
+*assembly*. `check_cable_route` now walks the cord's actual path and asserts the
+junction into the floor hole; it goes red on the old shape.
 
-Two earlier bugs were invisible for a different reason — they were interior, and
-the cup's own wall stands in front of them in every projection. Both were the
-same mistake in different axes: the slot's floor surviving as a horizontal ledge
-inside the cup, because the channel meant to remove it was first narrower than
-the slot and then, at thicker walls, shallower than the wall. Merging the two
-features into one open channel dissolved that class of bug rather than fixing it
-again — there is no longer a slot floor to leave behind. `channel_depth` still
-carries the second half of the rule, because below the floor line the channel is
-a blind notch and can still stop inside the wall.
+Everything else that has gone wrong here has been one shape of mistake: **a face
+landing exactly on another face.** Five instances, all found by sweeping the
+sliders rather than by looking at the default, and every one of them announced
+itself as OCC silently refusing a chamfer rather than as anything visible:
 
-A third constraint has been deleted rather than kept: `RIM_KEEPOUT` reserved a
-sliver of plain wall between the slot's crown and the bore's lead-in cone,
-because OCC silently refused two chamfers when they crowded. Opening the channel
-to the rim removed the crown, so there is nothing left to crowd.
+- the side channels' back face tangent to the bore, when `wall == side_depth`;
+- the channel exactly as wide as the arms, when `boot == cord`;
+- the arms exiting through the bar's *rounded* corner instead of its flat end;
+- the cup's outer cylinder crossing that same corner arc instead of the flat
+  front face;
+- and earlier, the cable notch's crown crowding the bore's lead-in cone.
+
+Each is now a derived bound with a named constant (`CHANNEL_OVERCUT`,
+`JUNCTION_STEP`, `CORNER_CLEAR`, `RIM_KEEPOUT`) rather than a number that
+happened to work at the defaults. If you add a feature cut in from the tape
+plane, assume it will land on something and derive its clearance from whatever
+that is.
 
 Three lessons, in the order they cost the most:
 
 1. **Assert what the part is for, not only what it is.** A model can be
    geometrically perfect and functionally impossible.
 2. **The checks that matter sweep the parameters.** The defaults are the one
-   configuration anybody looks at; both ledge bugs only appear elsewhere in the
-   range.
+   configuration anybody looks at; every bug above was invisible there.
 3. **Point-sample the solid.** Every interior defect here was invisible in an
    SVG, a render and the viewer alike.
+
+The slider stops describe a round charging puck (35-70 mm across, 10-35 mm tall,
+1.6-3.0 mm wall) rather than an arbitrary span. All sixteen corners of that box
+build with every edge treatment applied and no sharp convex edges; widening it
+reintroduces degenerate shapes rather than useful ones.
 
 Every fix above was demonstrated to turn `uv run check sonicare_charger_holder`
 red before it was accepted.

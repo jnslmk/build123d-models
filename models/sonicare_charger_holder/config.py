@@ -23,10 +23,22 @@ drops in and gravity holds it, so the only fit in the design is the cavity's.
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+from math import sqrt
 
 from ..lib import fits
 
 MATERIAL = "petg"
+
+# Slider stops. These describe *a round charging puck*, which is what this model
+# is for -- they are not an arbitrary span. The first version allowed a 20 mm
+# puck behind a 6 mm wall, which is fifteen perimeters around something no
+# Sonicare has ever shipped, and the only thing that range bought was a set of
+# degenerate shapes for the parameter sweep to trip over. Wide enough to cover
+# every round variant plus generous room for a mis-measurement, and no wider.
+PUCK_DIA_MIN, PUCK_DIA_MAX = 35.0, 70.0
+PUCK_H_MIN, PUCK_H_MAX = 10.0, 35.0
+WALL_MIN, WALL_MAX = 1.6, 3.0
+BOOT_MIN, BOOT_MAX = 3.0, 10.0
 
 # --------------------------------------------------------------------------
 # The charger. Researched, not measured -- see the module docstring.
@@ -110,15 +122,84 @@ carrying load in bending -- the tape pad does that -- so this is set by what
 prints solidly rather than by a stress.
 """
 
-FLOOR = 2.0
-"""Ten layers at 0.2 mm. The floor is the first layer and the bed-side face, and
-it is closed: the only opening in this model is the cable route.
+FLOOR_MIN = 2.0
+"""Not a fit: the thinnest the floor is allowed to be, ten layers at 0.2 mm.
+
+A floor is usually chosen and done with. This one is derived instead -- see
+``Holder.floor`` -- because the side channels have to pass *underneath* the cup,
+and that turns the floor into the thing that has to be tall enough to contain
+them.
+"""
+
+SEAT_BACKING = 1.6
+"""Not a fit: seat that must survive above the side channels.
+
+Four perimeters between the top of a channel and the face the charger rests on.
+The channels run under the seat for the width of the cup's back, so without this
+the puck would be sitting on a membrane over a void.
 """
 
 PLATE_INSET = 3.0
 """Not a fit: how far each end of the tape bar stops short of the cup's own
 silhouette, so that from the front the holder reads as a plain round cup and the
 bar is not visible past it.
+"""
+
+LEDGE = 3.0
+"""Not a fit: radial width of the seat the charger rests on.
+
+The floor is a ring, not a disc. A closed floor meant that once the holder was
+taped to the tile there was no way to get the charger back out -- nothing to
+push against, and no room to get a finger past it. Opening the middle turns
+removal into pushing a finger up through the hole, and drains the cup as a side
+effect, which a closed floor in a shower room never did.
+
+3 mm leaves a narrow seat, and narrow is fine: the ring carries the charger's
+own weight and nothing else. The trade it buys is the bigger hole, which is
+what a finger actually needs.
+"""
+
+RIM_KEEPOUT = 1.0
+"""Not a fit: the minimum height of plain, untreated wall between the cable
+notch's crown and whichever rim treatment reaches furthest down.
+
+Back, and deleted once in between. It was removed when the channel ran open to
+the rim, because a channel with no crown cannot crowd anything. Closing the
+channel back to a notch restores the crown and with it the failure: measured by
+sweeping the boot diameter, OCC takes the notch's chamfers at 0.6 mm of
+surviving wall and silently refuses two of them at 0.3 mm. This is that
+threshold with a comfortable multiple on top. Bounding against the *rim*
+instead does not work -- the lead-in cone starts lower than the outer chamfer.
+"""
+
+JUNCTION_STEP = 1.0
+"""Not a fit: how much wider the channel is kept than the arms that meet it.
+
+The channel carries the boot and the arms carry only the cord, so the channel is
+normally the wider of the two by some margin anyway. Wind the boot slider down
+to the cord's own diameter and the two come out identical, their side walls
+become coplanar, and the junction degenerates into a sliver that OCC will not
+treat. This keeps a step there whatever the sliders say.
+"""
+
+CORNER_CLEAR = 0.4
+"""Not a fit: daylight between the bar's rounded corner and the side channels.
+
+The channels run out through the ends of the bar, and the bar's ends are
+rounded. Sized on half the bar's depth alone, the rounding reached far enough
+across that a channel exited *around the curve* rather than through a flat face
+-- a lip in the one place the cord bends as it leaves. OCC refusing to treat
+that edge, by either a chamfer or a fillet, is what drew attention to it; the
+lip was the actual defect and this is what removes it.
+"""
+
+PLATE_BACKING = 1.6
+"""Not a fit: material that must survive behind the side channels.
+
+Four perimeters. The channels are cut into the tape face at the bar's ends,
+where the bar stands clear of the cup and is the only thing there, so their
+depth eats directly into a cantilever. This is what stops ``plate_t`` being
+chosen independently of them.
 """
 
 CHANNEL_OVERCUT = 0.5
@@ -188,13 +269,31 @@ class Holder:
         return self.outer_dia / 2
 
     @property
+    def floor(self) -> float:
+        """Floor thickness, derived from the side channels rather than chosen.
+
+        The obvious floor is ``FLOOR_MIN`` and it does not work here. The side
+        channels are cut into the tape face and have to get from the middle of
+        the back out to the ends, and at the middle the cup's own wall stands
+        within a couple of millimetres of that face -- so a channel deep enough
+        to bury the cord would cut straight through the back wall and take a
+        15 mm bite out of the seat the charger rests on, leaving it to rock.
+        Running the channels *below* the cavity floor avoids that entirely, and
+        the price is that the floor has to be tall enough to hold them.
+
+        So the cup is deeper below its seat than it looks, and the rim still
+        lands level with the top of the charger.
+        """
+        return max(FLOOR_MIN, self.side_w + SEAT_BACKING)
+
+    @property
     def body_h(self) -> float:
         """Floor plus puck height: the rim lands level with the top of the puck.
 
         This is the "puck height only" front wall -- the shallowest cup that
         still hides the charger completely.
         """
-        return FLOOR + self.puck_height
+        return self.floor + self.puck_height
 
     # -- the tape pad -----------------------------------------------------
     @property
@@ -204,18 +303,54 @@ class Holder:
 
     @property
     def plate_t(self) -> float:
-        """Bar depth. Two walls: thick enough that the cantilevered ends resist
-        peeling in their own plane, thin enough not to push the cup off the tile.
+        """Bar depth: two walls, or enough to carry the side channels, whichever
+        is greater.
+
+        Two walls is the structural half -- thick enough that the cantilevered
+        ends resist peeling in their own plane, thin enough not to stand the cup
+        off the tile. The second half is the side channels, which are cut into
+        this face out at the ends where the bar is the only material present. A
+        bar sized on the first rule alone (4.8 mm at the default wall) would be
+        left with 1.2 mm behind a 3.6 mm channel, on a cantilever.
         """
-        return 2 * self.wall
+        return max(2 * self.wall, self.side_depth + PLATE_BACKING)
 
     @property
     def plate_corner_r(self) -> float:
         """Vertical fillet on the bar's four corners, taken in the sketch rather
-        than as an OCC edge op. Held under half the bar depth so the rounding
-        cannot consume the bar.
+        than as an OCC edge op.
+
+        Bounded three ways, and the third was missed the first time. By half the
+        bar's depth, so the rounding cannot consume the bar. Then by *both*
+        corners the side channels have to exit between: the bar's end face is
+        flat only over ``[front + r, back - r]``, and the channel's back face
+        has to land inside that band with room to spare, or it exits around a
+        curve and puts a lip where the cord bends.
+
+        Guarding only the front corner passed at the default wall and failed at
+        4 mm, where the rounding grew until the channel's back face sat exactly
+        on the rear corner's tangent -- the classic zero-width sliver, which OCC
+        answers by silently refusing to treat the edge at all. Found by sweeping
+        the wall slider, not by looking at the default.
         """
-        return self.plate_t / 2 - 0.4
+        limits = [
+            self.plate_t / 2 - 0.4,
+            self.side_depth - CORNER_CLEAR,
+            self.plate_t - self.side_depth - CORNER_CLEAR,
+        ]
+        # ...and a fourth, which is about the cup rather than the channels. The
+        # bar's front face emerges from the cup's outer cylinder at some x, and
+        # that crossing has to land on the face's *straight* part. Let the
+        # rounding grow until the cylinder crosses the corner arc instead and
+        # two curves meet near-tangentially, which is the same zero-width sliver
+        # by a different route -- and the same silent refusal, this time of the
+        # entire bed-side and rim perimeters.
+        crossing = sqrt(
+            max(self.outer_r**2 - (self.outer_r - self.plate_t) ** 2, 0.0)
+        )
+        if self.plate_w / 2 > crossing:
+            limits.append(self.plate_w / 2 - crossing - CORNER_CLEAR)
+        return max(0.4, min(limits))
 
     @property
     def back_y(self) -> float:
@@ -247,7 +382,60 @@ class Holder:
         further up, which would otherwise save rim material and look tidier --
         it would also stop the puck going in.
         """
-        return self.cable_boot_dia + CABLE_CLEAR
+        return max(self.cable_boot_dia, CABLE_DIA + JUNCTION_STEP) + CABLE_CLEAR
+
+    @property
+    def opening_r(self) -> float:
+        """Radius of the hole through the floor -- the bore less the seat."""
+        return self.cavity_r - LEDGE
+
+    @property
+    def channel_top(self) -> float:
+        """Crown of the notch. Round-topped, so it prints without support."""
+        return self.floor + self.channel_w
+
+    @property
+    def channel_shoulder(self) -> float:
+        """Where the notch's straight sides give way to its radiused crown."""
+        return self.floor + self.channel_w / 2
+
+    @property
+    def side_w(self) -> float:
+        """Width of the left and right arms across the tape face.
+
+        Sized on the bare cord, not the boot: the boot never travels sideways,
+        it sits in the notch. So the arms are narrower than the notch, which is
+        the point -- every millimetre of arm height is taken straight off the
+        tape pad.
+        """
+        return CABLE_DIA + CABLE_CLEAR
+
+    @property
+    def side_depth(self) -> float:
+        """Depth of the arms: bury the cord, and clear the bore.
+
+        Burying the cord is the obvious half -- it has to end up below the tape
+        plane going sideways for the same reason it does going down. The second
+        half is a rule this model has now learned twice: a face cut in from the
+        tape plane must never *land on* the bore, only stop short of it or pass
+        it. At a 3.6 mm wall the arm's back face came out exactly tangent to the
+        bore's cylinder, and a zero-width sliver is what OCC answers by refusing
+        to chamfer the whole bed-side perimeter -- silently, taking nine edges
+        with it. Passing the bore costs nothing here, because the arms run below
+        the seat, where "past the bore" is just more floor ring.
+        """
+        return max(CABLE_DIA + CABLE_RECESS, self.wall + CHANNEL_OVERCUT)
+
+    @property
+    def rim_clear(self) -> float:
+        """The highest anything may reach and still leave the rim alone.
+
+        The rim carries two treatments and the one reaching lowest is the
+        lead-in cone on the inside, not the chamfer on the outside, so the bound
+        is taken against whichever is deeper -- and meeting it exactly is not
+        enough, which is what ``RIM_KEEPOUT`` reserves.
+        """
+        return self.body_h - max(self.rim_chamfer, self.mouth_chamfer) - RIM_KEEPOUT
 
     @property
     def channel_depth(self) -> float:
@@ -264,7 +452,18 @@ class Holder:
         thing keeping the notch honest, which is how the parameter sweep in
         ``checks.py`` found it in the first place.
         """
-        return max(CABLE_DIA + CABLE_RECESS, self.wall + CHANNEL_OVERCUT)
+        return max(
+            CABLE_DIA + CABLE_RECESS,
+            self.wall + CHANNEL_OVERCUT,
+            # Reach the floor opening. Below the floor line the channel has to
+            # break into that hole rather than stop in the seat, because that
+            # junction is the whole reason the cord can be fitted at all: it is
+            # what lets the cord be dropped in from inside instead of threaded
+            # through a closed hole. Measured at the channel's *edge*, not its
+            # centre -- the opening is a circle, so its nearest point across a
+            # 7 mm channel is half a millimetre further out than on the axis.
+            self.back_y - sqrt(max(self.opening_r**2 - (self.channel_w / 2) ** 2, 0.0)),
+        )
 
     # -- edge treatments that have to scale with the wall ------------------
     @property
@@ -303,6 +502,12 @@ class Holder:
             raise ValueError("plate corner radius would consume the bar")
         if self.channel_w > self.cavity_r:
             raise ValueError("cable channel would stop the cup being a cup")
+        if self.channel_top > self.rim_clear:
+            raise ValueError("cable notch would break into the rim treatments")
+        if self.opening_r <= self.channel_w / 2:
+            raise ValueError("floor seat would consume the whole floor")
+        if self.side_depth + PLATE_BACKING > self.plate_t:
+            raise ValueError("side channels would cut through the bar")
         if self.mouth_chamfer <= 0 or self.rim_chamfer <= 0:
             raise ValueError("wall is too thin to carry its own edge treatment")
 
@@ -317,22 +522,29 @@ class Holder:
         vals = {k: float(v) for k, v in params.items() if k in known and v is not None}
         h = cls(**vals)
         h = cls(
-            puck_dia=min(max(h.puck_dia, 20.0), 120.0),
-            puck_height=min(max(h.puck_height, 6.0), 60.0),
-            wall=min(max(h.wall, 1.2), 6.0),
-            cable_boot_dia=min(max(h.cable_boot_dia, 2.0), 12.0),
+            puck_dia=min(max(h.puck_dia, PUCK_DIA_MIN), PUCK_DIA_MAX),
+            puck_height=min(max(h.puck_height, PUCK_H_MIN), PUCK_H_MAX),
+            wall=min(max(h.wall, WALL_MIN), WALL_MAX),
+            cable_boot_dia=min(max(h.cable_boot_dia, BOOT_MIN), BOOT_MAX),
         )
         # The channel is sized on the boot, and runs the full height, so the
         # only thing left to bound it against is the cup's own radius -- a
         # channel wider than that is a gap with a bit of cup attached. Height
         # used to constrain it too, back when the slot had a crown that could
         # crowd the rim; open to the rim, there is no crown to crowd anything.
-        if h.channel_w > h.cavity_r:
+        # Two ceilings on the boot, and the lower wins: the notch must not be so
+        # wide the cup stops being a cup, and its crown must clear the rim's
+        # treatments. The second one is why RIM_KEEPOUT is back -- see there.
+        boot_max = min(
+            h.cavity_r - CABLE_CLEAR,
+            h.rim_clear - h.floor - CABLE_CLEAR,
+        )
+        if h.cable_boot_dia > boot_max:
             h = cls(
                 puck_dia=h.puck_dia,
                 puck_height=h.puck_height,
                 wall=h.wall,
-                cable_boot_dia=max(2.0, h.cavity_r - CABLE_CLEAR),
+                cable_boot_dia=max(2.0, boot_max),
             )
         h.validate()
         return h
@@ -346,8 +558,8 @@ HOLDER_PARAMS = [
         "name": "puck_dia",
         "label": "Charger diameter (mm)",
         "type": "number",
-        "min": 20.0,
-        "max": 120.0,
+        "min": PUCK_DIA_MIN,
+        "max": PUCK_DIA_MAX,
         "step": 0.2,
         "default": PUCK_DIA,
     },
@@ -355,8 +567,8 @@ HOLDER_PARAMS = [
         "name": "puck_height",
         "label": "Charger height, no post (mm)",
         "type": "number",
-        "min": 6.0,
-        "max": 60.0,
+        "min": PUCK_H_MIN,
+        "max": PUCK_H_MAX,
         "step": 0.5,
         "default": PUCK_HEIGHT,
     },
@@ -364,8 +576,8 @@ HOLDER_PARAMS = [
         "name": "wall",
         "label": "Wall thickness (mm)",
         "type": "number",
-        "min": 1.2,
-        "max": 6.0,
+        "min": WALL_MIN,
+        "max": WALL_MAX,
         "step": 0.2,
         "default": WALL,
     },
@@ -373,8 +585,8 @@ HOLDER_PARAMS = [
         "name": "cable_boot_dia",
         "label": "Cable strain relief (mm)",
         "type": "number",
-        "min": 2.0,
-        "max": 12.0,
+        "min": BOOT_MIN,
+        "max": BOOT_MAX,
         "step": 0.5,
         "default": CABLE_BOOT_DIA,
     },
