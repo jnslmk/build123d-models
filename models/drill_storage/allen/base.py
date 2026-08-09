@@ -3,7 +3,7 @@
 Rigid half of the two-material ALLEN box: a black ASA base with a cavity that
 holds the TPU cartridge and eight hex guide bores under it, plus the size
 legend (1.5 / 2 / 2.5 / 3 / 4 / 5 / 6 / 8, largest first) engraved into the
-body walls. Shape, argument and print notes are in ``hex.base``.
+body walls. Shape, argument and print notes are in ``drill_storage.hex.base``.
 
 Printed foot down, cavity up, in black ASA, no supports.
 """
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from build123d import Part
 
-from .. import config as c
-from ..base import create_base
+from ..hex import config as c
+from ..hex.base import create_base
 
 
 def create() -> Part:

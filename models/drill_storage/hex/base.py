@@ -1,7 +1,7 @@
 """The rigid half of a hex-bit box: a Gridfinity base with a cavity + guide bores.
 
-The family's ``shell``, cut to this package's own heights. The argument is the
-same as ``drill_storage.shell`` -- the base **guides** a bit upright through
+The family's ``base``, cut to this package's own heights. The argument is the
+same as ``drill_storage.base`` -- the base **guides** a bit upright through
 8.2 mm of rigid bore, and the TPU cartridge **grips** it; the guide never
 touches the land's job. What differs is the geometry: a 30 mm base instead of
 the family's 36 (a bit needs none of a drill's depth). Both boxes share the
@@ -42,14 +42,14 @@ from ..box import (
     rim_chamfer_tool,
     snap_ring,
 )
-from ..shell import key_slot_tool
+from ..base import key_slot_tool
 from . import config as c
 
 
 def hex_guide_tool(guide_af: float, x: float, y: float, mouth_ch: float) -> Part:
     """One hex guide bore: a free-fit hex prism with a lead-in at its top mouth.
 
-    ``shell.hex_guide_tool``, re-cut at this package's heights. The guide grips
+    ``base.hex_guide_tool``, re-cut at this package's heights. The guide grips
     nothing -- its only job is to hold a bit upright over ``GUIDE_H`` so the
     short TPU collar above does not have to. It is cut at the box's own guide
     across-flats: ``HEX_AF + GUIDE_FIT`` (free) for ALLEN, the old one-material

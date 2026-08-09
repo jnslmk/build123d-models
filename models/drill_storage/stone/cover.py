@@ -3,7 +3,7 @@
 137 mm (161 mm / 23U assembled), the tallest of the three, for a 150 mm
 12 mm bit.
 
-Interchangeable with the other sets' covers -- every shell seats one the same way
+Interchangeable with the other sets' covers -- every base seats one the same way
 -- so a taller cover simply leaves more air over shorter tools. See
 ``drill_storage.cover``.
 

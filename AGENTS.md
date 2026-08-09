@@ -257,11 +257,11 @@ the name grammar alone (`website/index.html`, `buildTree`/`renderPicker`), one
 row of chips per level, each row holding only the siblings valid under what is
 already chosen. So a well-named model lands in the right group for free, and
 switching one level keeps the levels below it where they exist —
-`drill_storage.wood.shell` → `drill_storage.metal.shell` is one click. Two
+`drill_storage.wood.base` → `drill_storage.metal.base` is one click. Two
 things follow. A name that encodes hierarchy in underscores flattens its whole
 family into one long row, which is the practical cost of breaking the
 "underscores are only for multi-word single names" rule. And a naming layer
-with no `create()` of its own is fine (`drill_storage.hex.allen`,
+with no `create()` of its own is fine (`drill_storage.hex.bits`,
 `led_profiles.assemblies`): its chip resolves to the first model under it.
 
 ### Known deviations

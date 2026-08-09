@@ -1,11 +1,11 @@
-"""Stone drill storage, assembled: ASA shell, TPU cartridge, tools, cover.
+"""Stone drill storage, assembled: ASA base, TPU cartridge, tools, cover.
 
 Holds eight carbide-tipped masonry bits, 3 - 12 mm (3, 4, 5, 6, 7, 8, 10, 12).
 No hex tool -- a masonry set is drills.
 
 A scene, not a print job -- three filaments never share a bed. The parts are:
 
-    uv run show drill_storage.stone.shell    # ASA, foot down, cavity up
+    uv run show drill_storage.stone.base    # ASA, foot down, cavity up
     uv run show drill_storage.stone.insert   # TPU, top down, bores down
     uv run show drill_storage.stone.cover    # PETG, pillow top down
 

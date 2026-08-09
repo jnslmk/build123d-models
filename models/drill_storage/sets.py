@@ -2,7 +2,7 @@
 
 A set is the *only* thing a variant gets to decide. The clearances live in
 ``config.py`` (one land fit, one guide fit, one relief, for all three), the
-geometry lives in ``shell.py`` / ``insert.py`` / ``cover.py``, and the packing is
+geometry lives in ``base.py`` / ``insert.py`` / ``cover.py``, and the packing is
 solved by ``box.layout_bores``. What is left -- which sizes, how long they are,
 what the cover says, and how far a shank runs under its nominal size -- is here,
 in one table you can read side by side.
@@ -22,7 +22,7 @@ only once the row packer has been shown to fail, and it meets the same walls
 either way.
 
 **Bores are cut to the shank, not to the name.** A drill goes in shank-first and
-stands on the shell's floor, so every millimetre of bore -- ASA guide and TPU land
+stands on the base's floor, so every millimetre of bore -- ASA guide and TPU land
 alike -- only ever touches the shank. On a twist or brad-point drill the two are
 the same number. On a masonry bit they are not: the carbide tip is *wider* than
 the ground shank behind it, so a bore cut to the printed size would hold nothing
@@ -53,7 +53,7 @@ from . import config as c
 COVER_TIP_CLEARANCE = 1.0
 
 
-# How deep a hex socket runs: from the shell's floor, where a shank long enough
+# How deep a hex socket runs: from the base's floor, where a shank long enough
 # bottoms out, to the cartridge's top face, where a head wider than the socket
 # stops. Derived, never typed -- it moves with the collar.
 HEX_SOCKET_DEPTH = c.CART_TOP_Z - c.GUIDE_FLOOR_Z  # 31.2
@@ -94,7 +94,7 @@ class HexTool:
 
         Two ways a tool can stop, and which one it does is arithmetic rather than
         a choice: a shank longer than ``HEX_SOCKET_DEPTH`` **bottoms out** on the
-        shell's ASA floor with its head standing proud, and a shorter one **hangs**
+        base's ASA floor with its head standing proud, and a shorter one **hangs**
         by its head on the cartridge's top face, shank dangling in the socket.
 
         The second is not a compromise. A hung tool's shank spans the collar from
@@ -107,7 +107,7 @@ class HexTool:
 
     @property
     def reach(self) -> float:
-        """How far the tip stands above the shell floor -- what sizes the cover.
+        """How far the tip stands above the base floor -- what sizes the cover.
 
         Not the same as ``length``: a hung tool starts higher up than a drill
         standing on the floor, so it reaches further for its size.
@@ -155,7 +155,7 @@ class DrillSet:
     """One tool set, with its layout solved on construction.
 
     ``bores`` / ``hex_bores`` / ``rows`` / ``pos`` come out of a single call to
-    ``layout_bores``, and the shell and the insert are both built from that one
+    ``layout_bores``, and the base and the insert are both built from that one
     call -- which is what makes it impossible for the two halves to disagree
     about where a hole is, or for the engraved legend to name the wrong one.
 
@@ -249,7 +249,7 @@ class DrillSet:
             if missing:
                 raise KeyError(
                     f"{self.name}: layout is missing {sorted(missing)} -- an "
-                    "explicit layout must place every hole, or the shell and the "
+                    "explicit layout must place every hole, or the base and the "
                     "cartridge would be cut from different maps"
                 )
             bores = [(d, pos[f"{d:g}"][0], pos[f"{d:g}"][1]) for d in nominal]
@@ -281,7 +281,7 @@ class DrillSet:
 
     @property
     def max_len(self) -> float:
-        """The highest tip above the shell floor -- what sizes the cover.
+        """The highest tip above the base floor -- what sizes the cover.
 
         A drill's own length, since a drill stands on that floor. For a hex tool
         it is ``HexTool.reach``, which is longer than the tool whenever the tool

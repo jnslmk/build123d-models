@@ -1,13 +1,13 @@
-"""The assembled scene for a set: shell, cartridge, every tool, cover on top.
+"""The assembled scene for a set: base, cartridge, every tool, cover on top.
 
 One builder for all three variants -- ``wood``, ``metal`` and ``stone`` each call
 it with their own ``DrillSet`` and get the same scene cut to their own set. It is
 the one view where the whole argument is visible at once: the tools stand on the
-shell's **ASA** floor and are guided by ASA over 23.2 mm, and only the short TPU
+base's **ASA** floor and are guided by ASA over 23.2 mm, and only the short TPU
 collar at the top touches them with any interference.
 
 A scene, not a print job. The three printable parts are downloadable on their own
-(``<set>.shell``, ``<set>.insert``, ``<set>.cover``), which they must be -- they
+(``<set>.base``, ``<set>.insert``, ``<set>.cover``), which they must be -- they
 are three different filaments and never share a bed.
 """
 
@@ -19,7 +19,7 @@ from . import config as c
 from .cover import create_cover_for
 from .insert import create_insert_for
 from .sets import DrillSet, StepDrill
-from .shell import create_shell_for
+from .base import create_base_for
 from .tools import (
     CARBIDE,
     COVER_GLASS,
@@ -31,8 +31,8 @@ from .tools import (
 
 
 def create_assembly(drill_set: DrillSet) -> Compound:
-    """Shell, collar seated in it, every tool in its bore, cover on top."""
-    shell = create_shell_for(drill_set)
+    """Base, collar seated in it, every tool in its bore, cover on top."""
+    base = create_base_for(drill_set)
 
     # create_insert returns print pose (top face on the bed, land up); flip it
     # back and seat it in the cavity.
@@ -49,7 +49,7 @@ def create_assembly(drill_set: DrillSet) -> Compound:
         bit.label = f"drill_{drill.nominal:g}mm"
         bit.color = CARBIDE if drill_set.style == "masonry" else STEEL
         # GUIDE_FLOOR_Z, not CAVITY_FLOOR_Z: a bit drops through the collar and
-        # rests on the shell's ASA floor, 23.2 mm below where the collar sits.
+        # rests on the base's ASA floor, 23.2 mm below where the collar sits.
         # Soft plastic creeps under a point load; ASA does not.
         tools.append(Pos(x, y, c.GUIDE_FLOOR_Z) * bit)
 
@@ -79,7 +79,7 @@ def create_assembly(drill_set: DrillSet) -> Compound:
 
     return Compound(
         label=f"drill_storage.{drill_set.name}",
-        children=[shell, insert, *tools, cover],
+        children=[base, insert, *tools, cover],
     )
 
 

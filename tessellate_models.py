@@ -23,28 +23,29 @@ import importlib
 MODELS = [
     "door_latch",
     # Gridfinity drill storage: the family view, then one variant per tool set.
-    # A variant is an assembled scene plus its three printed parts -- ASA shell,
+    # A variant is an assembled scene plus its three printed parts -- ASA base,
     # TPU cartridge, PETG cover -- which are three filaments and so three jobs.
-    # ``hex`` is the two-material bit boxes: both 1x1 Gridfinity (ALLEN keys,
-    # BITS driver bits with shaved lead-ins), each a rigid base + TPU insert +
-    # translucent cover.
+    # ``allen`` is the 8-piece hex-key box and ``hex`` the 16-piece driver-bit
+    # box: both 1x1 Gridfinity, cut from the same hex geometry (BITS shaves its
+    # lead-in clearances), each a rigid base + TPU insert + translucent cover.
     "drill_storage",
     "drill_storage.wood",
-    "drill_storage.wood.shell",
+    "drill_storage.wood.base",
     "drill_storage.wood.insert",
     "drill_storage.wood.cover",
     "drill_storage.metal",
-    "drill_storage.metal.shell",
+    "drill_storage.metal.base",
     "drill_storage.metal.insert",
     "drill_storage.metal.cover",
     "drill_storage.stone",
-    "drill_storage.stone.shell",
+    "drill_storage.stone.base",
     "drill_storage.stone.insert",
     "drill_storage.stone.cover",
+    "drill_storage.allen",
+    "drill_storage.allen.base",
+    "drill_storage.allen.insert",
+    "drill_storage.allen.cover",
     "drill_storage.hex",
-    "drill_storage.hex.allen.base",
-    "drill_storage.hex.allen.insert",
-    "drill_storage.hex.allen.cover",
     "drill_storage.hex.bits.base",
     "drill_storage.hex.bits.insert",
     "drill_storage.hex.bits.cover",

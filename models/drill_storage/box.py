@@ -13,7 +13,7 @@ Gridfinity baseplate.
   cover's width alike, so the assembly has no lip at the seam -- steps down to a
   35 mm collar that plugs into the cover; graduated drill bores are sunk from the
   top face. The three drill sets do not use this: they are two-material
-  (``shell`` + ``insert``), and the hex-bit boxes are two-material too
+  (``base`` + ``insert``), and the hex-bit boxes are two-material too
   (``drill_storage.hex``), so ``create_base`` survives as the one-material
   baseline the split replaced.
 * Cover -- 41.5 mm rounded square (the pad, flush with the body), 123 mm tall,
@@ -90,8 +90,8 @@ HEIGHT_UNIT = 7.0  # Gridfinity Z unit
 #   now:  COVER_W 41.5 (the pad)  and  INNER_W 39.6  ->  COVER_WALL 0.95
 #
 # Taking the 0.5 mm out of the *wall* rather than the bore is deliberate. INNER_W
-# is the joint: COLLAR_W is derived from it, and the shell and cartridge from
-# COLLAR_W, so moving it re-cuts the snap fit and orphans every shell and cover
+# is the joint: COLLAR_W is derived from it, and the base and cartridge from
+# COLLAR_W, so moving it re-cuts the snap fit and orphans every base and cover
 # already printed -- in both directions. A new 39.1 bore will not go over an old
 # 39.2 collar at all, and an old 39.6 cover over a new 38.7 collar has 0.9 mm of
 # slip against a 0.45 mm bead, which is no detent left. Freezing INNER_W costs
@@ -241,7 +241,7 @@ BASE_TOTAL_H = FOOT_TOP + COLLAR_H  # 42 mm (6U)
 # the body, so this is no longer clearance -- it is elephant-foot relief on the
 # rim the cover prints on, plus a hair of lead-in onto the shoulder for the
 # 0.1-0.2 mm the two parts really differ by (different filaments, different
-# shrinkage -- a printed PETG cover measured 41.9 against an ASA shell on
+# shrinkage -- a printed PETG cover measured 41.9 against an ASA base on
 # nominal). Trimmed from 0.4 because it and MOUTH_CH are now cut from a 0.95 mm
 # wall, not a 1.2: at 0.4 the flat rim left to seat on would be 0.25 mm, under a
 # single perimeter. At 0.2 it is 0.45, which is what the old 1.2 mm wall left
@@ -392,7 +392,7 @@ def create_body(foot_top: float = FOOT_TOP) -> Part:
     """The full-width body: from the Gridfinity pad top up to the cover seat.
 
     One function rather than three copies of the same two sketches, because all
-    three bases in this package (``create_base``, ``shell.create_shell_for``,
+    three bases in this package (``create_base``, ``base.create_base_for``,
     ``hex.base``) grow the same body and used to each spell it out -- which is
     how the pad-versus-cover width mismatch would have had to be fixed three
     times and stayed fixed in only two.
@@ -763,7 +763,7 @@ def hex_mouth_tool(r: float, x: float, y: float, top_z: float, ch: float) -> Par
     are identical to 4 dp, since that is where the circle and the hexagon touch.
     The mouth ends up bevelled at 45 deg at the corners and ~40 deg to vertical
     across the flats, which is what growing the *circumradius* by ``ch`` buys and
-    is the established shape here -- ``shell.hex_guide_tool`` and
+    is the established shape here -- ``base.hex_guide_tool`` and
     ``insert.hex_mouth_tool`` are the same loft, so all three stay comparable.
 
     Nothing here is an overhang: the base prints bores-up, and a mouth that
@@ -864,9 +864,9 @@ def create_base(
 
     The one-material holder, and the shape of every holder in this package until
     the drill sets went two-material. Nothing cuts from it any more -- a drill
-    set wants ``shell`` + ``insert``, and the hex-bit boxes are two-material too
+    set wants ``base`` + ``insert``, and the hex-bit boxes are two-material too
     (``drill_storage.hex``) -- but it stays as the engine's documented baseline,
-    and the collar profile it introduced is what every shell still plugs into.
+    and the collar profile it introduced is what every base still plugs into.
 
     ``bores`` are round holes ``(diameter, x, y)``. ``hex_bores`` are hex
     sockets ``(across_flats, x, y)`` for hex-shank bits -- the shank drops into

@@ -6,7 +6,7 @@ Gridfinity storage for an **HSS twist drill set**: ten drills on jobber lengths,
 
 ```bash
 uv run show drill_storage.metal            # assembled, drills standing in it
-uv run export drill_storage.metal.shell    # ASA
+uv run export drill_storage.metal.base    # ASA
 uv run export drill_storage.metal.insert   # TPU
 uv run export drill_storage.metal.cover    # PETG
 uv run check drill_storage.metal
@@ -14,7 +14,7 @@ uv run check drill_storage.metal
 
 | part | model | material | print pose |
 | --- | --- | --- | --- |
-| Shell | `drill_storage.metal.shell` | ASA | foot down, cavity up |
+| Base | `drill_storage.metal.base` | ASA | foot down, cavity up |
 | Cartridge | `drill_storage.metal.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.metal.cover` | PETG | pillow top down, mouth up |
 
@@ -24,7 +24,7 @@ exactly the 1 mm `COVER_TIP_CLEARANCE` asks for — no more. It was 123 mm (21U)
 until `box.CAP_H` came down from 2.0 to 1.0: the cap is part of the height the
 quantiser rounds up from, and this set had been sitting 1 mm over a unit
 boundary. Nothing else about the joint moved, so a 123 mm cover from the old
-build still closes on this shell; it just leaves 8 mm of air over the tips.
+build still closes on this base; it just leaves 8 mm of air over the tips.
 
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended
 `TAP` on the walls rather than a bare size, since it is not a drill. The step
@@ -61,7 +61,7 @@ gap from the frozen numbers and fails if one is short.
 
 ### It hangs, it does not stand
 
-Every other tool here bottoms out on the shell's ASA floor. The step drill's hex
+Every other tool here bottoms out on the base's ASA floor. The step drill's hex
 shank is 25 mm and the socket is 31.2 mm deep, so it cannot — it stops when the
 underside of its 20 mm step lands on the cartridge's top face, shank dangling.
 

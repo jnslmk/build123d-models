@@ -148,7 +148,7 @@ def _cover_allow(
 def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
     """The hex base's legitimate exceptions, each named with its reason.
 
-    The same ones the shell claims (``drill_storage.checks._shell_allow``),
+    The same ones the base claims (``drill_storage.checks._base_allow``),
     re-derived against this base's own shortened body -- and the legend one only
     for the box that actually carries a legend, so the BITS base is held to the
     stricter standard its blank walls deserve.
@@ -204,7 +204,7 @@ def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
             "the key slot's mouth fillet, anchored flush with the cavity "
             "wall -- a genuine 180 deg split OCC left as two faces rather "
             "than one, confirmed by matching face normals, two per base "
-            "(see drill_storage.shell.key_slot_tool)",
+            "(see drill_storage.base.key_slot_tool)",
         ),
     )
     if has_legend:

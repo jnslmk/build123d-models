@@ -70,7 +70,7 @@ from .freepack import sdf, worst_slack
 from .cover import create_cover_for
 from .insert import _hex_r, create_insert_for
 from .sets import DrillSet
-from .shell import create_shell_for
+from .base import create_base_for
 
 PROBE = 0.08  # how far either side of a modelled radius we sample for material
 
@@ -206,7 +206,7 @@ def check_retention(r: Report) -> None:
     )
     r.check(
         c.BEAD_Z + c.BEAD_BACK < c.SHELL_TOTAL_H,
-        "bead seats below the shell rim",
+        "bead seats below the base rim",
         f"{c.BEAD_Z + c.BEAD_BACK:.1f} mm",
     )
 
@@ -237,7 +237,7 @@ def check_wall_budget(r: Report) -> None:
     )
     # The two grooves are cut into opposite faces of the same SHELL_WALL, so what
     # matters is that the *grooves* do not overlap in z -- the bead's ramp is on
-    # the TPU and takes nothing out of the shell.
+    # the TPU and takes nothing out of the base.
     need = SNAP_GROOVE_R + c.SHELL_GROOVE_R
     r.check(
         c.GROOVE_SEPARATION > need,
@@ -388,25 +388,25 @@ def check_sets_table(r: Report) -> None:
 # --- Per-set ------------------------------------------------------------------
 
 
-def check_envelope(s: DrillSet, shell: Part, insert: Part, r: Report) -> None:
+def check_envelope(s: DrillSet, base: Part, insert: Part, r: Report) -> None:
     """Gridfinity envelope, and the cartridge actually fitting its cavity."""
     r.section(f"{s.name}: envelope")
-    sb = shell.bounding_box()
-    # BODY_W is PAD, so the widest thing on the shell is one Gridfinity pad from
+    sb = base.bounding_box()
+    # BODY_W is PAD, so the widest thing on the base is one Gridfinity pad from
     # the foot to the shoulder -- nothing on this part reaches outside the
-    # envelope, which is what lets a bare shell sit next to another bin.
+    # envelope, which is what lets a bare base sit next to another bin.
     r.check(
         abs(sb.size.X - BODY_W) < 0.01 and abs(sb.size.Y - BODY_W) < 0.01,
-        "shell footprint is one Gridfinity pad, flush with the cover",
+        "base footprint is one Gridfinity pad, flush with the cover",
         f"{sb.size.X:.2f} x {sb.size.Y:.2f} mm",
     )
     r.check(
         abs(sb.size.Z - c.SHELL_TOTAL_H) < 0.01,
-        "shell is SHELL_TOTAL_H tall",
+        "base is SHELL_TOTAL_H tall",
         f"{sb.size.Z:.1f} mm",
     )
     r.check(
-        abs(sb.min.Z) < 0.01, "shell sits on z=0 (print pose)", f"min z {sb.min.Z:.3f}"
+        abs(sb.min.Z) < 0.01, "base sits on z=0 (print pose)", f"min z {sb.min.Z:.3f}"
     )
 
     ib = insert.bounding_box()
@@ -483,7 +483,7 @@ def check_cover_interface(s: DrillSet, cover: Part, r: Report) -> None:
         abs(assembled % HEIGHT_UNIT) < TOL,
         "assembled envelope is a whole Gridfinity Z unit",
         f"{assembled:.0f} mm = {assembled / HEIGHT_UNIT:.0f}U "
-        f"(the shell itself is {c.SHELL_TOTAL_H:.0f} mm, deliberately not a unit)",
+        f"(the base itself is {c.SHELL_TOTAL_H:.0f} mm, deliberately not a unit)",
     )
     headroom = (assembled - CAP_H) - (c.GUIDE_FLOOR_Z + s.max_len)
     r.check(
@@ -722,7 +722,7 @@ def check_land(s: DrillSet, insert: Part, r: Report) -> None:
     )
 
 
-def check_guides(s: DrillSet, shell: Part, r: Report) -> None:
+def check_guides(s: DrillSet, base: Part, r: Report) -> None:
     """The ASA half of every hole: open top to bottom, loose, and coaxial with the
     collar's land above it. A guide that is off-axis makes the land a cam."""
     r.section(f"{s.name}: ASA guide bores")
@@ -730,8 +730,8 @@ def check_guides(s: DrillSet, shell: Part, r: Report) -> None:
 
     for d, x, y in s.bores:
         gr = (d + c.GUIDE_FIT) / 2
-        ok = not is_solid_at(shell, x + gr - PROBE, y, z_mid) and is_solid_at(
-            shell, x + gr + PROBE, y, z_mid
+        ok = not is_solid_at(base, x + gr - PROBE, y, z_mid) and is_solid_at(
+            base, x + gr + PROBE, y, z_mid
         )
         r.check(
             ok, f"{d:g} mm guide bored to {gr * 2:.2f} mm", f"sampled at z={z_mid:.1f}"
@@ -739,7 +739,7 @@ def check_guides(s: DrillSet, shell: Part, r: Report) -> None:
 
     # Open all the way down to the floor a drill rests on, and no further.
     open_span = all(
-        not is_solid_at(shell, x, y, z)
+        not is_solid_at(base, x, y, z)
         for _d, x, y in s.bores
         for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid, c.CAVITY_FLOOR_Z - 0.3)
     )
@@ -749,16 +749,16 @@ def check_guides(s: DrillSet, shell: Part, r: Report) -> None:
         f"{len(s.bores)} bores sampled at 3 heights",
     )
     floor_intact = all(
-        is_solid_at(shell, x, y, c.GUIDE_FLOOR_Z - 0.3) for _d, x, y in s.bores
+        is_solid_at(base, x, y, c.GUIDE_FLOOR_Z - 0.3) for _d, x, y in s.bores
     )
     r.check(
         floor_intact,
-        "the shell floor under every guide is solid",
+        "the base floor under every guide is solid",
         "a drill rests on ASA, not on air",
     )
 
     hex_ok = all(
-        not is_solid_at(shell, x, y, z)
+        not is_solid_at(base, x, y, z)
         for _af, x, y in s.hex_bores
         for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid)
     )
@@ -815,7 +815,7 @@ def check_guides(s: DrillSet, shell: Part, r: Report) -> None:
 
 
 def check_through_bores(s: DrillSet, insert: Part, r: Report) -> None:
-    """Drills must reach the shell's ASA floor, so every bore is a through hole."""
+    """Drills must reach the base's ASA floor, so every bore is a through hole."""
     r.section(f"{s.name}: through bores")
     heights = (0.05, c.CART_H / 2, c.CART_H - 0.05)
     ok_round = all(
@@ -840,7 +840,7 @@ def check_through_bores(s: DrillSet, insert: Part, r: Report) -> None:
     )
 
 
-def check_key(s: DrillSet, shell: Part, insert: Part, r: Report) -> None:
+def check_key(s: DrillSet, base: Part, insert: Part, r: Report) -> None:
     """The legend is only true in one orientation, so the key has to work."""
     r.section(f"{s.name}: key")
     rib_tip = c.CART_W / 2 + c.KEY_D
@@ -860,12 +860,12 @@ def check_key(s: DrillSet, shell: Part, insert: Part, r: Report) -> None:
         f"z={z:.1f}, groove at {c.BEAD_Z:.1f}+/-{c.SHELL_GROOVE_R:.1f}",
     )
     r.check(
-        not is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0, z),
-        "shell has a slot on +X in the cavity wall",
+        not is_solid_at(base, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0, z),
+        "base has a slot on +X in the cavity wall",
         f"z={z:.1f}",
     )
     r.check(
-        is_solid_at(shell, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0 + c.KEY_W, z),
+        is_solid_at(base, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0 + c.KEY_W, z),
         "the slot is local, not a groove round the whole cavity",
         f"solid at y={c.KEY_W:.1f}",
     )
@@ -880,13 +880,13 @@ def check_key(s: DrillSet, shell: Part, insert: Part, r: Report) -> None:
 
 
 def _is_bore_seam(part: Part, edge) -> bool:
-    """A round bore's own untrimmed cylindrical seam, on the shell or the
+    """A round bore's own untrimmed cylindrical seam, on the base or the
     cartridge insert -- not a real edge, just OCC's periodic parametrisation
     closing up on itself.
 
     ``sharp_convex_edges`` now reports the ``None`` edges ``min_length`` used
     to let through unseen (see its docstring), and every drill bore this
-    family cuts is where that shows up: eleven per shell (one per bit
+    family cuts is where that shows up: eleven per base (one per bit
     socket), twenty-two per insert (each socket's land and its relief bore).
     Nothing cuts *sideways* into a bore's own wall, so there is no boolean
     cut nearby for the seam to coincide with -- unlike a seam that happens to
@@ -894,7 +894,7 @@ def _is_bore_seam(part: Part, edge) -> bool:
     ``is_periodic_seam``'s docstring for why that distinction matters and why
     this does not stop at "same face"). Confirmed against OCC's own topology
     rather than assumed from the repeating grid position: checked for every
-    one of the 11 (shell) and 22 (insert) matches on the wood set, not just a
+    one of the 11 (base) and 22 (insert) matches on the wood set, not just a
     couple spot-checked by hand.
     """
     if edge.geom_type != GeomType.LINE:
@@ -932,7 +932,7 @@ def is_flush_seam(part: Part, edge) -> bool:
     all, but a residual split where a boolean subtract's own tool boundary
     landed exactly flush with a face the part already had.
 
-    ``shell.key_slot_tool``'s mouth fillet is anchored tangent to the cavity
+    ``base.key_slot_tool``'s mouth fillet is anchored tangent to the cavity
     wall on purpose (see that function's docstring for why: a fillet offset
     *short* of the wall is always a tighter, worse angle than the plain
     corner it replaces, so full tangency is the only geometry that actually
@@ -967,8 +967,8 @@ def is_flush_seam(part: Part, edge) -> bool:
     return True
 
 
-def _shell_allow(shell: Part) -> tuple:
-    """The shell's legitimate exceptions to the chamfer-everything rule.
+def _base_allow(base: Part) -> tuple:
+    """The base's legitimate exceptions to the chamfer-everything rule.
 
     Named with their reason, never silently omitted -- that is the whole point of
     ``sharp_convex_edges`` taking an allow list rather than a threshold.
@@ -1012,16 +1012,16 @@ def _shell_allow(shell: Part) -> tuple:
             "feature, and rounding its lips would shrink engagement",
         ),
         (
-            lambda e: _is_bore_seam(shell, e),
+            lambda e: _is_bore_seam(base, e),
             "a bit socket's own untrimmed bore wall seam -- confirmed via "
             "is_periodic_seam, one per socket",
         ),
         (
-            lambda e: is_flush_seam(shell, e),
+            lambda e: is_flush_seam(base, e),
             "the key slot's mouth fillet, anchored flush with the cavity "
             "wall -- a genuine 180 deg split OCC left as two faces rather "
-            "than one, confirmed by matching face normals, two per shell "
-            "(see shell.key_slot_tool)",
+            "than one, confirmed by matching face normals, two per base "
+            "(see base.key_slot_tool)",
         ),
     )
 
@@ -1094,24 +1094,24 @@ def _cover_allow(
 
 
 def check_sharp_edges(
-    s: DrillSet, shell: Part, insert: Part, cover: Part, r: Report
+    s: DrillSet, base: Part, insert: Part, cover: Part, r: Report
 ) -> None:
     """House rule: chamfer horizontal edges, fillet vertical ones. Exceptions are
     named with their reason, never silently omitted."""
     r.section(f"{s.name}: sharp edges")
-    shell_edges = sharp_convex_edges(shell, allow=_shell_allow(shell))
+    base_edges = sharp_convex_edges(base, allow=_base_allow(base))
     r.check(
-        not shell_edges.sharp,
-        "shell has no unexplained sharp convex edges",
-        f"{len(shell_edges.sharp)} found"
-        if shell_edges.sharp
+        not base_edges.sharp,
+        "base has no unexplained sharp convex edges",
+        f"{len(base_edges.sharp)} found"
+        if base_edges.sharp
         else "all treated or named",
     )
     r.check(
-        not shell_edges.unclassifiable,
-        "shell has no unexplained unclassifiable convex edges",
-        f"{len(shell_edges.unclassifiable)} found"
-        if shell_edges.unclassifiable
+        not base_edges.unclassifiable,
+        "base has no unexplained unclassifiable convex edges",
+        f"{len(base_edges.unclassifiable)} found"
+        if base_edges.unclassifiable
         else "all measured or named",
     )
     insert_edges = sharp_convex_edges(
@@ -1162,20 +1162,20 @@ def check_sharp_edges(
 
 def check_set(s: DrillSet, r: Report) -> None:
     """Everything that has to hold for one set, on its three built parts."""
-    shell = create_shell_for(s)
+    base = create_base_for(s)
     insert = create_insert_for(s)
     cover = create_cover_for(s)
 
-    check_envelope(s, shell, insert, r)
+    check_envelope(s, base, insert, r)
     check_cover_interface(s, cover, r)
     check_layout(s, r)
     check_hex_tools(s, r)
     check_bore_spacing(s, r)
-    check_guides(s, shell, r)
+    check_guides(s, base, r)
     check_land(s, insert, r)
     check_through_bores(s, insert, r)
-    check_key(s, shell, insert, r)
-    check_sharp_edges(s, shell, insert, cover, r)
+    check_key(s, base, insert, r)
+    check_sharp_edges(s, base, insert, cover, r)
 
 
 # --- Entry points -------------------------------------------------------------

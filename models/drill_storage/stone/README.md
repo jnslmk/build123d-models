@@ -6,7 +6,7 @@ is better spent on the 12 mm.
 
 ```bash
 uv run show drill_storage.stone            # assembled, bits standing in it
-uv run export drill_storage.stone.shell    # ASA
+uv run export drill_storage.stone.base    # ASA
 uv run export drill_storage.stone.insert   # TPU
 uv run export drill_storage.stone.cover    # PETG
 uv run check drill_storage.stone
@@ -14,7 +14,7 @@ uv run check drill_storage.stone
 
 | part | model | material | print pose |
 | --- | --- | --- | --- |
-| Shell | `drill_storage.stone.shell` | ASA | foot down, cavity up |
+| Base | `drill_storage.stone.base` | ASA | foot down, cavity up |
 | Cartridge | `drill_storage.stone.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.stone.cover` | PETG | pillow top down, mouth up |
 

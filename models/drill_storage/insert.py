@@ -9,7 +9,7 @@ A **collar**, not a block: it reaches exactly as far below its retention bead as
 it stands above it, so the bead sits on its mid-plane and the whole part is
 8.0 mm of TPU -- and that reach is itself derived from what it has to contain, so
 the collar is as short as its own features allow. Everything under it is ASA,
-bored at a free fit. The shell guides a drill over 23.2 mm; this grips it over 3.5.
+bored at a free fit. The base guides a drill over 23.2 mm; this grips it over 3.5.
 
 Each bore is **plain and round -- no ribs**: TPU supplies the compliance the
 ribbed PETG bores this replaced had to build out of three sprung beads. What it
@@ -19,7 +19,7 @@ bore is relieved. ``config.LAND_FIT`` carries the full argument, including the
 ease it has since been opened by.
 
 Printed top-face-down, bores down, in TPU, no supports. Every bore is a through
-hole -- drills pass clean through into the shell's guide below -- so there is
+hole -- drills pass clean through into the base's guide below -- so there is
 nothing to bridge and nothing to drain.
 
 A printed cartridge is the only instrument that settles ``LAND_FIT``, and the one
@@ -152,8 +152,8 @@ def key_rib() -> Part:
     """The keying rib on the +X face.
 
     It stands *outside* the cartridge body, so it can never collide with a bore
-    however the packer lays them out, and rides in a matching slot in the shell.
-    Its whole job is to make the engraved legend on the shell truthful: a rounded
+    however the packer lays them out, and rides in a matching slot in the base.
+    Its whole job is to make the engraved legend on the base truthful: a rounded
     square would otherwise go in four ways and be right in one.
 
     Its vertical edges are rounded and its bottom is lofted back to a lead-in --
@@ -194,7 +194,7 @@ def create_insert(
     """The TPU cartridge: a keyed block of plain round bores, land at the bottom.
 
     ``bores`` are ``(diameter, x, y)`` and ``hex_bores`` ``(across_flats, x, y)``,
-    both in the shell's coordinates -- pass the same tuples ``create_shell`` was
+    both in the base's coordinates -- pass the same tuples ``create_base`` was
     given its legend for, or the labels lie.
 
     ``small_bore_comp`` opts in to ``config``'s size-dependent taper, opening
@@ -202,8 +202,8 @@ def create_insert(
     decides, not this function -- pass ``drill_set.small_bore_comp`` through.
 
     Returned in print pose, top face on ``z=0`` -- upside down from how it sits
-    in the shell, so the grip land prints last, clear of the bed. The collar's
-    own z=0 is the shell's ``CAVITY_FLOOR_Z`` (29.2), so a feature at world z
+    in the base, so the grip land prints last, clear of the bed. The collar's
+    own z=0 is the base's ``CAVITY_FLOOR_Z`` (29.2), so a feature at world z
     appears here at ``CART_H - (z - CAVITY_FLOOR_Z)`` -- the bead included,
     which lands on ``CART_H - CART_BELOW_BEAD`` and is exactly halfway up.
     """

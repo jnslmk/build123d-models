@@ -10,7 +10,7 @@ set is), next to the geometry that consumes them.
 - [The rib question](#the-rib-question)
 - [Why the land is at the bottom](#why-the-land-is-at-the-bottom)
 - [Why the cartridge is a short collar](#why-the-cartridge-is-a-short-collar)
-- [What the shell wall costs](#what-the-shell-wall-costs)
+- [What the base wall costs](#what-the-base-wall-costs)
 - [Retention, keying, removal](#retention-keying-removal)
 - [Three sets, one design](#three-sets-one-design)
 - [Judgements from printed parts](#judgements-from-printed-parts)
@@ -112,12 +112,12 @@ live constraint on this design now that the collar is short.
 ## Why the cartridge is a short collar
 
 The first version made the cartridge a full-height block filling the cavity to
-the shell floor: 37.2 mm of TPU carrying both the grip and the guide. That was one
+the base floor: 37.2 mm of TPU carrying both the grip and the guide. That was one
 part doing two jobs with opposite requirements. Guiding a 121 mm drill over a long
 span wants a *rigid* wall; gripping it wants a *compliant* one. A block is a
 compromise at both, and an expensive one — 33 cm³ of slow filament.
 
-Splitting them costs nothing. The shell is solid ASA below the cavity and bored at
+Splitting them costs nothing. The base is solid ASA below the cavity and bored at
 `GUIDE_FIT` (free, plus the 0.24 mm a hole prints undersize, so it is free in the
 *part* and not only in the model) for 23.2 mm, which is the guide. The TPU is a **collar** centred
 on its own retention bead — it reaches exactly as far below the bead as it stands
@@ -128,8 +128,8 @@ over a 3.5 mm land.
 | | TPU | ASA |
 |---|---|---|
 | full-height block, 42 mm base | 33.2 cm³ | 20.4 cm³ |
-| collar + bored shell, 42 mm base | 11.3 cm³ | 43.1 cm³ |
-| collar + bored shell, **36 mm base** | **7.4 cm³** | **40.3 cm³** |
+| collar + bored base, 42 mm base | 11.3 cm³ | 43.1 cm³ |
+| collar + bored base, **36 mm base** | **7.4 cm³** | **40.3 cm³** |
 
 Two thirds of the *slow* half went away and the guiding got better rather than
 worse. The base then came down as well — 42 → **36 mm** — because with the bores no
@@ -180,7 +180,7 @@ cover's groove at z=30, and `GROOVE_SEPARATION` is down to 3.2 mm), or raise
 `GUIDE_FLOOR_Z` so the bits stand higher — which changes `bore_floor_z` and
 therefore the cover height, so it costs the shared cover.
 
-## What the shell wall costs
+## What the base wall costs
 
 The collar is the throat, so bore space is bought from `SHELL_WALL` twice over:
 
@@ -224,20 +224,20 @@ going on.
 The bead sits at z=37 and the cover's groove at z=30, far enough apart that
 neither thins the other's ring of collar wall.
 
-**Keying.** The shell's engraved legend is only true in one orientation and a
+**Keying.** The base's engraved legend is only true in one orientation and a
 rounded square goes in four ways. The key rib stands *outside* the cartridge body,
 on the +X face — the one face pair carrying no legend — so it can never collide
 with a bore however the packer lays them out. `checks.py` asserts that too, since
 it is the whole reason the rib is out there rather than notched in.
 
-**Removal.** The cartridge stands 1.2 mm proud of the shell rim so it can be
-pinched. Push-out holes through the shell floor were considered and dropped: the
+**Removal.** The cartridge stands 1.2 mm proud of the base rim so it can be
+pinched. Push-out holes through the base floor were considered and dropped: the
 packer places bores wherever it likes, so any fixed hole position risks landing
 under one and letting a drill fall through.
 
 ## Three sets, one design
 
-`wood`, `metal` and `stone` are the same shell, the same cartridge and the same
+`wood`, `metal` and `stone` are the same base, the same cartridge and the same
 cover, cut for different tools. Everything that differs is in `sets.py`, and it
 is deliberately a short list: which sizes, how long they are, what the cover
 says, and one thing that is not obvious.
@@ -268,7 +268,7 @@ order, newest last:
 
 | what was printed | judgement | what changed |
 |---|---|---|
-| wood cartridge, `LAND_FIT = −0.10` | holds — and this is why the ribbed design was dropped — but harder than a tool tray wants; a drill lifts the shell off the baseplate on the way out | `LAND_EASE = 0.05` added, opening both the round and hex lands by one named step |
+| wood cartridge, `LAND_FIT = −0.10` | holds — and this is why the ribbed design was dropped — but harder than a tool tray wants; a drill lifts the base off the baseplate on the way out | `LAND_EASE = 0.05` added, opening both the round and hex lands by one named step |
 
 `LAND_EASE` is deliberately half of `LAND_EXTRA_GRIP`: the useful band between
 *falls out* and *fights you* is narrow in an elastomer, and the printer's own
@@ -301,6 +301,6 @@ thing that was reasoned about above, while the ease only trims the interference.
   in the guide can now tilt `atan(0.49 / 23.2)` ≈ 1.2°, against 0.6° before. The
   guide is not what locates a drill in the end — it stands on the floor and is
   held at the TPU land, 3.5 mm of it, at the top of the stack — but if a bit ever
-  rattles visibly in the shell, this is the number that bought it.
-- **The bore layout is still cramped by the shell wall.** If it ever needs to give
+  rattles visibly in the base, this is the number that bought it.
+- **The bore layout is still cramped by the base wall.** If it ever needs to give
   more back, the honest alternative is a 1×2 footprint.

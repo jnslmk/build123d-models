@@ -6,7 +6,7 @@ shank.
 
 ```bash
 uv run show drill_storage.wood            # assembled, drills standing in it
-uv run export drill_storage.wood.shell    # ASA
+uv run export drill_storage.wood.base    # ASA
 uv run export drill_storage.wood.insert   # TPU
 uv run export drill_storage.wood.cover    # PETG
 uv run check drill_storage.wood
@@ -14,7 +14,7 @@ uv run check drill_storage.wood
 
 | part | model | material | print pose |
 | --- | --- | --- | --- |
-| Shell | `drill_storage.wood.shell` | ASA | foot down, cavity up |
+| Base | `drill_storage.wood.base` | ASA | foot down, cavity up |
 | Cartridge | `drill_storage.wood.insert` | TPU | top face down, bores down |
 | Cover | `drill_storage.wood.cover` | PETG | pillow top down, mouth up |
 

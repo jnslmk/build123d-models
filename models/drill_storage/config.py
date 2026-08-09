@@ -1,4 +1,4 @@
-"""Measured and derived numbers for the ASA shell + TPU cartridge holder.
+"""Measured and derived numbers for the ASA base + TPU cartridge holder.
 
 One file for all three sets (``wood``, ``metal``, ``stone``): what changes
 between them is the drill list and the cover label, and neither is a tolerance.
@@ -10,33 +10,33 @@ engine every cover is still cut from) or derived from those numbers as an
 expression -- never typed as an evaluated result, which is how a relationship
 becomes invisible and free to break.
 
-The vertical stack, all in world z with the shell's foot on z=0::
+The vertical stack, all in world z with the base's foot on z=0::
 
     0.0  -  4.4   Gridfinity foot (BASE_H)
-    4.4  -  6.0   shell floor -- drills bottom out here, on ASA, never on TPU
+    4.4  -  6.0   base floor -- drills bottom out here, on ASA, never on TPU
     6.0  - 29.2   ASA guide bores, free fit as printed -- straight, never gripping
    24.0           SHELL_FOOT_TOP, the shoulder the cover seats on
    29.2           CAVITY_FLOOR_Z -- the collar sits here
    29.2 - 32.7   TPU grip land (LAND_H) -- the only thing that holds a drill
    30.0           cover snap groove (SHELL_FOOT_TOP + SNAP_Z)
    32.7 - 33.2   lead-in cone from the relief down onto the land
-   33.2           collar retention bead / shell groove (BEAD_Z)
+   33.2           collar retention bead / base groove (BEAD_Z)
    33.2 - 37.2   TPU relief bore, sliding fit -- clears the drill, grips nothing
-   36.0           SHELL_TOTAL_H -- shell top
+   36.0           SHELL_TOTAL_H -- base top
    37.2           collar top, standing CART_PROUD above it to be pinched out
 
 The cartridge is a **collar**, not a block: it reaches exactly as far below the
 retention bead as it stands above it (``CART_BELOW_BEAD == CART_ABOVE_BEAD``), and
 that reach is the longer of what it has to contain -- land plus lead-in, or the
 bead's own ramp. So the TPU is 8.0 mm rather than 37.2, everything below it is ASA
-bored at a free fit, and the shell guides while the collar grips.
+bored at a free fit, and the base guides while the collar grips.
 
 The base is 36 mm, not the 42 mm of the one-material base still in ``box.py``: its
 bores no longer come down from the top face, so the height above the cover seat
 only has to hold the collar. What did *not* move is ``SHELL_FOOT_TOP``. The seat
 feeds ``cover_height_for``, so lowering it would mint a taller cover for these
 models alone; leaving it at 24 keeps every cover this package has ever produced
-interchangeable with every shell. ``checks.py`` asserts that rather than trusting
+interchangeable with every base. ``checks.py`` asserts that rather than trusting
 the coincidence.
 """
 
@@ -57,20 +57,20 @@ from .box import (
 )
 
 # --- Materials ----------------------------------------------------------------
-# The whole point of the variant: the shell is rigid and the insert is not. Every
+# The whole point of the variant: the base is rigid and the insert is not. Every
 # fit below names which of the two it is cut in, because the same fit class gives
 # a different number in each (fits._MATERIAL_OFFSET: ASA -0.15, TPU +0.10).
 SHELL_MATERIAL = "asa"
 CART_MATERIAL = "tpu"
 
-# Both parts black, matching ``hex.config``: the shell prints in black ASA and the
+# Both parts black, matching ``hex.config``: the base prints in black ASA and the
 # cartridge in black TPU, so the scene shows the filaments that are actually on
 # the shelf. What separates them in a view is the geometry -- the collar sitting
-# proud of the shell's mouth -- not a colour the print does not have.
+# proud of the base's mouth -- not a colour the print does not have.
 SHELL_COLOR = Color(0.1, 0.1, 0.1)
 CART_COLOR = Color(0.1, 0.1, 0.1)
 
-# --- Shell --------------------------------------------------------------------
+# --- Base --------------------------------------------------------------------
 # The cartridge enters through the collar, so the collar bore is the throat, and
 # SHELL_WALL is what every millimetre of hole space is bought from -- twice over,
 # because it comes off both sides. This is the whole price of the two-material
@@ -93,7 +93,7 @@ CAVITY_W = COLLAR_W - 2 * SHELL_WALL  # 36.0 mm cartridge bore
 CAVITY_R = COLLAR_R - SHELL_WALL  # 1.9 -- a true inward offset of the collar
 
 # --- ASA guide bores ----------------------------------------------------------
-# Everything below the cartridge is shell, and it is bored. The guide's whole job
+# Everything below the cartridge is base, and it is bored. The guide's whole job
 # is to hold a drill upright over a long span so the short TPU collar does not
 # have to; it must therefore grip nothing at all, which is what a free fit means.
 # Adjusted for ASA (-0.15 off the PETG baseline), not TPU -- this hole is cut in
@@ -104,7 +104,7 @@ CAVITY_R = COLLAR_R - SHELL_WALL  # 1.9 -- a true inward offset of the collar
 # modelled at nominal measured 0.24 mm small on a 0.4 mm nozzle
 # (fdm-fits-and-clearances rule 4) -- so a bore cut at +0.25 arrives at roughly
 # +0.01 and the drill drags on ASA over 23.2 mm of guide. That is the whole reason
-# a drill in this shell feels tight, and it is a defect of the modelled number, not
+# a drill in this base feels tight, and it is a defect of the modelled number, not
 # of the fit class: the guide was specified free and printed as a press fit.
 #
 # So the undersize is added back. LAND_FIT one section down *exploits* the same
@@ -125,7 +125,7 @@ GUIDE_FIT = fits.for_material(fits.FREE, SHELL_MATERIAL) + GUIDE_UNDERSIZE_COMP
 GUIDE_FLOOR_Z = BORE_FLOOR_Z  # drills rest on ASA, and the cover math holds
 GUIDE_MOUTH_CH = 0.5  # lead-in where a guide opens into the cavity floor
 
-# Both rims of the shell's top face are chamfered -- the outer one for looks and
+# Both rims of the base's top face are chamfered -- the outer one for looks and
 # to lead the cover on, the inner one to lead the cartridge in (part-joints rule
 # 1: a lead-in on every mating mouth). They eat into the same SHELL_WALL from
 # opposite sides, so they are smaller than the PETG base's 1.0 mm and sized to
@@ -136,14 +136,14 @@ SHELL_TOP_CHAMFER = 0.4  # outer rim (BASE_TOP_CHAMFER is 1.0 on the solid base)
 CAVITY_MOUTH_CH = 0.4  # inner rim -- the cartridge's lead-in
 RIM_FLAT = SHELL_WALL - SHELL_TOP_CHAMFER - CAVITY_MOUTH_CH  # 0.8
 
-# --- Shell height -------------------------------------------------------------
+# --- Base height -------------------------------------------------------------
 # The base does NOT inherit box.BASE_TOTAL_H. That base is 42 mm because its
 # bores are sunk from the top face and need the depth; this one grips in a short
 # collar at the top and guides in ASA below, so it needs far less.
 #
 # Only ``SHELL_COLLAR_H`` comes down. ``SHELL_FOOT_TOP`` deliberately stays at
 # box.FOOT_TOP, because the seat height feeds ``cover_height_for``: lower it and
-# every shell needs its own taller cover, and a cover already on the shelf stops
+# every base needs its own taller cover, and a cover already on the shelf stops
 # fitting. The collar is free -- the cover's groove sits at ``FOOT_TOP + SNAP_Z``
 # either way, so shortening above that costs the cover nothing. checks.py asserts
 # both halves of that.
@@ -161,7 +161,7 @@ CART_W = CAVITY_W - CART_SLIP
 CART_R = CAVITY_R - CART_SLIP / 2  # uniform offset, so the corners fit too
 CART_WALL = 1.0  # min material between a bore and the outer face. Thin for a
 #                  rigid part; fine in TPU, which is meant to give.
-CART_PROUD = 1.2  # stands above the shell rim so it can be pinched back out
+CART_PROUD = 1.2  # stands above the base rim so it can be pinched back out
 CART_TOP_Z = SHELL_TOTAL_H + CART_PROUD  # 37.2
 # (the collar's *height* is derived under "Collar height" below, once the
 # features it has to contain have been declared.)
@@ -209,7 +209,7 @@ LAND_H = 3.5  # grip band height above the cartridge floor
 # LAND_EASE then gives some of it back. The first cartridge printed to these
 # numbers holds -- that is the finding, and it is why this design replaced the
 # ribbed one -- but it holds harder than a tool tray wants: a drill should come
-# out to a straight pull, not to a pull that lifts the shell off the baseplate
+# out to a straight pull, not to a pull that lifts the base off the baseplate
 # with it. So both lands open by one named step. It is deliberately small, half
 # of LAND_EXTRA_GRIP: the useful band between "falls out" and "fights you" is
 # narrow in an elastomer, the printer's own hole undersize (0.1-0.3 mm) is wider
@@ -336,7 +336,7 @@ BEAD_ENGAGEMENT = CART_BEAD - CART_SLIP / 2  # 0.44 mm of real overlap
 # BEAD_BACK plus CART_PROUD. checks.py asserts all three.
 #
 # This is why shortening SHELL_COLLAR_H shortens the *collar* too: CART_TOP_Z
-# drops with the shell rim, BEAD_Z follows it down, and the cavity floor with it.
+# drops with the base rim, BEAD_Z follows it down, and the cavity floor with it.
 # Nothing here is typed twice.
 CART_ABOVE_BEAD = max(LAND_H + LAND_LEAD_IN, BEAD_LEAD_IN)  # 4.0
 CART_BELOW_BEAD = CART_ABOVE_BEAD  # symmetric, by definition
@@ -353,12 +353,12 @@ GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 23.2 of ASA guide under the collar
 GROOVE_SEPARATION = BEAD_Z - (SHELL_FOOT_TOP + SNAP_Z)  # 3.2, vs 1.6 required
 
 # --- Keying -------------------------------------------------------------------
-# The shell's engraved wall legend only tells the truth in one orientation, and a
+# The base's engraved wall legend only tells the truth in one orientation, and a
 # rounded square goes in four ways. The key rib stands *outside* the cartridge
 # body, on the +X face, so it can never collide with a bore however the packer
 # lays them out -- and +X is the one face pair that carries no legend.
 KEY_W = 2.4
-KEY_D = 0.8  # how far the rib stands proud of the cartridge / into the shell
+KEY_D = 0.8  # how far the rib stands proud of the cartridge / into the base
 #              wall, leaving SHELL_WALL - KEY_D = 0.8 mm behind the slot
 KEY_ROOT = 1.0  # how far it reaches back *into* the cartridge, so the rounded
 #                 profile still meets the wall along its whole length
@@ -381,7 +381,7 @@ KEY_SLIP = fits.for_material(fits.SLIDING, CART_MATERIAL)  # sliding fit, TPU
 
 # --- Bore layout --------------------------------------------------------------
 # The packing envelope is the cartridge, not the collar, and it is tighter than
-# a one-material base's: the shell wall and the cartridge wall both come out of the
+# a one-material base's: the base wall and the cartridge wall both come out of the
 # same 39.2 mm collar. Bores are packed by their *relieved* radius, which is what
 # is actually cut -- smaller than ribbed_valley_r, which claws some of it back.
 PACK_HALF_W = CART_W / 2

@@ -3,7 +3,7 @@
 Compliant half of the two-material ALLEN box: a black TPU collar whose eight
 hex sockets each grip on a ``HEX_LAND_FIT`` land at their bottom and are
 relieved above it, exactly like a drill shank in the family cartridges. Shape,
-argument and print notes are in ``hex.insert``.
+argument and print notes are in ``drill_storage.hex.insert``.
 
 Printed flat-bottom down, bores up, in black TPU, no supports.
 """
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from build123d import Part
 
-from .. import config as c
-from ..insert import create_insert
+from ..hex import config as c
+from ..hex.insert import create_insert
 
 
 def create() -> Part:

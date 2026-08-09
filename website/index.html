@@ -94,16 +94,18 @@
   #picker .pk-cap { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 4px; }
   #picker .pk-row { display: flex; flex-wrap: wrap; gap: 5px; }
   /* Depth reads as indentation, so a three-level family (drill_storage / hex /
-     allen / base) still shows which row narrows which. */
+     bits / base) still shows which row narrows which. */
   #picker .pk-lvl + .pk-lvl { margin-left: 9px; padding-left: 9px; border-left: 1px solid #262b33; }
   .chip {
     padding: 4px 10px; font-size: 12px; font-weight: 500; border-radius: 999px;
     background: #1b2027; border: 1px solid #2a2f37; color: #9aa4b2;
   }
-  /* Two states, not one: `path` is an ancestor of what is on screen, `sel` is
-     the model on screen. Collapsing them would make "Wood" and "Wood / Shell"
-     look identical. */
-  .chip.path { color: #cdd3db; border-color: #3a4250; }
+  /* Two selected states: `sel` is the model on screen, `path` an ancestor on
+     the way to it. Both read as selected -- the parent category you picked
+     stays highlighted while you browse its parts -- but the leaf keeps the
+     brighter fill, so "Wood" (a category on the path) and "Wood / Base" (the
+     part on screen) still resolve at a glance. */
+  .chip.path { background: #223044; border-color: #4a90ff; color: #dfe6ee; }
   .chip.sel { background: #2b3441; border-color: #4a90ff; color: #fff; }
   .chip .asm { font-size: 9px; letter-spacing: .04em; opacity: .55; margin-left: 5px; }
 
@@ -914,10 +916,10 @@ function showDownloads(on) {
   el.btnStep.classList.toggle('hidden', !on);
 }
 
-// A model's name is a module path -- `drill_storage.hex.allen.base` -- so the
+// A model's name is a module path -- `drill_storage.hex.bits.base` -- so the
 // hierarchy the picker needs is already in the roster and nothing has to be
 // declared twice. The tree is that name grammar, one node per segment; a node
-// carries a model only if that exact path is in MODELS (`drill_storage.hex.allen`
+// carries a model only if that exact path is in MODELS (`drill_storage.hex.bits`
 // is a naming layer, `drill_storage.hex` is a scene, both have children).
 function buildTree(models) {
   const root = { seg: '', path: '', model: null, children: new Map() };
@@ -971,7 +973,7 @@ function chooseAt(depth, seg) {
 // `self` is the row-owner's own model shown as the row's first chip. Only the
 // family level uses it, and it has to: every other node is already a chip in
 // the row above, so `drill_storage.wood` is one click away from
-// `drill_storage.wood.shell` -- but `drill_storage` would be unreachable
+// `drill_storage.wood.base` -- but `drill_storage` would be unreachable
 // without this, the family select having no change event to fire when the
 // family is the one already chosen.
 function chip(node, depth, self) {
@@ -979,9 +981,10 @@ function chip(node, depth, self) {
   b.className = 'chip';
   b.textContent = self ? 'Overview' : pretty(node.seg);
   const sel = node.path === current.name;
+  const onPath = !self && current.name.startsWith(node.path + '.');
   if (sel) b.classList.add('sel');
-  else if (!self && current.name.startsWith(node.path + '.')) b.classList.add('path');
-  b.setAttribute('aria-pressed', String(sel));
+  else if (onPath) b.classList.add('path');
+  b.setAttribute('aria-pressed', String(sel || onPath));
   // A scene is not a print job, so say so here rather than let someone click
   // through to a missing STL button and wonder.
   if (node.model && node.model.assembly) {

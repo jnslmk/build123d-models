@@ -88,7 +88,7 @@ class AffectedModelsTests(unittest.TestCase):
     def test_shared_engine_selects_the_family(self) -> None:
         hits = model_deps.affected_models(["models/drill_storage/box.py"], list(MODELS))
         self.assertIn("drill_storage.wood", hits)
-        self.assertIn("drill_storage.stone.shell", hits)
+        self.assertIn("drill_storage.stone.base", hits)
         self.assertIn("drill_storage.hex", hits)
         self.assertNotIn("lens_cap", hits)
 

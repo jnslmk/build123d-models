@@ -1,11 +1,11 @@
-"""Metal drill storage, assembled: ASA shell, TPU cartridge, tools, cover.
+"""Metal drill storage, assembled: ASA base, TPU cartridge, tools, cover.
 
 Holds ten HSS twist drills on jobber lengths, 1 - 10 mm (1, 1.5, 2, 2.5, 3, 4, 5, 6,
 8, 10), plus an M6 hex-shank tap.
 
 A scene, not a print job -- three filaments never share a bed. The parts are:
 
-    uv run show drill_storage.metal.shell    # ASA, foot down, cavity up
+    uv run show drill_storage.metal.base    # ASA, foot down, cavity up
     uv run show drill_storage.metal.insert   # TPU, top down, bores down
     uv run show drill_storage.metal.cover    # PETG, pillow top down
 
