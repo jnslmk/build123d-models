@@ -239,7 +239,7 @@ def check_waves(at: At, shade: Shade, r: Report) -> None:
     surface and read solid.
     """
     r.section("wave field")
-    t = 0.5  # an envelope antinode: |E| = 1, so the lobes are at full depth
+    t = _envelope_antinode(shade)  # where the lobes run deepest
     z = shade.collar_h + shade.body_h * t
     profile = wave.silhouette(shade, t)
     ridge = wave.ridge_angle(shade, t)
@@ -266,15 +266,16 @@ def check_waves(at: At, shade: Shade, r: Report) -> None:
     )
 
 
-TWIST_BANDS = (0.46, 0.98)
+TWIST_BANDS = (0.15, 0.40)
 """Two heights the twist is measured between, and they are chosen, not arbitrary.
 
-Both sit where the envelope is strongly *positive* (0.92 and 0.98 of full
-depth), which matters twice over. The lobes are near their deepest there, so a
-probe has real material to find or miss; and because the sign is the same at
-both, the ridge's movement between them is the twist and nothing else. Straddling
-an envelope node instead would have half a lobe of sign flip mixed into the
-answer, and the check would pass on a part with no twist at all.
+Both sit inside the *same* half of the envelope -- the default's first positive
+lobe, which runs from the collar to half height -- and both sit where it is
+strong (0.81 and 0.59 of full depth), which matters twice over. The lobes are
+deep there, so a probe has real material to find or miss; and because the sign
+is the same at both, the ridge's movement between them is the twist and nothing
+else. Straddling a node instead would fold half a lobe of crest/valley inversion
+into the answer, and the check would then pass on a shade with no twist at all.
 """
 
 
@@ -353,15 +354,35 @@ def check_twist(at: At, shade: Shade, r: Report) -> None:
 
 
 def _envelope_node(shade: Shade) -> float | None:
-    """The lowest height where the envelope crosses zero, or None if it never does.
+    """The lowest height inside the body where the envelope crosses zero.
 
-    ``(1 - pinch) + pinch * cos(2 pi m t) = 0`` has a solution exactly when
-    ``pinch > 0.5`` -- below that the constant term never lets the cosine reach
-    it, which is the algebraic form of "the lobes never invert".
+    ``(1 - pinch) + pinch * cos(2 pi m t + phase) = 0`` has a solution exactly
+    when ``pinch >= 0.5`` -- below that the constant term never lets the cosine
+    reach it, which is the algebraic form of "the lobes never invert".
+
+    The phase has to be carried through, and the default is the case that proves
+    it: at ``env_phase = -pi/2`` the first node sits at exactly half height,
+    where the phase-free formula would have put it a quarter of the way up and
+    every probe taken there would have been measuring a lobe at full depth while
+    calling it a node.
     """
-    if shade.pinch <= 0.5 or shade.wave_cycles <= 0:
+    if shade.pinch < 0.5 or shade.wave_cycles <= 0:
         return None
-    return acos(-(1 - shade.pinch) / shade.pinch) / (2 * pi * shade.wave_cycles)
+    turn = 2 * pi * shade.wave_cycles
+    base = acos(-(1 - shade.pinch) / shade.pinch)
+    # Both branches of the arccos, each shifted into [0, 1] by whole periods.
+    for raw in (base, -base):
+        for k in range(int(shade.wave_cycles) + 2):
+            node = (raw - shade.env_phase + 2 * pi * k) / turn
+            if 0.02 < node < 0.98:
+                return node
+    return None
+
+
+def _envelope_antinode(shade: Shade) -> float:
+    """Where the envelope is furthest from zero -- the deepest lobes in the body."""
+    ts = [i / 400 for i in range(401)]
+    return max(ts, key=lambda t: abs(wave.envelope(shade, t)) * wave.fade(t))
 
 
 def check_pinch(at: At, shade: Shade, r: Report) -> None:
@@ -384,7 +405,8 @@ def check_pinch(at: At, shade: Shade, r: Report) -> None:
         )
         return
 
-    for t, label, expect_round in ((0.5, "antinode", False), (node, "node", True)):
+    bands = ((_envelope_antinode(shade), "antinode", False), (node, "node", True))
+    for t, label, expect_round in bands:
         z = shade.collar_h + shade.body_h * t
         ridge = wave.ridge_angle(shade, t)
         valley = ridge + pi / shade.lobes

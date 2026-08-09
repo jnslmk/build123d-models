@@ -11,7 +11,7 @@ The radius is a silhouette with a wave wrapped round it::
 
     r(theta, t) = R(t) + wave_depth * R(t) * fade(t) * W(theta, t)
     W(theta, t) = cos(lobes * (theta + 2*pi * twist_turns * t)) * E(t)
-    E(t)        = (1 - pinch) + pinch * cos(2*pi * wave_cycles * t)
+    E(t)        = (1 - pinch) + pinch * cos(2*pi * wave_cycles * t + env_phase)
 
 Three factors, three jobs, and they are separable on purpose -- each slider on
 the website moves exactly one of them:
@@ -78,8 +78,20 @@ def silhouette(shade: Shade, t: float) -> float:
 
 
 def envelope(shade: Shade, t: float) -> float:
-    """How deep the waves run at height ``t``; signed, so crests can invert."""
-    return (1.0 - shade.pinch) + shade.pinch * cos(2 * pi * shade.wave_cycles * t)
+    """How deep the waves run at height ``t``; signed, so crests can invert.
+
+    ``env_phase`` slides the whole breathing pattern up and down the body, and it
+    earns its place from the reference mesh rather than from taste: measured,
+    that shade's lobe depth is *zero* where it leaves the collar, deepest around
+    a third of the way up, back through zero at half height and deepest again at
+    three-quarters. With the phase pinned at 0 the envelope is forced to an
+    antinode at ``t = 0``, which puts a node a quarter of the way up instead --
+    the pattern in the wrong place by half a lobe of height, and no other slider
+    can move it back.
+    """
+    return (1.0 - shade.pinch) + shade.pinch * cos(
+        2 * pi * shade.wave_cycles * t + shade.env_phase
+    )
 
 
 def fade(t: float) -> float:

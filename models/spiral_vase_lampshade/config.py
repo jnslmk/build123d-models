@@ -13,14 +13,20 @@ The numbers split into three groups, and they are not equally free:
   and ``bulge_at`` -- four diameters and where the widest one sits. Between
   them they are the vase you would get with the waves turned off.
 * **The wave field.** ``lobes``, ``wave_depth``, ``twist_turns``,
-  ``wave_cycles`` and ``pinch``. These are the design; the silhouette is only
-  what they are wrapped around. ``spiral_vase_lampshade.wave`` documents what
-  each one does to the surface.
+  ``wave_cycles``, ``env_phase`` and ``pinch``. These are the design; the
+  silhouette is only what they are wrapped around.
+  ``spiral_vase_lampshade.wave`` documents what each one does to the surface.
+
+Every default in the last two groups is **measured off the reference mesh**, not
+judged from its photographs: 300 slices of JH's STL, Fourier-decomposed, with the
+silhouette least-squares fitted to the mean radius of each. README's "Measured,
+not guessed" gives the method and what it changed, which was almost everything.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
+from math import atan, degrees, pi
 
 # --- Constants that are not sliders ------------------------------------------
 
@@ -67,27 +73,41 @@ decides how fat that bead is (the reference design asks for 0.6 mm). This is the
 a shell rather than a surface.
 """
 
-MAX_OVERHANG = 45.0
-"""Degrees from vertical the outer surface is allowed to lean, for DEFAULT.
+LAYER_HEIGHT = 0.2
+EXTRUSION_WIDTH = 0.6
+"""What the shade is sliced at, and the two numbers the overhang limit is *derived*
+from rather than guessed at. The width is the reference design's own
+recommendation for the external perimeter; see README."""
 
-A budget, like ``salad_bowl_lamp``'s mass budget, not a law of physics. Vase
-mode lays one bead per layer with no supports and no earlier perimeter to bridge
-from, so an overhanging surface is held only by how far each bead overlaps the
-one beneath it; 45 degrees is where that overlap drops to half. The default
-measures 41.6, and a change that spends the remaining 3.4 has to say so.
+MAX_OVERHANG = degrees(atan(EXTRUSION_WIDTH / 2 / LAYER_HEIGHT))
+"""Degrees from vertical the outer surface may lean: 56.3, and it is arithmetic.
 
-Deliberately *not* clamped in ``Shade.of``. The sliders can reach 84 degrees
-(a 300 mm profile on a 60 mm height will do it) and that shape still builds --
-it just does not print. Clamping it would be this module overruling a shape
-somebody explicitly asked for; the honest move is to hold the *design* to the
-budget and let an experiment be an experiment.
+This started as a flat 45, which is the right rule for a *perimeter* that has to
+bridge from the wall below it. Vase mode is not that. It lays one continuous
+bead per layer, and each bead is supported by sitting partly on top of the one
+under it, so what decides the limit is how far the wall steps sideways in one
+layer against how wide the bead is: ``tan(angle) * LAYER_HEIGHT`` against
+``EXTRUSION_WIDTH``. Half the bead still landing on its predecessor gives
+``atan(width / 2 / layer)`` = 56.3 degrees, and 45 was leaving a third of the
+envelope on the table.
+
+Measuring the reference mesh is what forced the correction: it leans 50.8
+degrees at its steepest, comfortably printable and comfortably over the old
+limit. A budget that the design it is modelled on would have failed was
+measuring the budget, not the design.
+
+Still deliberately *not* clamped in ``Shade.of``. The sliders can reach 84
+degrees (a 300 mm profile on a 60 mm height will do it) and that shape still
+builds -- it just does not print. Clamping would be this module overruling a
+shape somebody explicitly asked for; the honest move is to hold the *design* to
+the budget and let an experiment be an experiment.
 """
 
 BED_BUDGET = 180.0
 """Millimetres square the default has to fit, and it is the small-printer number.
 
 Not the widest bed in the world -- the point of a budget is to be the one that
-binds. The default measures 156 mm across, so the shade fits a Prusa Mini or an
+binds. The default measures 149 mm across, so the shade fits a Prusa Mini or an
 Ender 3 as readily as the 256 mm machines the reference lamp targets.
 """
 
@@ -101,7 +121,7 @@ against; see ``_max_wave_depth``.
 """
 
 Z_SECTIONS = 80
-FACETS = 48
+FACETS = 144
 """Loft resolution: sections up the body, points around each one.
 
 Both are construction, not design, so neither is a slider -- but they are
@@ -109,10 +129,17 @@ Both are construction, not design, so neither is a slider -- but they are
 cheap variants when it drags the sliders to their stops, without mutating global
 state to do it.
 
-80 x 48 is where the ruled loft stops improving: the chords are 2.4 mm tall on a
-surface whose radius of curvature never drops below ~9 mm, which puts the
-faceting an order of magnitude under one 0.2 mm layer. Going to 96 angular
-points quadrupled the loft time and moved the volume by 0.3%.
+144 is measured, not chosen for comfort, and it is four times what this model
+first shipped with. The binding feature is not the crest but the **valley**: at
+six lobes and a depth of 0.44 the section's radius of curvature in the notch
+between two lobes falls to about 1.0 mm on a 28 mm radius, and a periodic spline
+through 8 points per lobe simply does not go where the field says. Probed on the
+built solid at four ridges and valleys, 48 points put half of them in the wrong
+place and 144 put none.
+
+That is the whole reason this is the slowest model in the roster -- about 56
+seconds against 32 at the old setting. It buys a surface that its own checks can
+hold to the field, which the cheap setting could not.
 """
 
 
@@ -164,25 +191,32 @@ class Shade:
 
     # -- The interface to the base -------------------------------------------
     base_dia: float = 83.0
-    collar_h: float = 6.0
+    collar_h: float = 6.5
     collar_wall: float = 2.4
 
     # -- Silhouette -----------------------------------------------------------
     # These three are the *wave-free* profile -- the vase you would get with
     # wave_depth at zero. Crests stand proud of them by wave_depth of the local
     # radius, so the part's real footprint is nearer max_dia * (1 + wave_depth):
-    # 136 mm of profile measures 156 mm across the bed. `footprint` derives it.
-    max_dia: float = 136.0
-    mouth_dia: float = 88.0
-    height: float = 200.0
-    bulge_at: float = 0.42
+    # 115 mm of profile measures 157 mm across the bed. `footprint` derives it.
+    #
+    # Every number in this block and the next is measured off the reference
+    # mesh rather than judged from its photographs -- see README, "Measured,
+    # not guessed". The silhouette three are a least-squares fit of the two
+    # smoothsteps in `wave.silhouette` to the mean radius of 279 slices, which
+    # they track to 0.95 mm rms.
+    max_dia: float = 115.5
+    mouth_dia: float = 84.0
+    height: float = 185.8
+    bulge_at: float = 0.477
 
     # -- Wave field -----------------------------------------------------------
-    lobes: int = 5
-    wave_depth: float = 0.22
-    twist_turns: float = 0.05
-    wave_cycles: float = 2.0
-    pinch: float = 0.65
+    lobes: int = 6
+    wave_depth: float = 0.44
+    twist_turns: float = -0.19
+    wave_cycles: float = 1.0
+    env_phase: float = -1.5708  # -90 deg: a node at the collar, not an antinode
+    pinch: float = 1.0
 
     # -- Shell ----------------------------------------------------------------
     wall: float = MIN_WALL
@@ -231,6 +265,7 @@ class Shade:
         v["wave_cycles"] = _clamp(v["wave_cycles"], 0.0, 8.0)
         v["twist_turns"] = _clamp(v["twist_turns"], -1.0, 1.0)
         v["pinch"] = _clamp(v["pinch"], 0.0, 1.0)
+        v["env_phase"] = _clamp(v["env_phase"], -pi, pi)
 
         # The depth ceiling depends on everything above: the wall is offset
         # inward from the tightest crest anywhere on the body, and the tightest
@@ -307,6 +342,7 @@ PARAMS = [
     _num("twist_turns", "Twist (turns over the height)", -1.0, 1.0, 0.01),
     _num("wave_cycles", "Wave cycles up the body", 0.0, 8.0, 0.25),
     _num("pinch", "Pinch between cycles", 0.0, 1.0, 0.05),
+    _num("env_phase", "Where the cycles sit (rad)", -3.15, 3.15, 0.05),
     _num("wall", "Wall (mm)", 0.4, 3.0, 0.1),
     _num("collar_h", "Base collar height (mm)", 2.0, 40.0, 0.5),
     _num("collar_wall", "Base collar wall (mm)", 0.8, 6.0, 0.1),

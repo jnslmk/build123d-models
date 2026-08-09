@@ -1,4 +1,4 @@
-"""Vase-mode lampshade: five soft petals breathing up a 200 mm ovoid.
+"""Vase-mode lampshade: six soft petals breathing up a 186 mm ovoid.
 
     uv run show spiral_vase_lampshade
     uv run export spiral_vase_lampshade     # the STL to print, in vase mode
@@ -6,18 +6,24 @@
 
 A shell 0.8 mm thick standing on an 83 mm collar, whose surface is one scalar
 function of angle and height: ``lobes`` crests round the section, twisted a
-fifth of a turn over the body, their depth breathing through two cycles so the
-lobes pinch, invert and overlap the way a wave does. ``wave.py`` is that
-function and the argument for every term in it; everything here just cuts
-sections through it and lofts them.
+fifth of a turn over the body, their depth breathing through one cycle so the
+lobes pinch away at half height, invert, and come back overlapping the way a
+wave does. ``wave.py`` is that function and the argument for every term in it;
+everything here just cuts sections through it and lofts them.
 
-The look is after JH's "Waves" Designer Lamp (Printables 1261597, CC-BY), which
-is a lamp this repo does not otherwise attempt: no base, no thread, no LED kit.
-What is reproduced is the shade, parametrically, from photographs -- none of
-their geometry was available or used, so this is a model of the *look*, tuned by
-eye against the reference and then held to it by ``checks.py``. The one hard
-number taken from their published spec is the 83 mm bottom diameter, which is
-what any shade has to present to their base. See README.md.
+The design is after JH's "Waves" Designer Lamp (Printables 1261597, CC-BY),
+which is a whole lamp this repo does not otherwise attempt: no base, no thread,
+no LED kit. What is reproduced is the shade, parametrically.
+
+**Every number in it is measured, not judged.** The reference STL was
+downloaded, sliced into 300 cross-sections and Fourier-decomposed, and
+``config.Shade``'s defaults are what that decomposition says: six lobes, a wave
+depth of 0.44 of the local radius, a 185.8 mm height, and a silhouette fitted to
+the mean radius of every slice. What it is *not* is a copy of that mesh -- the
+reference's ridge rotates at a rate that varies with height, which no single
+twisting carrier can reproduce, so this model is the closest member of a
+parametric family rather than the same surface. README.md gives the residual and
+the evidence.
 
 **Everything is a slider** (``PARAMS``, thirteen of them), and ``Shade.of()``
 clamps whatever comes back, so no combination on the website can produce a part
