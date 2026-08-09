@@ -56,8 +56,16 @@ def _source_path(name: str) -> str:
     unavailable" for it ever since, because this is the key it looks up in
     ``py-sources.json``.
 
-    Falls back to the flat ``models/<name>.py`` when neither exists, so a typo in
-    the roster shows up as an empty editor rather than an exception here.
+    Raises on a name that resolves to neither. This used to fall back to the
+    flat ``models/<name>.py`` so that a typo in the roster surfaced as an empty
+    editor rather than an exception, and that was the right trade only while
+    nothing else caught the typo: the fallback bought a bundle that still built,
+    at the price of a model whose Code panel silently said "source unavailable"
+    with nothing anywhere explaining why. ``tests/test_model_registry.py`` now
+    fails on an unresolvable roster name, so the typo is caught before a build
+    is ever attempted and the silence buys nothing -- it only delays the same
+    problem to a place where it reads as a website bug instead of a bad entry
+    in ``MODELS``.
     """
     flat = MODELS_DIR / f"{name.replace('.', '/')}.py"
     if flat.exists():
@@ -65,7 +73,11 @@ def _source_path(name: str) -> str:
     package = MODELS_DIR / name.replace(".", "/") / "__init__.py"
     if package.exists():
         return str(package.relative_to(HERE))
-    return f"models/{name}.py"
+    raise FileNotFoundError(
+        f"{name!r} is in tessellate_models.MODELS but resolves to neither "
+        f"models/{name.replace('.', '/')}.py nor "
+        f"models/{name.replace('.', '/')}/__init__.py"
+    )
 
 
 def _label(name: str) -> str:

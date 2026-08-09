@@ -159,9 +159,21 @@ class RosterTests(unittest.TestCase):
                 broken.append(name)
         self.assertEqual(
             [], sorted(broken),
-            "In MODELS but has no module with a zero-arg create(). "
-            "website._source_path falls back to models/<name>.py for a name it "
-            "cannot resolve, so the Code panel goes blank instead of raising.",
+            "In MODELS but has no module with a zero-arg create(). This is the "
+            "check that has to catch it: website._source_path now raises on an "
+            "unresolvable name, so the alternative to failing here is failing "
+            "the site build with what reads like a website bug.",
+        )
+
+    def test_source_path_refuses_a_name_it_cannot_resolve(self) -> None:
+        """Pins the raise, so nobody restores the silent fallback by accident."""
+        with self.assertRaises(FileNotFoundError):
+            website._source_path("no_such_model_anywhere")
+        # ...and still resolves both shapes of real model.
+        self.assertEqual(website._source_path("lens_cap"), "models/lens_cap.py")
+        self.assertEqual(
+            website._source_path("sonicare_charger_holder"),
+            "models/sonicare_charger_holder/__init__.py",
         )
 
     def test_every_model_package_ships_in_the_wheel(self) -> None:

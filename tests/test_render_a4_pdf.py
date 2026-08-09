@@ -3,18 +3,38 @@ from __future__ import annotations
 import unittest
 
 from build123d import Box
-from render_a4_pdf import (
-    ORTHO_VIEWPORTS,
-    POINTS_PER_MM,
-    _camera_for_view,
-    _dedupe_sorted,
-    _format_length,
-    compute_uniform_scale,
-    format_drawing_scale,
-    parse_scale_option,
+
+# ``render_a4_pdf`` imports pycairo, which needs system cairo and so lives in
+# the optional ``pdf`` dependency group. Importing it at module scope made the
+# whole file unloadable wherever that group is not installed, and unittest
+# reports an unloadable module as an **error**, not a skip -- so a machine
+# missing one optional system library failed the suite with a traceback that
+# had nothing to do with the code under test. Guarded, the rest of the suite
+# still runs and this file reports honestly as skipped.
+try:
+    from render_a4_pdf import (
+        ORTHO_VIEWPORTS,
+        POINTS_PER_MM,
+        _camera_for_view,
+        _dedupe_sorted,
+        _format_length,
+        compute_uniform_scale,
+        format_drawing_scale,
+        parse_scale_option,
+    )
+except ModuleNotFoundError as exc:  # pragma: no cover - depends on the env
+    HAVE_PDF_DEPS = False
+    PDF_IMPORT_ERROR = str(exc)
+else:
+    HAVE_PDF_DEPS = True
+    PDF_IMPORT_ERROR = ""
+
+
+@unittest.skipUnless(
+    HAVE_PDF_DEPS,
+    f"the 'pdf' dependency group is not installed ({PDF_IMPORT_ERROR}); "
+    "install it with `uv sync` or run `uv run render-a4` to see the real error",
 )
-
-
 class RenderA4PdfTests(unittest.TestCase):
     def test_top_view_uses_stable_up_vector(self) -> None:
         origin, up = ORTHO_VIEWPORTS["top"]
