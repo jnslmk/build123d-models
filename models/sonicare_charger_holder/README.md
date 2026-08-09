@@ -3,9 +3,13 @@
 A wall cradle for the round Philips Sonicare charging puck. The charger drops
 into a closed cup, the brush stands upright out of the top, and the whole thing
 is held to the tile by double-sided foam tape on a flat bar across its back.
-The cable is the only opening: it leaves the puck through a slot in the back
-wall, turns down a channel sunk into the tape face, and drops out at the bottom
-edge to run down the tile.
+The cable is the only opening: a channel through the back, open from the bed to
+the rim, deep enough that the cord lies below the surface the tape sticks to.
+
+The channel is open at the top so the cord can be **laid in from above** with
+the puck following it down. Closed at the top it would have to be threaded, and
+the free end of this cord has a mains plug on it — which is to say the earlier
+closed-top version could not be assembled at all.
 
 | | |
 |---|---|
@@ -88,8 +92,7 @@ PETG, 0.4 mm nozzle, 0.2 mm layers, no supports. `create()` returns the part
 already in print pose: floor flat on the bed, cup mouth up, tape face standing
 vertical. That happens to be the pose it is used in, but it is chosen for the
 print — it makes the floor a solid first layer instead of a bridge and leaves
-every wall vertical. The only overhang in the part is the crown of the cable
-slot, which is radiused rather than square so it self-supports.
+every wall vertical. There is no overhang anywhere in the part.
 
 Four perimeters is plenty; this part carries almost no load. Do not skimp on the
 first layer: the bed-side chamfer is elephant's-foot relief, and a splayed first
@@ -102,24 +105,46 @@ layer is what rocks the tape pad off the tile.
    cord upward or sideways.
 2. Clean the tile with isopropyl alcohol and let it dry. Foam tape does not
    stick to soap residue.
-3. Apply the tape to the bar, clear of the cable channel, in two strips either
-   side of it.
-4. Seat the cord in the channel first, then press the holder to the tile for
-   30 seconds. Full bond strength takes about a day — do not hang the brush on
-   it immediately.
+3. **Tape both halves of the bar.** The channel runs the full height, so the
+   pad is two separate pads (about 660 mm² between them). Taping only one side
+   loads the joint in peel about the other.
+4. Lay the cord into the channel from above and let the puck down after it,
+   then press the holder to the tile for 30 seconds. Full bond strength takes
+   about a day — do not hang the brush on it immediately.
 
 ## Notes for whoever changes this next
 
-Two bugs in this model were invisible in every projection and were found only by
-point-sampling the solid, both of them the same mistake in different axes: the
-cable slot's own floor surviving as a horizontal ledge inside the cup, because
-the channel that was supposed to remove it was narrower than the slot (fixed in
-`groove_w`) and then, at thicker walls, shallower than the wall (fixed in
-`groove_depth`). A third only appears at the ends of the slider range, where the
-slot's crown crowds the bore's lead-in cone and OCC quietly refuses to chamfer
-the cable route at all (fixed by `RIM_KEEPOUT`).
+The defect worth learning from is the one no check caught: the cable channel was
+closed at the top, so the cable could not be fitted. Every geometric assertion
+passed, the renders looked right, and the part was unusable — because everything
+being verified was a property of the *solid*, and nothing asserted a property of
+*assembly*. The check that now covers it sweeps the channel's full height at
+three points across its width, and it goes red on the old shape.
 
-The lesson those three share is worth keeping: **the checks that matter here are
-the ones that sweep the parameters**, because the defaults are the one
-configuration that was looked at. Every one of the four was demonstrated to turn
-`uv run check sonicare_charger_holder` red before its fix was accepted.
+Two earlier bugs were invisible for a different reason — they were interior, and
+the cup's own wall stands in front of them in every projection. Both were the
+same mistake in different axes: the slot's floor surviving as a horizontal ledge
+inside the cup, because the channel meant to remove it was first narrower than
+the slot and then, at thicker walls, shallower than the wall. Merging the two
+features into one open channel dissolved that class of bug rather than fixing it
+again — there is no longer a slot floor to leave behind. `channel_depth` still
+carries the second half of the rule, because below the floor line the channel is
+a blind notch and can still stop inside the wall.
+
+A third constraint has been deleted rather than kept: `RIM_KEEPOUT` reserved a
+sliver of plain wall between the slot's crown and the bore's lead-in cone,
+because OCC silently refused two chamfers when they crowded. Opening the channel
+to the rim removed the crown, so there is nothing left to crowd.
+
+Three lessons, in the order they cost the most:
+
+1. **Assert what the part is for, not only what it is.** A model can be
+   geometrically perfect and functionally impossible.
+2. **The checks that matter sweep the parameters.** The defaults are the one
+   configuration anybody looks at; both ledge bugs only appear elsewhere in the
+   range.
+3. **Point-sample the solid.** Every interior defect here was invisible in an
+   SVG, a render and the viewer alike.
+
+Every fix above was demonstrated to turn `uv run check sonicare_charger_holder`
+red before it was accepted.

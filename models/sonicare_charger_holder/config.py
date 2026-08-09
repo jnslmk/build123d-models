@@ -121,24 +121,10 @@ silhouette, so that from the front the holder reads as a plain round cup and the
 bar is not visible past it.
 """
 
-SLOT_OVERCUT = 0.5
-"""Not a fit: how far inside the bore the wall slot's cut begins, so no sliver
-of wall survives at the mouth of the cable route. It also sets the floor of
-``groove_depth`` -- see there.
-"""
-
-RIM_KEEPOUT = 1.0
-"""Not a fit: the minimum height of plain, untreated wall that must survive
-between the cable slot's crown and whichever rim treatment reaches furthest
-down.
-
-Measured, not guessed. Winding the puck height to its 6 mm stop drives the slot
-up until only a sliver of wall separates its crown from the lead-in cone, and
-OCC then refuses to chamfer the slot's mouths -- silently, and two of them at
-once. Sweeping the boot diameter puts the cliff between 0.3 mm (refused) and
-0.6 mm (taken), so this is that threshold with a comfortable multiple on top.
-Bounding against the *rim* instead was the first attempt and it does not work:
-the lead-in cone starts lower than the outer chamfer does.
+CHANNEL_OVERCUT = 0.5
+"""Not a fit: how far past the bore wall the cable channel's cut reaches, so no
+sliver of wall survives at its mouth. It also sets the floor of
+``channel_depth`` -- see there.
 """
 
 CHAMFER = 0.8
@@ -242,60 +228,43 @@ class Holder:
         return self.back_y - self.plate_t / 2
 
     # -- the cable route --------------------------------------------------
+    #
+    # One channel, open from the bed to the rim. It began as two features -- a
+    # closed slot through the wall, and a groove down the tape face -- and that
+    # was a design error rather than a tidier decomposition: a closed slot can
+    # only be *threaded*, and the end of this cord that is free to thread is
+    # the one with the mains plug moulded onto it. Nobody was ever getting the
+    # cable in. Open to the rim, the cord is laid in from above and the puck
+    # follows it down, boot and all.
     @property
-    def slot_w(self) -> float:
-        """Width of the opening through the back wall.
+    def channel_w(self) -> float:
+        """Width of the channel, at every height.
 
         Sized on the **boot**, not the cord: the strain relief is the widest
-        thing that has to get through, and it is the part that decides whether
-        the puck can sit flat on the floor.
+        thing that has to pass, and it has to pass along the *whole* height,
+        because it descends with the puck rather than being fed in at the
+        bottom. That is why the channel does not taper to the cord's width
+        further up, which would otherwise save rim material and look tidier --
+        it would also stop the puck going in.
         """
         return self.cable_boot_dia + CABLE_CLEAR
 
     @property
-    def slot_top(self) -> float:
-        """Top of the round-topped slot, measured from z = 0."""
-        return FLOOR + self.slot_w
+    def channel_depth(self) -> float:
+        """How far in from the tape plane the channel is cut.
 
-    @property
-    def slot_shoulder(self) -> float:
-        """Where the slot's straight sides give way to its radiused top."""
-        return FLOOR + self.slot_w / 2
-
-    @property
-    def groove_w(self) -> float:
-        """Width of the channel down the tape face: the **slot's** width, not
-        the cord's.
-
-        Sizing it to the cord (4 mm against the slot's 7) read as the tidier
-        choice and was wrong. The slot's own floor then survived as a
-        7 x 3.6 mm horizontal ledge inside the cup with the groove punched
-        through it -- three sharp convex edges in the one place the cord bends
-        and rubs, and a shelf for water to sit on directly under the charger.
-        Matching the two widths deletes that face rather than decorating it,
-        and the whole cable route becomes a single continuous opening. Found by
-        point-sampling the solid, not by looking at it: the ledge is invisible
-        in every projection, because the cup's wall stands in front of it.
+        Two requirements, and the larger wins. The cord's: bury it below the
+        tape plane with room to spare, since a cord standing proud holds the
+        pad off the tile. The wall's: reach at least a hair past the bore, so
+        that below the floor line -- where the channel is a blind notch rather
+        than an opening -- it still breaks through into the cup instead of
+        stopping inside the wall and leaving a shelf. At the default 2.4 mm
+        wall the cord's number is the larger one and hides the second
+        requirement completely; wind the wall slider to 6 mm and it is the only
+        thing keeping the notch honest, which is how the parameter sweep in
+        ``checks.py`` found it in the first place.
         """
-        return self.slot_w
-
-    @property
-    def groove_depth(self) -> float:
-        """Depth of that channel: whichever is greater of what the cord needs
-        and what the slot needs.
-
-        The cord's requirement is the obvious half -- bury it below the tape
-        plane with room to spare. The second half is the same ledge bug that
-        ``groove_w`` describes, reappearing in the other axis: the slot's floor
-        is a horizontal face spanning the full wall, so a groove shallower than
-        the wall leaves the outer part of that floor standing as a shelf inside
-        the cup. At the default 2.4 mm wall the cord's number is the larger one
-        and hides the problem completely; wind the wall slider to 6 mm and the
-        shelf reappears, which is exactly how the parameter sweep in
-        ``checks.py`` found it. Taking the max means the groove always clears
-        the slot's floor, at every wall thickness.
-        """
-        return max(CABLE_DIA + CABLE_RECESS, self.wall + SLOT_OVERCUT)
+        return max(CABLE_DIA + CABLE_RECESS, self.wall + CHANNEL_OVERCUT)
 
     # -- edge treatments that have to scale with the wall ------------------
     @property
@@ -316,7 +285,7 @@ class Holder:
         eat: a third of the wall it passes through, and a quarter of the slot
         it would otherwise narrow.
         """
-        return min(CABLE_MOUTH_CHAMFER, self.wall / 3, self.slot_w / 4)
+        return min(CABLE_MOUTH_CHAMFER, self.wall / 3, self.channel_w / 4)
 
     def validate(self) -> None:
         """Fail loudly on a combination that would build a wrong part.
@@ -326,29 +295,16 @@ class Holder:
         an invariant that was *violated* at some point by a slider combination,
         not a hypothetical.
         """
-        if self.groove_depth < self.wall + SLOT_OVERCUT:
-            raise ValueError("cable groove would leave the slot's floor as a ledge")
-        if self.groove_depth - self.wall >= self.cavity_r / 2:
-            raise ValueError("cable groove would eat half the floor")
+        if self.channel_depth < self.wall + CHANNEL_OVERCUT:
+            raise ValueError("cable channel would stop inside the wall")
+        if self.channel_depth - self.wall >= self.cavity_r / 2:
+            raise ValueError("cable channel would eat half the floor")
         if self.plate_corner_r >= self.plate_t / 2:
             raise ValueError("plate corner radius would consume the bar")
-        if self.slot_top > self.rim_clear:
-            raise ValueError("cable slot would break into the rim chamfer")
+        if self.channel_w > self.cavity_r:
+            raise ValueError("cable channel would stop the cup being a cup")
         if self.mouth_chamfer <= 0 or self.rim_chamfer <= 0:
             raise ValueError("wall is too thin to carry its own edge treatment")
-
-    @property
-    def rim_clear(self) -> float:
-        """The highest anything may reach and still leave the rim alone.
-
-        ``slot_top < body_h`` was the obvious bound and it was wrong twice
-        over. The rim carries two treatments, and the one that reaches lowest
-        is the lead-in cone on the *inside*, not the chamfer on the outside --
-        so the bound is taken against whichever is deeper. And meeting it
-        exactly is not enough: what OCC objects to is the sliver of wall left
-        between, which is what ``RIM_KEEPOUT`` reserves.
-        """
-        return self.body_h - max(self.rim_chamfer, self.mouth_chamfer) - RIM_KEEPOUT
 
     @classmethod
     def of(cls, **params) -> "Holder":
@@ -366,15 +322,17 @@ class Holder:
             wall=min(max(h.wall, 1.2), 6.0),
             cable_boot_dia=min(max(h.cable_boot_dia, 2.0), 12.0),
         )
-        # The slot is sized on the boot, and must still clear the rim chamfer.
-        # ``rim_clear``, not ``body_h``: see that property for what went wrong
-        # when this bounded against the rim itself.
-        if h.slot_top > h.rim_clear:
+        # The channel is sized on the boot, and runs the full height, so the
+        # only thing left to bound it against is the cup's own radius -- a
+        # channel wider than that is a gap with a bit of cup attached. Height
+        # used to constrain it too, back when the slot had a crown that could
+        # crowd the rim; open to the rim, there is no crown to crowd anything.
+        if h.channel_w > h.cavity_r:
             h = cls(
                 puck_dia=h.puck_dia,
                 puck_height=h.puck_height,
                 wall=h.wall,
-                cable_boot_dia=max(2.0, h.rim_clear - FLOOR - CABLE_CLEAR),
+                cable_boot_dia=max(2.0, h.cavity_r - CABLE_CLEAR),
             )
         h.validate()
         return h

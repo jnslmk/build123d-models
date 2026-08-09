@@ -49,7 +49,6 @@ from .config import (
     DEFAULT,
     FLOOR,
     PUCK_FIT,
-    RIM_KEEPOUT,
     Holder,
 )
 
@@ -64,7 +63,7 @@ def _in_route(h: Holder, x: float, y: float) -> bool:
     tenth on each bound, because a probe landing exactly on a cut face is
     undefined, not open.
     """
-    return abs(x) <= h.slot_w / 2 + 0.1 and y >= h.back_y - h.groove_depth - 0.1
+    return abs(x) <= h.channel_w / 2 + 0.1 and y >= h.back_y - h.channel_depth - 0.1
 
 
 def check_print_pose(part: Part, h: Holder, r: Report) -> None:
@@ -190,7 +189,7 @@ def check_closed_floor(part: Part, h: Holder, r: Report) -> None:
         "no drain holes and no open ring -- the cable route is the one opening",
     )
     r.check(
-        not is_solid_at(part, 0, h.back_y - h.groove_depth / 2, FLOOR / 2),
+        not is_solid_at(part, 0, h.back_y - h.channel_depth / 2, FLOOR / 2),
         "the route does break the floor at the very back, which is the cord's exit",
         "and doubles as the only path standing water has off the floor -- "
         "stated because a closed floor in a wet room is a deliberate trade, "
@@ -201,58 +200,92 @@ def check_closed_floor(part: Part, h: Holder, r: Report) -> None:
 def check_cable_route(part: Part, h: Holder, r: Report) -> None:
     r.section("cable route")
     r.check(
-        abs(h.slot_w - (CABLE_BOOT_DIA + CABLE_CLEAR)) < 1e-9,
-        "the wall slot is sized on the strain-relief boot, not the bare cord",
-        f"{h.slot_w:.2f} = boot {CABLE_BOOT_DIA:.1f} + {CABLE_CLEAR:.1f} routing "
-        "gap; the boot is the widest thing that has to pass, and it is what "
-        "decides whether the puck can sit flat",
-    )
-    r.check(
-        h.slot_top < h.body_h,
-        "the slot stays below the rim, so it is invisible from the room",
-        f"slot top z={h.slot_top:.2f} vs rim z={h.body_h:.2f}",
+        abs(h.channel_w - (CABLE_BOOT_DIA + CABLE_CLEAR)) < 1e-9,
+        "the channel is sized on the strain-relief boot, not the bare cord",
+        f"{h.channel_w:.2f} = boot {CABLE_BOOT_DIA:.1f} + {CABLE_CLEAR:.1f} routing "
+        "gap; the boot is the widest thing that has to pass, and it passes along "
+        "the whole height because it descends with the puck",
     )
 
-    # Continuity: walk a cord from beside the puck, out through the wall, into
-    # the channel, and off the bottom edge. Every station must be air.
-    z_mid = FLOOR + h.slot_w / 4
+    # The headline requirement, and the one the first version of this model got
+    # wrong. A channel closed at the top can only be threaded, and the free end
+    # of this cord has a mains plug moulded onto it -- so the cable could not be
+    # fitted at all. "Open" is not a property of one probe: it has to hold at
+    # every height and across the boot's full width, or the puck jams on the way
+    # down at whatever height it stops holding.
+    lanes = (-h.channel_w / 2 + 0.3, 0.0, h.channel_w / 2 - 0.3)
+    steps = [i * 0.5 for i in range(int(h.body_h * 2) + 1)]
+    obstructed = [
+        (round(x, 1), round(z, 1))
+        for x in lanes
+        for z in steps
+        if is_solid_at(part, x, h.back_y - h.channel_depth / 2, min(z, h.body_h - 0.05))
+    ]
+    r.check(
+        not obstructed,
+        "the channel is open from the bed to the rim, at the boot's full width",
+        f"obstructed at {obstructed[:6]}"
+        if obstructed
+        else f"{len(lanes) * len(steps)} probes clear -- the cord is laid in from "
+        "above and the puck follows it down, rather than being threaded through",
+    )
+    r.check(
+        not is_solid_at(part, 0, h.back_y - h.channel_depth / 2, h.body_h - 0.05)
+        and not is_solid_at(part, 0, h.back_y - h.channel_depth / 2, 0.05),
+        "the channel breaks both the rim and the bed, so it is a channel not a hole",
+        "open at both ends: a closed end at either one turns laying the cord in "
+        "back into threading it",
+    )
+
+    # Continuity, walked the way the cord is actually fitted.
+    z_wall = FLOOR + 2.0
     stations = [
-        ("beside the puck", (0.0, h.cavity_r - 0.5, z_mid)),
-        ("in the wall", (0.0, h.cavity_r + h.wall / 2, z_mid)),
-        ("through the bar", (0.0, h.back_y - 1.0, z_mid)),
-        ("turning down", (0.0, h.back_y - h.groove_depth / 2, FLOOR)),
-        ("in the channel", (0.0, h.back_y - h.groove_depth / 2, FLOOR / 2)),
-        ("off the bottom edge", (0.0, h.back_y - h.groove_depth / 2, 0.05)),
+        ("laid in at the rim", (0.0, h.back_y - h.channel_depth / 2, h.body_h - 0.3)),
+        ("beside the puck", (0.0, h.cavity_r - 0.5, z_wall)),
+        ("through the wall", (0.0, h.cavity_r + h.wall / 2, z_wall)),
+        ("through the bar", (0.0, h.back_y - 1.0, z_wall)),
+        ("turning down", (0.0, h.back_y - h.channel_depth / 2, FLOOR)),
+        ("in the channel", (0.0, h.back_y - h.channel_depth / 2, FLOOR / 2)),
+        ("off the bottom edge", (0.0, h.back_y - h.channel_depth / 2, 0.05)),
     ]
     blocked = [name for name, pt in stations if is_solid_at(part, *pt)]
     r.check(
         not blocked,
-        "an unbroken path runs from beside the puck to below the holder",
-        f"blocked at {blocked}" if blocked else
-        " -> ".join(name for name, _ in stations),
+        "an unbroken path runs from the rim, past the puck, and out below",
+        f"blocked at {blocked}" if blocked else " -> ".join(n for n, _ in stations),
     )
 
     r.check(
-        h.groove_depth >= CABLE_DIA,
+        h.channel_depth >= CABLE_DIA,
         "the channel is deeper than the cord is thick, so the cord clears the tile",
-        f"{h.groove_depth:.2f} mm deep vs a {CABLE_DIA:.1f} mm cord -- a cord "
+        f"{h.channel_depth:.2f} mm deep vs a {CABLE_DIA:.1f} mm cord -- a cord "
         "left standing proud would hold the pad off the tile along its whole "
         "length and turn a shear joint into a peel joint",
     )
     r.check(
         not is_solid_at(part, 0, h.back_y - PROBE, FLOOR / 2)
-        and is_solid_at(part, 0, h.back_y - h.groove_depth - PROBE, FLOOR / 2),
+        and is_solid_at(part, 0, h.back_y - h.channel_depth - PROBE, FLOOR / 2),
         "the channel is cut to its full depth and no further",
-        f"air at the tape plane, solid {h.groove_depth:.2f} mm in",
+        f"air at the tape plane, solid {h.channel_depth:.2f} mm in",
     )
+
+    # Opening the channel to the rim costs rim, and the cost has to stay small
+    # or the cup stops being a cup. Measured, not asserted by eye.
+    probe_r = h.cavity_r + h.wall / 2
+    open_deg = [
+        a
+        for a in range(360)
+        if not is_solid_at(
+            part, probe_r * cos(radians(a)), probe_r * sin(radians(a)), h.body_h - 0.3
+        )
+    ]
     r.check(
-        all(
-            not is_solid_at(part, x, h.back_y - h.groove_depth / 2, FLOOR / 2)
-            for x in (-h.slot_w / 2 + 0.3, 0.0, h.slot_w / 2 - 0.3)
-        ),
-        "the channel is as wide as the slot, so no ledge survives inside the cup",
-        f"clear across the full {h.slot_w:.1f} mm -- a narrower channel leaves "
-        "the slot's own floor standing as a shelf under the charger",
+        len(open_deg) <= 40 and all(60 <= a <= 120 for a in open_deg),
+        "the rim is broken only by the channel, and only at the back",
+        f"open over {len(open_deg)} deg of 360, bearings "
+        f"{min(open_deg)}-{max(open_deg)} (90 deg is straight at the tile)"
+        if open_deg
+        else "rim unbroken -- which would mean the channel never reached it",
     )
 
 
@@ -275,9 +308,15 @@ def check_tape_pad(part: Part, h: Holder, r: Report) -> None:
     r.check(
         area > 500,
         "the pad offers enough area for foam tape to hold the load",
-        f"{area:.0f} mm^2 of flat contact; the holder plus a docked brush is "
-        "about 0.2 kg at ~26 mm of lever arm, which is well inside VHB-class "
-        "tape at this area",
+        f"{area:.0f} mm^2 of flat contact across {len(faces)} pad(s); the holder "
+        "plus a docked brush is about 0.2 kg at ~26 mm of lever arm, which is "
+        "well inside VHB-class tape at this area",
+    )
+    r.check(
+        len(faces) == 2,
+        "the channel splits the pad in two, so tape goes on both sides of it",
+        f"{len(faces)} pad face(s) -- opening the channel to the rim severs the "
+        "bar; taping only one side would load the joint in peel about the other",
     )
     r.check(
         h.plate_w < h.outer_dia,
@@ -318,15 +357,7 @@ def check_edges(part: Part, treatments: dict[str, bool], h: Holder, r: Report) -
     r.check(
         h.route_chamfer < CABLE_DIA / 2,
         "the route's mouth chamfers cannot meet and narrow the route",
-        f"{h.route_chamfer:.2f} mm on a {h.slot_w:.1f} mm slot",
-    )
-    r.check(
-        h.slot_top <= h.rim_clear
-        and h.body_h - h.mouth_chamfer - h.slot_top >= RIM_KEEPOUT,
-        "plain wall survives between the slot's crown and the lead-in cone",
-        f"{h.body_h - h.mouth_chamfer - h.slot_top:.2f} mm, keepout "
-        f"{RIM_KEEPOUT} mm -- below ~0.5 mm OCC refuses the slot's mouths and "
-        "says nothing, so this gap is what makes those chamfers reachable",
+        f"{h.route_chamfer:.2f} mm on a {h.channel_w:.1f} mm channel",
     )
 
     def _bore_seam(edge) -> bool:
@@ -416,7 +447,6 @@ def check_parameters(r: Report) -> None:
         r.check(
             abs(bb.min.Z) < 1e-6
             and part.volume > 0
-            and h.slot_top < h.body_h
             and not front_open
             and all(treatments.values()),
             f"{label}: builds, seats on z=0, stays closed in front, fully chamfered",

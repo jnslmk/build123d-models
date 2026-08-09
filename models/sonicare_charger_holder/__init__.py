@@ -3,9 +3,17 @@
 A closed round cup, wall thickness of plastic all the way round, with the
 charger dropped into it face-up so the brush stands vertically out of the top.
 The back of the cup carries a flat bar -- that is the tape pad, and it is the
-only thing holding the holder up. The cable is the one opening: it leaves the
-puck through a round-topped slot in the back wall, turns down a channel sunk
-into the tape face, and drops out at the bottom edge to run down the tile.
+only thing holding the holder up. The cable is the one opening: a single channel
+cut through the back, open from the bed all the way to the rim, sunk deep enough
+into the tape face that the cord lies below the plane the tape sticks to.
+
+**Open at the top, and that is the whole point.** The cord is laid in from
+above and the puck follows it down. A channel closed at the top would have to be
+*threaded*, and the only end of this cord free to thread is the one with the
+mains plug moulded onto it -- so the cable could not have been fitted at all.
+The channel is the boot's width for its whole height for the same reason: the
+strain relief descends with the puck rather than being fed in at the bottom, so
+a taper that saved rim material would stop the puck going in.
 
     uv run show sonicare_charger_holder
     uv run export sonicare_charger_holder   # the STL to print
@@ -14,7 +22,8 @@ into the tape face, and drops out at the bottom edge to run down the tile.
 **Closed in front.** There is no cutout, no finger scallop and no drain in the
 front or the sides: from the room the holder reads as a plain round cup with a
 toothbrush standing in it, and the charger is invisible. Everything that is not
-solid is on the back, against the tile.
+solid is on the back, against the tile -- the channel breaks the rim over about
+17 degrees of 360, all of it facing the wall.
 
 **Mounting.** Double-sided foam tape (VHB-class) on the flat bar, straight onto
 the tile. The bar is deliberately wider than it is tall and its rear face is a
@@ -35,8 +44,8 @@ website for exactly that reason.
 flat on the bed, cup mouth up, tape face standing vertical. That is the pose the
 holder is used in as well, which is a coincidence worth stating -- it is chosen
 because it makes the floor a solid first layer and leaves every wall vertical.
-The only overhang in the part is the crown of the cable slot, which is radiused
-rather than square so it self-supports.
+There is now no overhang anywhere in the part: opening the channel to the rim
+removed the one that existed, the radiused crown that used to close it.
 """
 
 from __future__ import annotations
@@ -60,7 +69,7 @@ from build123d import (
 
 from ..lib.edges import as_part, chamfer_edge
 from . import config
-from .config import DEFAULT, FLOOR, HOLDER_PARAMS, SLOT_OVERCUT, Holder
+from .config import DEFAULT, FLOOR, HOLDER_PARAMS, Holder
 
 PARAMS = HOLDER_PARAMS
 
@@ -152,21 +161,19 @@ def build(h: Holder) -> tuple[Part, dict[str, bool]]:
                 mode=Mode.SUBTRACT,
             )
 
-        # -- the cable route: slot through the wall, then down the tape face --
-        with BuildSketch(_back_plane(h.cavity_r - SLOT_OVERCUT)):
-            with Locations((0, FLOOR + h.slot_w / 4)):
-                Rectangle(h.slot_w, h.slot_w / 2)
-            with Locations((0, h.slot_shoulder)):
-                Circle(h.slot_w / 2)
-        extrude(
-            amount=h.back_y - (h.cavity_r - SLOT_OVERCUT) + BACK_OVERCUT,
-            mode=Mode.SUBTRACT,
-        )
-
-        with BuildSketch(_back_plane(h.back_y - h.groove_depth)):
-            with Locations((0, h.slot_shoulder / 2)):
-                Rectangle(h.groove_w, h.slot_shoulder)
-        extrude(amount=h.groove_depth + BACK_OVERCUT, mode=Mode.SUBTRACT)
+        # -- the cable route: one open channel, bed to rim -------------------
+        #
+        # A single rectangular cut, and it used to be two: a round-topped slot
+        # through the wall plus a groove down the tape face. That shape could
+        # only be *threaded*, and the free end of this cord has a mains plug
+        # moulded onto it, so in practice the cable could not be fitted at all.
+        # Open to the rim, the cord drops in from above and the puck follows it
+        # down. The cut deliberately overshoots the rim so it severs the top
+        # face cleanly instead of stopping flush with it.
+        with BuildSketch(_back_plane(h.back_y - h.channel_depth)):
+            with Locations((0, (h.body_h + BACK_OVERCUT) / 2)):
+                Rectangle(h.channel_w, h.body_h + BACK_OVERCUT)
+        extrude(amount=h.channel_depth + BACK_OVERCUT, mode=Mode.SUBTRACT)
 
         # -- break every mouth of the cable route ----------------------------
         treatments.update(_chamfer_route(builder, h))
@@ -244,8 +251,8 @@ def _route_edges(builder: BuildPart, h: Holder, where):
     through the route's width, so a centre-point test would claim it and a
     single chamfer call would then try to treat the entire outline.
     """
-    half = h.slot_w / 2 + 0.05
-    front = h.back_y - h.groove_depth - 0.05
+    half = h.channel_w / 2 + 0.05
+    front = h.back_y - h.channel_depth - 0.05
 
     def selected(edge: Edge) -> bool:
         pts = [edge.position_at(t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)]
