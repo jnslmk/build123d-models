@@ -252,6 +252,15 @@ built from (`drill_storage.box`, `led_profiles.cradle`, `led_psu_enclosure.confi
 `[tool.setuptools] packages` in `pyproject.toml` — subpackages are not implied by
 their parent, so a missing line ships a wheel without that model.
 
+**Enforceable, not just advised.** `tests/test_model_registry.py` fails on a
+module that offers a zero-arg `create()` and is not in `MODELS`, on a roster name
+that resolves to nothing, and on a package missing from `[tool.setuptools]
+packages` — so forgetting any of the three breaks the build instead of quietly
+shipping a model nobody can find. It is a static AST read, no model is imported,
+and it runs in the default suite. As with `sharp_convex_edges`, genuine
+exceptions are real and must be **named** in that file's `NOT_A_MODEL` list with
+a reason rather than merely left out; a stale entry there fails too.
+
 The dots earn their keep on the site as well: the page's picker is built from
 the name grammar alone (`website/index.html`, `buildTree`/`renderPicker`), one
 row of chips per level, each row holding only the siblings valid under what is
