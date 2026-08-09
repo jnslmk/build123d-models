@@ -10,6 +10,9 @@
 - [Print-pose assertions](#print-pose-assertions)
 - [Worked example](#worked-example)
 - [Writing good samples](#writing-good-samples)
+- [Sampling a shell is not sampling a solid](#sampling-a-shell-is-not-sampling-a-solid)
+- [The probe budget is about a hundred, not thousands](#the-probe-budget-is-about-a-hundred-not-thousands)
+- [Geometry from a formula: verify the solid against the formula](#geometry-from-a-formula-verify-the-solid-against-the-formula)
 
 ## Why the viewer is not verification
 
@@ -211,3 +214,68 @@ The same file shows the two other probe styles worth copying:
 - **Check derived arithmetic too**, not only sampled points — snap engagement,
   cantilever strain, whether a part fits through the opening it must pass through.
   These need no geometry query and catch design errors before a print does.
+
+## Sampling a shell is not sampling a solid
+
+On a thin-walled part every intuition from a solid one is wrong, and the
+classifier will not warn you: **it reports the hollow interior and the open air
+outside identically**, because both are "not material". So on a 0.8 mm shell a
+sample taken "well inside the part" is not inside anything.
+
+The rule that follows: **every sample expecting material must sit within one
+wall of a surface whose position you can state.** Three radii on a given ray mean
+anything at all — just inside a surface, just outside it, and past the bore — and
+an assertion has to be built from those.
+
+This is easy to get wrong in a way that looks principled. Checking that a lobe
+"stands proud of the profile" by sampling halfway up the lobe reads perfectly and
+fails on a correct part, because halfway up the lobe is cavity. The version that
+works samples the ridge's *own surface radius* on the *valley's* ray: it is open
+air only because the two radii differ, so it fails on a part whose lobes have
+gone flat, which is the thing being claimed. `spiral_vase_lampshade/checks.py`'s
+`check_waves` is that worked example.
+
+## The probe budget is about a hundred, not thousands
+
+Two costs decide how many samples a `checks.py` can afford, and both are much
+larger than they look:
+
+- **`is_solid_at` builds a fresh solid classifier per call**, and construction
+  scales with face count. On a lofted shell of 168 B-spline faces it measured
+  **2.7 s a call** — ninety samples is four minutes of construction to take a
+  millisecond of readings. Use `solid_probe(part)` (and `periodic_seams(part)`
+  for the edge survey), which build that state once. Both are public in
+  `models/lib/checks.py` for exactly this reason.
+- **A sample *near* a B-spline surface is expensive even through a shared
+  probe** — about 1.6 s against roughly a millisecond out in open space, because
+  the classifier has to do exact face intersection rather than a bounding test.
+  Since a shell forces every meaningful sample to sit within a wall of a surface
+  (above), a shell's samples are all the expensive kind.
+
+Budget accordingly: pick the handful of positions that carry the claim rather
+than sweeping a grid. A 400-sample sweep on such a part is over ten minutes and
+will be killed before it prints anything.
+
+## Geometry from a formula: verify the solid against the formula
+
+When a surface is generated from a field rather than drawn, there is a failure
+mode with no symptom: the loft succeeds, the part is one clean solid, the render
+looks right, and the surface is simply **not where the field says it is**,
+because the section was sampled too coarsely to represent it.
+
+So sample the built solid against the field at the places the field is hardest —
+and those are usually **not** the ones you sized the resolution against.
+`spiral_vase_lampshade` sized its angular resolution against the *crest*
+curvature (6 mm radius, comfortable) and was undone by the *valley* between two
+lobes, where the radius falls to about 1.0 mm on a 28 mm section. At 48 points
+around, half the sampled ridges and valleys were in the wrong place; at 144, none
+were. Nothing else about the part changed.
+
+Two habits fall out:
+
+- **Derive resolution from the tightest curvature in the section, not the
+  headline feature.** A concave notch between two convex lobes is tighter than
+  either lobe.
+- **Make the check catch it.** Probe ridge *and* valley, inside *and* outside,
+  and the resolution becomes a thing that can fail rather than a number somebody
+  once chose.

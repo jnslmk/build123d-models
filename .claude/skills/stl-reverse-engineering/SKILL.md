@@ -6,8 +6,11 @@ description: >-
   cross-section, maps the model into feature zones, generates builder-mode
   build123d code, and grades the reconstruction against the original by
   intersection-over-union. Classifies through-holes, blind holes, counterbores,
-  countersinks and their grid, radial or linear patterns in mesh_zones.py, and
-  ships a reproducible eval harness under eval/ that pins the round-trip accuracy
+  countersinks and their grid, radial or linear patterns in mesh_zones.py.
+  Measures turned and lofted shells -- vases, lampshades, finials -- in
+  cylindrical coordinates with mesh_revolve.py, reporting lobe count, depth,
+  twist and envelope, and whether a single twisted carrier can represent the
+  surface at all. Ships a reproducible eval harness under eval/ that pins the round-trip accuracy
   claims to real script output rather than prose. Use when a downloaded, scanned
   or exported mesh must become editable CAD, when a model needs to be resized or
   refitted but only an STL exists, when an existing STL must be measured or its
@@ -17,12 +20,13 @@ description: >-
   build123d, parametric from mesh, triangle mesh, 3MF, OBJ, PLY, IoU, accuracy,
   Thingiverse, Printables, downloaded model, scan, hole feature, counterbore,
   countersink, hole pattern, eval harness. Load BEFORE running `mesh_analyze.py`,
-  `mesh_zones.py` or `mesh_compare.py`, or before writing build123d code from a
+  `mesh_zones.py`, `mesh_revolve.py` or `mesh_compare.py`, or before writing build123d code from a
   mesh — the swept/actual pre-check decides whether reconstruction is even the
   right move before any code is generated. TRIGGER: about to import or
   reconstruct an STL/3MF/OBJ/PLY, measure an existing mesh's structure or hole
   features, grade a rebuilt part's IoU against its source mesh, or run the eval
-  harness after changing the pipeline.
+  harness after changing the pipeline; or about to model a vase, shade or other
+  turned shell from a mesh.
 ---
 
 # STL reverse engineering
@@ -80,7 +84,8 @@ length over the mesh's real volume, and it predicts the result before you spend
 anything:
 
 - **0.97–1.03** — a real extrusion. `reconstructed.py` is close to final.
-- **> 1.3** — not an extrusion. Do not touch the generated file; go to step 2.
+- **> 1.3** — not an extrusion. Do not touch the generated file; go to step 2 (or 2a for a turned shell) —
+  a vase or shade goes to 2a, everything else to 2.
 
 ### 2. Decompose (only when step 1 says it is not an extrusion)
 
@@ -97,6 +102,56 @@ is a taper or fillet rather than a straight extrude.
 Build one zone at a time. The axis with the fewest zones is usually the one to
 decompose along.
 
+### 2a. Turned and lofted shells — when zones do not help
+
+A part whose section is one closed ring that *changes shape* with height is a
+case zone decomposition cannot help with: `mesh_zones` will report one `solid`
+zone spanning the whole body, which is true and useless. Such a part is a
+surface written in cylindrical coordinates, so measure it that way:
+
+```bash
+uv run --group mesh python .claude/skills/stl-reverse-engineering/scripts/mesh_revolve.py \
+    model.stl --axis Z --json analysis/revolve.json
+```
+
+It solves for the axis (a lobed section's centroid is *not* its axis), then
+decomposes each section into angular harmonics and reports the silhouette, the
+lobe count, the depth as a fraction of the local radius, the twist in turns, and
+where the envelope passes through zero and the lobes invert — the parameters a
+`cos(n * (theta + turns * t))`-shaped model is written in.
+
+**Read the verdict the same way you read `swept/actual`.** It answers whether
+the dominant harmonic's phase is linear in height, and exits non-zero when it is
+not:
+
+- **linear** (rate spread ≲ 1.5×) — one twisted carrier fits. The reported
+  numbers are its parameters; go and write it.
+- **not linear** — no setting of any twist parameter can reproduce this surface,
+  because a single carrier rotates at one rate by construction. A phase that
+  advances slowly where the lobes are deep and quickly where they pinch is two
+  wave trains beating, or a surface lofted through hand-placed profiles. Decide
+  what you are building *before* fitting, because fitting will not close it.
+
+Also read the harmonic table. A dominant `n` with negligible `2n`/`3n` is a
+near-pure cosine lobe; strong `2n`/`3n` means the lobe profile is peaked or
+flattened, and a cosine model will differ visibly however well its amplitude is
+fitted.
+
+Worked example — `spiral_vase_lampshade` against its reference:
+
+| | reference | the model built from it |
+|---|---|---|
+| lobes | 6 | 6 |
+| depth | 0.443 × R | 0.459 × R |
+| twist | +0.196 turns | +0.193 turns |
+| phase linear? | **no**, 1.97× spread | yes, 1.10× spread |
+| n=12 / n=6 | **0.249** | 0.029 |
+
+The last two rows are the reconstruction's whole error budget, visible before a
+single line of build123d was written: the model cannot bend its twist rate, and
+its lobes are a purer cosine than the original's. It grades 86.8% and no amount
+of parameter tuning moves it, which is exactly what those two rows predicted.
+
 ### 3. Grade
 
 ```bash
@@ -110,6 +165,25 @@ it can gate a loop.
 
 IoU is the number that matters — not volume, not bounding box. A part can match
 both and still be the wrong shape.
+
+Two flags exist for grading against a **downloaded** reference, which is a
+different situation from round-trip validation and fails in ways that look like
+a bad reconstruction:
+
+- **`--align`** — IoU is not translation- or rotation-invariant, and this script
+  does not align by default. Your reconstruction sits on `z = 0` in print pose;
+  the reference sits wherever its author left it, at whatever rotation they drew
+  it. Grading the same lampshade unaligned scores **49.8%** ("wrong shape — do
+  not iterate") and aligned scores **86.1%**. Without the flag you get a
+  printed warning when the bounding-box centres disagree; with it, the bottoms
+  and the best rotation about z are matched first. Both are rigid transforms, so
+  removing them is not flattering the result.
+- **`--envelope`** — exact IoU from the two radial fields, for parts that are
+  star-shaped about an axis. Use it when the reference is not watertight, which
+  is the normal state of a vase-mode export: the boolean refuses, and the
+  sampling fallback is both slow and unreliable by this script's own warning.
+  It grades the **outer envelope**, so it ignores hollows — right when comparing
+  two shells of the same wall thickness, wrong if the hollow is the question.
 
 ## The rules that cost the most when broken
 
@@ -170,6 +244,22 @@ original. Measured:
 | `cube` | 1.000 | clean extrusion | **100.00%** |
 | `door_latch` | 0.997 | clean extrusion | **99.60%** |
 | `led_profiles.stand` | 2.137 | not an extrusion | **38.91%** |
+
+And one against a genuinely foreign mesh rather than a round trip — JH's "Waves"
+Designer Lamp (Printables 1261597, CC-BY, 1.24M triangles, not watertight):
+
+| | measured | outcome |
+|---|---|---|
+| `swept/actual` | ~34 | not an extrusion; zone pass gives one 176 mm `solid` zone, no help |
+| `mesh_revolve` | 6 lobes, 0.443 × R deep, +0.196 turns | the parameters, in seconds |
+| `mesh_revolve` verdict | phase **not** linear, 1.97× rate spread | one carrier cannot fit this — predicted the ceiling before any code |
+| `mesh_compare --envelope --align` | **86.1%** | matched the prediction; tuning did not move it |
+
+That is the second correct *negative* in this skill, and the more useful kind:
+it did not say "your reconstruction is bad", it said "the family you are about to
+write cannot represent this surface" — before the writing. The reconstruction
+that followed is `models/spiral_vase_lampshade`, which documents the gap rather
+than pretending to close it.
 
 The stand is a correct *negative*: the tool predicted failure before generating
 code, and `mesh_compare.py` returned "wrong shape — do not iterate". A tool that

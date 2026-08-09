@@ -192,6 +192,34 @@ three orthogonal views** on two parts differing by **25% in volume**. No number
 of critic rounds finds that. Internal geometry is verified in code or not at
 all.
 
+## If a mesh exists, this skill is the wrong one
+
+Photographs are not merely imprecise about dimensions — they can be wrong about
+**counts**, and a count is not something a tighter loop converges on. Measured,
+on one part:
+
+`spiral_vase_lampshade` was built from a Printables listing's photographs, then
+the reference STL turned out to be downloadable and was measured with
+`stl-reverse-engineering`. The photo-derived model had **five lobes where the
+part has six** — along with half the true wave depth, 200 mm of height against
+185.8, and 0.05 turns of twist against 0.19. Graded against the reference:
+
+| | IoU | radial error |
+|---|---|---|
+| tuned from photographs | 63.8% | 15.0 mm rms |
+| measured from the mesh | 86.8% | 5.5 mm rms |
+
+A silhouette gate cannot see a 2% scale error (above). It also cannot see that
+you counted a repeating feature wrong, because a five-lobed and a six-lobed shade
+photograph almost identically from any one angle — and no ledger entry catches
+it either, since a count feels like an observation rather than an assumption.
+
+So: **before starting here, spend five minutes finding out whether a mesh
+exists.** A listing that shows photographs usually has files behind it, and on
+Printables the download link is available through its public API without an
+account. A mesh has real dimensions and real counts; a photograph has neither.
+This skill is for when you have looked and there is genuinely nothing else.
+
 ## What the tools were measured to do
 
 Real output from `eval/run_eval.py` on this machine, 2026-08-08:

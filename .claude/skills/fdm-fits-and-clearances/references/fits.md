@@ -338,6 +338,29 @@ plainly ([design for FDM](https://www.hubs.com/knowledge-base/how-design-parts-f
 it is where Markforged's slicer starts generating supports, and it is inside Hydra's 50°.
 The 40° and 70° figures are the edges of the envelope, not targets.
 
+**Spiral vase mode is the documented exception, and 45° is too tight for it.**
+That figure is for a perimeter that has to bridge from the wall below it. A
+spiralising single perimeter never bridges: it lays one continuous bead whose
+support is the bead directly beneath it, so the limit is set by how far the wall
+steps sideways in one layer against how wide that bead is —
+`tan(angle) × layer_height` against `extrusion_width`. Requiring half the bead to
+land on its predecessor gives
+
+```
+max_overhang = atan(extrusion_width / 2 / layer_height)
+```
+
+which is **56.3°** at the usual vase-mode pair of 0.6 mm width and 0.2 mm layers,
+and moves with either setting. Design a vase-mode part to 45° and you are leaving
+a third of the envelope unused.
+
+**This one is a house derivation, not a sourced figure** — no vendor above
+addresses spiralised single-wall printing. What corroborates it is a measurement:
+JH's "Waves" Designer Lamp (Printables 1261597), a widely printed vase-mode
+design, leans **50.8°** at its steepest — over the 45° rule, under this bound.
+`models/spiral_vase_lampshade/config.py` derives `MAX_OVERHANG` from the two
+slicer settings rather than hard-coding either number.
+
 **Elephant's-foot values are partly unverified.** The 0.3 mm chamfer and the 45°
 chamfer/radius rule are sourced above; the specific `−0.1 to −0.2 mm` slicer elephant-foot
 compensation is a house figure and the 0.2–0.5 mm chamfer band is `AGENTS.md`'s
