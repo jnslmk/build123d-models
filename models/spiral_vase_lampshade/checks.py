@@ -66,11 +66,20 @@ PROBE = 0.2
 """How far off a surface a point has to be before it counts as on the other side.
 
 Bigger than every source of error between the design field and the built solid,
-and smaller than half the thinnest wall it is used on. The two errors are the
-ruled loft's chords in z (about 0.005 mm on this silhouette) and the periodic
-spline's interpolation error in theta (about 0.008 mm at 48 points across five
-lobes) -- three orders of magnitude of headroom, which is why this can be one
-number instead of a function of where it is taken.
+and smaller than half the thinnest wall it is used on. The dominant error is the
+ruled loft's chord in z, and it is 0.113 mm, not the 0.005 mm an earlier version
+of this note claimed: sampled against ``wave.outer_radius`` at twenty points
+across each of the default's 80 bands, that is how far the chord departs from
+the field at worst, on the steep part of the fade where the amplitude is coming
+up fastest. The periodic spline's error in theta is an order of magnitude under
+that (about 0.008 mm at 144 points across six lobes).
+
+So the headroom is a factor of 1.8, not three orders of magnitude -- still
+enough for one number to serve everywhere, and still under half of the 0.8 mm
+wall, but not enough for the figure to go unmeasured if ``z_sections`` is ever
+lowered: the same sampling gives 0.031 mm at 160 sections and 0.368 mm at 40,
+which is the inverse-square a chord against a curve should be, and the last of
+those would be too big for this constant to still be true.
 """
 
 COARSE = dict(z_sections=16, facets=24)

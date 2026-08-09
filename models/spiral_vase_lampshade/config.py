@@ -140,6 +140,20 @@ place and 144 put none.
 That is the whole reason this is the slowest model in the roster -- about 56
 seconds against 32 at the old setting. It buys a surface that its own checks can
 hold to the field, which the cheap setting could not.
+
+``Z_SECTIONS`` also decides what the shade *looks like in a renderer*, which is
+not the same question as what it measures. A ruled loft through 81 body sections
+is 82 separate B-spline faces stacked 2.24 mm apart, and consecutive faces meet
+at a real break in the surface normal -- 7 degrees at the calmest point of the
+body, 17 at the top of the fade, 8.9 on average. The solid is only 0.113 mm off
+the field there (``checks.PROBE``), so the *print* cannot show it, but a mesh
+carries no normals across a face boundary, so every renderer shows all 82 of them
+as fine horizontal banding. The website welds them back together at load
+(``smoothNormals`` in ``website/index.html``); anything else looking at the STL
+or the STEP will not, and is not wrong to.
+
+Raising this is not the fix for that. The break falls off as 1/N where the cost
+rises as N: 320 sections would still band, at four times the build.
 """
 
 

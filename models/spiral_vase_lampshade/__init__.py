@@ -184,13 +184,19 @@ def _body_sections(shade: Shade) -> list:
 def create_shade(shade: Shade = DEFAULT) -> Part:
     """The shell, in print pose: collar on the bed at z = 0, mouth up.
 
-    One ruled loft through every section. Ruled rather than smooth for two
-    reasons that point the same way: it is a third of the cost, and a smooth
-    loft interpolates *through* the sections and overshoots between them, which
-    on a surface made of crests means lobes 6% deeper than the field says they
-    are. A chord across 2.4 mm of a surface curving no tighter than ~9 mm
-    misses by well under a printed layer, and it misses on the inside, which is
-    the honest direction for a shell to err.
+    One ruled loft through every section, and ruled is not a preference -- it is
+    the only one of the two that produces this shade. ``loft(ruled=False)`` hands
+    the sections to OpenCASCADE's ThruSections to re-approximate onto a common
+    surface, and on a section carrying six lobes at 0.44 of the radius that
+    approximation flattens them: the body comes back 31% *lighter* than the ruled
+    one (69,301 mm3 against 100,086 at 40 sections), and at the default
+    resolution it exhausts memory instead of finishing. What comes out is not a
+    smoother version of this design, it is a different and shallower one.
+
+    What ruling costs is measured in ``checks.PROBE``: the chord misses the field
+    by at most 0.113 mm, half a 0.2 mm layer, so it is invisible on the print.
+    What it costs *on screen* is not invisible, and is worth knowing before
+    anybody files a bug about it -- see ``config.Z_SECTIONS``.
     """
     with BuildPart() as builder:
         loft(_collar_sections(shade) + _body_sections(shade), ruled=True)
