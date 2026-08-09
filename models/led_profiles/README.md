@@ -379,6 +379,14 @@ Boost converter current recommendation: **XL6019** — inexpensive, sufficient
 for ~30 W lamp, proven, readily available. A future PCB revision may integrate
 a newer synchronous converter.
 
+> **The boost is only needed on a PD 3.0 source.** PD 3.1 EPR's *Adjustable
+> Voltage Supply* covers 15–48 V in 100 mV steps, so a trigger set to 24.0 V
+> feeds the bus directly at up to 5 A (120 W) with no converter at all; the
+> fallback on a fixed-PDO EPR source is 28 V and a *buck*, which is the easy
+> direction. Worth designing the PCB so the converter can be depopulated.
+> Full comparison, including against 12 V tool packs, in
+> [`led_psu_enclosure/docs/design-notes.md` §7](../led_psu_enclosure/docs/design-notes.md#7-the-portable-variant-and-where-24-v-comes-from-without-mains).
+
 ## Power Topology
 
 - Native voltage: **24 V**

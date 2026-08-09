@@ -321,3 +321,155 @@ Downward-facing cable exits would have been better still, but the floor is fully
 occupied by the PSU. The connectors are horizontal on the front wall; the row is
 bare (an integral rain hood over it was tried and dropped), so mount the box
 under cover or rely on the connectors' own IP68 seals for splash protection.
+
+## 7. The portable variant, and where 24 V comes from without mains
+
+Not built, and nothing in this package depends on it — this section exists so the
+option is on the record with its arithmetic done, because it was contemplated
+twice and re-argued from scratch both times.
+
+The premise: a box that runs a few lamps off a battery, on a site with no socket
+or on a shoot. Two candidate sources were considered, **USB-C Power Delivery**
+and a **Bosch 12 V power-tool pack** (including the cheap AliExpress clones of
+it). The numbers are in [`part-data.md`](part-data.md#portable-power-sources)
+with sources; this is the argument.
+
+**The load.** A lamp is 1.5 m of 24 V FCOB WS2811 dual-IC RGBCCT at a spec
+19 W/m, so **~30 W at full white**, and the family's own thermal note budgets
+30–45 W. Every lamp count below is at 30 W; halve your expectations of it at
+saturated colour and double them at anything resembling normal use.
+
+### The premise that was backwards: USB-C needs *less* converter, not more
+
+The reason the Bosch route was attractive was "12 V is closer to 24 V, so no step
+up". It is the other way around, twice over:
+
+- **A "12 V" tool pack is 3S Li-ion — 12.6 V full, 10.8 V nominal, ~9 V at
+  cutoff.** It is *always* below 24 V, so it always needs a **boost**, across a
+  1.4:1 input window, at ~10 A in for 100 W out (and ~12 A by the time the pack
+  is flat). Boost is the harder direction: input current is the output current
+  times the ratio, so the inductor, the input cap and the pack's own BMS all see
+  the ugly side.
+- **USB-C PD 3.1 EPR can just be asked for 24 V.** EPR's *Adjustable Voltage
+  Supply* is a 15–48 V range in 100 mV steps, so a trigger set to 24.0 V gives
+  24 V off the connector with **no converter in the box at all** — a wire and a
+  fuse. Capped at 5 A, that is **120 W**. Where AVS is not on offer, the fallback
+  is the 28 V fixed PDO and a **buck** to 24 V, which is the easy direction.
+
+So on electronics complexity the ranking is the reverse of the one that motivated
+looking at Bosch: PD trigger only < PD trigger + buck < tool pack + boost.
+
+### What each one can deliver
+
+| Source | Bus | Ceiling | Conversion | At 24 V | Lamps @30 W |
+|---|---|---|---|---|---|
+| PD 3.0 SPR (any laptop charger/bank) | 20 V | 100 W | boost 20→24 | ~92 W | 3 |
+| **PD 3.1 EPR, AVS at 24 V** | 24 V | **120 W** (5 A) | **none** | 120 W | **4** |
+| PD 3.1 EPR, 28 V fixed | 28 V | 140 W | buck | ~133 W | 4 |
+| PD 3.1 EPR, 36 V / 48 V fixed | 36/48 V | 180 / 240 W | buck | ~171 / 228 W | 5 / 7 |
+| Bosch 12 V pack + boost | 10.8 V | pack, not bus | boost 12→24 | 100 W typ. | 3 |
+
+Two ceilings are not what the spec sheet says:
+
+- **36 V and 48 V do not exist on a battery.** They are mains-brick PDOs. Every
+  EPR *power bank* on the market tops out at 28 V / 5 A = **140 W**, so a portable
+  USB-C build is a 140 W build no matter what PD 3.1's headline 240 W says. Above
+  100 W it also needs a 240 W e-marked cable, which is a real thing to get wrong.
+- **The Bosch ceiling is thermal and temporal, not electrical.** A 3S pack on
+  HG2/VTC6-class cells will pass 20–25 A, which is 240 W through a boost — and
+  empties a 6.0 Ah pack in **16 minutes**. Rating the box for what the pack can
+  momentarily source is meaningless; it is sized by energy.
+
+### Which is the real constraint: energy, and it is close
+
+Both sources are within a factor of 1.5 of each other and both are small.
+
+|  | Nameplate | Delivered at 24 V | 3 lamps (90 W) |
+|---|---|---|---|
+| Power bank, 140 W class | 83–99.5 Wh | ~75–86 Wh | 50–57 min |
+| Bosch GBA 12V 6.0Ah | 64.8 Wh | ~58 Wh | 39 min |
+| Bosch GBA 12V 2.0Ah | 21.6 Wh | ~19 Wh | 13 min |
+
+**A power bank cannot get much better than that**, and the reason is regulatory
+rather than technical: 100 Wh is the airline carry-on limit, so the whole premium
+end of the market stops just under it (the Anker Prime is 99.54 Wh, which is not
+a coincidence). Buying a more expensive bank buys ports and watts, not hours.
+
+The Bosch side has the opposite shape — **65 Wh is the ceiling per pack, but packs
+swap in five seconds and you probably own four.** That, and nothing else, is the
+honest case for the tool battery: not cost, not simplicity, not power. If the
+portable variant is for a shoot where someone is standing next to it with a bag
+of charged packs, Bosch wins on the only axis that matters. If it is for a
+demo you carry onto a train, USB-C wins.
+
+### Cost, which does not go the way the "cheap clones" framing suggests
+
+Per nameplate watt-hour, at mid-2026 German street prices:
+
+| | Price | Wh | €/Wh |
+|---|---|---|---|
+| AMEGAT 140 W, 27 600 mAh | ~€70 | 83 | **€0.84** |
+| INIU 140 W, 27 000 mAh | ~€80 | 85 | €0.94 |
+| Anker 737 (PowerCore 24K) | ~€100 | 89 | €1.12 |
+| Anker Prime 27650, 250 W | ~€140 | 99.5 | €1.41 |
+| Bosch GBA 12V 6.0Ah | ~€64 | 64.8 | €0.99 |
+| Bosch GBA 12V 2.0Ah | ~€27 | 21.6 | €1.25 |
+| "3.0 Ah" clone (Advtronics/Vanon) | ~€22 | 32.4 *claimed* | €0.68 *claimed* |
+| ...the same clone, **measured** | ~€22 | **~19** | **€1.16** |
+
+**The cheap clones are not cheap.** Independently tested, the €22 "3.0 Ah" packs
+returned 1.5–2.0 Ah, which puts them level with or worse than a genuine Bosch
+2.0 Ah at €27 and clearly behind the 6.0 Ah — the one case where the cheap option
+loses on its own metric. And a budget 140 W power bank beats every Bosch pack on
+€/Wh outright.
+
+The box-side hardware is noise next to either:
+
+| | |
+|---|---|
+| PD trigger board, 28 V/140 W, DIP-selectable | €5–10 |
+| Buck 28→24 V, 150 W | €8–15 |
+| Boost 12→24 V, 10 A / 240 W, synchronous | €10–20 |
+| Bosch battery foot, bought | €9–13 |
+| Bosch battery foot, **printed here** | filament |
+
+So the marginal cost of the decision, for someone who already owns one side or
+the other, is **~€8 for USB-C** (a trigger board and a fuse) against **~€25 for
+Bosch** (foot plus a boost module that is actually rated for 10 A input). The
+printed foot is the interesting half of the Bosch route from this repo's point of
+view — it is exactly the sort of part this package would gain — but note that a
+tool-pack foot has to carry a BMS that may trip on a boost converter's inrush and
+has no low-voltage cutoff of its own beyond the pack's.
+
+### What the portable variant does to the box
+
+Enough that it is a different model, not a parameter — which is why this is a
+note and not a `config.py` flag:
+
+- **The RSP-320 is the box.** §2: 215 mm of PSU + 5 mm of vent frame + 1.5 mm of
+  drop clearance each end *is* the 228 mm interior, and the connector row exists
+  where it does only because no wall at PSU height can host one. Delete the PSU
+  and every constraint in §2 evaporates. What is left — controller (118 × 65),
+  fuse block (86 × 53 × 41.7) and a converter — packs into roughly 140 × 90 × 60.
+- **The thermal apparatus goes too.** §1 sizes the vents and the fan against 40 W
+  of PSU loss. A 140 W-in build sheds maybe 8–12 W in the converter, which the
+  sealed-box sum in §1 handles at ~15 K rise. No shutters, no fan, no yoke — and
+  PLA becomes defensible again, though ASA still wins outdoors.
+- **The mains gland is replaced by the socket**, and the whole `⚠ check your
+  gland` problem in the README goes away with it.
+- **Four fused outputs stop making sense.** 120–140 W is 4 lamps at the very most
+  and one connector's worth of current; two outputs and one fuse is the honest
+  layout.
+
+### The conclusion, for whoever picks this up
+
+**USB-C PD 3.1 EPR, AVS at 24 V, is the recommended portable source** — cheapest
+per watt-hour, most power (140 W against a Bosch pack's usable ~100 W), least
+electronics (no converter at all where AVS is offered), and the source is a thing
+people already carry. Keep the Bosch foot as a *second* input on the same 24 V
+bus for the hot-swap case; it is a €25 option, not an architecture.
+
+Either way the portable variant is **energy-limited, not power-limited**: an hour
+of three lamps is what an hour of three lamps costs, and no amount of connector
+spec changes it. Running the triangle assembly for an evening is what the
+RSP-320 box in this package is for.

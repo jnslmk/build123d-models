@@ -206,6 +206,24 @@ connected to the exhaust.
 
 ---
 
+## A portable variant was contemplated — it is not this box
+
+Running the lamps off a battery instead of mains was considered twice (USB-C PD,
+and a Bosch 12 V tool pack). Neither is built and nothing here depends on them,
+but the comparison is written down rather than re-derived:
+**[`docs/design-notes.md` §7](docs/design-notes.md#7-the-portable-variant-and-where-24-v-comes-from-without-mains)**
+for the argument, [`docs/part-data.md`](docs/part-data.md#portable-power-sources)
+for the numbers and sources.
+
+The short version: **USB-C PD 3.1 EPR wins** — its AVS mode hands you 24 V
+directly at up to 120 W with *no converter in the box*, where a 12 V tool pack
+always needs a boost; a €70 power bank beats every Bosch pack on €/Wh, and the
+€22 "3 Ah" clones bench-test at 1.5–2.0 Ah. Ceiling either way is ~140 W (4–5
+lamps) and ~100 Wh, so a portable build is an hour of three lamps. Keep a Bosch
+foot as a second input if hot-swapping matters — that is the only axis it wins.
+And it is a **different model**: without the RSP-320 the box is ~140 × 90 × 60
+and needs neither vents nor fan.
+
 ## Layout, and why it is shaped this way
 
 See `docs/design-notes.md` for the reasoning and `docs/part-data.md` for the

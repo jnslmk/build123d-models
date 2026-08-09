@@ -133,6 +133,72 @@ depending on variant. Needs a flat pad ≥ Ø20 and a panel ≤ ~6 mm.
 
 ---
 
+## Portable power sources
+
+Researched August 2026, for the portable variant argued in
+[`design-notes.md` §7](design-notes.md#7-the-portable-variant-and-where-24-v-comes-from-without-mains).
+**Nothing in the model depends on these numbers** — no part here is built for
+either source. They are recorded so the comparison does not have to be redone.
+Prices are German street prices and will drift; the ratios are the durable part.
+
+### USB-C Power Delivery
+
+| | |
+|---|---|
+| PD 3.0 / SPR ceiling | 20 V × 5 A = **100 W** |
+| PD 3.1 / EPR fixed PDOs | **28 V, 36 V, 48 V**, 5 A → 140 / 180 / **240 W** |
+| PD 3.1 / EPR **AVS** | **15–48 V in 100 mV steps**, 5 A — so **24.0 V** is directly requestable |
+| AVS at 24 V | 24 V × 5 A = **120 W** (5 A is the cap, not the PDP) |
+| PPS (SPR) | 3.3–21 V, 20 mV steps — **cannot reach 24 V** |
+| Cable | >100 W requires a **240 W-rated e-marked** cable |
+
+**In a battery, 28 V is the end of the road.** 36 V and 48 V PDOs appear on mains
+bricks; every EPR power bank tops out at 28 V / 5 A = 140 W.
+
+| Power bank (140 W class) | Nameplate | Price | €/Wh |
+|---|---|---|---|
+| AMEGAT 140 W 27 600 mAh | 83 Wh | ~€70 | €0.84 |
+| INIU 140 W 27 000 mAh | 85 Wh | ~€80 | €0.94 |
+| Anker 737 / PowerCore 24K | 89 Wh | ~€100 | €1.12 |
+| CUKTECH 20 | 93 Wh | ~€130 | €1.40 |
+| Anker Prime 27650 (250 W total) | **99.54 Wh** | €140–174 | €1.41 |
+
+> The market stops at 99.54 Wh because **100 Wh is the airline carry-on limit**,
+> not because of cell cost. Spending more buys ports and watts, never hours.
+
+Box-side hardware: PD trigger board (PD2.0/3.0/3.1 + QC, DIP-selectable
+5/9/12/15/20/**28** V, 5 A) **€5–10**; 150 W buck 28→24 V **€8–15**. A trigger
+board only *asks* for a voltage — it contains no converter of its own.
+
+### Bosch 12 V tool packs
+
+"12 V" is the marketing name for **3S Li-ion**: 12.6 V full, **10.8 V nominal**,
+~9 V at BMS cutoff. Energy below is 10.8 V × Ah.
+
+| Pack | Ah | Wh | Price | €/Wh |
+|---|---|---|---|---|
+| Bosch GBA 12V 6.0Ah (1600A00X7H) | 6.0 | 64.8 | ~€64 street (€96 RRP net) | €0.99 |
+| Bosch GBA 12V 3.0Ah (1600A00X79) | 3.0 | 32.4 | ~€40 | €1.23 |
+| Bosch GBA 12V 2.0Ah (1600Z0002X) | 2.0 | 21.6 | ~€27 | €1.25 |
+| Advtronics / Vanon "3.0 Ah" clone | **1.5–2.0 measured** | ~19 | ~€22 | **€1.16** |
+
+GBA 12V 6.0Ah: 65 × 84 × 107 mm, 385 g, compatible with every Bosch Professional
+12 V tool and charger since 2005.
+
+> ⚠ **The clones' capacity is a label, not a measurement.** akkutest.org bench-
+> tested the €22 "3 Ah" packs at 1.5 Ah (Vanon) and ~2.0 Ah (Advtronics) — level
+> with a genuine 2.0 Ah at €27, and beaten outright by the 6.0 Ah on €/Wh.
+
+**Current:** aftermarket 3S packs on LG HG2 / Sony VTC6 cells are rated 25 A
+continuous, so ~240 W through a boost — which empties a 6.0 Ah pack in 16 min.
+The pack is limited by energy, not by current.
+
+Box-side hardware: 12→24 V synchronous boost, 10 A / 240 W, ≥95 % — **€10–20**
+(the `XL6019` the `led_profiles` README names is a ~30–50 W part, not a 100 W
+one); battery foot / adapter **€9–13** bought, or printed here.
+
+---
+
 ## Reusable CAD
 
 No official STEP exists for the RSP-320. The closest available are a GrabCAD
@@ -157,3 +223,17 @@ bases rather than add a dependency" decision.
 - [Athom Ethernet WLED ESP32 Addressable + PWM](https://www.athom.tech/blank-1/ethernet-wled-esp32-address-and-pwm-strip-controller)
 - [M12 gland dimensions (SourceASI)](https://www.sourceasi.com/shop/3001215-asi-3001215-m12-waterproof-cable-gland-light-gray-polyamide-pa-6-6-ip68-nema-6-6p-rated-3-5-7mm-clamping-range-m12-x-1-5mm-thread-36901)
 - [GrabCAD RSP-320-12 model](https://grabcad.com/library/power-supply-rsp-320-12-1)
+
+Portable power (§7):
+
+- [Renesas — USB-C 240 W PD 3.1 EPR protocol application note](https://www.renesas.com/en/document/apn/usb-c-240w-power-delivery-31-extended-power-range-protocol)
+- [GraniteRiverLabs — introduction to PD 3.1](https://www.graniteriverlabs.com/en-us/technical-blog/usb-power-delivery-specification-3-1)
+- [ChargerLab — the AVS protocol explained](https://www.chargerlab.com/avs-protocol-explained-the-standard-making-fast-charging-faster-and-safer/)
+- [Plugable — what 240 W USB EPR is](https://plugable.com/blogs/news/what-is-240w-usb-extended-power-range-epr)
+- [techtest.org — six 140 W power banks compared, with prices](https://techtest.org/die-besten-140w-powerbanks-6x-140w-powerbanks-von-anker-iniu-amegat-usw-im-vergleich/)
+- [Geizhals — Anker Prime 27650 mAh 250 W](https://geizhals.de/anker-anker-prime-27650mah-powerbank-250w-silber-a1340-a3015640.html)
+- [Bosch — GBA 12V 6.0Ah product page](https://www.bosch-professional.com/de/de/products/gba-12v-6-0ah-1600A00X7H)
+- [Geizhals — Bosch GBA 12V 6.0Ah price history](https://geizhals.de/bosch-werkzeug-akku-10-8-12v-1600a00x7h-a1669562.html)
+- [akkutest.org — Vanon and Advtronics 12 V clones bench-tested](https://akkutest.org/bosch-12v-akku-nachbauten-im-vergleich-von-vanon-crown_battery-und-advtronics-3ah/)
+- [akkuline — 3S 3.0 Ah replacement pack, 25 A continuous, HG2/VTC6 cells](https://www.akkuline.de/10-8v-12v-li-ion-ersatz-akku-pack-einsatz-fuer-bosch-einhell-makita-16210-2)
+- [BTF-Lighting — FCOB WS2811 dual-IC RGBCCT 24 V 960 LED/m, 19 W/m](https://www.btf-lighting.com/products/fcob-ws2811-dual-ic-rgbcct-addressable-led-strip-dc24v-960leds)
