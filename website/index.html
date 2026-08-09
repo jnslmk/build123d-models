@@ -447,7 +447,73 @@ function updateGrid() {
   grid.position.set(camera.position.x, camera.position.y, 0);
   grid.scale.setScalar(dist * 20);
 }
-const material = new THREE.MeshStandardMaterial({ color: 0x59a6ff, metalness: 0.1, roughness: 0.55, flatShading: true });
+// Below this dihedral, two neighbouring triangles are shaded as one smooth
+// surface; above it the edge between them stays hard.
+//
+// It exists because a B-rep shell is not one surface, and neither the STL nor
+// the glTF hides that: STL carries no shared vertices at all, and glTF's normals
+// stop at every face boundary. A shell lofted from a stack of sections is *made*
+// of face boundaries -- `spiral_vase_lampshade` is 82 ruled patches, 2.24 mm
+// apart, meeting at 7 to 17 degrees -- so shading each patch on its own turned a
+// construction artefact 0.11 mm deep (half a print layer, invisible on the part)
+// into the fine horizontal banding that was the model's most obvious feature on
+// screen.
+//
+// 30 degrees clears that band by nearly a factor of two while leaving every edge
+// somebody actually designed alone: a 45 degree chamfer breaks 45 degrees, a rim
+// or a wall corner 90. So this smooths joins that are not features, and only
+// those.
+const CREASE_ANGLE = THREE.MathUtils.degToRad(30);
+const CREASE_DOT = Math.cos(CREASE_ANGLE);
+
+// Share normals between triangles that meet at a point and disagree by less
+// than CREASE_ANGLE — the ones that are the same surface seen twice.
+//
+// Takes a *list* of geometries and welds across all of them at once, which is
+// the whole trick: build123d's glTF writes one mesh per B-rep face (this shade
+// arrives as 168 of them), so the two sides of a loft seam are never in the same
+// buffer and welding each geometry on its own changes nothing at all.
+//
+// It averages the normals the meshes already carry rather than recomputing them
+// from the triangles. A glTF out of OpenCASCADE carries the *surface* normal at
+// every vertex, exact to the B-rep; rebuilding those from an irregular
+// triangulation (what BufferGeometryUtils.toCreasedNormals does) trades the
+// banding for a mottling that is just as visible. Only the seams need touching,
+// so only the seams are touched. Geometry with no normals of its own — an STL is
+// a bag of unshared triangles — gets facet normals computed first.
+function smoothNormals(geometries) {
+  for (const g of geometries) if (!g.attributes.normal) g.computeVertexNormals();
+  // 1e-4 buckets in the mesh's own units: far below any feature, far above the
+  // float noise between two copies of one vertex. Hashed to a string because a
+  // Map keyed on three numbers would cost an object per vertex.
+  const at = new Map();
+  geometries.forEach((geom, gi) => {
+    const pos = geom.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const k = `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`;
+      const g = at.get(k);
+      if (g) g.push(gi, i); else at.set(k, [gi, i]);
+    }
+  });
+  const out = geometries.map((g) => new Float32Array(g.attributes.normal.count * 3));
+  const mine = new THREE.Vector3(), other = new THREE.Vector3(), sum = new THREE.Vector3();
+  for (const group of at.values()) {
+    for (let a = 0; a < group.length; a += 2) {
+      mine.fromBufferAttribute(geometries[group[a]].attributes.normal, group[a + 1]);
+      sum.set(0, 0, 0);
+      for (let b = 0; b < group.length; b += 2) {
+        other.fromBufferAttribute(geometries[group[b]].attributes.normal, group[b + 1]);
+        if (mine.dot(other) >= CREASE_DOT) sum.add(other);   // same surface
+      }
+      if (sum.lengthSq() > 0) sum.normalize(); else sum.copy(mine);
+      const buf = out[group[a]], i = group[a + 1];
+      buf[i * 3] = sum.x; buf[i * 3 + 1] = sum.y; buf[i * 3 + 2] = sum.z;
+    }
+  }
+  geometries.forEach((g, i) => g.setAttribute('normal', new THREE.BufferAttribute(out[i], 3)));
+  return geometries;
+}
+const material = new THREE.MeshStandardMaterial({ color: 0x59a6ff, metalness: 0.1, roughness: 0.55 });
 const gltfLoader = new GLTFLoader();
 let currentObject = null;   // the currently displayed render object (STL mesh or glTF scene)
 
@@ -475,7 +541,7 @@ function frameMesh(obj) {
 function showStl(bytes, reframe) {
   const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   const geom = new STLLoader().parse(buf);
-  geom.computeVertexNormals();
+  smoothNormals([geom]);
   clearObject();
   currentObject = new THREE.Mesh(geom, material);
   scene.add(currentObject);
@@ -491,8 +557,18 @@ function showGlb(bytes, reframe) {
     const root = gltf.scene;
     root.scale.setScalar(1000);
     root.rotation.x = Math.PI / 2;   // glTF Y-up -> scene Z-up
+    root.updateWorldMatrix(true, true);
+    const byPlacement = new Map();
     root.traverse((o) => {
       if (!o.isMesh) return;
+      // Grouped by world placement, because smoothNormals compares raw
+      // coordinates: two parts of an assembly sitting at different locations
+      // must not be welded to each other just because their local coordinates
+      // happen to land in the same bucket. A single part is one group of one
+      // placement, which is the case this exists for.
+      const key = o.matrixWorld.elements.join(',');
+      const g = byPlacement.get(key);
+      if (g) g.push(o.geometry); else byPlacement.set(key, [o.geometry]);
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) {
         m.metalness = Math.min(m.metalness ?? 0, 0.1);   // OCC exports metalness 1; tame the flat look
@@ -500,6 +576,10 @@ function showGlb(bytes, reframe) {
         if (m.transparent && m.opacity < 1) { m.depthWrite = false; m.side = THREE.DoubleSide; }
       }
     });
+    // One pass over every mesh that shares a placement, not one pass each: the
+    // seams that need shading across run *between* those meshes, and this file
+    // has one mesh per B-rep face. See smoothNormals.
+    for (const geoms of byPlacement.values()) smoothNormals(geoms);
     clearObject();
     currentObject = root;
     scene.add(root);
