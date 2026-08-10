@@ -8,6 +8,18 @@ result against the original meshes.
 The tooling is the `stl-reverse-engineering` skill's. Nothing here was read off
 a render.
 
+**Section 2 has been rewritten once already, and it is worth saying why.** The
+first pass read the cover's bore as a plain 24.05 circle, concluded that the
+0.9 mm notch it saw above the rib tops could not swallow a 2.0 mm cover, and
+recorded the source's bayonet as a mechanism that "cannot close". Every part of
+that was wrong, and the error was one of sampling rather than of arithmetic:
+the bore was measured at one height, at four angles that all happened to miss
+the features. Sampled through the thickness it is stepped, the band above the
+rib top is 2.005 mm rather than 0.9, and the mechanism closes exactly as
+drawn. The lesson is cheap to state and was expensive to learn — **when a
+reconstruction concludes that a shipping design does not work, the
+reconstruction is what to re-measure.**
+
 ## 1. Getting the meshes
 
 Printables serves the model page behind a bot check (HTTP 403 to anything
@@ -66,73 +78,144 @@ same radius: `sqrt((5+5)² + 36.14²) = 37.5 = 32.5 + 5`.
 
 ### The stack
 
-| Feature | Measured (source frame) | Here |
+Every z below is measured from the base's bed face, on the meshes rotated
+Z-up. The source files are stored with Y as the axis and the base plate at
+y = −2 … 0, so `z = y + 2` throughout.
+
+| Feature | Measured | Here |
 | --- | --- | --- |
-| Base plate | y −2.0 … 0.0 | z 0 … 2 |
-| Middle disc seat | y 7.0 (collar top) | `MIDDLE_Z = 9` |
-| Cover seat | y 16.4 (rib tops) | `COVER_Z = 18` |
-| Stack height | 20.4 | `STACK_H = 20` |
-| Channel height | 7.0 and 7.4 | `CHANNEL_H = 7` (both) |
+| Base plate | z 0.00 … 2.00 | z 0 … 2 |
+| Middle disc seat (collar top) | 9.195 | `MIDDLE_Z = 9.2` |
+| Cover seat (rib tops) | 18.395 | `COVER_Z = 18.4` |
+| Top of hub, and of the cover | 20.400 | `STACK_H = 20.4` |
+| Channel heights | 7.195 and 7.200 | `CHANNEL_H = 7.2` (both) |
+
+**The two channels are the same channel twice.** An earlier pass of these notes
+had them at 7.0 and 7.4 and put the stack at 20.0. Both were wrong, and they
+were wrong together: the collar top was read as y = 7.0 rather than 7.195 and
+the stack was then cut to 20.0 rather than the 20.4 the hub actually stands.
+The independent check is the source's own clip, whose cavity measures 20.4 —
+which is exactly the stack it is meant to span, and which no longer needs
+explaining away.
 
 ### The hub
 
 | Feature | Measured | Here |
 | --- | --- | --- |
 | Tube | r 22 … 24 | same |
-| Lower collar | r 24 … 25, up to y = 7 | `HUB_COLLAR_R = 25.6`, to `MIDDLE_Z` |
-| Guide ribs | 4 × 34.5 deg at 42.5+90k deg, r to 25 | `HUB_RIB_COUNT/ARC/PHASE` |
-| Wall liner behind each rib | r 21 … 22 over the same sectors | `HUB_LINER_R = 21` |
-| Cable slot | 33 deg, full height | `CABLE_SLOT_ARC = 33` |
-| Second slot | 33 deg, opposite, above y = 7 only | keyway |
-| Spindle post | OD 4.4, bore 2.5, **blind** from the top | bore goes through |
+| Lower collar | r 24 … 24.99, up to z = 9.195 | `HUB_COLLAR_R = 25.6`, to `MIDDLE_Z` |
+| Guide ribs | 4 × 34.96 deg, r to 24.99, to z = 18.395 | `HUB_RIB_COUNT/ARC/PHASE` |
+| Rib top trailing chamfer | 3.5 deg of arc over the top 0.8 mm | `RIB_LEAD_W/H` |
+| Bayonet groove | r back to 24.0, z 18.4 … 19.1 | `BAYONET_LIP_H = 0.7` |
+| Bayonet cone | 24.0 → 25.0, z 19.1 … 19.7 | `BAYONET_RAMP_H = 0.6` |
+| Bayonet flare | r 25.0, z 19.7 … 20.4 | `BAYONET_FLARE_H = 0.7` |
+| Wall liner behind each rib | r 20.6 … 22 over the same sectors, full height | `HUB_LINER_R = 21`, to `STACK_H` |
+| Cable slot | ~29 deg at mid-wall, full height | `CABLE_SLOT_ARC = 33` |
+| Second slot | same, opposite, above z = 9.195 only | keyway |
+| Spindle post | r 3.25, bore r 1.49, **blind** from the top | r 2.2 / 1.25, bore goes through |
 
-### The two upper discs
+### The two upper discs, and the bayonet between them
 
-Both bores measure 24.05 nominal with four 25.05 relief pockets 36 degrees
-wide. The middle's pockets sit exactly on the rib centres; the cover's sit
-45 degrees off them. The middle additionally carries two tabs reaching in to
-r = 22.0 at opposite sides, which line up with the hub's two slots.
+The middle disc's bore is constant through its 2 mm: 24.04 nominal with four
+25.045 relief pockets ~37 degrees wide on the rib centres, plus two keys
+reaching in to r = 22.0 at opposite sides, which line up with the hub's two
+slots. It drops past the ribs and lands on the collar. Nothing subtle.
 
-That is the whole spacing mechanism, and it is a good one: one radius, two
-heights, and a disc that either has the pockets (drops past the ribs, lands on
-the collar) or does not (lands on the rib tops).
+**The cover's bore is not constant through its thickness, and that is the whole
+mechanism.** Sampled at 0.02 mm steps through the plate, at 0.5 degree steps
+around it, it reads as three sectors repeating every 90 degrees:
+
+| Sector | Width | z 0 … 0.71 | 0.71 … 1.29 | 1.29 … 2.00 |
+| --- | --- | --- | --- | --- |
+| locking | ~35 deg | 24.045 | cone 24.05 → 25.05 | 25.045 |
+| tab | ~18 deg | 24.045 | 24.045 | 24.045 |
+| pocket | ~37 deg | 25.045 | 25.045 | 25.045 |
+
+Set that against the hub's own band above a rib top — groove to 19.115, cone to
+19.695, flare to 20.400, i.e. 0.715 / 0.58 / 0.705 from a rib top at 18.395 —
+and the two are complementary to within 0.02 mm over all three steps. They are
+not two things that happen to exist; they are a shaft and its socket.
+
+So the mechanism is a **bayonet**, and it goes together like this:
+
+1. Turn the cover so its four pockets sit over the four ribs. A pocket is
+   25.045 over the full thickness and a rib is 24.99, so the cover passes.
+2. Lower it until it rests on the rib tops at 18.395.
+3. Twist it about 36 degrees, until each tab butts against the trailing face of
+   a flare. A tab is 24.045 over the full thickness and a flare is 24.985, so a
+   tab cannot pass one at any height — that is the rotation stop, and it lands
+   the locking sectors square on the ribs.
+
+Locked, the cover's 0.71 mm lip lies in the hub's 0.715 mm groove, under a
+flare that stands 0.94 mm proud of it, over 4 × 35 = 140 degrees of arc. It
+cannot lift, and the rib tops under it mean it cannot sink. The clips then have
+nothing to do but hold the *rim* together.
+
+**A word on angles between two files.** Each STL is saved in whatever rotation
+its exporter happened to use, so a measured offset between a feature on the
+*base* and a feature on the *cover* is not evidence of anything on its own —
+and an earlier pass of these notes used exactly such an offset (a "45 degrees"
+between the cover's pockets and the base's ribs) as its argument for a twist.
+Nothing above rests on that. The relative orientation here is derived from what
+has to be mechanically true: the cover's locking sector is the only part of its
+bore shaped like the hub's rib-top band, so that is the part that sits on a rib,
+and everything else follows from the three sector widths adding to 90 degrees.
+The two files do in fact turn out to be within a degree of co-oriented, with the
+cover stored *locked* — but that is a happy accident, not the evidence.
+
+Two smaller measurements corroborate the reading. The ribs are a constant 34.96
+degrees from the collar up to z = 17.6 and then narrow, **on one side only**, to
+about 31.5 by the rib top: that is a lead-in ramp for the cover's underside, and
+it is on the trailing side, which is the side the cover sweeps in from. And the
+band above the rib top measures 2.005 mm against a cover of 2.00 — the cover
+finishes flush with the top of the hub, which is not something that happens by
+accident.
 
 ## 3. Where this model departs, and why
 
-Six deliberate deviations. Each costs a little IoU in section 5, which is the
-honest place to look for them.
+The mechanism is not one of them any more. **The bayonet in section 2 is
+reproduced, and it is the model's only retention for the cover — there is no
+switch, no fallback and no "rests on the rib tops" version.** What is left are
+five deviations, and each costs a little IoU in section 5, which is the honest
+place to look for them.
 
-1. **The cover's bayonet is gone.** In the source the guide ribs carry a 0.9 mm
-   notch at y = 16.4–17.3 with a flare above it, and the cover's 45-degree
-   offset pockets say it is meant to be lowered past the ribs and twisted under
-   that flare. It cannot close: the cover is 2.0 mm thick and the notch is
-   0.9 mm tall. Here the cover simply rests on the rib tops and the clips hold
-   it down — which is what the clips are for.
-2. **The spindle bore goes through.** The source's is blind from the top, so
-   the "put a rod through it and spin the spool" reading of that hole does not
-   work. Through-drilled it does, and it costs nothing.
-3. **The window mouths are chamfered on both faces of all three discs.** The
+1. **The spindle post is smaller than the source's, and its bore goes through.**
+   The source post measures r = 3.25 with a r = 1.49 bore, blind from the top;
+   this one is `SPINDLE_R = 2.2` with a 2.5 mm bore drilled through. The
+   through-bore is the point — "put a rod through it and spin the spool" does
+   not work on a blind hole — and the diameter has not been revisited since it
+   was first read. It should be: 3.25 is what the mesh says.
+2. **The window mouths are chamfered on both faces of all three discs.** The
    source chamfers only the middle disc's top. The cable crosses these edges on
    every turn, and `AGENTS.md` does not allow shipping them raw.
-4. **The diametral rib is 5.4 mm, not 2.9.** At 2.9 the 4.4 mm spindle post
+3. **The diametral rib is 5.4 mm, not 2.9.** At 2.9 the 4.4 mm spindle post
    stands proud of the rib it is carried on, leaving two bare arcs of cylinder
    meeting the bed face at 90 degrees; at exactly 4.4 the two are tangent,
    which is worse (OCC leaves a sliver edge at each tangency).
-5. **The channels are both 7.0 mm.** The source's are 7.0 and 7.4; the
-   difference is the source's hub being 20.4 tall against a 20.0 stack.
-6. **The hub's interior is simpler.** The source hub carries additional
-   internal structure — four webs converging toward the axis, visible in slices
-   at r = 6 … 21 — whose function could not be established from the mesh. It is
-   not a stiffener for anything the discs load, it does not reach the spindle
-   post, and the two shapes it is complementary to (the flange's kidney holes)
-   are 10 mm below it. It is not reproduced. This is most of the base's IoU
-   gap, and section 5 says how much.
+4. **The hub's interior is simpler.** The source hub is not a hollow 2 mm tube.
+   Sliced at any height above the plate it carries a pair of walls straddling
+   the axis about 2.1 mm apart, widening into two solid lobes where they reach
+   the bore at the slot ends — roughly 6 000 mm³ of structure whose function
+   could not be established from the mesh. It is not a stiffener for anything
+   the discs load, it does not reach the spindle post, and the shapes it is
+   complementary to (the flange's kidney holes) are in the plate below it. It
+   is not reproduced, and it is most of the base's IoU gap; section 5 says how
+   much.
+5. **The bayonet's clearances are this repo's, not the source's.** The
+   geometry — 0.7 / 0.6 / 0.7 of band, 35 degree ribs, one radius at 25.0 —
+   is measured and kept. The gaps in it are re-derived: the lip is
+   `fits.SLIDING` on the tube (24.11 against the source's 24.045), the pockets
+   are `fits.FREE` over a rib (25.2 against 25.045), the counterbore is
+   `fits.SLIDING` over the flare (25.11), and a pocket is `HUB_RIB_ARC + 6`
+   wide against the source's `+ 3`. The source's 0.045 mm and 1 degree are
+   inside a single extrusion's tolerance and will bind on any machine that
+   prints a hair fat; that is the whole reason `AGENTS.md` says not to copy a
+   source's clearances.
 
-Beyond those, every clearance was re-derived from `fdm-fits-and-clearances`
-rather than copied. The source's disc bore is 24.05 on a 24.00 hub — 0.05 mm
-of radial clearance, which is inside a single extrusion's tolerance and will
-bind on any machine that prints a hair fat. `DISC_BORE_FIT = fits.SLIDING`
-gives 0.11 mm a side.
+The pockets being wider than the source's is what makes the tab 14 degrees
+rather than 18 and the twist 38 rather than 36 — the three have to add to a
+quarter turn, so widening one narrows another. Nothing else about the motion
+changes.
 
 ## 4. The clip
 
@@ -228,27 +311,34 @@ original's failure mode is "comes off when you did not ask"; this one's is
 `mesh_compare.py`, exact IoU by boolean, this model's exported STL against the
 source mesh rotated into the same frame. **Not** aligned — see the note below.
 
-| Part | Volume, source → here | IoU | Verdict |
-| --- | --- | --- | --- |
-| `middle` | 18 483 → 18 382 mm³ | **95.3%** | passes the skill's 95% gate |
-| `cover` | 19 164 → 18 740 mm³ | **96.1%** | passes |
-| `base` | 33 332 → 26 815 mm³ | **70.5%** | see below |
+| Part | Volume, source → here | IoU | Before the bayonet | Verdict |
+| --- | --- | --- | --- | --- |
+| `middle` | 18 483 → 18 380 mm³ | **95.3%** | 95.3% | passes the skill's 95% gate |
+| `cover` | 19 164 → 18 565 mm³ | **96.6%** | 96.1% | passes |
+| `base` | 33 332 → 27 182 mm³ | **71.1%** | 70.5% | see below |
 
 Splitting the base by height, against slabs of the same two meshes:
 
-| Region | Source | Here | IoU |
-| --- | --- | --- | --- |
-| plate, z 0 … 2 | 19 842 mm³ | 19 374 mm³ | **90.9%** |
-| hub, z 2 … 21 | 13 490 mm³ | 7 441 mm³ | **42.4%** |
+| Region | Source | Here | IoU | Before |
+| --- | --- | --- | --- | --- |
+| plate, z 0 … 2 | 19 842 mm³ | 19 375 mm³ | **90.9%** | 90.9% |
+| hub, z 2 … 21 | 13 490 mm³ | 7 807 mm³ | **44.4%** | 42.8% |
 
 So the base's plate is as good as the other two discs — the 9% it gives up is
 almost all the window and bore chamfers this model adds and the source does not
 (6 windows × ~250 mm of edge × 0.18 mm² × two faces ≈ 540 mm³, against a 470
-mm³ volume difference), plus the wider diametral rib of §3.4. The hub is where
-the reconstruction genuinely departs, for the reasons in §3.1 and §3.6: no
-bayonet flare, and none of the internal webbing. Reporting 70.5% and saying
-which half of the part it comes from is more use than an aligned number that
-hides it.
+mm³ volume difference), plus the wider diametral rib of §3.3. The hub is where
+the reconstruction still genuinely departs, and after the bayonet it is for one
+reason only: §3.4's internal structure, about 6 000 mm³ of it. Reporting 71.1%
+and saying which half of the part it comes from is more use than an aligned
+number that hides it.
+
+**What the bayonet was worth.** The hub slab gains 1.6 points and the base
+0.6 — small, because the groove, the cone and the flare together are only about
+40 mm³ of geometry. The cover is the honest measure of it: 96.1% → 96.6%, and
+its *excess* volume (material this model has and the source does not) falls
+from 162 mm³ to 26. That number is the bore, and it is now the source's bore
+rather than a plain circle.
 
 **A note on `--align`, because it costs more than it looks.** The flag is meant
 for exactly this situation — grading against a downloaded reference — and here

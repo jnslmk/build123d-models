@@ -129,8 +129,8 @@ def _staircase(r: Report, base: Part, middle: Part, cover: Part) -> None:
         "and is not relieved anywhere else, so it lands on the collar",
     )
     r.check(
-        at(cover, probe_r, cfg.HUB_RIB_PHASE, 1.0),
-        "the cover has no relief at all, which is what stops it on the ribs",
+        at(cover, probe_r, cfg.LOCK_PHASE, cfg.BAYONET_LIP_H / 2.0),
+        "the cover's lip fills a rib's radius at the seat, so it lands on the ribs",
     )
     r.check(
         at(middle, cfg.MIDDLE_KEY_R + 0.3, cfg.KEY_SLOT_PHASE, 1.0)
@@ -140,6 +140,155 @@ def _staircase(r: Report, base: Part, middle: Part, cover: Part) -> None:
     r.check(
         not at(cover, cfg.MIDDLE_KEY_R + 0.3, cfg.KEY_SLOT_PHASE, 1.0),
         "the cover has no keys -- it is located by the clips, not the hub",
+    )
+
+
+def _bayonet(r: Report, base: Part, cover: Part) -> None:
+    """The twist-lock, which is invisible from every direction at once.
+
+    It is four features on the hub and three on the cover's bore, and no
+    projection shows any of them: the groove is under the flare, the flare is
+    under the cover, and the cover's own step is inside a 2 mm plate. So it is
+    point-sampled here, and then the claim that actually matters -- that the
+    cover is *trapped* once twisted -- is settled by intersecting the two
+    solids at four positions rather than by probing either one.
+    """
+    rib = cfg.HUB_RIB_PHASE
+    plain = rib + 45.0  # between two ribs
+    mid = (cfg.HUB_R + cfg.HUB_RIB_R) / 2.0
+
+    # -- the hub's side: rib, groove, cone, flare, in that order going up --
+    r.check(
+        at(base, mid, rib, cfg.COVER_Z - 0.2),
+        f"the rib is full width up to COVER_Z = {cfg.COVER_Z}",
+    )
+    r.check(
+        not at(base, mid, rib, cfg.COVER_Z + cfg.BAYONET_LIP_H / 2.0),
+        f"and the groove above it is clear out to HUB_RIB_R for "
+        f"{cfg.BAYONET_LIP_H} mm -- the room the cover's lip twists into",
+    )
+    r.check(
+        at(base, mid, rib, cfg.FLARE_BOTTOM_Z - 0.15)
+        and not at(base, mid, rib, cfg.GROOVE_TOP_Z + 0.15),
+        "the cone between them fills from the bottom up, as a cone must",
+    )
+    r.check(
+        at(base, cfg.HUB_RIB_R - 0.2, rib, cfg.FLARE_BOTTOM_Z + cfg.BAYONET_FLARE_H / 2.0),
+        "the flare comes back to HUB_RIB_R above the cone",
+    )
+    r.check(
+        not at(base, cfg.HUB_R + 0.2, plain, cfg.FLARE_BOTTOM_Z + 0.2)
+        and not at(base, cfg.HUB_R + 0.2, plain, cfg.COVER_Z - 1.0),
+        "and there is no flare between the ribs -- it is four lugs, not a ring",
+    )
+    r.check(
+        not at(base, cfg.HUB_RIB_R - 0.3, rib + cfg.HUB_RIB_ARC / 2.0 - 0.3, cfg.COVER_Z - 0.1),
+        "the rib's top trailing corner is cut back -- the twist's lead-in",
+    )
+    r.check(
+        at(base, cfg.HUB_RIB_R - 0.3, rib + cfg.HUB_RIB_ARC / 2.0 - 0.3, cfg.COVER_Z - cfg.RIB_LEAD_H - 0.2),
+        "and only near the top: the rib below the lead-in is full width",
+    )
+
+    # -- the cover's side: lip, tab, pocket --
+    r.check(
+        at(cover, cfg.COVER_LIP_R + 0.2, cfg.LOCK_PHASE, cfg.BAYONET_LIP_H / 2.0)
+        and not at(cover, cfg.COVER_LIP_R - 0.2, cfg.LOCK_PHASE, cfg.BAYONET_LIP_H / 2.0),
+        f"the locking sector's bore is COVER_LIP_R = {cfg.COVER_LIP_R} at the bed face",
+    )
+    r.check(
+        not at(cover, cfg.COVER_RELIEF_R - 0.2, cfg.LOCK_PHASE, cfg.PLATE_T - 0.15),
+        f"and COVER_RELIEF_R = {cfg.COVER_RELIEF_R} at the top -- the counterbore "
+        "that sleeves the flare",
+    )
+    r.check(
+        at(cover, cfg.COVER_LIP_R + 0.2, cfg.TAB_PHASE, cfg.PLATE_T - 0.15)
+        and at(cover, cfg.COVER_LIP_R + 0.2, cfg.TAB_PHASE, cfg.BAYONET_LIP_H / 2.0),
+        "a tab is at lip radius over the whole thickness -- that is the stop",
+    )
+    r.check(
+        not at(cover, cfg.COVER_RELIEF_R - 0.2, cfg.POCKET_PHASE, cfg.BAYONET_LIP_H / 2.0)
+        and not at(cover, cfg.COVER_RELIEF_R - 0.2, cfg.POCKET_PHASE, cfg.PLATE_T - 0.15),
+        "a pocket is at relief radius over the whole thickness -- that is the way in",
+    )
+
+    # -- the arithmetic the whole thing rests on --
+    band = cfg.BAYONET_LIP_H + cfg.BAYONET_RAMP_H + cfg.BAYONET_FLARE_H
+    r.check(
+        abs(band - cfg.PLATE_T) < 1e-9 and abs(cfg.STACK_H - cfg.COVER_Z - cfg.PLATE_T) < 1e-9,
+        f"the bayonet band is {band} mm against a {cfg.PLATE_T} mm cover -- it closes",
+    )
+    r.check(
+        abs(cfg.COVER_LOCK_ARC + cfg.COVER_TAB_ARC + cfg.COVER_POCKET_ARC - 90.0) < 1e-9,
+        f"lock {cfg.COVER_LOCK_ARC} + tab {cfg.COVER_TAB_ARC} + pocket "
+        f"{cfg.COVER_POCKET_ARC} = 90 deg, so the bore repeats four times",
+    )
+    r.check(
+        cfg.COVER_POCKET_ARC > cfg.HUB_RIB_ARC and cfg.COVER_RELIEF_R > cfg.HUB_RIB_R,
+        "a pocket clears a rib both ways round, which is what lets the cover down",
+    )
+    grip = cfg.HUB_RIB_R - cfg.COVER_LIP_R
+    r.check(
+        grip >= 0.5,
+        f"the lip sits {grip:.2f} mm under the flare, over "
+        f"{cfg.HUB_RIB_COUNT * cfg.COVER_LOCK_ARC:.0f} deg of arc",
+    )
+    r.check(
+        cfg.HUB_RIB_ARC <= cfg.COVER_TWIST <= cfg.COVER_POCKET_ARC,
+        f"the drop-on orientation is {cfg.COVER_TWIST} deg off lock, inside the "
+        f"{cfg.COVER_POCKET_ARC - cfg.HUB_RIB_ARC:.0f} deg window a pocket gives",
+    )
+
+
+def _bayonet_motion(r: Report, base: Part, cover: Part) -> None:
+    """Can the cover go on, and can it then come off? Booleans, not probes.
+
+    Each line places the cover somewhere and asks whether it shares volume with
+    the hub. Two must be clear -- the seated locked position and the drop-on
+    path -- and three must foul, because a bayonet that fouls nowhere is not
+    holding anything.
+    """
+    from build123d import Pos
+
+    def placed(twist: float, z: float) -> Part:
+        return as_part(Pos(0.0, 0.0, z) * (Rotation(0.0, 0.0, twist) * cover))
+
+    def fouls(part: Part) -> float:
+        overlap = part.intersect(base)
+        return overlap.volume if overlap is not None else 0.0  # ty: ignore[possibly-missing-attribute]
+
+    seated = fouls(placed(0.0, cfg.COVER_Z))
+    r.check(
+        seated < 1e-3,
+        f"locked and seated, the cover does not touch the hub ({seated:.3f} mm^3)",
+    )
+
+    dropped = fouls(placed(cfg.COVER_TWIST, cfg.MIDDLE_Z + cfg.PLATE_T))
+    r.check(
+        dropped < 1e-3,
+        f"twisted {cfg.COVER_TWIST:.0f} deg it passes the ribs entirely -- lowered "
+        f"to the middle disc it still does not touch ({dropped:.3f} mm^3)",
+    )
+
+    lifted = fouls(placed(0.0, cfg.COVER_Z + 0.5))
+    r.check(
+        lifted > 0.1,
+        f"locked, it cannot be lifted: 0.5 mm up the lip is inside the flare "
+        f"({lifted:.2f} mm^3 of interference)",
+    )
+
+    pushed = fouls(placed(0.0, cfg.COVER_Z - 0.5))
+    r.check(
+        pushed > 0.1,
+        f"and cannot sink: 0.5 mm down it is inside the rib tops "
+        f"({pushed:.2f} mm^3)",
+    )
+
+    past = fouls(placed(-3.0, cfg.COVER_Z))
+    r.check(
+        past > 0.1,
+        f"and cannot be twisted past lock: 3 deg over, the tabs are inside the "
+        f"flares ({past:.2f} mm^3) -- that is what ends the motion",
     )
 
 
@@ -384,6 +533,10 @@ def run() -> Report:
     _plate(r, base)
     r.section("The staircase")
     _staircase(r, base, middle, cover)
+    r.section("The bayonet")
+    _bayonet(r, base, cover)
+    r.section("The bayonet, as a motion")
+    _bayonet_motion(r, base, cover)
     r.section("The clip")
     _clip_shape(r, clip)
     r.section("Snap sizing")

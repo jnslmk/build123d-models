@@ -95,19 +95,33 @@ gives the clip's lower jaw a lead-in onto the rim."""
 # The stack: where each disc sits, and how tall the whole thing is
 # --------------------------------------------------------------------------
 
-CHANNEL_H = 7.0
+CHANNEL_H = 7.2
 """Clear height of each of the two cable channels. Fits a 6 mm round patch
-cable with room to lie over itself at the crossing."""
+cable with room to lie over itself at the crossing.
+
+Measured, not assumed: the source hub's collar top sits at 9.195 above the bed
+face and its rib tops at 18.395, which with a 2.00 mm plate makes the two
+channels 7.195 and 7.200. They are the *same* channel twice, and an earlier
+reading of this model that made them 7.0 and 7.4 was an artefact of putting the
+cover's seat in the wrong place -- see `docs/design-notes.md` section 2.
+"""
 
 MIDDLE_Z = PLATE_T + CHANNEL_H
-"""9.0 -- underside of the middle disc, i.e. the top of the hub's lower collar."""
+"""9.2 -- underside of the middle disc, i.e. the top of the hub's lower collar."""
 
 COVER_Z = MIDDLE_Z + PLATE_T + CHANNEL_H
-"""18.0 -- underside of the cover, i.e. the top of the hub's four ribs."""
+"""18.4 -- underside of the cover, i.e. the top of the hub's four guide ribs.
+
+Also the floor of the bayonet groove: the cover lands here and its lip drops
+into the relief immediately above.
+"""
 
 STACK_H = COVER_Z + PLATE_T
-"""20.0 -- bed face of the base to top face of the cover. The clip is cut to
-this, and it is the one number the clip and the discs have to agree on."""
+"""20.4 -- bed face of the base to top face of the cover, and equally the top of
+the hub: the cover finishes flush with the hub it locks onto. The clip is cut to
+this, and it is the one number the clip and the discs have to agree on. The
+source's own clip measures a 20.4 mm cavity, which is the independent check on
+it."""
 
 # --------------------------------------------------------------------------
 # The hub
@@ -120,12 +134,15 @@ HUB_BORE_R = 22.0
 """Inner radius of the hub tube: a 2 mm wall."""
 
 HUB_RIB_R = 25.0
-"""Outer radius of the four guide ribs and of the lower collar.
+"""Outer radius of the four guide ribs, of the lower collar, and of the bayonet
+flare that caps each rib.
 
-One radius does two jobs. Below `MIDDLE_Z` it is a full collar and the middle
-disc lands on it; above that it survives only as four ribs, which the middle
-disc's four relief pockets slide past and the cover -- which has none -- lands
-on at `COVER_Z`.
+One radius does three jobs. Below `MIDDLE_Z` it is a full collar and the middle
+disc lands on it. Above that it survives only as four ribs, which the middle
+disc's four relief pockets slide past and the cover lands on at `COVER_Z`.
+Above the groove it comes back as the flare the cover's lip twists under --
+see the bayonet section below. Measured 24.99 on the ribs and 24.985 on the
+flare, i.e. one radius within the mesh's own noise.
 """
 
 HUB_LINER_R = 21.0
@@ -146,8 +163,12 @@ pockets have to slide past them.
 """
 
 HUB_RIB_COUNT = 4
-HUB_RIB_ARC = 34.5
-"""Angular width of one rib, degrees. Measured 34.5 on the source hub."""
+HUB_RIB_ARC = 35.0
+"""Angular width of one rib, degrees.
+
+Measured 34.96 at r = 24.5 on the source hub, over the whole rib height; the
+0.04 is the mesh's chord error on a 25 mm circle, so the drawn number is 35.
+"""
 
 HUB_RIB_PHASE = 45.0
 """Angle of the first rib's centre. Puts the ribs between the cable slots."""
@@ -224,6 +245,167 @@ MIDDLE_KEY_R = HUB_BORE_R + DISC_BORE_FIT / 2
 
 MIDDLE_KEY_ARC = 25.0
 """Angular width of a key, against a 33 deg slot: 4 deg of slack a side."""
+
+# --------------------------------------------------------------------------
+# The bayonet: how the cover is held down on the hub
+# --------------------------------------------------------------------------
+#
+# The whole mechanism is one 2.00 mm band of the hub, `COVER_Z .. STACK_H`,
+# read straight off the source mesh. Above each rib's top the hub steps *in*
+# to `HUB_R` for `BAYONET_LIP_H`, cones back out to `HUB_RIB_R` over
+# `BAYONET_RAMP_H`, and stands at `HUB_RIB_R` again for `BAYONET_FLARE_H` to
+# the top of the hub. The cover's bore is the exact negative of that, plus a
+# clearance: a thin lip at the bottom that drops into the groove, a matching
+# cone, and a counterbore that sleeves the flare.
+#
+# Twist the cover and the lip runs under the flare, which is what stops it
+# lifting; the rib top under it is what stops it sinking. Both faces are
+# reached only after the cover has been dropped past the ribs with its four
+# `COVER_POCKET_ARC` pockets aligned to them, and the four `COVER_TAB_ARC`
+# tabs -- full-height, lip radius -- butt against the flares and fix where the
+# twist ends.
+#
+# Measured band, source frame, bed face at zero:
+#
+#     rib top / groove floor    18.395      (COVER_Z)
+#     groove -> cone            19.115      (+0.72)
+#     cone -> flare             19.695      (+0.58)
+#     top of hub                20.400      (+0.71)
+#
+# and the cover's own bore, from its bed face: lip to 0.71, cone to 1.29,
+# counterbore to 2.00. The two are complementary to within 0.02 mm, which is
+# what says they are meant to mate rather than merely both exist.
+
+BAYONET_LIP_H = 0.7
+"""Height of the groove above each rib top, and so of the cover's lip.
+
+Measured 0.715 on the hub and 0.71 on the cover.
+"""
+
+BAYONET_RAMP_H = 0.6
+"""Height of the cone joining the groove to the flare. Measured 0.58 on both
+parts, over a full `HUB_RIB_R - HUB_R` = 1.0 mm of radius.
+
+Note what that slope is: 1.0 mm out over 0.6 mm up is 59 degrees off vertical
+on the *hub*, which is an overhang past the usual 45. It is short (1 mm of
+unsupported reach over four 15 mm arcs) and it is the source's own geometry, so
+it is reproduced rather than redesigned. On the cover the same cone faces the
+other way and prints as a plain outward step, no overhang at all.
+"""
+
+BAYONET_FLARE_H = PLATE_T - BAYONET_LIP_H - BAYONET_RAMP_H
+"""0.7 -- what is left of the cover's thickness above the cone, and so the
+height of the flare. Measured 0.705.
+
+The three add to `PLATE_T` exactly, on both parts, which is the arithmetic that
+makes the cover finish flush with the top of the hub.
+"""
+
+GROOVE_TOP_Z = COVER_Z + BAYONET_LIP_H
+"""19.1 -- where the groove ends and the cone begins."""
+
+FLARE_BOTTOM_Z = GROOVE_TOP_Z + BAYONET_RAMP_H
+"""19.7 -- where the cone ends and the full-radius flare begins."""
+
+FLARE_CHAMFER = 0.4
+"""Break on the flare's top outer edge, at the very top of the hub. Small: the
+flare is only `BAYONET_FLARE_H` tall and the chamfer must not eat it."""
+
+BAYONET_MOUTH_CHAMFER = 0.3
+"""Break on both mouths of the cover's bore, and deliberately smaller than
+`WINDOW_CHAMFER`.
+
+`WINDOW_CHAMFER` is 0.6 and the lip it would be breaking is `BAYONET_LIP_H` =
+0.7 tall: a 0.6 break leaves a tenth of a millimetre of cylindrical lip to
+guide the twist on. 0.3 leaves 0.4 mm, and costs nothing in retention because
+the face that carries the lifting load is the lip's *cone*, not its bottom
+corner.
+"""
+
+RIB_LEAD_W = 1.5
+RIB_LEAD_H = 0.8
+"""The chamfer on each rib's top *trailing* corner -- 1.5 mm of arc taken off
+over the top 0.8 mm of the rib, on the side the cover sweeps in from.
+
+Measured, and it is the one feature that says which way the cover turns: the
+source's ribs are a constant 34.96 deg from the collar up to z = 17.6 and then
+narrow to about 31.5 deg by the rib top, on one side only. That is the ramp the
+cover's underside climbs as it twists into lock, so it is a mechanism feature,
+not a print break.
+"""
+
+COVER_LOCK_ARC = HUB_RIB_ARC
+"""Angular width of the cover's locking sector -- the part of its bore that is
+lip below and counterbore above. Exactly a rib's width, because in the locked
+position it sits on one."""
+
+COVER_POCKET_ARC = MIDDLE_RELIEF_ARC
+"""41 -- the four full-height reliefs the cover is dropped past the ribs on.
+
+Same width and the same argument as the middle disc's: `HUB_RIB_ARC` plus 6 deg
+of rotational slack, because nothing indexes the twist but eye and thumb. The
+source's own is 3 deg, which is the sort of clearance `AGENTS.md` says not to
+copy.
+"""
+
+COVER_TAB_ARC = 360.0 / HUB_RIB_COUNT - COVER_LOCK_ARC - COVER_POCKET_ARC
+"""14 -- what is left of each quarter turn, and it is the rotation stop.
+
+A tab is at `COVER_LIP_R` over its whole height, so it cannot pass a flare at
+any height. Twisting the cover towards lock walks each tab up to a flare's
+trailing face and stops there, which is what puts the locking sector over the
+rib rather than half over it.
+"""
+
+COVER_TWIST = (HUB_RIB_ARC + COVER_POCKET_ARC) / 2.0
+"""38 -- degrees from the drop-on orientation to the locked one.
+
+A pocket clears a rib for any twist between `HUB_RIB_ARC` and
+`COVER_POCKET_ARC` off lock, i.e. over a 6 deg window; this is its middle.
+"""
+
+COVER_LIP_R = MIDDLE_BORE_R
+"""24.11 -- the cover's lip and its four tabs. A sliding fit on the hub tube,
+the same bore the middle disc rides on, and 0.89 mm inside the flare it locks
+under."""
+
+COVER_RELIEF_R = MIDDLE_RELIEF_R
+"""25.2 -- the cover's four drop-on pockets. A free fit over `HUB_RIB_R`,
+because this surface has to pass a whole rib, blind, on the way down."""
+
+COVER_SLEEVE_R = HUB_RIB_R + DISC_BORE_FIT / 2.0
+"""25.11 -- the counterbore above the cone, which sleeves the flare.
+
+A *sliding* fit rather than the pockets' free one, and for the same reason the
+disc bores are sliding: this surface stays on the flare, turns on it while the
+cover is locked home, and is what keeps the cover concentric once it is. The
+pockets only have to miss a rib once.
+
+The source cuts both at 25.045 and does not distinguish them. Keeping them
+apart also happens to be what makes the part buildable -- see `cover.py`.
+"""
+
+COUNTERBORE_INSET_ARC = 1.0
+"""How far into a pocket the counterbore's mask stops short, in degrees.
+
+Purely a modelling constant, and it has no effect on the part: a pocket is
+already open to `COVER_RELIEF_R` over the full thickness, so whether the
+counterbore reaches into its first degree changes nothing. What it buys is that
+no cut ever lands its own flank on a face the previous cut just made, which is
+the difference between a cover that builds in a second and one that does not
+build at all. `cover.py` has the measurements.
+"""
+
+LOCK_PHASE = HUB_RIB_PHASE
+"""Centre of the cover's first locking sector, which is a rib's centre: the
+cover is drawn, printed and assembled in its *locked* orientation, so the
+assembly places it with no rotation of its own."""
+
+TAB_PHASE = LOCK_PHASE + (COVER_LOCK_ARC + COVER_TAB_ARC) / 2.0
+"""69.5 -- centre of the first tab, just past the trailing edge of the rib."""
+
+POCKET_PHASE = TAB_PHASE + (COVER_TAB_ARC + COVER_POCKET_ARC) / 2.0
+"""97.0 -- centre of the first drop-on pocket."""
 
 # --------------------------------------------------------------------------
 # The clip
@@ -304,7 +486,7 @@ CLIP_LEAD_IN = 1.2
 butting against a square corner."""
 
 CLIP_STACK_CLEAR = 0.15
-"""Axial slack between the jaws and the 20 mm stack. Deliberately a clearance
+"""Axial slack between the jaws and the 20.4 mm stack. Deliberately a clearance
 and not a preload: a clamp that relies on squeezing PETG for months is a clamp
 that relies on PETG not creeping, and it does creep. The clip is held on by its
 detent, not by pinching."""

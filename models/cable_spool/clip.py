@@ -17,13 +17,13 @@ things are wrong with it and any one of them would be enough:
    them but a window. Whether a given clip grips at all depends on whether it
    happened to be pushed on over a spoke.
 3. **Its arms are strained past yield the first time it is fitted.** 1.6 mm
-   thick, 10.4 mm long, and forced 2.0 mm apart to get over the 20 mm stack:
+   thick, 10.4 mm long, and forced 2.0 mm apart to get over the 20.4 mm stack:
    `eps = 3*t*y/(2*l^2) = 4.4%`, against 1.0% for PETG in repeated use and
    1.7% one-shot. They take a permanent set on assembly, and after that the
    clip is a loose collar.
 
 So this one is a different mechanism, not a tidied-up version of that one. It
-does not clamp. Its jaws are a clearance fit on the 20 mm stack and hold it
+does not clamp. Its jaws are a clearance fit on the 20.4 mm stack and hold it
 together without squeezing it -- PETG creeps, and a joint whose retention is a
 sustained squeeze is a joint with a shelf life. What holds the clip *on* is a
 detent: a curved cantilever under the base disc carrying a tooth that drops up

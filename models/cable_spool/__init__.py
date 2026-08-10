@@ -8,9 +8,10 @@
     uv run check cable_spool
 
 Four printed parts and no hardware. Three identical 180 mm discs stack on one
-hub at three heights and leave two 7 mm channels between them, which is enough
-for about 20 m of round Cat-6 patch cable wound in two layers. Three clips hold
-the stack together at the rim.
+hub at three heights and leave two 7.2 mm channels between them, which is
+enough for about 20 m of round Cat-6 patch cable wound in two layers. The cover
+twists onto the hub on a bayonet; three clips hold the stack together at the
+rim.
 
 **Where it comes from.** The three discs are a parametric reconstruction of
 [Printables 27496](https://www.printables.com/model/27496-cable-spool-ethernet-cable)
@@ -27,11 +28,14 @@ assembly against PETG's 1.0%. `clip.py` carries that argument in full. The
 replacement does not clamp at all: it hangs on a curved cantilever whose tooth
 drops into one of the base's own windows and catches on the window wall.
 
-**How the stack spaces itself.** One hub radius at two heights does all of it.
-Below `MIDDLE_Z` it is a full collar, so the middle disc lands there; above it
-the same radius survives as four ribs, which the middle disc's four relief
-pockets slide past and the cover -- cut with a plain bore -- stops on. No
-spacers, no fasteners.
+**How the stack spaces itself.** One hub radius at three heights does all of
+it. Below `MIDDLE_Z` it is a full collar, so the middle disc lands there. From
+there to `COVER_Z` the same radius survives as four ribs, which both upper
+discs' relief pockets slide past. Above `COVER_Z` it returns as a flare over a
+groove, and the cover's stepped bore twists under it: drop the cover on with
+its pockets over the ribs, turn it `COVER_TWIST` degrees until its tabs stop
+against the flares, and it is locked down on the rib tops. No spacers, no
+fasteners.
 """
 
 from __future__ import annotations

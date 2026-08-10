@@ -1,8 +1,9 @@
 # Cable spool
 
 A 180 mm reel for a coiled patch cable. Four printed parts, no hardware: three
-identical discs stack on one hub at three heights and leave two 7 mm channels
-between them, and three clips hold the stack together at the rim.
+identical discs stack on one hub at three heights and leave two 7.2 mm channels
+between them, the cover twists on with a bayonet, and three clips hold the stack
+together at the rim.
 
 ```bash
 uv run show cable_spool           # assembled
@@ -17,7 +18,7 @@ uv run check cable_spool
 
 About 20 m of round Cat-5e/Cat-6 patch cable up to 6 mm across, wound in two
 layers. The winding depth is 65 mm a side (hub at r = 25, rim at r = 90) and
-each channel is 7 mm clear. A flat patch cable fits the same channels with room
+each channel is 7.2 mm clear. A flat patch cable fits the same channels with room
 to spare; anything fatter than 6.5 mm will not lie flat at the crossover.
 
 ## Where it comes from
@@ -65,9 +66,14 @@ solid whatever the infill is.
 2. **Wind the lower channel**, then drop the **middle disc** down the hub. Line
    its four relief pockets up with the four guide ribs — it will not go past
    them otherwise — and turn it until its two keys drop into the hub's two
-   slots. It comes to rest on the collar, 7 mm above the base.
-3. **Wind the upper channel** and drop the **cover** on. It has no relief
-   pockets, so it stops on the rib tops and leaves the second channel clear.
+   slots. It comes to rest on the collar, 7.2 mm above the base.
+3. **Wind the upper channel** and drop the **cover** on. Line its four relief
+   pockets up with the guide ribs — the same alignment the middle disc wanted —
+   lower it until it sits on the rib tops, then **twist it about 38 degrees**
+   until it stops. That is the bayonet: the lip on the underside of its bore
+   runs into the groove above each rib and the flare above the groove traps it.
+   You will feel it stop; the four tabs in the bore are what stop it, and they
+   land the cover square on the ribs.
 4. **Push the three clips on**, each centred on a window. Push straight in
    until the detent clicks. Three windows apart is 120 degrees, which is
    exactly where you want them.
@@ -75,6 +81,19 @@ solid whatever the infill is.
 To take a clip off again, lift the spool and press the free end of the arm
 under it down about 2 mm, then slide the clip out. It does not pull off — see
 below.
+
+## The cover's bayonet
+
+The cover is held down by the hub itself, not by the clips. Above each guide rib
+the hub steps in for 0.7 mm, cones back out over 0.6 mm and stands proud again
+for 0.7 mm — 2.0 mm of band against a 2.0 mm cover — and the cover's bore is the
+negative of that: a thin lip at the bottom, a matching cone, and a counterbore.
+Four pockets in the bore let it past the ribs on the way down; four tabs stop the
+twist in the right place.
+
+This is the source model's own mechanism, measured off its meshes and
+reproduced here. Take the cover off by twisting it back until the pockets line
+up with the ribs, then lifting.
 
 ## Why the clip is captive
 

@@ -9,20 +9,31 @@ on the part overhangs -- the collar, the ribs, the liners and the spindle are
 all vertical walls rising off a flat plate.
 
 **The hub is a staircase, and that is what holds the stack apart.** One radius
-(`HUB_RIB_R`) does two jobs at two heights:
+(`HUB_RIB_R`) does three jobs at three heights:
 
 * below `MIDDLE_Z` it is a full collar, and the middle disc lands on top of it;
-* above that it survives only as `HUB_RIB_COUNT` ribs. The middle disc has four
-  relief pockets on the rib centres and slides straight past them; the cover
-  has none, so it stops on the rib tops at `COVER_Z`.
+* from there to `COVER_Z` it survives only as `HUB_RIB_COUNT` ribs. Both upper
+  discs have relief pockets that slide past them -- the middle's on the rib
+  centres, the cover's `COVER_TWIST` degrees round -- and the cover's *locking*
+  sector lands on the rib tops;
+* above `COVER_Z` it comes back as a flare over a groove, and that is the
+  bayonet. See `_bayonet_relief`.
 
-So a single 24 mm tube with two families of feature gives two 7 mm cable
-channels and needs no fasteners, no glue and no separate spacers. The source
-model does the same thing and then adds a fifth step -- a flare over a notch in
-the ribs that the cover is meant to twist under. That has been dropped: as
-published the cover is 2.0 mm thick and the notch is 0.9 mm tall, so the
-bayonet cannot close. Here the cover rests on the rib tops and the clips hold
-it down, which is what the clips are for.
+So a single 24 mm tube with three families of feature gives two 7.2 mm cable
+channels, a positive twist-lock on the cover, and needs no fasteners, no glue
+and no separate spacers.
+
+**The bayonet is the source's, measured and reproduced, not invented here.**
+Above each rib the hub steps in to `HUB_R` for `BAYONET_LIP_H`, cones back out
+over `BAYONET_RAMP_H` and stands proud again for `BAYONET_FLARE_H`, which is
+exactly `PLATE_T` of band. The cover's bore is the negative of it. Drop the
+cover on with its pockets over the ribs, twist `COVER_TWIST` degrees until its
+tabs butt the flares, and its lip is trapped in the groove: the rib top under
+it stops it sinking and the flare over it stops it lifting. An earlier reading
+of this model called that band a 0.9 mm notch and concluded the bayonet could
+not close; it measures 2.01 mm against a 2.00 mm cover, and the cover's bore is
+stepped rather than straight. `docs/design-notes.md` section 2 has the
+arithmetic.
 
 **Two slots down the hub.** The one at `CABLE_SLOT_PHASE` runs the full height:
 push the cable's end through it before winding and the tail is anchored at the
@@ -49,6 +60,7 @@ from build123d import (
     Mode,
     Part,
     Plane,
+    Polygon,
     Polyline,
     Rectangle,
     Rotation,
@@ -95,40 +107,154 @@ def _hub_shell() -> Part:
     return hub.part
 
 
-def _liner(phase: float) -> Part:
-    """The wall thickening behind one guide rib, broken at its top mouth."""
+def _liner_top_break() -> Part:
+    """The 45 degree break on the liner's top inner corner, as a revolve."""
     c = cfg.WINDOW_CHAMFER
-    with BuildPart() as ring:
+    with BuildPart() as tool:
         with BuildSketch(Plane.XZ) as sk:
             with BuildLine():
                 Polyline(
-                    (cfg.HUB_LINER_R, cfg.PLATE_T),
-                    (cfg.HUB_BORE_R + 0.5, cfg.PLATE_T),
-                    (cfg.HUB_BORE_R + 0.5, cfg.COVER_Z),
-                    (cfg.HUB_LINER_R + c, cfg.COVER_Z),
-                    (cfg.HUB_LINER_R, cfg.COVER_Z - c),
+                    (cfg.HUB_LINER_R - 2.0, cfg.STACK_H - c),
+                    (cfg.HUB_LINER_R, cfg.STACK_H - c),
+                    (cfg.HUB_LINER_R + c, cfg.STACK_H),
+                    (cfg.HUB_LINER_R - 2.0, cfg.STACK_H),
                     close=True,
                 )
             make_face()
         _ = sk
-        revolve(axis=Axis.Z, revolution_arc=cfg.HUB_RIB_ARC)
-    return as_part(Rotation(0.0, 0.0, phase - cfg.HUB_RIB_ARC / 2.0) * ring.part)
+        revolve(axis=Axis.Z)
+    return tool.part
+
+
+def _liner(phase: float) -> Part:
+    """The wall thickening behind one guide rib, broken at its top mouth.
+
+    It runs the rib's whole height *and the bayonet's*: the flare above the
+    groove is a 1 mm ledge that the cover hangs off, and a bare 2 mm tube
+    behind it would peel rather than hold.
+
+    Built the same way `_rib` is, as an extruded sketch whose plan corners are
+    already round, and for the same measured reason: the two vertical corners a
+    liner leaves in the bore are now 19 mm tall, and at that length `fillet`
+    refuses three of the four on the finished hub. Drawn into the sketch they
+    cost nothing. It reaches `HUB_BORE_R + 1.0` rather than the wall itself so
+    that its outer face stays buried behind the tube's own top chamfer instead
+    of poking through it and leaving a fresh square ring at the top of the hub.
+    """
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY.offset(cfg.PLATE_T)) as sk:
+            with Locations(Rotation(0.0, 0.0, phase)):
+                add(sector(cfg.HUB_LINER_R, cfg.HUB_BORE_R + 1.0, cfg.HUB_RIB_ARC))
+            fillet(sk.vertices(), cfg.BORE_FILLET)
+        extrude(amount=cfg.STACK_H - cfg.PLATE_T)
+        add(_liner_top_break(), mode=Mode.SUBTRACT)
+    return tool.part
+
+
+def _bayonet_relief() -> Part:
+    """Everything the rib is *not* over the 2 mm the cover locks into.
+
+    Subtracted from the rib prism, this is what leaves the groove and the cone
+    above it. Written as one revolved profile, oversize on the outside so the
+    boolean never meets a coincident cylinder:
+
+        COVER_Z .. GROOVE_TOP_Z     take the rib back to `HUB_R`   -- the groove
+        .. FLARE_BOTTOM_Z           give it back linearly          -- the cone
+        above that                  nothing                        -- the flare
+    """
+    far = cfg.HUB_RIB_R + 2.0
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XZ) as sk:
+            with BuildLine():
+                Polyline(
+                    (cfg.HUB_R, cfg.COVER_Z),
+                    (far, cfg.COVER_Z),
+                    (far, cfg.FLARE_BOTTOM_Z),
+                    (cfg.HUB_RIB_R, cfg.FLARE_BOTTOM_Z),
+                    (cfg.HUB_R, cfg.GROOVE_TOP_Z),
+                    close=True,
+                )
+            make_face()
+        _ = sk
+        revolve(axis=Axis.Z)
+    return tool.part
+
+
+def _flare_top_chamfer() -> Part:
+    """The break on the flare's top outer edge, at the very top of the hub."""
+    c = cfg.FLARE_CHAMFER
+    far = cfg.HUB_RIB_R + 2.0
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XZ) as sk:
+            with BuildLine():
+                Polyline(
+                    (cfg.HUB_RIB_R - c, cfg.STACK_H),
+                    (cfg.HUB_RIB_R, cfg.STACK_H - c),
+                    (far, cfg.STACK_H - c),
+                    (far, cfg.STACK_H + 1.0),
+                    (cfg.HUB_RIB_R - c, cfg.STACK_H + 1.0),
+                    close=True,
+                )
+            make_face()
+        _ = sk
+        revolve(axis=Axis.Z)
+    return tool.part
+
+
+def _rib_lead_in(phase: float) -> Part:
+    """The chamfer on one rib's top trailing corner: the twist's lead-in.
+
+    Cut as a triangular prism swept radially rather than chased with
+    `chamfer()`, because the corner it breaks does not survive as a single
+    edge once the groove above it is cut. `phase` is the rib's *trailing*
+    edge -- the side the cover's locking sector sweeps in from.
+
+    It reaches no further in than `HUB_R`, so it can only ever touch a rib and
+    never the tube behind it.
+    """
+    z1 = cfg.COVER_Z
+    z0 = z1 - cfg.RIB_LEAD_H
+    with BuildPart() as tool:
+        with BuildSketch(Plane.YZ.offset(cfg.HUB_R)) as sk:
+            Polygon(
+                (0.0, z1),
+                (-cfg.RIB_LEAD_W, z1),
+                (0.0, z0),
+                align=None,
+            )
+        _ = sk
+        extrude(amount=cfg.HUB_RIB_R + 1.0 - cfg.HUB_R)
+    return as_part(Rotation(0.0, 0.0, phase) * tool.part)
 
 
 def _rib(phase: float) -> Part:
-    """One guide rib, extruded from a sketch whose corners are already round.
+    """One guide rib and the bayonet above it, as one prism worked twice.
 
-    A revolve would be the obvious tool and leaves two 9 mm square corners at
+    The prism is extruded from a sketch whose corners are already round. A
+    revolve would be the obvious tool and leaves two square corners at
     `HUB_RIB_R` -- the ones the innermost turn of the upper channel runs over.
     They cannot be filleted afterwards: OCC refuses them at every radius, one
-    at a time, on the bare hub. Rounding them in the sketch costs nothing.
+    at a time, on the bare hub. Rounding them in the sketch costs nothing, and
+    it rounds the flare's corners in the same stroke.
+
+    Then two cuts. `_bayonet_relief` carves the groove and its cone out of the
+    top 2 mm, leaving the flare standing; `_rib_lead_in` breaks the rib's top
+    trailing corner so the cover's underside has something to climb.
     """
+    # Far enough inside the tube that the prism's own inner face stays behind
+    # the tube's top chamfer. Left at `HUB_R - 0.5` it surfaces through that
+    # chamfer at the top of the hub and leaves four 13 mm square rings there --
+    # right where the cover sits.
+    inner = cfg.HUB_R - cfg.WINDOW_CHAMFER - 0.2
     with BuildPart() as tool:
         with BuildSketch(Plane.XY.offset(cfg.MIDDLE_Z)) as sk:
             with Locations(Rotation(0.0, 0.0, phase)):
-                add(sector(cfg.HUB_R - 0.5, cfg.HUB_RIB_R, cfg.HUB_RIB_ARC))
+                add(sector(inner, cfg.HUB_RIB_R, cfg.HUB_RIB_ARC))
             fillet(sk.vertices(), cfg.RIB_FILLET)
-        extrude(amount=cfg.COVER_Z - cfg.MIDDLE_Z)
+        extrude(amount=cfg.STACK_H - cfg.MIDDLE_Z)
+        add(_bayonet_relief(), mode=Mode.SUBTRACT)
+        add(_flare_top_chamfer(), mode=Mode.SUBTRACT)
+        add(_rib_lead_in(phase + cfg.HUB_RIB_ARC / 2.0), mode=Mode.SUBTRACT)
     return tool.part
 
 
@@ -198,16 +324,18 @@ def _spindle_bore() -> Part:
 
 
 def _hub_corners(part: Part) -> list:
-    """The hub's remaining square corners: the two slots' flanks, and the four
-    rib liners' end faces.
+    """The hub's remaining square corners: the two slots' flanks.
 
-    Each is picked out by the feature it belongs to -- a liner end at a rib
-    boundary, a slot flank crossing the bore, the tube or the collar -- rather
-    than caught in a radius window. A window wide enough to reach the collar
-    also catches the guide ribs' own flanks, which are *concave* where they
-    meet the tube and so need nothing, and which OCC refuses at every radius:
-    left in the list they contribute two dozen warning lines a build and not
-    one fillet.
+    Each is picked out by the feature it belongs to -- a slot flank crossing
+    the bore, the tube or the collar -- rather than caught in a radius window.
+    A window wide enough to reach the collar also catches the guide ribs' own
+    flanks, which are *concave* where they meet the tube and so need nothing,
+    and which OCC refuses at every radius: left in the list they contribute two
+    dozen warning lines a build and not one fillet.
+
+    The rib liners' end faces used to be here too. They are drawn round in
+    `_liner`'s own sketch now, which is both cheaper and, at their present
+    19 mm height, the only thing that works.
     """
     slots = (cfg.CABLE_SLOT_PHASE, cfg.KEY_SLOT_PHASE)
     ribs = [
@@ -230,9 +358,7 @@ def _hub_corners(part: Part) -> list:
         theta = degrees(atan2(c.Y, c.X)) % 360.0
         on_slot = near(theta, slots, cfg.CABLE_SLOT_ARC / 2.0 + 3.0)
         on_rib = near(theta, ribs, cfg.HUB_RIB_ARC / 2.0 + 3.0)
-        if abs(r - cfg.HUB_LINER_R) < 0.5 and on_rib:
-            out.append(edge)
-        elif abs(r - cfg.HUB_BORE_R) < 0.5 and (on_rib or on_slot):
+        if abs(r - cfg.HUB_BORE_R) < 0.5 and (on_rib or on_slot):
             out.append(edge)
         elif on_slot and any(
             abs(r - seat) < 0.5 for seat in (cfg.HUB_R, cfg.HUB_COLLAR_R)
@@ -244,11 +370,10 @@ def _hub_corners(part: Part) -> list:
 def _hub() -> Part:
     """The whole hub, filleted before it ever meets the plate.
 
-    Every square corner the hub has left is vertical -- the four rib liners'
-    end faces, and the two slots' flanks where they cross the bore, the tube
-    and the collar -- and the cable's anchored tail is dragged over all of
-    them, so the house rule's fillet is the right treatment rather than an
-    argument for leaving them square.
+    Every square corner the hub has left is vertical -- the two slots' flanks
+    where they cross the bore, the tube and the collar -- and the cable's
+    anchored tail is dragged over all of them, so the house rule's fillet is
+    the right treatment rather than an argument for leaving them square.
 
     Two things about how they are cut, both measured rather than assumed:
 
