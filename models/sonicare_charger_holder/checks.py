@@ -56,6 +56,7 @@ from .config import (
     DEFAULT,
     HEAD_CLEAR,
     HEAD_D,
+    HEAD_WALL_CLEAR,
     HEAD_SOCKET_D,
     LEDGE,
     PEG_BOSS_WALL,
@@ -400,6 +401,20 @@ def check_pegs(part: Part, h: Holder, r: Report) -> None:
         ),
         "each peg has a lobe under it rather than standing on air",
         f"solid at z={h.body_h - 0.3:.1f} beneath both pegs",
+    )
+    # The one that would have caught the holder shipping unusable. A head is
+    # held near its middle, so it needs HEAD_D/2 of room *behind* the peg axis.
+    # With the lobes tangent to the tape plane -- which read as tidy, and added
+    # pad area -- a 13 mm head fouled the wall by 1.8 mm and could not be pushed
+    # on at all. Nothing else on this page noticed: the part was a valid solid
+    # with correct clearances everywhere it had been asked about.
+    wall_gap = h.back_y - (h.pad_y + HEAD_D / 2)
+    r.check(
+        wall_gap >= HEAD_WALL_CLEAR - 1e-6,
+        "a head on the peg clears the tile behind it, so it can go on at all",
+        f"{wall_gap:.2f} mm between the back of a \u2300{HEAD_D:.1f} head and the "
+        f"tape plane; the peg axis stands {h.back_y - h.pad_y:.2f} mm forward of "
+        "the tile, which is what sets the back plate's depth",
     )
     clearance = hypot(h.peg_x, h.pad_y) - h.outer_r - HEAD_D / 2
     r.check(

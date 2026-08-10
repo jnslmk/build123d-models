@@ -158,9 +158,26 @@ HEAD_SOCKET_D = 5.0
 """ASSUMED. Bore up the middle of a brush head, which grips the handle's drive
 shaft. The peg stands in for that shaft."""
 
-HEAD_D = 14.0
-"""ASSUMED envelope of a brush head at its widest, used only to keep one head
-clear of the cup and of the brush standing in it."""
+HEAD_D = 13.0
+"""RESEARCHED, no longer assumed. Envelope of a brush head at its widest.
+
+Philips' own C3 comparison material quotes a **12.5 mm neck diameter** for the
+standard head, which is the widest part of the moulding; half a millimetre is
+added for the bristle field, which flares a little past it. The 14 mm this
+started as was a guess, and a guess in the wrong direction -- it made the part
+wider than it needed to be while still not solving the problem below.
+"""
+
+HEAD_WALL_CLEAR = 2.0
+"""Not a fit: air between a head sitting on its peg and the tile.
+
+This is the number whose absence made the pegs unusable. A head is held near its
+middle, so it needs ``HEAD_D / 2`` of room *behind* the peg's axis, and the lobe
+sat only its own radius (4.7 mm) off the tape plane -- so a 13 mm head fouled
+the wall by 1.8 mm and simply could not be pushed on. The lobes now stand
+``HEAD_D / 2 + HEAD_WALL_CLEAR`` forward instead, which is what sets the back
+plate's depth.
+"""
 
 HEAD_CLEAR = 2.0
 """Not a fit: air between a stored head and the cup beside it."""
@@ -217,17 +234,6 @@ normally the wider of the two by some margin anyway. Wind the boot slider down
 to the cord's own diameter and the two come out identical, their side walls
 become coplanar, and the junction degenerates into a sliver that OCC will not
 treat. This keeps a step there whatever the sliders say.
-"""
-
-CORNER_CLEAR = 0.4
-"""Not a fit: daylight between the bar's rounded corner and the side channels.
-
-The channels run out through the ends of the bar, and the bar's ends are
-rounded. Sized on half the bar's depth alone, the rounding reached far enough
-across that a channel exited *around the curve* rather than through a flat face
--- a lip in the one place the cord bends as it leaves. OCC refusing to treat
-that edge, by either a chamfer or a fillet, is what drew attention to it; the
-lip was the actual defect and this is what removes it.
 """
 
 PLATE_BACKING = 1.6
@@ -346,9 +352,14 @@ class Holder:
 
     @property
     def pad_y(self) -> float:
-        """The lobes sit tangent to the tape plane, so they *add* pad area
-        rather than breaking it, and the face the tape meets stays one plane."""
-        return self.back_y - self.pad_r
+        """How far forward of the tile a peg's axis stands.
+
+        Set by the head that has to hang on it, not by the lobe's own size. The
+        lobes used to sit tangent to the tape plane, which read as tidy -- it
+        made them add pad area rather than break it -- and was unusable: it left
+        a head fouling the wall by nearly 2 mm. See ``HEAD_WALL_CLEAR``.
+        """
+        return self.back_y - (HEAD_D / 2 + HEAD_WALL_CLEAR)
 
     @property
     def peg_x(self) -> float:
@@ -365,28 +376,36 @@ class Holder:
 
     @property
     def plate_w(self) -> float:
-        """Bar length: end to end between the two peg lobes.
+        """Back plate width, end to end, rounded ends included."""
+        return 2 * (self.peg_x + self.pad_r)
 
-        The bar used to stop short of the cup so the holder read as a plain
-        circle from the front. It now runs past it on both sides, because that
-        is where the heads go -- and the lobes' own radius carries the ends
-        beyond this, so the overall width is ``plate_w + 2 * pad_r``.
+    @property
+    def arm_half(self) -> float:
+        """How far out each side arm runs before it stops.
+
+        Short of the plate's rounded ends, deliberately. An arm that ran out
+        through the rounding exited *around a curve* -- a lip exactly where the
+        cord bends as it leaves, and an edge OCC refused to treat under every
+        grouping, ordering and size tried. The arms are open along their whole
+        length at the bed face, so a cord tucked into one still leaves wherever
+        it likes; it just leaves downwards instead of sideways.
         """
-        return 2 * self.peg_x
+        return max(self.channel_w, self.peg_x - self.pad_r - 1.0)
 
     @property
     def plate_t(self) -> float:
-        """Bar depth: two walls, or enough to carry the side channels, whichever
-        is greater.
+        """Depth of the back plate, from the tape plane to its front face.
 
-        Two walls is the structural half -- thick enough that the cantilevered
-        ends resist peeling in their own plane, thin enough not to stand the cup
-        off the tile. The second half is the side channels, which are cut into
-        this face out at the ends where the bar is the only material present. A
-        bar sized on the first rule alone (4.8 mm at the default wall) would be
-        left with 1.2 mm behind a 3.6 mm channel, on a cantilever.
+        Not chosen at all any more: it is exactly what it takes to reach a peg
+        standing far enough forward for a head to clear the wall, plus the lobe
+        that peg needs around it. The plate and the lobes used to be separate
+        shapes -- a thin bar with a round lobe hung off each end -- and pushing
+        the lobes forward would have left them dangling off it on a couple of
+        millimetres of overlap, with an open wedge between each one and the cup.
+        Making the plate deep enough to *contain* them closes both gaps at once
+        and turns three shapes into one rounded slab.
         """
-        return max(2 * self.wall, self.side_depth + PLATE_BACKING)
+        return (self.back_y - self.pad_y) + self.pad_r
 
     @property
     def plate_corner_r(self) -> float:
@@ -406,24 +425,11 @@ class Holder:
         answers by silently refusing to treat the edge at all. Found by sweeping
         the wall slider, not by looking at the default.
         """
-        limits = [
-            self.plate_t / 2 - 0.4,
-            self.side_depth - CORNER_CLEAR,
-            self.plate_t - self.side_depth - CORNER_CLEAR,
-        ]
-        # ...and a fourth, which is about the cup rather than the channels. The
-        # bar's front face emerges from the cup's outer cylinder at some x, and
-        # that crossing has to land on the face's *straight* part. Let the
-        # rounding grow until the cylinder crosses the corner arc instead and
-        # two curves meet near-tangentially, which is the same zero-width sliver
-        # by a different route -- and the same silent refusal, this time of the
-        # entire bed-side and rim perimeters.
-        crossing = sqrt(
-            max(self.outer_r**2 - (self.outer_r - self.plate_t) ** 2, 0.0)
-        )
-        if self.plate_w / 2 > crossing:
-            limits.append(self.plate_w / 2 - crossing - CORNER_CLEAR)
-        return max(0.4, min(limits))
+        # The plate's ends ARE the peg lobes, so the rounding is the lobe's own
+        # radius. The bounds that used to apply here were all about the side
+        # arms exiting through this corner; the arms now stop short of it (see
+        # ``arm_half``), which is what makes a lobe-sized rounding affordable.
+        return self.pad_r
 
     @property
     def back_y(self) -> float:

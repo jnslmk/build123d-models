@@ -34,7 +34,7 @@ each number individually; the short version is:
 | Puck height, no post | 19.0 mm | Researched, same two listings. |
 | Cord diameter | 3.0 mm | **Assumed.** It now sets the floor's thickness, and so the holder's height — a thinner cord makes a shorter holder. |
 | Brush head bore | 5.0 mm | **Assumed.** What the peg stands in for. |
-| Brush head width | 14.0 mm | **Assumed.** Only used to keep a stored head clear of the cup. |
+| Brush head width | 13.0 mm | **Researched.** Philips quote a 12.5 mm neck for the standard C3 head; half a millimetre added for the bristle field. It sets the back plate's depth. |
 | Strain-relief boot | 6.0 mm | **Assumed, and the number most likely to be wrong.** |
 
 The cheap way to find out is to print the part and try it. If the puck does not
@@ -128,6 +128,10 @@ itself as OCC silently refusing a chamfer rather than as anything visible:
 - the cup's outer cylinder crossing that same corner arc instead of the flat
   front face;
 - the cable notch's crown crowding the bore's lead-in cone;
+- the blend's corner *selection*, where the obvious "nearer the axis than the
+  cup's radius" test also catches the slab's own tangent vertices once the cup
+  is large — and filleting a tangent vertex aborts the sketch, identically at
+  every radius, which is what makes it read as a size problem when it is not;
 - and the profile's blend fillets, which fit the gap between two junctions but
   not the arc on their far side — OCC's answer there is not a silent skip but a
   hard `StdFail_NotDone` that aborts the sketch, so `_profile` rebuilds a rung

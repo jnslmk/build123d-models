@@ -15,12 +15,18 @@ out again -- nothing to push against and no room to get a finger past it. The
 hole turns removal into pushing a finger up through it, and drains the cup as a
 side effect, which a closed floor in a shower room never did.
 
-**Two brush-head pegs.** The bar runs past the cup on both sides and ends in a
-lobe carrying a peg, which a spare head drops onto stem-down. The peg stands in
-for the handle's own drive shaft and is sized by a *free* fit, not a sliding
-one: it is used wet and one-handed, so it must never grip. The bar giving up
-its old property -- hiding behind the cup so the holder read as a plain circle
-from the front -- was the price, and it was paid deliberately.
+**Two brush-head pegs.** The back is one rounded slab whose rounded ends *are*
+the peg lobes -- their arc centres sit on the peg axes. A spare head drops onto
+a peg stem-down; the peg stands in for the handle's own drive shaft and is sized
+by a *free* fit, not a sliding one, because it is used wet and one-handed and
+must never grip.
+
+The slab's depth is not chosen. It is exactly what it takes to stand a peg far
+enough forward that a head clears the tile: a head is held near its middle, so
+it needs half its width *behind* the peg's axis. An earlier version put the
+lobes tangent to the tape plane, which read as tidy and added pad area, and left
+a 13 mm head fouling the wall by 1.8 mm -- it could not be pushed on at all,
+while every geometric check on the part passed. That number is now asserted.
 
 **The cable route is one channel and two arms.** The channel is a notch through
 the back wall, closed at the top so the rim stays unbroken, and *open at the
@@ -109,7 +115,7 @@ BACK_OVERCUT = 1.0
 # StdFail_NotDone, not a silent skip. Rebuilding the sketch a rung down is the
 # whole recovery, and the last rung is no blend at all, which leaves a concave
 # corner rather than no part.
-BLEND_LADDER = (1.0, 0.7, 0.5, 0.35, 0.0)
+BLEND_LADDER = (1.0, 0.85, 0.7, 0.55, 0.4, 0.25, 0.0)
 
 
 def _profile(h: Holder):
@@ -132,18 +138,42 @@ def _profile(h: Holder):
         try:
             with BuildSketch() as sk:
                 Circle(h.outer_r)
+                # One rounded slab, whose rounded ends *are* the peg lobes --
+                # their arc centres sit exactly on the peg axes. Three shapes
+                # collapsed into one: a thin bar with a lobe hung off each end
+                # left an open wedge between every pair of them, and pushing the
+                # lobes forward far enough for a head to clear the wall would
+                # have left them dangling on a millimetre of overlap.
                 with Locations((0, h.plate_y)):
                     RectangleRounded(h.plate_w, h.plate_t, h.plate_corner_r)
-                # A lobe at each end for a brush-head peg to stand on, tangent
-                # to the tape plane so it adds pad area instead of breaking it.
-                with Locations((-h.peg_x, h.pad_y), (h.peg_x, h.pad_y)):
-                    Circle(h.pad_r)
-                corners = [v for v in sk.vertices() if abs(v.Y - front_y) < 1e-6]
+                # Only the junctions with the *cup* are corners; where the
+                # slab's front face runs into its own rounded ends the join is
+                # already tangent, and asking OCC to fillet a tangent vertex
+                # aborts the whole sketch. They are told apart by lying on the
+                # cup's circle -- not by being nearer the axis, which is the
+                # obvious test and is wrong: on a 70 mm puck the slab's own
+                # tangent points fall *inside* the cup's radius too, and every
+                # blend radius from 6.7 mm down to 0.5 mm failed identically
+                # because the radius was never the problem.
+                corners = [
+                    v
+                    for v in sk.vertices()
+                    if abs(v.Y - front_y) < 1e-6
+                    and abs((v.X**2 + v.Y**2) ** 0.5 - h.outer_r) < 0.05
+                ]
                 xs = sorted(v.X for v in corners)
                 gap = min(
-                    (b - a for a, b in zip(xs, xs[1:]) if b - a > 0.05), default=0.0
+                    (b - a for a, b in zip(xs, xs[1:]) if b - a > 0.05),
+                    default=2 * h.plate_t,
                 )
-                radius = min(h.plate_t, gap / 2 - 0.4) * fraction
+                # Run available *outboard* of each corner, before the slab's
+                # own rounded end begins. This is the bound that actually
+                # binds, and leaving it out is what made the blend fail on a
+                # 70 mm puck: with only two corners the spacing between them is
+                # most of the part's width, so the radius came out at the
+                # plate's full depth and there was nowhere to put it.
+                run = (h.plate_w / 2 - h.plate_corner_r) - max(abs(x) for x in xs)
+                radius = min(h.plate_t, gap / 2, run) * fraction - 0.4
                 if len(corners) >= 2 and radius > 0.2:
                     fillet(corners, radius=radius)
             return sk.sketch, radius
@@ -318,7 +348,7 @@ def build(h: Holder) -> tuple[Part, dict[str, bool]]:
         # the back, a groove level with the cup would cut through the back wall
         # and take a bite out of the seat the charger rests on. See
         # ``config.Holder.floor``, which is derived from this.
-        span = h.plate_w + 2 * h.pad_r + 2 * BACK_OVERCUT
+        span = 2 * h.arm_half
         with BuildSketch(_back_plane(h.back_y - h.side_depth)):
             with Locations((0, h.side_w / 2)):
                 Rectangle(span, h.side_w)
@@ -508,15 +538,17 @@ def _on_arm_junction(pts, h: Holder) -> bool:
 
 
 def _on_arm_end(pts, h: Holder) -> bool:
-    """Where an arm runs out through the rounded end of the bar.
+    """Where an arm stops, short of the plate's rounded ends.
 
-    Bounded on the arm's own back face rather than through ``_on_arms``: this
-    edge follows the bar's corner rounding and so climbs a little above the
-    arm's ceiling, which the height bound there would reject.
+    It used to run all the way out and emerge through the rounding, which put a
+    lip exactly where the cord bends as it leaves -- and gave OCC an edge it
+    refused under every grouping, ordering and size tried. Stopping the arm
+    inside the slab's straight section makes its end a plain plane, which is
+    both a better detail and a treatable one.
     """
     return all(
-        abs(pt.Y - (h.back_y - h.side_depth)) < 1e-6
-        and abs(pt.X) > h.plate_w / 2 - h.plate_corner_r - 1.0
+        abs(abs(pt.X) - h.arm_half) < 1e-6
+        and pt.Z <= h.side_w + h.route_chamfer + 0.05
         for pt in pts
     )
 
