@@ -73,8 +73,14 @@ jobs:
       UV_NO_SYNC: "1"
 
     steps:
+      # Full history, not the default single commit: the web bundle dates every
+      # model from `git log` (website._last_edited), and a shallow checkout has
+      # exactly one commit that adds every file -- so all 41 models would show
+      # the same date, and the field would silently be a lie rather than an error.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@v8.1.0

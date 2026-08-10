@@ -7,7 +7,8 @@ generated assets the page fetches and (b) serves ``website/`` for local preview.
 ``build_web_bundle()`` is the single function both this dev server and CI call, so
 the local preview matches GitHub Pages exactly. It writes:
 
-  * ``website/models-manifest.json`` -- per-model label, PARAMS schema, asset paths.
+  * ``website/models-manifest.json`` -- per-model label, PARAMS schema, asset paths,
+                                        last-edited timestamp.
   * ``website/py-sources.json``       -- source text of every ``models/*.py`` so the
                                           worker can import them in the Pyodide FS.
 
@@ -18,9 +19,12 @@ import functools
 import http.server
 import json
 import shutil
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
+from model_deps import model_files
 from tessellate_models import MODELS, model_is_assembly, model_params
 
 HERE = Path(__file__).parent.resolve()
@@ -86,6 +90,91 @@ def _label(name: str) -> str:
     return " / ".join(part.replace("_", " ").title() for part in name.split("."))
 
 
+@functools.lru_cache(maxsize=1)
+def _commit_dates() -> dict[str, datetime]:
+    """``models/...`` path -> commit date of the newest commit that touched it.
+
+    One ``git log`` for the whole tree rather than one per file: the roster is 41
+    models over a few hundred source files, and a subprocess each would dominate
+    the bundle build. The log is newest-first, so the first date seen for a path
+    is its latest, and merge commits contribute nothing (``git log`` prints no
+    ``--name-only`` list for them), which is what we want -- a merge does not
+    edit a model.
+
+    Returns ``{}`` when git cannot answer at all (no repo, no git binary, or a
+    tarball of the sources); ``_last_edited`` then falls back to file mtimes.
+    Beware the *shallow* clone, which is not an error and so not caught here: a
+    ``fetch-depth: 1`` checkout has one commit that adds every file, so every
+    model would report the same date. ``.github/workflows/build.yml`` therefore
+    checks out the full history for the job that builds the bundle.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(HERE), "log", "--pretty=format:\x01%cI", "--name-only"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=120,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+
+    dates: dict[str, datetime] = {}
+    stamp: datetime | None = None
+    for line in out.splitlines():
+        if line.startswith("\x01"):
+            stamp = datetime.fromisoformat(line[1:])
+        elif line and stamp is not None:
+            dates.setdefault(line, stamp)
+    return dates
+
+
+def _last_edited(name: str) -> str | None:
+    """When this model's geometry last changed, as a UTC ISO-8601 timestamp.
+
+    Taken over the model's whole import closure (``model_deps.model_files``),
+    not just the file its name resolves to. Most models here are cut from shared
+    engines -- every ``drill_storage.*`` part comes out of ``drill_storage/box.py``,
+    every ``led_profiles`` part out of its ``config.py`` -- so dating a part by
+    its own four-line module would show a week-old date for a part that changed
+    this morning.
+
+    Two kinds of input are left out, both because including them dates models
+    that nobody edited:
+
+    * ``model_deps.GLOBAL_INPUTS``. A lockfile bump or an edit to ``export.py``
+      re-exports the roster without anyone having touched a model, and stamping
+      all 41 with that date would make the field meaningless.
+    * Every ``checks.py``. Assertions *verify* a model, they do not define it,
+      and ``models/lib/checks.py`` is in the closure of nearly every model here
+      (a single-file model's ``check()`` imports it), so one commit tightening a
+      shared assertion would otherwise redate half the site. This is the one
+      place the answer deliberately differs from ``main.py``'s fingerprint,
+      which rebuilds on a ``checks.py`` edit and is right to: it is asking
+      whether the export is stale, not when the design last moved.
+
+    Uncommitted files (a model added but not yet committed) have no commit date,
+    so they fall back to their mtime, which reads as "just now" -- right for a
+    local preview and unreachable in CI, which only ever builds committed trees.
+    """
+    dates = _commit_dates()
+    stamps: list[datetime] = []
+    for path in model_files(name):
+        if path.name == "checks.py":
+            continue
+        stamp = dates.get(str(path.relative_to(HERE)))
+        if stamp is None:
+            try:
+                stamp = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+            except OSError:  # deleted between the walk and the stat
+                continue
+        stamps.append(stamp)
+    if not stamps:
+        return None
+    newest = max(stamps).astimezone(timezone.utc)
+    return newest.isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
 def _manifest() -> dict:
     """Per-model metadata for the UI (labels, PARAMS, prebuilt-asset paths).
 
@@ -107,6 +196,9 @@ def _manifest() -> dict:
                 "params": model_params(name),
                 "assembly": model_is_assembly(name),
                 "source": _source_path(name),
+                # UTC ISO-8601, or null when neither git nor the filesystem can
+                # say; the page renders it in the visitor's own timezone.
+                "updated": _last_edited(name),
                 # Kept even for an assembly, which offers no STL download: it is
                 # the preview's fallback when a model has no GLB.
                 "stl": f"exports/{name}.stl" if stl.exists() else None,

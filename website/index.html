@@ -109,6 +109,13 @@
   .chip.sel { background: #2b3441; border-color: #4a90ff; color: #fff; }
   .chip .asm { font-size: 9px; letter-spacing: .04em; opacity: .55; margin-left: 5px; }
 
+  /* When the model on screen was last edited. Sits under the picker rather than
+     in the code panel: it dates the *model*, not the one file the panel shows —
+     a shared engine two directories up is what most of these parts last moved
+     with. Empty (and so invisible) when the manifest carries no date. */
+  #model-updated { margin-top: 10px; font-size: 11px; }
+  #model-updated:empty { display: none; }
+
   h2.sec { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #9aa4b2; margin: 20px 0 8px; }
   #params.disabled { opacity: .4; pointer-events: none; }
   .prow { margin: 0 0 12px; }
@@ -285,6 +292,7 @@
   <label class="fld" for="family">Model</label>
   <select id="family"></select>
   <div id="picker"></div>
+  <div id="model-updated" class="muted"></div>
 
   <h2 class="sec">Parameters</h2>
   <div id="params"></div>
@@ -607,6 +615,7 @@ function triCount(bytes) {  // binary STL: uint32 triangle count at byte 80
 const el = {
   family: document.getElementById('family'),
   picker: document.getElementById('picker'),
+  updated: document.getElementById('model-updated'),
   params: document.getElementById('params'),
   noparams: document.getElementById('noparams'),
   log: document.getElementById('log'),
@@ -1044,10 +1053,28 @@ addEventListener('keydown', (e) => {
   stepSibling(e.key === 'ArrowRight' ? 1 : -1);
 });
 
+// `updated` is a UTC ISO-8601 stamp from website._last_edited() — the newest
+// commit over the model's whole import closure, so a part cut from a shared
+// engine is dated by the engine when that is what moved last. Rendered in the
+// visitor's own locale and timezone; the tooltip keeps the exact UTC value and
+// says what was measured, since "last edited" is otherwise ambiguous about
+// whether a shared module counts.
+const updatedFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+function showUpdated(iso) {
+  const when = iso ? new Date(iso) : null;
+  if (!when || isNaN(when.getTime())) {
+    el.updated.textContent = ''; el.updated.removeAttribute('title'); return;
+  }
+  el.updated.textContent = 'Last edited ' + updatedFmt.format(when);
+  el.updated.title = 'Newest change to this model’s sources, including the shared '
+    + 'modules it imports — ' + iso.replace('T', ' ').replace('Z', ' UTC');
+}
+
 function selectModel(name) {
   current = manifest.models.find((x) => x.name === name);
   if (!current) return;
   renderPicker();
+  showUpdated(current.updated);
   firstFrameForModel = true;
   editorDirty = false; el.editDirty.textContent = ''; el.btnRevert.disabled = true;
   el.params.classList.remove('disabled');
