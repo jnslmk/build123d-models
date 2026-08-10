@@ -25,8 +25,9 @@ from __future__ import annotations
 import itertools
 import math
 import sys
+from collections.abc import Sequence
 
-from build123d import BuildSketch, GeomType, Part, Text
+from build123d import BuildSketch, FontStyle, GeomType, Part, Text
 
 from ..lib import fits
 from ..lib.checks import TOL as TOL
@@ -59,10 +60,18 @@ from .box import (
     LAYER_H,
     PAD,
     SLIP,
-    SNAP_GROOVE_R,
+    SNAP_BACK,
+    SNAP_GROOVE_D,
+    SNAP_GROOVE_FLOOR,
+    SNAP_GROOVE_ROOF,
+    SNAP_LEAD_IN,
+    SNAP_RAMP_H,
+    SNAP_PROTRUSION,
+    SNAP_TIP_FLAT,
     SNAP_Z,
     TOP_FILLET,
     WALL_LABEL_SIZE,
+    WALL_LABEL_STYLE,
     WALL_LABEL_Z,
     cover_height_for,
 )
@@ -209,41 +218,65 @@ def check_retention(r: Report) -> None:
         "bead seats below the base rim",
         f"{c.BEAD_Z + c.BEAD_BACK:.1f} mm",
     )
-    # The two things the groove's chamfered profile has to deliver. Neither is
-    # visible in a projection and both were wrong when the groove was a
-    # half-round pocket: see config's "the groove that receives the bead".
+    # The two things a chamfered groove's profile has to deliver, for both of
+    # the grooves cut into this collar: the cartridge's, and the cover's on the
+    # other face. Neither is visible in a projection, and both were wrong on
+    # both counts while they were half-round pockets -- see config's "the groove
+    # that receives the bead" and box's SNAP_GROOVE_* block.
     #
-    # The roof is the overhang. This is the arithmetic; check_groove measures
+    # The roof is the overhang. This is the arithmetic; check_collar measures
     # the same angle off the built solid, which is the claim that actually
     # matters.
-    r.check(
-        c.GROOVE_ROOF_OVERHANG <= c.MAX_OVERHANG + TOL,
-        "the retention groove's roof is a self-supporting ramp",
-        f"{c.GROOVE_ROOF_OVERHANG:.1f} deg from vertical "
-        f"({c.GROOVE_D:.2f} mm deep over {c.GROOVE_ROOF_RISE:.2f} mm of rise, "
-        f"max {c.MAX_OVERHANG:.0f})",
-    )
-    # ...and the floor is the fit. The bead's ramp stands proud of the
-    # cartridge's slip gap over its upper BEAD_RAMP_H * (1 - slip/2 / bead), and
-    # every millimetre of that has to have somewhere to go or the bead seats
-    # crushed against the groove's bottom lip instead of dropping into it.
-    # GROOVE_FLOOR is derived from the same two numbers, so the two sides agree
-    # by construction today; what this catches is GROOVE_FLOOR being trimmed by
-    # hand later to buy back collar wall. check_groove walks the built solid.
-    ramp_proud = c.BEAD_RAMP_H * (1 - (c.CART_SLIP / 2) / c.CART_BEAD)
-    r.check(
-        c.GROOVE_FLOOR >= c.BEAD_TIP_FLAT / 2 + ramp_proud - TOL,
-        "the groove's floor swallows the whole of the bead's insertion ramp",
-        f"floor {c.GROOVE_FLOOR:.2f} mm below BEAD_Z vs "
-        f"{c.BEAD_TIP_FLAT / 2 + ramp_proud:.2f} mm of proud ramp",
-    )
-    r.check(
-        c.GROOVE_FLOOR > c.GROOVE_ROOF,
-        "the groove reaches further down than up -- it is not symmetric, and "
-        "the two faces answer to different things",
-        f"floor {c.GROOVE_FLOOR:.2f} mm (the fit) vs roof "
-        f"{c.GROOVE_ROOF:.2f} mm (the print)",
-    )
+    #
+    # The floor is the fit. A bead's ramp stands proud of the joint's own slip
+    # gap over its upper (lead_in - tip/2) * (1 - slip/2 / protrusion), and every
+    # millimetre of that has to have somewhere to go or the bead seats crushed
+    # against the groove's bottom lip instead of dropping into it. Each floor is
+    # derived from the same two numbers it is checked against, so the two sides
+    # agree by construction today; what this catches is a floor trimmed by hand
+    # later to buy back collar wall. check_collar walks the built solid.
+    for what, depth, rise, roof, floor, ramp_h, protrusion, slip in (
+        (
+            "cartridge",
+            c.GROOVE_D,
+            c.GROOVE_ROOF_RISE,
+            c.GROOVE_ROOF,
+            c.GROOVE_FLOOR,
+            c.BEAD_RAMP_H,
+            c.CART_BEAD,
+            c.CART_SLIP,
+        ),
+        (
+            "cover",
+            SNAP_GROOVE_D,
+            SNAP_GROOVE_D,
+            SNAP_GROOVE_ROOF,
+            SNAP_GROOVE_FLOOR,
+            SNAP_RAMP_H,
+            SNAP_PROTRUSION,
+            SLIP,
+        ),
+    ):
+        overhang = math.degrees(math.atan2(depth, rise))
+        r.check(
+            overhang <= c.MAX_OVERHANG + TOL,
+            f"the {what} groove's roof is a self-supporting ramp",
+            f"{overhang:.1f} deg from vertical ({depth:.2f} mm deep over "
+            f"{rise:.2f} mm of rise, max {c.MAX_OVERHANG:.0f})",
+        )
+        proud = ramp_h * (1 - (slip / 2) / protrusion)
+        r.check(
+            floor >= (roof - depth) + proud - TOL,
+            f"the {what} groove's floor swallows the whole of its bead's ramp",
+            f"floor {floor:.2f} mm below the bead vs {(roof - depth) + proud:.2f} "
+            f"mm of proud ramp",
+        )
+        r.check(
+            floor > roof,
+            f"the {what} groove reaches further down than up -- it is not "
+            "symmetric, and its two faces answer to different things",
+            f"floor {floor:.2f} mm (the fit) vs roof {roof:.2f} mm (the print)",
+        )
 
 
 def check_wall_budget(r: Report) -> None:
@@ -260,9 +293,9 @@ def check_wall_budget(r: Report) -> None:
     # rather than against the other's -- they are the same 0.8 today and are two
     # different numbers, one owned by the cover's joint and one by this package.
     r.check(
-        c.SHELL_WALL - SNAP_GROOVE_R >= MIN_WALL - TOL,
+        c.SHELL_WALL - SNAP_GROOVE_D >= MIN_WALL - TOL,
         "collar wall survives the cover's snap groove",
-        f"{c.SHELL_WALL - SNAP_GROOVE_R:.2f} mm",
+        f"{c.SHELL_WALL - SNAP_GROOVE_D:.2f} mm",
     )
     r.check(
         c.SHELL_WALL - c.GROOVE_D >= MIN_WALL - TOL,
@@ -287,7 +320,7 @@ def check_wall_budget(r: Report) -> None:
     r.check(
         c.GROOVE_LIP_GAP > 0.0,
         "cover groove and collar groove never thin the same wall",
-        f"{c.GROOVE_LIP_GAP:.1f} mm of full-thickness wall between their lips "
+        f"{c.GROOVE_LIP_GAP:.2f} mm of full-thickness wall between their lips "
         f"({c.GROOVE_SEPARATION:.1f} mm centre to centre)",
     )
     # The seat is the one dimension that must NOT move: it feeds
@@ -539,76 +572,151 @@ def worst_overhang(part: Part, z_lo: float, z_hi: float) -> tuple[float, str]:
     return worst, where
 
 
-def _bead_reach(z: float) -> float:
-    """How far the seated cartridge's bead stands out from its own body at
-    height ``z`` in the base's frame -- ``0`` outside the bead entirely.
+def ramp_reach(
+    z: float,
+    bead_z: float,
+    protrusion: float,
+    lead_in: float,
+    back: float,
+    tip_flat: float,
+) -> float:
+    """How far a ``box.snap_bead_ring`` bead stands proud of its own wall at
+    height ``z`` -- ``0`` outside the bead entirely.
 
-    ``box.snap_bead_ring``'s quad, read back as a function of height: a ramp of
-    ``BEAD_RAMP_H`` up to the tip flat, then the retention face down to nothing
-    at ``BEAD_Z + BEAD_BACK``. The cartridge bottoms out on the cavity floor, so
-    this is fixed in the base's coordinates and not a function of how hard
+    That function's quad, read back as a function of height: a long insertion
+    ramp up to the tip flat, then the shorter retention face down to nothing at
+    ``bead_z + back``. Both beads in this package are seated by bottoming out
+    (the cartridge on the cavity floor, the cover on the shoulder), so a bead's
+    height is fixed in the base's coordinates and not a function of how hard
     anyone pushed.
+
+    Shared with the hex checks, which import this one.
     """
-    half = c.BEAD_TIP_FLAT / 2
-    if z < c.BEAD_Z - c.BEAD_LEAD_IN or z > c.BEAD_Z + c.BEAD_BACK:
+    half = tip_flat / 2
+    if z < bead_z - lead_in or z > bead_z + back:
         return 0.0
-    if z <= c.BEAD_Z - half:  # the long insertion ramp
-        return c.CART_BEAD * (z - (c.BEAD_Z - c.BEAD_LEAD_IN)) / c.BEAD_RAMP_H
-    if z <= c.BEAD_Z + half:  # the flat at the tip
-        return c.CART_BEAD
-    return c.CART_BEAD * (1 - (z - c.BEAD_Z - half) / (c.BEAD_BACK - half))
+    if z <= bead_z - half:  # the long insertion ramp
+        return protrusion * (z - (bead_z - lead_in)) / (lead_in - half)
+    if z <= bead_z + half:  # the flat at the tip
+        return protrusion
+    return protrusion * (1 - (z - bead_z - half) / (back - half))
 
 
-def check_groove(s: DrillSet, base: Part, r: Report) -> None:
-    """The retention groove, on both counts it is cut for: it has to print, and
-    it has to receive the bead.
+def worst_bead_bite(
+    base: Part,
+    bead_z: float,
+    protrusion: float,
+    lead_in: float,
+    back: float,
+    tip_flat: float,
+    bead_wall: float,
+    mating_wall: float,
+    sign: float,
+) -> tuple[float, float]:
+    """Walk a seated bead's whole profile against the base it snaps into, and
+    report the deepest place its surface is still inside solid material, as
+    ``(bite, z)``. A negative bite means clear everywhere.
 
-    Nothing else in this file catches either. The groove is a mating feature, so
-    the sharp-edge audit names its lips as exceptions; it is a ring inside a
-    cavity, so no rendered view shows it; and the bead lives on the *other*
-    part, so no check on the cartridge alone can see the two interfere. The
-    half-round groove this replaced passed everything here while asking its
-    topmost layer to close 0.53 mm of roof in one step and while crushing the
-    last millimetre of the bead's ramp against its own bottom lip.
+    ``bead_wall`` is where the bead's own wall sits in the base's coordinates,
+    ``mating_wall`` where the base's face is, and ``sign`` which way the bead
+    reaches: ``+1`` for the cartridge's bead standing out of a plug into a
+    surrounding bore, ``-1`` for the cover's standing into a bore around a plug.
+    The two are mirror images of one joint, so they share this rather than each
+    getting a walker of their own.
+
+    This is the measurement neither part can make alone. The bead is modelled on
+    one part and the groove on the other, so a groove too shallow to receive its
+    bead is invisible to every check on either -- which is exactly how both
+    grooves in this package came to crush the last millimetre of their bead's
+    ramp against their own bottom lip.
+
+    Shared with the hex checks, which import this one.
     """
-    r.section(f"{s.name}: retention groove")
-    z_lo, z_hi = c.BEAD_Z - c.GROOVE_FLOOR, c.BEAD_Z + c.GROOVE_ROOF
-    worst, where = worst_overhang(base, z_lo, z_hi)
+    worst_bite, worst_z = -math.inf, 0.0
+    span = lead_in + back
+    for i in range(101):
+        z = bead_z - lead_in + i * span / 100
+        reach = ramp_reach(z, bead_z, protrusion, lead_in, back, tip_flat)
+        surface = bead_wall + sign * reach
+        bite = sign * (surface - mating_wall)
+        if bite <= 0.0:  # still inside the joint's own slip gap
+            continue
+        if bite > worst_bite and is_solid_at(base, 0.0, surface - sign * 0.02, z):
+            worst_bite, worst_z = bite, z
+    return worst_bite, worst_z
+
+
+def check_collar(s: DrillSet, base: Part, r: Report) -> None:
+    """The two grooves cut into the collar, on both counts they are cut for:
+    they have to print, and they have to receive their beads.
+
+    Nothing else in this file caught either. A groove is a mating feature, so
+    the sharp-edge audit used to name its lips as exceptions; one of the two is
+    a ring inside a cavity and the other a ring behind the cover, so no rendered
+    view shows either; and each bead lives on the *other* part, so no check on
+    one part alone can see the two interfere. Both grooves were half-round and
+    both were wrong on both counts, and everything here passed throughout.
+    """
+    r.section(f"{s.name}: collar grooves")
+    # Everything above the cover seat, not just one groove's own band: the whole
+    # collar is the part of the base that has features cut into vertical walls,
+    # and the claim worth making is that none of them hangs over air.
+    worst, where = worst_overhang(base, c.SHELL_FOOT_TOP, c.SHELL_TOTAL_H)
     r.check(
         worst <= c.MAX_OVERHANG + 0.5,
-        "the groove prints without support",
+        "nothing on the collar overhangs past what FDM prints unsupported",
         f"steepest downward face {worst:.1f} deg off vertical at {where} "
-        f"(max {c.MAX_OVERHANG:.0f}), sampled over z={z_lo:.2f}..{z_hi:.2f}",
+        f"(max {c.MAX_OVERHANG:.0f}), sampled over "
+        f"z={c.SHELL_FOOT_TOP:.1f}..{c.SHELL_TOTAL_H:.1f}",
     )
-    # ...and it is a groove at all: full depth at the bead's own height, solid
-    # behind it. Sampled on +Y, which carries neither the key slot nor a legend.
+    # ...and the cartridge's groove is a groove at all: full depth at the bead's
+    # own height, solid behind it. Sampled on +Y, which carries neither the key
+    # slot nor a legend.
     y_wall = c.CAVITY_W / 2
     r.check(
         not is_solid_at(base, 0.0, y_wall + c.GROOVE_D - PROBE, c.BEAD_Z)
         and is_solid_at(base, 0.0, y_wall + c.GROOVE_D + PROBE, c.BEAD_Z),
-        "the groove is cut to GROOVE_D and no further",
+        "the cartridge groove is cut to GROOVE_D and no further",
         f"{c.GROOVE_D:.2f} mm deep at z={c.BEAD_Z:.1f}, leaving "
         f"{c.SHELL_WALL - c.GROOVE_D:.2f} mm of wall",
     )
-    # The fit, walked rather than argued: at every height the bead reaches past
-    # the cartridge's own slip gap, the ASA it would reach into has to be gone.
-    # This is the check the old groove failed -- its lower half was 0.8 mm deep
-    # against a 2.25 mm ramp, so the ramp seated crushed rather than dropping in.
-    worst_z, worst_bite = 0.0, -math.inf
-    for i in range(101):
-        z = c.BEAD_Z - c.BEAD_LEAD_IN + i * (c.BEAD_LEAD_IN + c.BEAD_BACK) / 100
-        surface = c.CART_W / 2 + _bead_reach(z)
-        if surface <= y_wall:  # still inside the cavity's own slip gap
-            continue
-        bite = surface - y_wall  # how far into the wall the bead reaches here
-        if is_solid_at(base, 0.0, surface - 0.02, z) and bite > worst_bite:
-            worst_z, worst_bite = z, bite
+    # The fits, walked rather than argued. The cartridge's bead stands *out* of
+    # the collar it plugs into; the cover's stands *into* the bore it plugs over.
+    bite, at_z = worst_bead_bite(
+        base,
+        c.BEAD_Z,
+        c.CART_BEAD,
+        c.BEAD_LEAD_IN,
+        c.BEAD_BACK,
+        c.BEAD_TIP_FLAT,
+        bead_wall=c.CART_W / 2,
+        mating_wall=y_wall,
+        sign=+1.0,
+    )
     r.check(
-        worst_bite < 0.0,
-        "the seated bead is clear of ASA over its whole profile",
+        bite < 0.0,
+        "the seated cartridge bead is clear of ASA over its whole profile",
         "sampled at 101 heights across the bead"
-        if worst_bite < 0.0
-        else f"{worst_bite:.2f} mm of interference at z={worst_z:.2f}",
+        if bite < 0.0
+        else f"{bite:.2f} mm of interference at z={at_z:.2f}",
+    )
+    bite, at_z = worst_bead_bite(
+        base,
+        c.SHELL_FOOT_TOP + SNAP_Z,
+        SNAP_PROTRUSION,
+        SNAP_LEAD_IN,
+        SNAP_BACK,
+        SNAP_TIP_FLAT,
+        bead_wall=INNER_W / 2,
+        mating_wall=COLLAR_W / 2,
+        sign=-1.0,
+    )
+    r.check(
+        bite < 0.0,
+        "the seated cover bead is clear of the collar over its whole profile",
+        "sampled at 101 heights across the bead"
+        if bite < 0.0
+        else f"{bite:.2f} mm of interference at z={at_z:.2f}",
     )
 
 
@@ -1124,19 +1232,31 @@ def is_flush_seam(part: Part, edge) -> bool:
     return True
 
 
-def _base_allow(base: Part) -> tuple:
+def _base_allow(base: Part, s: DrillSet) -> tuple:
     """The base's legitimate exceptions to the chamfer-everything rule.
 
     Named with their reason, never silently omitted -- that is the whole point of
     ``sharp_convex_edges`` taking an allow list rather than a threshold.
     """
+    legend_lo, legend_hi = wall_legend_window(s.rows, WALL_LABEL_Z, s.legend_line_h)
 
-    def on_wall_face(e) -> bool:
+    def on_wall_legend(e) -> bool:
+        """A glyph of the engraved size legend, and nothing else on that wall.
+
+        Two conditions, where this used to have one. It matched any edge lying
+        in a wall plane at all, which is three-quarters of the base's outer
+        surface -- the same over-broad shape ``_cover_allow``'s docstring
+        records being narrowed on the cover, left standing here. Nothing is
+        masked by it today, but an exception that admits more than it says is
+        how the next sharp edge hides, so it is now held to the legend's own
+        measured z band as well (``wall_legend_window``).
+        """
         b = e.bounding_box()
         half = BODY_W / 2
-        return (
+        in_wall = (
             abs(abs(b.min.X) - half) < 0.05 and abs(abs(b.max.X) - half) < 0.05
         ) or (abs(abs(b.min.Y) - half) < 0.05 and abs(abs(b.max.Y) - half) < 0.05)
+        return in_wall and legend_lo <= e.center().Z <= legend_hi
 
     def on_shoulder(e) -> bool:
         b = e.bounding_box()
@@ -1145,36 +1265,12 @@ def _base_allow(base: Part) -> tuple:
             and abs(b.max.Z - c.SHELL_FOOT_TOP) < 0.05
         )
 
-    def on_the_cover_groove(e) -> bool:
-        """The rims of the *cover's* groove on the outside of the collar, which
-        is still the half-round pocket ``snap_ring`` cuts and so still meets the
-        wall tangentially at a square rim.
-
-        The cartridge's groove inside the cavity is deliberately not here any
-        more: it is chamfered now (config's "the groove that receives the
-        bead"), so its lips measure 135 and 156 deg and pass the audit on their
-        own geometry rather than on a promise.
-        """
-        b = e.bounding_box()
-        if abs(b.max.Z - b.min.Z) > 0.05:
-            return False
-        z = c.SHELL_FOOT_TOP + SNAP_Z
-        return (
-            abs(b.min.Z - (z - SNAP_GROOVE_R)) < 0.05
-            or abs(b.min.Z - (z + SNAP_GROOVE_R)) < 0.05
-        )
-
     return (
-        (on_wall_face, "engraved size legend -- bevelling a glyph destroys it"),
+        (on_wall_legend, "engraved size legend -- bevelling a glyph destroys it"),
         (
             on_shoulder,
             "cover seat is deliberately flat so the cover's chamfered "
             "rim lands flat-on-flat (box.create_cover's COVER_SEAT_CH)",
-        ),
-        (
-            on_the_cover_groove,
-            "the cover groove's round rims -- the groove is the mating "
-            "feature, and rounding its lips would shrink engagement",
         ),
         (
             lambda e: _is_bore_seam(base, e),
@@ -1191,36 +1287,84 @@ def _base_allow(base: Part) -> tuple:
     )
 
 
-def _label_window(
-    text: str, label_size: float, label_z: float, cover_h: float, horizontal: bool
-) -> tuple[float, float, float]:
-    """Where an engraved cover label really lands, in print pose.
+INK_PAD = 0.5  # slack added round a measured glyph band before it is a window
 
-    Returns ``(x_half, z_centre, z_half)``: the half-width along x, and the band
-    along z, that the glyphs occupy on the label face.
 
-    Measured off the same ``Text`` sketch ``box.create_cover`` engraves rather
-    than estimated from the font size, because the two differ by a lot -- a word
-    is three times longer than it is tall, and which of those runs along z
-    depends on ``horizontal``. ``create_cover`` builds the label on the +Y face
-    at ``label_z`` and then flips the part into print pose (``Rotation(180,0,0)``
-    plus a re-seat on z=0), which puts the label on **-Y** at ``cover_h -
-    label_z`` -- so this reports the flipped coordinates, which are the ones an
-    edge of the returned part actually has.
+def _ink(text: str, size: float, style: FontStyle | None = None):
+    """The bounding box of the ink ``Text`` actually lays down.
 
-    Both spans are grown by ``LABEL_CHAMFER`` (the bevel on the glyph mouths
-    reaches outside the glyph itself) plus a small pad.
+    Not the same thing as the font size, and -- the part that matters here --
+    **not centred on the anchor**. ``Text`` aligns on the font's line box, not
+    on the glyphs, so a word with ascenders and no descenders sits high in it:
+    "Stone" at font_size 13 runs -3.55..6.38 across, a band whose centre is
+    1.4 mm off the origin. Anything that takes ``size.Y / 2`` as a half-extent
+    is therefore wrong by that offset on one side, which is exactly how the
+    allow-windows below used to clip their own glyphs (see ``label_window``).
     """
     with BuildSketch() as sk:
-        Text(text, font_size=label_size)
-    box = sk.sketch.bounding_box()
-    run, thick = box.size.X, box.size.Y  # along the reading direction, and across
-    grow = LABEL_CHAMFER + 0.5
-    return (
-        (run if horizontal else thick) / 2 + grow,
-        cover_h - label_z,
-        (thick if horizontal else run) / 2 + grow,
-    )
+        if style is None:
+            Text(text, font_size=size)
+        else:
+            Text(text, font_size=size, font_style=style)
+    return sk.sketch.bounding_box()
+
+
+def label_window(
+    text: str, label_size: float, label_z: float, cover_h: float, horizontal: bool
+) -> tuple[float, float, float, float]:
+    """Where an engraved cover label really lands, in print pose.
+
+    Returns the band the glyphs occupy as ``(x_lo, x_hi, z_lo, z_hi)`` -- two
+    real intervals rather than a centre and a half-extent, because the ink is
+    not centred on the anchor it is placed at (see ``_ink``) and a symmetric
+    window silently clips one end of the word.
+
+    Measured off the same ``Text`` sketch ``box.create_cover`` engraves, and
+    mapped through the same two transforms it applies. ``create_cover`` builds
+    the label on the +Y face at ``label_z``, with the sketch's own x running
+    world -X when ``horizontal`` and world +Z when not, then flips the part
+    into print pose (``Rotation(180,0,0)`` plus a re-seat on z=0) -- which puts
+    the label on **-Y** and mirrors z about ``cover_h``. So sketch (u, v) lands
+    at ``x = -u, z = cover_h - label_z - v`` when horizontal and at
+    ``x = v, z = cover_h - label_z - u`` when not, and those are the
+    coordinates an edge of the returned part actually has.
+
+    Both spans are grown by ``LABEL_CHAMFER`` (the bevel on the glyph mouths
+    reaches outside the glyph itself) plus ``INK_PAD``.
+
+    Shared with the hex checks, which import this one.
+    """
+    b = _ink(text, label_size)
+    grow = LABEL_CHAMFER + INK_PAD
+    z_face = cover_h - label_z
+    if horizontal:
+        x_lo, x_hi = -b.max.X, -b.min.X
+        z_lo, z_hi = z_face - b.max.Y, z_face - b.min.Y
+    else:
+        x_lo, x_hi = b.min.Y, b.max.Y
+        z_lo, z_hi = z_face - b.max.X, z_face - b.min.X
+    return (x_lo - grow, x_hi + grow, z_lo - grow, z_hi + grow)
+
+
+def wall_legend_window(
+    rows: Sequence[Sequence[str]], z_center: float, line_h: float
+) -> tuple[float, float]:
+    """The z band ``box.engrave_row_legend``'s numbers really occupy.
+
+    Rows are centred on ``z_center`` and pitched ``line_h`` apart, so the block
+    of *anchors* runs +/-``(n - 1) * line_h / 2``; what this adds is where the
+    ink sits relative to an anchor, measured from the glyphs rather than
+    estimated at ``0.75 * font_size``. The two are not the same and not even
+    symmetric: at ``WALL_LABEL_SIZE`` the digits run -1.10..+1.90, so the
+    estimate was 0.4 mm short at the top of the top row -- which is precisely
+    where the ALLEN base's legend used to poke out of its own allow-window.
+
+    Shared with the hex checks, which import this one.
+    """
+    b = _ink("".join(sorted({ch for row in rows for k in row for ch in k})),
+             WALL_LABEL_SIZE, WALL_LABEL_STYLE)
+    reach = (len(rows) - 1) * line_h / 2
+    return (z_center - reach + b.min.Y - INK_PAD, z_center + reach + b.max.Y + INK_PAD)
 
 
 def _cover_allow(
@@ -1237,9 +1381,14 @@ def _cover_allow(
     but an allow list that admits more than it says is how the *next* sharp edge
     hides, so it is written to its reason: on the label face, inside the
     engraving's depth, within the word's own footprint.
+
+    Written *to* that reason and no longer short of it: the window used to be
+    symmetric about the label's anchor, which is 1.4 mm away from the middle of
+    the ink, so the far end of the word fell outside its own exception. Stone's
+    "S" is the edge that found it.
     """
     half = COVER_W / 2
-    x_half, z_mid, z_half = _label_window(
+    x_lo, x_hi, z_lo, z_hi = label_window(
         text, label_size, label_z, cover_h, horizontal
     )
 
@@ -1249,8 +1398,8 @@ def _cover_allow(
             # Cut *into* the -Y face: the mouth lies on it, the floor LABEL_DEPTH
             # behind it, and the chamfer wall between the two.
             -half - 0.05 <= centre.Y <= -half + LABEL_DEPTH + 0.05
-            and abs(centre.X) <= x_half
-            and abs(centre.Z - z_mid) <= z_half
+            and x_lo <= centre.X <= x_hi
+            and z_lo <= centre.Z <= z_hi
         )
 
     return (
@@ -1264,7 +1413,7 @@ def check_sharp_edges(
     """House rule: chamfer horizontal edges, fillet vertical ones. Exceptions are
     named with their reason, never silently omitted."""
     r.section(f"{s.name}: sharp edges")
-    base_edges = sharp_convex_edges(base, allow=_base_allow(base))
+    base_edges = sharp_convex_edges(base, allow=_base_allow(base, s))
     r.check(
         not base_edges.sharp,
         "base has no unexplained sharp convex edges",
@@ -1332,7 +1481,7 @@ def check_set(s: DrillSet, r: Report) -> None:
     cover = create_cover_for(s)
 
     check_envelope(s, base, insert, r)
-    check_groove(s, base, r)
+    check_collar(s, base, r)
     check_cover_interface(s, cover, r)
     check_layout(s, r)
     check_hex_tools(s, r)

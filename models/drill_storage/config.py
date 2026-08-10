@@ -54,7 +54,8 @@ from .box import (
     COLLAR_R,
     COLLAR_W,
     FOOT_TOP,
-    SNAP_GROOVE_R,
+    SNAP_GROOVE_D,
+    SNAP_GROOVE_ROOF,
     SNAP_Z,
 )
 
@@ -326,7 +327,7 @@ BEAD_ENGAGEMENT = CART_BEAD - CART_SLIP / 2  # 0.44 mm of real overlap
 
 # --- The groove that receives the bead ----------------------------------------
 # The bead's negative, cut into the ASA cavity wall -- and a *chamfered* pocket
-# rather than the half-round one ``box.snap_ring`` cuts, for a reason that is
+# rather than the half-round pocket it used to be, for a reason that is
 # about the print rather than about the fit.
 #
 # The base prints foot-down, cavity up, so every downward-facing surface inside
@@ -358,9 +359,9 @@ BEAD_ENGAGEMENT = CART_BEAD - CART_SLIP / 2  # 0.44 mm of real overlap
 # The depth is named for what it is. It used to be ``SHELL_GROOVE_R``, a radius,
 # because a half-round pocket has nothing else to be described by; there is no
 # radius here any more, and calling the number one invited the next reader to
-# reach for ``snap_ring`` again. It is still the same 0.8 mm the cover's groove
+# reach for a swept circle again. It is still the same 0.8 mm the cover's groove
 # is cut at, and still the same 0.8 mm of wall left behind it.
-GROOVE_D = SNAP_GROOVE_R  # 0.8 -- depth unchanged, so is the wall behind it
+GROOVE_D = SNAP_GROOVE_D  # 0.8 -- depth unchanged, so is the wall behind it
 GROOVE_TIP_FLAT = BEAD_TIP_FLAT  # flat at the deepest point, as on the bead
 GROOVE_ROOF_RISE = GROOVE_D  # rise == depth, i.e. 45 deg from vertical
 GROOVE_ROOF = GROOVE_TIP_FLAT / 2 + GROOVE_ROOF_RISE  # 0.95 above BEAD_Z
@@ -412,7 +413,9 @@ GROOVE_SEPARATION = BEAD_Z - (SHELL_FOOT_TOP + SNAP_Z)  # 3.2, centre to centre
 # only 0.95 mm up. So the gap is measured lip to lip, which is what the wall
 # between them actually is. 0.6 mm of full-thickness wall, and shrinking as
 # GROOVE_FLOOR grows -- checks.py fails before it reaches zero.
-GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (SHELL_FOOT_TOP + SNAP_Z + SNAP_GROOVE_R)
+GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (
+    SHELL_FOOT_TOP + SNAP_Z + SNAP_GROOVE_ROOF
+)
 
 # --- Keying -------------------------------------------------------------------
 # The base's engraved wall legend only tells the truth in one orientation, and a

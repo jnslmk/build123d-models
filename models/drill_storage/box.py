@@ -46,7 +46,6 @@ from build123d import (
     Color,
     Cone,
     Cylinder,
-    Circle,
     FontStyle,
     Locations,
     Mode,
@@ -210,14 +209,38 @@ LABEL_CHAMFER = LABEL_DEPTH - 0.15  # 0.35
 # shorter, steeper retention face above so it still detents on the way in. The
 # old half-round bead changed height as steeply as it protruded, so the cover
 # fought over it going on. Protrusion is also trimmed a touch so the bulge is
-# thinner. The groove stays a forgiving round pocket that simply receives the tip.
+# thinner.
 SLIP = 0.4  # diametral slip clearance, collar in cover bore
 SNAP_Z = 6.0  # height of the bead/groove above the cover opening / collar base
 SNAP_PROTRUSION = 0.45  # how far the bead tip stands into the bore (was 0.6)
 SNAP_LEAD_IN = 2.4  # vertical run of the gentle insertion ramp (below the tip)
 SNAP_BACK = 1.1  # vertical run of the steeper retention face (above the tip)
 SNAP_TIP_FLAT = 0.3  # short flat at the tip so it isn't a fragile knife edge
-SNAP_GROOVE_R = 0.8  # rounded groove radius on the collar (receives the bead tip)
+
+# The groove that receives that tip, on the outside of the collar. It was "a
+# forgiving round pocket", a swept half-round at ``SNAP_GROOVE_R`` -- and is now
+# ``snap_groove_ring``'s chamfer, for the same reason the cartridge's groove one
+# package up became one: every base in this repo prints foot-down, so the
+# groove's roof is a downward-facing overhang, and a round roof finishes
+# horizontal however small the radius. Over a 0.8 mm pocket the topmost 0.2 mm
+# layer had to close 0.53 mm of it in one step, a 69 deg overhang, and what
+# drooped was the lip the cover's bead detents against. See
+# ``snap_groove_ring`` for the argument in full.
+#
+# Nothing about the joint moves with it. The depth is the same 0.8, so the
+# collar wall behind the groove is untouched and every cover already printed
+# still snaps onto every base -- the bead is unchanged, and it is the bead's
+# back face riding the groove's *lip* that retains, not the roof behind it. The
+# lip rises 0.15 mm, which is free travel before the catch bites and not force:
+# escaping still costs the full SNAP_PROTRUSION - SLIP/2 of deflection.
+SNAP_GROOVE_D = 0.8  # depth of the groove cut into the collar (was a radius)
+SNAP_GROOVE_ROOF = SNAP_TIP_FLAT / 2 + SNAP_GROOVE_D  # 0.95: rise == depth, 45 deg
+# The floor faces upward and costs the print nothing, so it is sized for the fit
+# instead: far enough down to swallow the part of the bead's insertion ramp that
+# stands proud of the collar's own slip gap, so the bead drops home rather than
+# seating crushed against the groove's bottom lip.
+SNAP_RAMP_H = SNAP_LEAD_IN - SNAP_TIP_FLAT / 2  # 2.25, the ramp's true rise
+SNAP_GROOVE_FLOOR = SNAP_LEAD_IN - SNAP_RAMP_H * (SLIP / 2) / SNAP_PROTRUSION  # 1.40
 
 # --- Base ---------------------------------------------------------------------
 # The body, the cover and the Gridfinity pad are all one number. They were not
@@ -414,19 +437,14 @@ def create_body(foot_top: float = FOOT_TOP) -> Part:
     return body.part
 
 
-def snap_ring(size: float, corner_r: float, z: float, bead_r: float) -> Part:
-    """A half-round bead ring: a circle of radius ``bead_r`` swept around a
-    rounded-square perimeter of side ``size`` at height ``z``. Union it for a
-    bead (protrudes inward), or subtract it for a groove."""
-    with BuildSketch(Plane.XY.offset(z)) as outline:
-        RectangleRounded(size, size, corner_r)
-    path = outline.faces()[0].outer_wire()
-    with BuildPart() as ring:
-        with BuildSketch(Plane.XZ):
-            with Locations((size / 2, z)):
-                Circle(bead_r)
-        sweep(path=path)
-    return ring.part
+# ``snap_ring`` -- a circle of radius ``bead_r`` swept round the collar, "union
+# it for a bead, subtract it for a groove" -- used to live here, and every groove
+# in this package was cut with it. It is deleted rather than merely unused: a
+# half-round groove's roof finishes horizontal, and the four grooves that were
+# subtracting one were four printed lips drooping into the feature they bound
+# (see ``snap_groove_ring``, and ``docs/design-notes.md``). Leaving the tool
+# behind is leaving the next groove a way to be made the same wrong shape --
+# it is not a primitive this package has a correct use for.
 
 
 def snap_bead_ring(
@@ -447,8 +465,9 @@ def snap_bead_ring(
     on the upper side, with a small ``tip_flat`` at the tip. Swept around the
     rounded-square perimeter of side ``size`` at height ``z``; union it into the
     cover so the cover slides on progressively yet still detents into the collar
-    groove. The gentle ramp is the "chamfer that slides on"; the round groove
-    (``snap_ring``) forgivingly receives it.
+    groove. The gentle ramp is the "chamfer that slides on"; ``snap_groove_ring``
+    cuts the groove that receives it, with a floor long enough to swallow the
+    whole of that ramp.
 
     ``outward=True`` mirrors the tip so the bead stands *out* of a plug rather
     than *into* a bore -- the same profile seen from the other side of the joint,
@@ -465,7 +484,7 @@ def snap_bead_ring(
     reach = -protrusion if outward else protrusion
     x_wall = size / 2  # bead base sits on the bore wall ...
     x_tip = size / 2 - reach  # ... and its tip stands off it, into the joint
-    # Local sketch coords on Plane.XZ: x -> radius, y -> height (matches snap_ring).
+    # Local sketch coords on Plane.XZ: x -> radius, y -> height.
     profile = [
         (x_wall, z - lead_in),  # bottom of the gentle insertion ramp
         (x_tip, z - tip_flat / 2),  # tip, lower
@@ -487,19 +506,31 @@ def snap_groove_ring(
     floor: float,
     roof: float,
     tip_flat: float = SNAP_TIP_FLAT,
+    in_bore: bool = True,
 ) -> Part:
-    """A chamfered groove ring, to **subtract** from the wall of a bore.
+    """A chamfered groove ring, to **subtract** from a wall of side ``size``.
 
     ``snap_bead_ring`` seen from the other side of the joint: the same quad
-    cross-section, cut *into* a bore of side ``size`` instead of standing out of
-    a plug. ``floor`` is how far below ``z`` its lower face meets the wall again
-    and ``roof`` how far above -- the two are named rather than shared because a
-    groove's two faces answer to completely different constraints, which is the
-    whole reason this exists next to ``snap_ring``.
+    cross-section, cut *into* a wall instead of standing out of one. ``floor``
+    is how far below ``z`` its lower face meets the wall again and ``roof`` how
+    far above -- the two are named rather than shared because a groove's two
+    faces answer to completely different constraints, which is the whole reason
+    it is not enough to sweep something symmetric round the collar and subtract
+    it, which is what this replaced.
+
+    ``in_bore`` says which way the material lies, and it is not optional
+    guesswork: a groove in the wall of a **bore** is cut outward from ``size``
+    (the default, e.g. the cartridge cavity's), a groove in the face of a
+    **plug** inward from it (``False``, e.g. the collar's). The swept circle
+    this replaced straddled the wall and so worked either way without being
+    told; a one-sided profile does not, and getting it backwards cuts a ring of air
+    outside the part and leaves the groove entirely unmade. ``checks.py`` walks
+    each seated bead against the base it snaps into, which is what catches that
+    -- a missing groove has no overhang and no thin wall to notice it by.
 
     The reason is the *print*, not the fit. A groove in a wall that prints
-    vertically has a roof, and that roof is an overhang. ``snap_ring`` closes
-    one on a circular arc, and an arc's last stretch is horizontal however small
+    vertically has a roof, and that roof is an overhang. A half-round pocket
+    closes one on a circular arc, and an arc's last stretch is horizontal however small
     the radius: over a 0.8 mm half-round pocket the topmost 0.2 mm layer has to
     close 0.53 mm of roof in one step -- a 69 deg overhang -- so the lip that
     bounds the groove droops into it and the mating feature arrives blunt and
@@ -521,7 +552,38 @@ def snap_groove_ring(
         lead_in=floor,
         back=roof,
         tip_flat=tip_flat,
-        outward=True,
+        outward=in_bore,
+    )
+
+
+def collar_snap_groove(
+    foot_top: float, size: float = COLLAR_W, corner_r: float = COLLAR_R
+) -> Part:
+    """The cover's snap groove, round the collar of any base in this package.
+    Subtract it.
+
+    One call rather than three copies of the same seven arguments: the drill
+    family's base, the hex boxes' and the one-material baseline here all cut the
+    same joint at the same ``SNAP_Z`` above their own shoulder, and the only
+    thing that ever differs is how wide the collar is. It was three copies, and
+    the groove being wrong in all three at once is what makes it worth being
+    one -- a shape decided per call site is a shape that gets fixed per call
+    site.
+
+    ``in_bore=False``: this groove is cut into the outer face of a plug, not
+    into the wall of a bore like the cartridge's one package up. That is the one
+    thing about it that is easy to get backwards, and having exactly one call
+    site is how it stays got right.
+    """
+    return snap_groove_ring(
+        size,
+        corner_r,
+        foot_top + SNAP_Z,
+        depth=SNAP_GROOVE_D,
+        floor=SNAP_GROOVE_FLOOR,
+        roof=SNAP_GROOVE_ROOF,
+        tip_flat=SNAP_TIP_FLAT,
+        in_bore=False,
     )
 
 
@@ -961,10 +1023,9 @@ def create_base(
             RectangleRounded(COLLAR_W, COLLAR_W, COLLAR_R)
         extrude(amount=collar_h)
         # Snap groove around the collar (mates with the cover's internal bead).
-        add(
-            snap_ring(COLLAR_W, COLLAR_R, foot_top + SNAP_Z, SNAP_GROOVE_R),
-            mode=Mode.SUBTRACT,
-        )
+        # Chamfered, not round: the base prints foot-down, so the groove's roof
+        # is an overhang -- see snap_groove_ring and the SNAP_GROOVE_* block.
+        add(collar_snap_groove(foot_top), mode=Mode.SUBTRACT)
 
         # Sink the graduated drill bores + hex socket and round every mouth.
         cut_holes(bores, hex_bores, clearance, total_h, bore_depth)

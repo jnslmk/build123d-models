@@ -32,7 +32,7 @@ import itertools
 import math
 import sys
 
-from build123d import BuildSketch, Part, Text
+from build123d import Part
 
 from ...lib.checks import TOL as TOL
 from ...lib.checks import Report as Report
@@ -43,11 +43,21 @@ from ..box import (
     BODY_W,
     CAP_H,
     HEIGHT_UNIT,
-    SNAP_GROOVE_R,
+    INNER_W,
+    SNAP_BACK,
+    SNAP_LEAD_IN,
+    SNAP_PROTRUSION,
+    SNAP_TIP_FLAT,
     SNAP_Z,
     WALL_LABEL_SIZE,
 )
-from ..checks import is_flush_seam, worst_overhang
+from ..checks import (
+    is_flush_seam,
+    label_window,
+    wall_legend_window,
+    worst_bead_bite,
+    worst_overhang,
+)
 from ..freepack import sdf, worst_slack
 from . import config as c
 from .base import create_base
@@ -68,50 +78,6 @@ MIN_WALL = 0.8
 # check uniform.)
 PACK_ROUNDING = 0.01
 
-# The block a wall legend really occupies is estimated from ``0.75 * font_size``
-# (build123d renders digits at about that), which is a rule of thumb rather than
-# a measurement -- a real glyph's ink can sit a few tenths outside it. Used only
-# to widen the band an allow-predicate calls "the legend", never a clearance.
-LEGEND_INK_PAD = 0.3
-
-
-def _label_window(
-    text: str,
-    label_size: float,
-    label_z: float,
-    cover_h: float,
-    horizontal: bool,
-    cover_w: float,
-) -> tuple[float, float, float]:
-    """Where an engraved cover label really lands, in print pose.
-
-    Returns ``(x_half, z_centre, z_half)``: the half-width along x, and the band
-    along z, that the glyphs occupy on the label face.
-
-    Measured off the same ``Text`` sketch ``hex.cover.create_cover`` engraves
-    rather than estimated from the font size, because the two differ by a lot --
-    a word is three times longer than it is tall, and which of those runs along
-    z depends on ``horizontal``. ``create_cover`` builds the label on the +Y
-    face at ``label_z`` and then flips the part into print pose
-    (``Rotation(180,0,0)`` plus a re-seat on z=0), which puts the label on **-Y**
-    at ``cover_h - label_z`` -- so this reports the flipped coordinates, which
-    are the ones an edge of the returned part actually has.
-
-    Both spans are grown by ``LABEL_CHAMFER`` (the bevel on the glyph mouths
-    reaches outside the glyph itself) plus a small pad. This is the family's
-    ``drill_storage.checks._label_window``, at any cover width.
-    """
-    with BuildSketch() as sk:
-        Text(text, font_size=label_size)
-    box = sk.sketch.bounding_box()
-    run, thick = box.size.X, box.size.Y  # along the reading direction, and across
-    grow = c.LABEL_CHAMFER + 0.5
-    return (
-        (run if horizontal else thick) / 2 + grow,
-        cover_h - label_z,
-        (thick if horizontal else run) / 2 + grow,
-    )
-
 
 def _cover_allow(
     text: str,
@@ -126,10 +92,14 @@ def _cover_allow(
     Scoped to the label and nothing else -- the same allow the family's
     ``drill_storage.checks._cover_allow`` builds, at any cover width: on the
     label face, inside the engraving's depth, within the word's own footprint.
+    The window itself is the family's ``label_window``, imported rather than
+    re-derived: this file used to carry its own copy, and the copy carried the
+    same bug (a window centred on the label's *anchor* rather than on its ink,
+    which clipped BITS' own glyphs out of their exception).
     """
     half = cover_w / 2
-    x_half, z_mid, z_half = _label_window(
-        text, label_size, label_z, cover_h, horizontal, cover_w
+    x_lo, x_hi, z_lo, z_hi = label_window(
+        text, label_size, label_z, cover_h, horizontal
     )
 
     def on_label_glyph(e) -> bool:
@@ -138,8 +108,8 @@ def _cover_allow(
             # Cut *into* the -Y face: the mouth lies on it, the floor LABEL_DEPTH
             # behind it, and the chamfer wall between the two.
             -half - 0.05 <= centre.Y <= -half + c.LABEL_DEPTH + 0.05
-            and abs(centre.X) <= x_half
-            and abs(centre.Z - z_mid) <= z_half
+            and x_lo <= centre.X <= x_hi
+            and z_lo <= centre.Z <= z_hi
         )
 
     return ((on_label_glyph, "engraved cover label -- bevelling a glyph destroys it"),)
@@ -154,25 +124,19 @@ def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
     stricter standard its blank walls deserve.
     """
     top = c.BASE_FOOT_TOP
+    # Only the ALLEN box engraves one, and only its own rows decide where the
+    # ink sits -- the BITS base's walls are blank and get no legend exception
+    # at all, so the window is not even computed for it.
+    legend_rows = c.socket_layout("allen")[1] if has_legend else None
+    legend_lo, legend_hi = (
+        wall_legend_window(legend_rows, c.LEGEND_Z, c.LEGEND_LINE_H)
+        if legend_rows
+        else (0.0, 0.0)
+    )
 
     def on_cover_seat(e) -> bool:
         b = e.bounding_box()
         return abs(b.min.Z - top) < 0.05 and abs(b.max.Z - top) < 0.05
-
-    def on_the_cover_groove(e) -> bool:
-        b = e.bounding_box()
-        if abs(b.max.Z - b.min.Z) > 0.05:
-            return False
-        # The cover's snap groove alone, still the round ring ``snap_ring``
-        # cuts. The cartridge's bead groove used to be here beside it and is
-        # not any more: it is chamfered now, so its lips are blunt enough to
-        # pass on their own geometry (family ``config.py``, "the groove that
-        # receives the bead").
-        z = top + SNAP_Z
-        return (
-            abs(b.min.Z - (z - SNAP_GROOVE_R)) < 0.05
-            or abs(b.min.Z - (z + SNAP_GROOVE_R)) < 0.05
-        )
 
     def on_wall_legend(e) -> bool:
         b = e.bounding_box()
@@ -182,24 +146,17 @@ def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
             return False
         # ...and inside the legend block itself, which is what makes this the
         # legend rather than "anything on that wall": the shoulder rim, the foot
-        # and the collar all lie outside the band.
-        block = (
-            (c.LEGEND_ROWS - 1) * c.LEGEND_LINE_H / 2
-            + c.LEGEND_GLYPH_H / 2
-            + LEGEND_INK_PAD
-        )
-        return abs(e.center().Z - c.LEGEND_Z) <= block
+        # and the collar all lie outside the band. The band is *measured* off
+        # the glyphs (``wall_legend_window``) rather than estimated at
+        # 0.75 * font_size: the estimate is symmetric and the ink is not, and it
+        # fell 0.10 mm short of the top row's own "8" on the ALLEN base.
+        return legend_lo <= e.center().Z <= legend_hi
 
     allow = (
         (
             on_cover_seat,
             "cover seat is deliberately flat so the cover's chamfered "
             "rim lands flat-on-flat (box.create_cover's COVER_SEAT_CH)",
-        ),
-        (
-            on_the_cover_groove,
-            "the cover groove's round rims -- the groove is the mating "
-            "feature, and rounding its lips would shrink engagement",
         ),
         (
             lambda e: is_flush_seam(base, e),
@@ -330,26 +287,45 @@ def check_box(
         f"{proud:.1f} mm (want {expected_proud:.1f})",
     )
 
-    # The retention groove's roof is the one overhang on a base that prints
-    # cavity-up with no supports, and nothing else in this file would catch it:
-    # the groove is a mating feature, so the sharp-edge audit names its lips,
-    # and it is a ring inside a cavity, so no rendered view shows it. Measured
-    # off the solid, as the family does -- same groove, same argument, in
-    # ``drill_storage.config``.
-    z_lo, z_hi = c.BEAD_Z - c.GROOVE_FLOOR, c.BEAD_Z + c.GROOVE_ROOF
-    steepest, where = worst_overhang(base, z_lo, z_hi)
+    # The two grooves cut into the collar are the only features on this base
+    # hanging off a vertical wall, and nothing else in this file would catch
+    # them: a groove is a mating feature, so the sharp-edge audit used to name
+    # its lips; one is a ring inside a cavity and the other a ring behind the
+    # cover, so no rendered view shows either; and each bead lives on the *other*
+    # part, so no check on one part alone can see the two interfere. Measured off
+    # the solid, as the family does -- same grooves, same argument, in
+    # ``drill_storage.config`` and ``drill_storage.box``.
+    steepest, where = worst_overhang(base, c.BASE_FOOT_TOP, c.BASE_TOTAL_H)
     r.check(
         steepest <= c.MAX_OVERHANG + 0.5,
-        "the retention groove prints without support",
+        "nothing on the collar overhangs past what FDM prints unsupported",
         f"steepest downward face {steepest:.1f} deg off vertical at {where} "
-        f"(max {c.MAX_OVERHANG:.0f})",
+        f"(max {c.MAX_OVERHANG:.0f}), sampled over "
+        f"z={c.BASE_FOOT_TOP:.1f}..{c.BASE_TOTAL_H:.1f}",
     )
+    for what, bead_z, prot, lead, back, tip, bead_wall, mate, sign in (
+        ("cartridge", c.BEAD_Z, c.CART_BEAD, c.BEAD_LEAD_IN, c.BEAD_BACK,
+         c.BEAD_TIP_FLAT, c.CART_W / 2, c.CAVITY_W / 2, +1.0),
+        ("cover", c.BASE_FOOT_TOP + SNAP_Z, SNAP_PROTRUSION, SNAP_LEAD_IN,
+         SNAP_BACK, SNAP_TIP_FLAT, INNER_W / 2, c.COLLAR_W / 2, -1.0),
+    ):
+        bite, at_z = worst_bead_bite(
+            base, bead_z, prot, lead, back, tip,
+            bead_wall=bead_wall, mating_wall=mate, sign=sign,
+        )
+        r.check(
+            bite < 0.0,
+            f"the seated {what} bead is clear of the base over its whole profile",
+            "sampled at 101 heights across the bead"
+            if bite < 0.0
+            else f"{bite:.2f} mm of interference at z={at_z:.2f}",
+        )
     # ...and the two grooves in that one ring of wall still miss each other,
-    # lip to lip -- this groove is not symmetric about BEAD_Z any more.
+    # lip to lip -- neither is symmetric about its own bead any more.
     r.check(
         c.GROOVE_LIP_GAP > 0.0,
         "cover groove and cartridge groove never thin the same wall",
-        f"{c.GROOVE_LIP_GAP:.1f} mm between their lips "
+        f"{c.GROOVE_LIP_GAP:.2f} mm between their lips "
         f"({c.GROOVE_SEPARATION:.1f} mm centre to centre)",
     )
 

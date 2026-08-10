@@ -52,15 +52,13 @@ from build123d import (
 from .box import (
     COLLAR_R,
     COLLAR_W,
-    SNAP_GROOVE_R,
-    SNAP_Z,
     WALL_LABEL_Z,
+    collar_snap_groove,
     create_body,
     engrave_row_legend,
     gridfinity_foot,
     rim_chamfer_tool,
     snap_groove_ring,
-    snap_ring,
 )
 from . import config as c
 from .sets import DrillSet
@@ -208,14 +206,15 @@ def create_base(
         # shoulder for the cover's chamfered rim to land on. See box.create_body.
         add(create_body(c.SHELL_FOOT_TOP))
 
-        # Collar that plugs into the cover, with the cover's snap groove.
+        # Collar that plugs into the cover, with the cover's snap groove -- also
+        # chamfered rather than round, and for the same reason as the cartridge's
+        # below (box's SNAP_GROOVE_* block). Both grooves on this part are cut
+        # into the same ring of wall from opposite faces, and both used to hang
+        # their upper lip over air.
         with BuildSketch(Plane.XY.offset(c.SHELL_FOOT_TOP)):
             RectangleRounded(COLLAR_W, COLLAR_W, COLLAR_R)
         extrude(amount=c.SHELL_COLLAR_H)
-        add(
-            snap_ring(COLLAR_W, COLLAR_R, c.SHELL_FOOT_TOP + SNAP_Z, SNAP_GROOVE_R),
-            mode=Mode.SUBTRACT,
-        )
+        add(collar_snap_groove(c.SHELL_FOOT_TOP), mode=Mode.SUBTRACT)
 
         # The cartridge cavity -- only the top CAVITY_H, not the whole interior.
         # The collar drops in here and everything below it stays solid ASA.

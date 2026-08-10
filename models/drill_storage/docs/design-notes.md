@@ -225,7 +225,7 @@ The bead sits at z=37 and the cover's groove at z=30, far enough apart that
 neither thins the other's ring of collar wall.
 
 **The groove is a chamfer, not a pocket, and that is a printing decision.** It
-started as `box.snap_ring`'s half-round pocket — the obvious negative of a bead
+started as a swept half-round pocket — the obvious negative of a bead
 tip — and the first printed bases showed why that is wrong here. The base prints
 foot-down with the cavity facing up and no supports, so the groove's roof is an
 overhang, and a circular roof finishes *horizontal* however small its radius: the
@@ -257,17 +257,39 @@ about `BEAD_Z` is what makes `GROOVE_LIP_GAP` the number to watch rather than
 `GROOVE_SEPARATION`: 0.6 mm of full-thickness wall between this groove's bottom
 lip and the cover groove's top one.
 
-`checks.py` measures the roof angle off the built solid rather than trusting the
-arithmetic, because nothing else in the file would have caught the original: the
-groove is a mating feature, so the sharp-edge audit names its lips as exceptions,
-and it is a ring inside a cavity, so no rendered view shows it. The half-round
-version passed every check in this package.
+**The cover's groove is the same defect, and got the same fix.** It sits on the
+*outside* of the collar at z=30, receives the cover's bead instead of the
+cartridge's, and was the same swept half-round pocket for exactly the same
+reason — it is the obvious negative of a bead tip. Same 0.8 mm depth, same
+horizontal finish to its roof, same drooped lip, on the same print. It is now
+`snap_groove_ring` too, cut through one `box.collar_snap_groove` call that all
+three bases in this repo share (the drill family's, the hex boxes', and the
+one-material baseline in `box.py`) — three copies of the same seven arguments
+were what let one shape be wrong in three places at once.
 
-The cover's own groove, on the *outside* of the collar at z=30, is still
-`snap_ring`'s half-round pocket and has the identical defect. It is left alone
-deliberately: it is a different joint, shared by every base and every cover in
-this repo (`box.create_base`, `hex.base`), so re-cutting it is a change to five
-box families' snap fit rather than to this one's retention.
+Nothing about that joint moves. The depth is unchanged, so the collar wall
+behind it is unchanged; the cover is untouched, so every cover already printed
+still snaps onto every base. What retains is the cover bead's back face on the
+groove's lip, and escaping still costs the full `SNAP_PROTRUSION - SLIP/2` of
+deflection — the lip rises 0.15 mm, which buys free travel, not force. The
+groove's floor now reaches 1.4 mm down instead of 0.8, which is where the
+cover bead's own ramp stops standing proud of the collar's slip gap.
+
+The two grooves reaching further down than they used to is what makes
+`GROOVE_LIP_GAP` worth checking: 0.45 mm of full-thickness wall between the
+cartridge groove's bottom lip and the cover groove's top one, down from 0.6 mm
+before the cover's groove was reshaped and from a meaningless 3.2 mm
+centre-to-centre before either was.
+
+`checks.py` measures both roofs off the built solid rather than trusting the
+arithmetic, and sweeps the *whole* collar rather than one groove's band, because
+nothing else in the file would have caught either original: a groove is a mating
+feature, so the sharp-edge audit used to name its lips as exceptions; one is a
+ring inside a cavity and the other a ring behind the cover, so no rendered view
+shows either; and each bead lives on the other part, so no check on one part
+alone can see the two interfere. Both half-round versions passed every check in
+this package. The lip exceptions are gone now — a chamfered lip measures 135°
+and 156°, so it clears the audit on its own geometry rather than on a promise.
 
 **Keying.** The base's engraved legend is only true in one orientation and a
 rounded square goes in four ways. The key rib stands *outside* the cartridge body,

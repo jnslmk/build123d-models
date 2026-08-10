@@ -57,7 +57,7 @@ from ..box import (
     LABEL_DEPTH,
     LABEL_SIZE,
     PAD,
-    SNAP_GROOVE_R,
+    SNAP_GROOVE_ROOF,
     SNAP_Z,
     TOP_FILLET,
     WALL_LABEL_SIZE,
@@ -185,7 +185,9 @@ CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 6.8, the family's own
 # and, since the cartridge groove is chamfered and no longer symmetric about
 # BEAD_Z, the same 0.6 mm of full-thickness wall lip to lip.
 GROOVE_SEPARATION = BEAD_Z - (BASE_FOOT_TOP + SNAP_Z)
-GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (BASE_FOOT_TOP + SNAP_Z + SNAP_GROOVE_R)
+GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (
+    BASE_FOOT_TOP + SNAP_Z + SNAP_GROOVE_ROOF
+)
 
 # --- The ALLEN wall legend ----------------------------------------------------
 # Re-fitted to the shortened body exactly as the old one-material base fitted
@@ -404,7 +406,7 @@ __all__ = [
     "LABEL_DEPTH",
     "LABEL_SIZE",
     "PAD",
-    "SNAP_GROOVE_R",
+    "SNAP_GROOVE_ROOF",
     "SNAP_Z",
     "TOP_FILLET",
     "WALL_LABEL_SIZE",

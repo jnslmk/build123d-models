@@ -34,14 +34,12 @@ from build123d import (
 
 from ..box import (
     COLLAR_R,
-    SNAP_GROOVE_R,
-    SNAP_Z,
+    collar_snap_groove,
     create_body,
     engrave_row_legend,
     gridfinity_foot,
     rim_chamfer_tool,
     snap_groove_ring,
-    snap_ring,
 )
 from ..base import key_slot_tool
 from . import config as c
@@ -125,12 +123,14 @@ def create_base(
         # shoulder for the cover's chamfered rim to land on. See box.create_body.
         add(create_body(c.BASE_FOOT_TOP))
 
-        # Collar that plugs into the cover, with the cover's snap groove.
+        # Collar that plugs into the cover, with the cover's snap groove --
+        # chamfered rather than round, like the cartridge's below and for the
+        # same reason (box's SNAP_GROOVE_* block).
         with BuildSketch(Plane.XY.offset(c.BASE_FOOT_TOP)):
             RectangleRounded(c.COLLAR_W, c.COLLAR_W, COLLAR_R)
         extrude(amount=c.BASE_COLLAR_H)
         add(
-            snap_ring(c.COLLAR_W, COLLAR_R, c.BASE_FOOT_TOP + SNAP_Z, SNAP_GROOVE_R),
+            collar_snap_groove(c.BASE_FOOT_TOP, c.COLLAR_W, COLLAR_R),
             mode=Mode.SUBTRACT,
         )
 
