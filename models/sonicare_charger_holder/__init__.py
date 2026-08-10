@@ -15,6 +15,13 @@ out again -- nothing to push against and no room to get a finger past it. The
 hole turns removal into pushing a finger up through it, and drains the cup as a
 side effect, which a closed floor in a shower room never did.
 
+**Two brush-head pegs.** The bar runs past the cup on both sides and ends in a
+lobe carrying a peg, which a spare head drops onto stem-down. The peg stands in
+for the handle's own drive shaft and is sized by a *free* fit, not a sliding
+one: it is used wet and one-handed, so it must never grip. The bar giving up
+its old property -- hiding behind the cup so the holder read as a plain circle
+from the front -- was the price, and it was paid deliberately.
+
 **The cable route is one channel and two arms.** The channel is a notch through
 the back wall, closed at the top so the rim stays unbroken, and *open at the
 bottom into the floor hole*. That junction is the whole design: a notch closed
@@ -26,9 +33,15 @@ the cord goes in from inside the cup and the charger follows it down.
 The arms run left and right across the tape face and out through both ends of
 the bar, so the cord can be tucked away toward an outlet on either side. They
 sit *below* the cavity floor rather than beside it, and that is why the floor is
-5.6 mm and not 2 mm: at this depth, at the middle of the back, an arm level with
-the cup would cut through the back wall and take a bite out of the seat, leaving
-the charger to rock. See ``config.Holder.floor``, which is derived from it.
+derived rather than chosen: at this depth, at the middle of the back, an arm
+level with the cup would cut through the back wall and take a bite out of the
+seat, leaving the charger to rock. ``config.Holder.floor`` is
+``side_w + SEAT_BACKING``, which is as thin as a 3 mm cord allows -- the cable,
+not the structure, is what sets this holder's height.
+
+**Blended, not butted.** The bar meets the cup, and the lobes meet the bar,
+through fillets taken in the profile sketch. Left as drawn each is a re-entrant
+notch with the ends hanging off it as cantilevers.
 
 **Closed in front.** No cutout, no finger scallop, no drain in the front or the
 sides: from the room the holder reads as a plain round cup with a toothbrush
@@ -62,6 +75,7 @@ from build123d import (
     BuildSketch,
     Circle,
     Cone,
+    Cylinder,
     Edge,
     Locations,
     Mode,
@@ -70,12 +84,15 @@ from build123d import (
     Pos,
     Rectangle,
     RectangleRounded,
+    add,
     extrude,
+    fillet,
+    loft,
 )
 
 from ..lib.edges import as_part, chamfer_edge, fillet_edge
 from . import config
-from .config import DEFAULT, HOLDER_PARAMS, Holder
+from .config import DEFAULT, HOLDER_PARAMS, PEG_H, Holder
 
 PARAMS = HOLDER_PARAMS
 
@@ -83,6 +100,100 @@ PARAMS = HOLDER_PARAMS
 # cut face is never coincident with the tape plane (a coincident face is what
 # leaves OCC a zero-thickness sliver to argue about).
 BACK_OVERCUT = 1.0
+
+
+# Fractions of the geometrically-available blend radius to try, largest first.
+# The spacing between two junctions bounds the blend, but not tightly enough:
+# each fillet also has to fit against the *arc* on its other side, and OCC's
+# answer when it does not is to abort the sketch outright -- a hard
+# StdFail_NotDone, not a silent skip. Rebuilding the sketch a rung down is the
+# whole recovery, and the last rung is no blend at all, which leaves a concave
+# corner rather than no part.
+BLEND_LADDER = (1.0, 0.7, 0.5, 0.35, 0.0)
+
+
+def _profile(h: Holder):
+    """The body's outline: the cup, the bar, the two peg lobes, blended.
+
+    Left unblended, every junction on the bar's front face is a re-entrant
+    notch: the bar arrives at the cup's curve as a corner, and the lobes hang
+    off the bar's ends as cantilevers over a void. They are filleted in the
+    *sketch* rather than as an OCC edge op, which cannot half-apply the way this
+    repo's 3D fillets can, and which carries the blend the full height of the
+    part for free.
+
+    Every junction sits on the bar's front face, so they are found by that line
+    rather than by solving each intersection -- the bar meets the cup at two and
+    each lobe meets the bar at one more, and all four move with the wall, the
+    bar's depth and the lobe size.
+    """
+    front_y = h.back_y - h.plate_t
+    for fraction in BLEND_LADDER:
+        try:
+            with BuildSketch() as sk:
+                Circle(h.outer_r)
+                with Locations((0, h.plate_y)):
+                    RectangleRounded(h.plate_w, h.plate_t, h.plate_corner_r)
+                # A lobe at each end for a brush-head peg to stand on, tangent
+                # to the tape plane so it adds pad area instead of breaking it.
+                with Locations((-h.peg_x, h.pad_y), (h.peg_x, h.pad_y)):
+                    Circle(h.pad_r)
+                corners = [v for v in sk.vertices() if abs(v.Y - front_y) < 1e-6]
+                xs = sorted(v.X for v in corners)
+                gap = min(
+                    (b - a for a, b in zip(xs, xs[1:]) if b - a > 0.05), default=0.0
+                )
+                radius = min(h.plate_t, gap / 2 - 0.4) * fraction
+                if len(corners) >= 2 and radius > 0.2:
+                    fillet(corners, radius=radius)
+            return sk.sketch, radius
+        except Exception:  # noqa: BLE001,S112 -- OCC aborts the sketch; retry smaller
+            continue
+    raise RuntimeError("could not build the body profile at any blend radius")
+
+
+def _arm_mouth_tool(h: Holder, span: float) -> Part:
+    """A lofted collar that bevels the arms' top lip as the cut is made."""
+    # 45 degrees, and the arithmetic has to be done at the *outer* section
+    # rather than at the tape plane. Lofting from the overcut plane to the
+    # nominal chamfer height silently halves the slope -- the bevel came out at
+    # 20 degrees, which reads as chamfered and still leaves an edge the sharp-
+    # edge audit flags, because 110 degrees of interior angle is not blunt.
+    chamfer_size = h.route_chamfer
+    rise = chamfer_size + BACK_OVERCUT
+    with BuildPart() as tool:
+        with BuildSketch(_back_plane(h.back_y + BACK_OVERCUT)):
+            with Locations((0, (h.side_w + rise) / 2)):
+                Rectangle(span, h.side_w + rise)
+        with BuildSketch(_back_plane(h.back_y - chamfer_size)):
+            with Locations((0, h.side_w / 2)):
+                Rectangle(span, h.side_w)
+        loft()
+    return tool.part
+
+
+def _peg_tips(builder: BuildPart, h: Holder):
+    """The top rim of each peg -- a lead-in, so a head drops on rather than
+    catching."""
+    top = h.body_h + PEG_H
+
+    def selected(edge: Edge) -> bool:
+        if not _at_plane(edge, top):
+            return False
+        return all(
+            abs(((pt.X - sx) ** 2 + (pt.Y - h.pad_y) ** 2) ** 0.5 - h.peg_d / 2) < 0.05
+            for sx in (h.peg_x, -h.peg_x)
+            for pt in [edge.position_at(0.5)]
+        ) or any(
+            all(
+                abs(((pt.X - sx) ** 2 + (pt.Y - h.pad_y) ** 2) ** 0.5 - h.peg_d / 2)
+                < 0.05
+                for pt in (edge.position_at(t) for t in (0.0, 0.3, 0.6, 0.9))
+            )
+            for sx in (h.peg_x, -h.peg_x)
+        )
+
+    return builder.edges().filter_by(selected)  # ty: ignore[invalid-argument-type]
 
 
 def _back_plane(y: float) -> Plane:
@@ -121,11 +232,11 @@ def build(h: Holder) -> tuple[Part, dict[str, bool]]:
 
     with BuildPart() as builder:
         # -- body: the cup, with the tape bar across its back ---------------
+        outline, blend_r = _profile(h)
         with BuildSketch():
-            Circle(h.outer_r)
-            with Locations((0, h.plate_y)):
-                RectangleRounded(h.plate_w, h.plate_t, h.plate_corner_r)
+            add(outline)
         extrude(amount=h.body_h)
+        treatments["front-face blends"] = blend_r > 0.2
 
         # -- the bore the charger drops into --------------------------------
         with BuildSketch(Plane.XY.offset(h.floor)):
@@ -207,13 +318,32 @@ def build(h: Holder) -> tuple[Part, dict[str, bool]]:
         # the back, a groove level with the cup would cut through the back wall
         # and take a bite out of the seat the charger rests on. See
         # ``config.Holder.floor``, which is derived from this.
+        span = h.plate_w + 2 * h.pad_r + 2 * BACK_OVERCUT
         with BuildSketch(_back_plane(h.back_y - h.side_depth)):
             with Locations((0, h.side_w / 2)):
-                Rectangle(h.outer_dia + 2 * BACK_OVERCUT, h.side_w)
+                Rectangle(span, h.side_w)
         extrude(amount=h.side_depth + BACK_OVERCUT, mode=Mode.SUBTRACT)
+
+        # The arms' mouth on the tape plane is chamfered by a **boolean**, not
+        # an edge op, and that is the geometry-ops table's answer rather than a
+        # workaround. The mouth runs the whole width of the bar and then out
+        # through a round lobe at each end, so the edge is part straight and
+        # part curved -- OCC refused it as one group, refused it split left and
+        # right, and refused the lobes on their own. A lofted collar cuts the
+        # bevel as part of the cut instead, follows whatever surface it emerges
+        # through, and cannot fail. Only the top lip needs it: the bottom of the
+        # arm is the bed face, and there is nothing below it to break.
+        add(_arm_mouth_tool(h, span), mode=Mode.SUBTRACT)
 
         # -- break every mouth of the cable route ----------------------------
         treatments.update(_chamfer_route(builder, h))
+
+        # -- the brush-head pegs, last, on top of their lobes ----------------
+        with Locations((-h.peg_x, h.pad_y, h.body_h), (h.peg_x, h.pad_y, h.body_h)):
+            Cylinder(h.peg_d / 2, PEG_H, align=(Align.CENTER, Align.CENTER, Align.MIN))
+        treatments["peg tips"] = chamfer_edge(
+            builder, _peg_tips(builder, h), h.route_chamfer
+        )
 
     # Already built floor-down; re-seat on z = 0 so the assertion is a fact
     # about the returned part rather than about the builder's history.
@@ -391,6 +521,18 @@ def _on_arm_end(pts, h: Holder) -> bool:
     )
 
 
+def _on_lobe(pt, h: Holder) -> bool:
+    return any(
+        abs(((pt.X - sx) ** 2 + (pt.Y - h.pad_y) ** 2) ** 0.5 - h.pad_r) < 0.1
+        for sx in (h.peg_x, -h.peg_x)
+    )
+
+
+def _on_arm_lobe_ceiling(pts, h: Holder) -> bool:
+    """Where an arm's ceiling emerges through a peg lobe's curved wall."""
+    return all(abs(pt.Z - h.side_w) < 1e-6 and _on_lobe(pt, h) for pt in pts)
+
+
 def _on_channel_front(pts, h: Holder) -> bool:
     """The channel's forward face, down where it breaks into the floor hole."""
     return all(abs(pt.Y - (h.back_y - h.channel_depth)) < 1e-6 for pt in pts)
@@ -446,7 +588,6 @@ BODY_MOUTHS = (
     ("floor opening, bed side", _on_opening_bed, lambda h: h.rim_chamfer),
     ("floor opening, seat side", _on_opening_seat, lambda h: h.route_chamfer),
     ("arm mouths, bed side", _on_arm_bed, lambda h: h.route_chamfer),
-    ("arm mouths, tape plane", _on_arm_tape, lambda h: h.route_chamfer),
     ("arm junctions with the channel", _on_arm_junction, lambda h: h.route_chamfer),
 )
 
@@ -459,7 +600,21 @@ BODY_MOUTHS = (
 # down. It does fit, at a third of the nominal. The web behind the channel is
 # only ``PLATE_BACKING`` thick here, so a third of a chamfer is what there is
 # room for; a fifth of a millimetre still breaks the corner the cord leaves over.
-ARM_END_LADDER = (1.0, 2 / 3, 1 / 2, 1 / 3)
+# Treatments that need the largest size that fits, rather than a fixed one.
+# Each is a junction between the cable route and a curved surface, and every one
+# of them OCC refuses outright at nominal while taking a smaller one -- which is
+# exactly the failure mode ``fillet_edge``'s contract calls a *radius fit*
+# problem and tells you to walk down. Judged by return value: each failing rung
+# prints a warning even when a later one succeeds, so counting warnings would
+# read every success here as a failure.
+LADDER = (1.0, 2 / 3, 1 / 2, 1 / 3, 1 / 4, 1 / 6)
+
+LADDER_MOUTHS = (
+    ("arm junctions with the channel", _on_arm_junction, chamfer_edge),
+    ("arm ceilings at the lobes", _on_arm_lobe_ceiling, chamfer_edge),
+    # A vertical edge, so house style rounds it rather than chamfering it.
+    ("arm ends", _on_arm_end, fillet_edge),
+)
 
 
 def _chamfer_route(builder: BuildPart, h: Holder) -> dict[str, bool]:
@@ -481,22 +636,25 @@ def _chamfer_route(builder: BuildPart, h: Holder) -> dict[str, bool]:
             for name, where, size in BODY_MOUTHS
         }
     )
-    took["arm ends"] = _fillet_arm_ends(builder, h)
+    for name, where, op in LADDER_MOUTHS:
+        took[name] = _largest_that_fits(builder, h, where, op)
     return took
 
 
-def _fillet_arm_ends(builder: BuildPart, h: Holder) -> bool:
-    """Round the corner each arm's cord leaves over, at the largest radius that
-    fits.
+def _largest_that_fits(builder: BuildPart, h: Holder, where, op) -> bool:
+    """Walk the ladder down until OCC accepts, and report whether it ever did.
 
-    Judged by return value, not by the log: every failing rung of the ladder
-    prints a warning even when a later rung succeeds, so counting warnings would
-    read a success as a failure.
+    An empty selection counts as done, not failed. Some slider positions simply
+    do not produce the junction this treats -- a lobe can swallow it, or a wall
+    thickness can move it -- and "there was nothing here to break" is a
+    different claim from "there was something and it was left raw". Conflating
+    them would make the treatments report unfalsifiable in exactly the direction
+    that matters.
     """
-    for fraction in ARM_END_LADDER:
-        if fillet_edge(
-            builder, _feature_edges(builder, h, _on_arm_end), h.route_chamfer * fraction
-        ):
+    if not _feature_edges(builder, h, where):
+        return True
+    for fraction in LADDER:
+        if op(builder, _feature_edges(builder, h, where), h.route_chamfer * fraction):
             return True
     return False
 

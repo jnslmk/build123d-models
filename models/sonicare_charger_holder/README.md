@@ -3,6 +3,11 @@
 A wall cradle for the round Philips Sonicare charging puck. The charger drops
 into a closed cup, the brush stands upright out of the top, and the whole thing
 is held to the tile by double-sided foam tape on a flat bar across its back.
+The bar runs past the cup on both sides and ends in a lobe carrying a **peg for
+a spare brush head** — the head drops on stem-down, the way it sits on the
+handle. The bar no longer hides behind the cup; that was the price of putting
+the heads somewhere.
+
 The floor is a ring: a ⌀41.6 mm hole through the middle with the charger
 resting on a 3 mm seat around it, so you can push it back out with a finger once
 the holder is glued to the wall. The cable leaves through a notch in the back
@@ -27,7 +32,9 @@ each number individually; the short version is:
 |---|---|---|
 | Puck diameter | 47.4 mm | Researched. Two independent maker listings agree. Treat as ±1 mm. |
 | Puck height, no post | 19.0 mm | Researched, same two listings. |
-| Cord diameter | 3.0 mm | **Assumed.** Only the channel depends on it, and the channel is oversize. |
+| Cord diameter | 3.0 mm | **Assumed.** It now sets the floor's thickness, and so the holder's height — a thinner cord makes a shorter holder. |
+| Brush head bore | 5.0 mm | **Assumed.** What the peg stands in for. |
+| Brush head width | 14.0 mm | **Assumed.** Only used to keep a stored head clear of the cup. |
 | Strain-relief boot | 6.0 mm | **Assumed, and the number most likely to be wrong.** |
 
 The cheap way to find out is to print the part and try it. If the puck does not
@@ -120,7 +127,11 @@ itself as OCC silently refusing a chamfer rather than as anything visible:
 - the arms exiting through the bar's *rounded* corner instead of its flat end;
 - the cup's outer cylinder crossing that same corner arc instead of the flat
   front face;
-- and earlier, the cable notch's crown crowding the bore's lead-in cone.
+- the cable notch's crown crowding the bore's lead-in cone;
+- and the profile's blend fillets, which fit the gap between two junctions but
+  not the arc on their far side — OCC's answer there is not a silent skip but a
+  hard `StdFail_NotDone` that aborts the sketch, so `_profile` rebuilds a rung
+  down rather than trusting one radius.
 
 Each is now a derived bound with a named constant (`CHANNEL_OVERCUT`,
 `JUNCTION_STEP`, `CORNER_CLEAR`, `RIM_KEEPOUT`) rather than a number that

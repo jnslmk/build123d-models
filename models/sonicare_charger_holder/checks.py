@@ -46,7 +46,7 @@ from ..lib.checks import (
     is_solid_at,
     sharp_convex_edges,
 )
-from . import BODY_MOUTHS, ROUTE_MOUTHS, build
+from . import BODY_MOUTHS, LADDER_MOUTHS, ROUTE_MOUTHS, build
 from .config import (
     BOOT_MAX,
     BOOT_MIN,
@@ -54,7 +54,13 @@ from .config import (
     CABLE_CLEAR,
     CABLE_DIA,
     DEFAULT,
+    HEAD_CLEAR,
+    HEAD_D,
+    HEAD_SOCKET_D,
     LEDGE,
+    PEG_BOSS_WALL,
+    PEG_FIT,
+    PEG_H,
     PUCK_DIA_MAX,
     PUCK_DIA_MIN,
     PUCK_FIT,
@@ -92,9 +98,11 @@ def check_print_pose(part: Part, h: Holder, r: Report) -> None:
     seat_r = (h.opening_r + h.cavity_r) / 2
     r.check(abs(bb.min.Z) < 1e-6, "part is re-seated on z=0", f"min z = {bb.min.Z:.4f}")
     r.check(
-        abs(bb.size.Z - h.body_h) < 1e-6,
-        "height is floor + puck height, so the rim lands level with the charger",
-        f"{bb.size.Z:.2f} mm = floor {h.floor:.2f} + puck {h.puck_height:.2f}",
+        abs(bb.size.Z - (h.body_h + PEG_H)) < 1e-6,
+        "overall height is the cup plus the pegs standing on the bar",
+        f"{bb.size.Z:.2f} mm = body {h.body_h:.2f} + peg {PEG_H:.2f}; the cup "
+        f"itself is floor {h.floor:.2f} + puck {h.puck_height:.2f}, so the rim "
+        "still lands level with the charger",
     )
     r.check(
         is_solid_at(part, seat_r, 0, 0.5)
@@ -367,6 +375,47 @@ def check_side_arms(part: Part, h: Holder, r: Report) -> None:
     )
 
 
+def check_pegs(part: Part, h: Holder, r: Report) -> None:
+    r.section("the brush-head pegs")
+    z_mid = h.body_h + PEG_H / 2
+    r.check(
+        PEG_FIT == fits.FREE,
+        "the peg is sized by a named FREE fit, not a typed number",
+        f"peg {h.peg_d:.2f} = socket {HEAD_SOCKET_D:.1f} - {PEG_FIT:.2f}. FREE and "
+        "not SLIDING on purpose: a wet drop-on storage peg used one-handed must "
+        "never grip, and a head that needs a tug is worse than one that rattles",
+    )
+    r.check(
+        all(
+            is_solid_at(part, sx, h.pad_y, z_mid)
+            and not is_solid_at(part, sx + h.peg_d / 2 + 0.3, h.pad_y, z_mid)
+            for sx in (h.peg_x, -h.peg_x)
+        ),
+        "both pegs stand proud of the bar, at the diameter they claim",
+        f"solid on each axis at z={z_mid:.1f}, air {h.peg_d / 2 + 0.3:.2f} mm out",
+    )
+    r.check(
+        all(
+            is_solid_at(part, sx, h.pad_y, h.body_h - 0.3) for sx in (h.peg_x, -h.peg_x)
+        ),
+        "each peg has a lobe under it rather than standing on air",
+        f"solid at z={h.body_h - 0.3:.1f} beneath both pegs",
+    )
+    clearance = hypot(h.peg_x, h.pad_y) - h.outer_r - HEAD_D / 2
+    r.check(
+        clearance >= HEAD_CLEAR - 1e-6,
+        "a head on either peg clears the cup, and so the brush standing in it",
+        f"{clearance:.2f} mm of air for a \u2300{HEAD_D:.0f} head; solved on the "
+        "diagonal, since the lobe sits a radius forward of the tape plane",
+    )
+    r.check(
+        h.pad_r - h.peg_d / 2 >= PEG_BOSS_WALL - 1e-6,
+        "the lobe leaves a full wall around the peg's root",
+        f"{h.pad_r - h.peg_d / 2:.2f} mm of collar; the lobe is the only thing "
+        "carrying a head",
+    )
+
+
 def check_tape_pad(part: Part, h: Holder, r: Report) -> None:
     r.section("the tape pad (the only thing holding it up)")
     part_faces = part.faces()  # ty: ignore[invalid-argument-type]
@@ -387,9 +436,11 @@ def check_tape_pad(part: Part, h: Holder, r: Report) -> None:
         "tape at this area",
     )
     r.check(
-        h.plate_w < h.outer_dia,
-        "the bar stays inside the cup's silhouette, so the front view is round",
-        f"bar {h.plate_w:.2f} mm across vs cup {h.outer_dia:.2f} mm",
+        h.plate_w + 2 * h.pad_r > h.outer_dia,
+        "the bar now runs past the cup on both sides, which is where the heads go",
+        f"{h.plate_w + 2 * h.pad_r:.1f} mm wide over a {h.outer_dia:.1f} mm cup. "
+        "This used to assert the opposite -- that the bar hid behind the cup -- "
+        "and that property was given up deliberately when the pegs were added",
     )
     r.check(
         h.plate_corner_r > 0
@@ -412,7 +463,8 @@ def check_edges(part: Part, treatments: dict[str, bool], h: Holder, r: Report) -
     expected = (
         {n for n, _ in ROUTE_MOUTHS}
         | {n for n, _, _ in BODY_MOUTHS}
-        | {"bed-side perimeter", "rim perimeter", "arm ends"}
+        | {n for n, _, _ in LADDER_MOUTHS}
+        | {"bed-side perimeter", "rim perimeter", "peg tips", "front-face blends"}
     )
     r.check(
         set(treatments) == expected,
@@ -434,18 +486,28 @@ def check_edges(part: Part, treatments: dict[str, bool], h: Holder, r: Report) -
         f"lead-in {h.mouth_chamfer:.2f}, outer {h.rim_chamfer:.2f}, wall {h.wall}",
     )
 
-    def _bore_seam(edge) -> bool:
+    def _cylinder_seam(edge) -> bool:
+        """The closing seam of a plain, never-cut cylinder: the bore, or a peg.
+
+        Confirmed with ``is_periodic_seam`` rather than assumed, and gated on
+        the edge being a straight vertical LINE at exactly one of those radii,
+        so a genuine sliver somewhere else cannot slip in under this name.
+        """
         if edge.geom_type != GeomType.LINE:
             return False
         bb = edge.bounding_box()
         if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
             return False
-        if abs(hypot(bb.min.X, bb.min.Y) - h.cavity_r) > 1e-3:
-            return False
-        return is_periodic_seam(part, edge)
+        on_bore = abs(hypot(bb.min.X, bb.min.Y) - h.cavity_r) < 1e-3
+        on_peg = any(
+            abs(hypot(bb.min.X - sx, bb.min.Y - h.pad_y) - h.peg_d / 2) < 1e-3
+            for sx in (h.peg_x, -h.peg_x)
+        )
+        return (on_bore or on_peg) and is_periodic_seam(part, edge)
 
     survey = sharp_convex_edges(
-        part, allow=((_bore_seam, "the bore's own untrimmed cylindrical seam"),)
+        part,
+        allow=((_cylinder_seam, "the bore's or a peg's own cylindrical seam"),),
     )
     r.check(
         not survey.sharp,
@@ -537,6 +599,7 @@ def run() -> Report:
     check_closed_in_front(part, h, r)
     check_cable_route(part, h, r)
     check_side_arms(part, h, r)
+    check_pegs(part, h, r)
     check_tape_pad(part, h, r)
     check_edges(part, treatments, h, r)
     check_parameters(r)

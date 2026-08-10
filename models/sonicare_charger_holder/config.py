@@ -131,18 +131,55 @@ and that turns the floor into the thing that has to be tall enough to contain
 them.
 """
 
-SEAT_BACKING = 1.6
+SEAT_BACKING = 1.2
 """Not a fit: seat that must survive above the side channels.
 
-Four perimeters between the top of a channel and the face the charger rests on.
+Three perimeters between the top of a channel and the face the charger rests on.
 The channels run under the seat for the width of the cup's back, so without this
 the puck would be sitting on a membrane over a void.
 """
 
-PLATE_INSET = 3.0
-"""Not a fit: how far each end of the tape bar stops short of the cup's own
-silhouette, so that from the front the holder reads as a plain round cup and the
-bar is not visible past it.
+ARM_CLEAR = 0.4
+"""Not a fit: routing gap on the side arms, tighter than the channel's.
+
+The channel has to swallow a moulded boot by hand and wants room; the arms take
+only the bare cord, pressed in. Every tenth here is a tenth on the arm's height,
+and the arm's height sets the floor's thickness -- which is the whole height of
+the holder. So this is the one routing gap worth being mean with.
+"""
+
+# --- the brush-head pegs -------------------------------------------------
+#
+# All three are ASSUMED, like the cable numbers, and for the same reason: nobody
+# here has held one. They are the numbers to change first if the heads do not
+# sit properly.
+
+HEAD_SOCKET_D = 5.0
+"""ASSUMED. Bore up the middle of a brush head, which grips the handle's drive
+shaft. The peg stands in for that shaft."""
+
+HEAD_D = 14.0
+"""ASSUMED envelope of a brush head at its widest, used only to keep one head
+clear of the cup and of the brush standing in it."""
+
+HEAD_CLEAR = 2.0
+"""Not a fit: air between a stored head and the cup beside it."""
+
+PEG_H = 10.0
+"""How far the peg stands proud. Enough to hold a head upright without being
+long enough to reach the bristles."""
+
+PEG_BOSS_WALL = 2.4
+"""Not a fit: material around the peg's root, which is what sets the pad it
+stands on. Six perimeters -- the pad is the only thing carrying a head."""
+
+PEG_FIT = fits.FREE  # free fit, PETG baseline
+"""The peg is a *shaft*, so the fit comes off its diameter rather than a bore.
+
+FREE and not SLIDING, deliberately. This is a wet drop-on storage peg that gets
+used one-handed with the other hand full: it must never grip, and a head that
+needs a tug is worse than one that rattles. The same reasoning that made the
+charger's own bore SLIDING makes this one FREE.
 """
 
 LEDGE = 3.0
@@ -296,10 +333,46 @@ class Holder:
         return self.floor + self.puck_height
 
     # -- the tape pad -----------------------------------------------------
+    # -- the brush-head pegs ----------------------------------------------
+    @property
+    def peg_d(self) -> float:
+        """Peg diameter: the head's own bore, less a free fit."""
+        return HEAD_SOCKET_D - PEG_FIT
+
+    @property
+    def pad_r(self) -> float:
+        """Radius of the lobe each peg stands on."""
+        return self.peg_d / 2 + PEG_BOSS_WALL
+
+    @property
+    def pad_y(self) -> float:
+        """The lobes sit tangent to the tape plane, so they *add* pad area
+        rather than breaking it, and the face the tape meets stays one plane."""
+        return self.back_y - self.pad_r
+
+    @property
+    def peg_x(self) -> float:
+        """How far out each peg has to be for its head to clear the cup.
+
+        Solved rather than chosen, and solved on the diagonal: the lobe sits a
+        radius forward of the tape plane, so the distance that actually has to
+        clear the cup is ``hypot(peg_x, pad_y)`` and not ``peg_x`` alone.
+        Measuring it along x instead would push the pegs 7 mm further out than
+        they need to be, on a part whose whole width is a wall fixture.
+        """
+        reach = self.outer_r + HEAD_D / 2 + HEAD_CLEAR
+        return sqrt(max(reach**2 - self.pad_y**2, 1.0))
+
     @property
     def plate_w(self) -> float:
-        """Bar width, derived from the cup so it always hides behind it."""
-        return self.outer_dia - 2 * PLATE_INSET
+        """Bar length: end to end between the two peg lobes.
+
+        The bar used to stop short of the cup so the holder read as a plain
+        circle from the front. It now runs past it on both sides, because that
+        is where the heads go -- and the lobes' own radius carries the ends
+        beyond this, so the overall width is ``plate_w + 2 * pad_r``.
+        """
+        return 2 * self.peg_x
 
     @property
     def plate_t(self) -> float:
@@ -408,7 +481,7 @@ class Holder:
         the point -- every millimetre of arm height is taken straight off the
         tape pad.
         """
-        return CABLE_DIA + CABLE_CLEAR
+        return CABLE_DIA + ARM_CLEAR
 
     @property
     def side_depth(self) -> float:
