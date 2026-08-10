@@ -36,6 +36,17 @@ proud, which is how you pinch them out. The ALLEN box sinks its keys deeper
 (21 mm) on the same base; `config.guide_floor_z` is the one place that says
 which box gets which.
 
+**Cover snap**: eased for this box alone — `BITS_SNAP_PROTRUSION` (0.35 mm)
+against the family's 0.45, so the bead engages 0.15 mm rather than 0.25 once the
+collar's slip gap is spent, and comes off with roughly 40% less force. A 24 mm
+cover has no lip and nothing to grip but the mouth itself, and a pinch there
+presses the bead *onto* the collar; the taller covers in the family are gripped
+well above the snap and keep the family's bead. Only the cover changed — the
+collar groove is the family's, so an eased cover goes onto a base already
+printed and an already-printed cover still fits a new base. The argument, the
+strain bound and the detent floor it must not cross are in
+[`config.py`](config.py)'s *The cover's snap*.
+
 **Grip**: both cartridges' lands are cut `HEX_LAND_TIGHTEN` (0.10 mm across the
 flats) tighter than the family's, because a socket here is named by `HEX_AF` —
 which already carries the guide's slip clearance — rather than by the shank the

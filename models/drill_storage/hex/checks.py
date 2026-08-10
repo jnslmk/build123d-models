@@ -19,7 +19,9 @@ The BITS box gets assertions of its own: the shared 1x1 footprint, exactly
 sixteen sockets in a literal 4x4 grid at the shaved pitch, and every margin
 the shave trades on -- the flat-face and top-rim walls at CART_WALL (measured
 with the rounded-square SDF, corner sockets included), the land and relief
-gaps between neighbours, and the two mouth gaps.
+gaps between neighbours, and the two mouth gaps. Its eased cover bead gets
+both ends pinned as well: still enough engagement to detent, no more strain
+than a repeatedly-opened PETG mouth should carry.
 
 What this file cannot tell you is whether the grip is right. The land these
 cartridges are cut at is the family's judgement (settled by printed cartridges
@@ -228,12 +230,14 @@ def check_box(
     insert = create_insert(hex_bores, mouth_ch=cart_mouth_ch)
     cover_h = c.cover_h_for(bit_len, floor_z)
     size, label_z, horizontal = label_fit(cover_h, label)
+    snap_protrusion = c.cover_snap_protrusion(name)
     cover = create_cover(
         label,
         cover_h=cover_h,
         label_size=size,
         label_z=label_z,
         label_horizontal=horizontal,
+        snap_protrusion=snap_protrusion,
     )
 
     r.section(f"hex {label}")
@@ -338,7 +342,7 @@ def check_box(
     for what, bead_z, prot, lead, back, tip, bead_wall, mate, sign in (
         ("cartridge", c.BEAD_Z, c.CART_BEAD, c.BEAD_LEAD_IN, c.BEAD_BACK,
          c.BEAD_TIP_FLAT, c.CART_W / 2, c.CAVITY_W / 2, +1.0),
-        ("cover", c.BASE_FOOT_TOP + SNAP_Z, SNAP_PROTRUSION, SNAP_LEAD_IN,
+        ("cover", c.BASE_FOOT_TOP + SNAP_Z, snap_protrusion, SNAP_LEAD_IN,
          SNAP_BACK, SNAP_TIP_FLAT, INNER_W / 2, c.COLLAR_W / 2, -1.0),
     ):
         bite, at_z = worst_bead_bite(
@@ -360,6 +364,49 @@ def check_box(
         f"{c.GROOVE_LIP_GAP:.2f} mm between their lips "
         f"({c.GROOVE_SEPARATION:.1f} mm centre to centre)",
     )
+
+    # The snap as the hand meets it. The bite walk above proves the bead *fits*
+    # the groove; these three prove it is still worth something and no longer
+    # costs more than it should -- the two ends the eased BITS bead has to stay
+    # between (config's "The cover's snap"). The protrusion is measured off the
+    # built cover rather than read back out of config, because the one failure
+    # neither end catches is the sweep quietly not happening: an absent bead has
+    # no interference to bite and no strain to exceed, and every other check on
+    # this part passes without it.
+    tip_r = INNER_W / 2 - snap_protrusion
+    bead_z = cover_h - SNAP_Z  # print pose is flipped, so the bead is near the top
+    r.check(
+        not is_solid_at(cover, tip_r - PROBE, 0.0, bead_z)
+        and is_solid_at(cover, tip_r + PROBE, 0.0, bead_z),
+        f"the cover's snap bead stands {snap_protrusion:.2f} mm into the bore",
+        f"tip at r={tip_r:.3f} mm, sampled +-{PROBE} at z={bead_z:.2f} "
+        f"(print pose; family cuts {SNAP_PROTRUSION:.2f})",
+    )
+    engagement = c.cover_snap_engagement(name)
+    r.check(
+        engagement >= c.SNAP_ENGAGEMENT_FLOOR - TOL,
+        "the bead still detents once the collar's slip gap is spent",
+        f"{engagement:.2f} mm of engagement (floor {c.SNAP_ENGAGEMENT_FLOOR:.2f}) "
+        f"-- a {snap_protrusion:.2f} mm bead less SLIP/2 = {c.SLIP / 2:.2f}",
+    )
+    # The other end, and BITS-only on purpose. ALLEN's cover is the family's
+    # untouched bead and sits at 1.28% of this bound, which is a knowing
+    # deviation and not an oversight: the bound is the annular one (a mouth that
+    # bends rather than stretching beats it), and a 45 mm cover is gripped well
+    # above its mouth, so nothing about it is hard to open. Easing the family's
+    # bead would re-cut the joint on every cover in the repo and orphan none of
+    # the value; easing the one cover that is only a pinch away from its own snap
+    # is the whole point of the split. Asserting the ceiling on the box that
+    # bought it is what stops the eased bead drifting back.
+    if name == "bits":
+        strain = c.cover_snap_strain(name)
+        r.check(
+            strain <= c.COVER_STRAIN_CEILING + TOL,
+            "opening the BITS cover stays under PETG's repeated-assembly strain",
+            f"{strain * 100:.2f}% over the {c.COLLAR_W:.1f} mm collar "
+            f"(ceiling {c.COVER_STRAIN_CEILING * 100:.1f}%, family's bead "
+            f"{c.cover_snap_strain('allen') * 100:.2f}%)",
+        )
 
     # The sockets in the insert: a land at the bottom (HEX_LAND_FIT) and a
     # relieved guide above (RELIEF_FIT), the same profile the drill sets cut.

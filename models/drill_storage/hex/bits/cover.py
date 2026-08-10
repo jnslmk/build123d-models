@@ -5,6 +5,11 @@ The 25 mm driver bits stand 10 mm proud of the base rim. The cover is the
 family's
 41.5 mm -- the cover is the pad, flush with the base.
 
+Its snap bead is eased to ``config.BITS_SNAP_PROTRUSION`` rather than the
+family's, because at 24 mm there is nothing to grip but the mouth itself and a
+pinch there presses the bead *onto* the collar. Cover-only: the base's groove is
+the family's, so this cover still goes onto a base already printed.
+
 Printed pillow-top down, mouth up, in translucent PETG, no supports.
 """
 
@@ -26,6 +31,7 @@ def create() -> Part:
         label_size=size,
         label_z=label_z,
         label_horizontal=horizontal,
+        snap_protrusion=c.cover_snap_protrusion("bits"),
     )
     cover.label = "cover_bits"
     cover.color = c.COVER_COLOR

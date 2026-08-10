@@ -115,6 +115,7 @@ def create_box_scene(
         label_size=size,
         label_z=label_z,
         label_horizontal=horizontal,
+        snap_protrusion=c.cover_snap_protrusion(name),
     )
     cover = Rotation(180, 0, 0) * cover
     cover = Pos(0, 0, c.BASE_FOOT_TOP - cover.bounding_box().min.Z) * cover

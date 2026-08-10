@@ -42,6 +42,7 @@ from ..box import (
     COVER_WALL,
     INNER_R,
     MOUTH_CH,
+    SNAP_PROTRUSION,
     SNAP_Z,
     TOP_FILLET,
     snap_bead_ring,
@@ -82,6 +83,7 @@ def create_cover(
     label_size: float,
     label_z: float,
     label_horizontal: bool = False,
+    snap_protrusion: float = SNAP_PROTRUSION,
 ) -> Part:
     """A rounded-square cover with a pillow top and an engraved label.
 
@@ -92,6 +94,13 @@ def create_cover(
 
     The label reads *up* the face by default, which is what a tall tube wants;
     ``label_horizontal`` turns it a quarter so it reads across the face instead.
+
+    ``snap_protrusion`` is how far the snap bead stands into the bore, and it is
+    a parameter because a *short* cover is a harder cover to open: the family's
+    bead is levered off by a hand gripping a tall tube well above the mouth,
+    while the 24 mm BITS cover can only be pinched right over the snap. Pass
+    ``config.cover_snap_protrusion(name)`` -- the default is the family's, so the
+    ALLEN cover and every base groove in the package are untouched.
     """
     inner_w = c.COVER_W - 2 * COVER_WALL
     with BuildPart() as cover:
@@ -133,8 +142,11 @@ def create_cover(
         loft(ruled=True, mode=Mode.SUBTRACT)
 
         # Snap bead: a chamfered (ramped) ridge just inside the opening that
-        # slides on gently and clicks into the groove on the base collar.
-        add(snap_bead_ring(inner_w, INNER_R, SNAP_Z))
+        # slides on gently and clicks into the groove on the base collar. Only
+        # the protrusion is per-box; the ramp and the retention face keep the
+        # family's runs, because what a withdrawal actually climbs is the
+        # *groove's* 45 deg roof and that lives on the shared base.
+        add(snap_bead_ring(inner_w, INNER_R, SNAP_Z, protrusion=snap_protrusion))
 
         # Engraved label on the +Y flat face -- reading up it, or across it when
         # ``label_horizontal``. Same plane logic as box.create_cover, so the

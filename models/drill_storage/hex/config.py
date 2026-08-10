@@ -59,7 +59,9 @@ from ..box import (
     LABEL_DEPTH,
     LABEL_SIZE,
     PAD,
+    SLIP,
     SNAP_GROOVE_ROOF,
+    SNAP_PROTRUSION,
     SNAP_Z,
     TOP_FILLET,
     WALL_LABEL_SIZE,
@@ -322,6 +324,84 @@ BITS_PITCH = (CART_W / 2 - HEX_SOCKET_R - (CART_WALL + BITS_CART_MOUTH_CH)) / (
     (BITS_GRID - 1) / 2
 )
 
+# --- The cover's snap ---------------------------------------------------------
+# The BITS cover is the one part in this family you cannot get a grip on, and it
+# is the family's own bead that makes that a problem.
+#
+# What the joint costs to open is set by the *engagement* -- how far the cover's
+# bead still stands into the collar once the slip gap is spent,
+# ``SNAP_PROTRUSION - SLIP/2`` -- because that is how far the mouth has to spring
+# out to let the bead climb the collar groove's 45 deg roof. Note what is *not*
+# a lever here: the bead's own retention face is steeper than that roof, so a
+# withdrawal rides the roof and the bead's ``SNAP_BACK`` run does nothing to the
+# force. The protrusion is the only thing on the cover that changes the feel.
+#
+# The family's 0.45 mm bead engages 0.25 mm. Read as ``snap-fits``' annular joint
+# -- interference diametral, so ``eps = 2 x 0.25 / 39.2`` over the COLLAR_W
+# collar -- that is 1.28% of hoop strain, against PETG's 1.7% one-time and 1.0%
+# repeated-assembly ceilings. Treat that as a conservative *bound* rather than
+# the part's real strain: a rounded-square mouth is four walls that bend, not a
+# hoop that stretches uniformly, so the true peak is some way under the annular
+# figure. It is still the right number to steer by, because it moves with the
+# engagement and nothing else does.
+#
+# Every *other* cover in the family lives with that bound, because it has
+# somewhere to pull from: the ALLEN cover is 45 mm tall and the drill sets'
+# taller still, so a hand grips well above the mouth and levers the bead out. The
+# BITS cover is 24 mm -- flush 41.5 mm sides, no lip, no proud rim -- so the only
+# grip is a pinch right over the snap, and a pinch squeezes the mouth *onto* the
+# collar. The complaint ("cannot get the cover off") is that geometry, not a bad
+# print, and it is why the margin gets spent on this box and not on the family.
+#
+# So this box, and only this box, eases its bead to 0.35: engagement 0.15 mm,
+# bound 0.77%, and roughly 40% less separating force for the same 45 deg return
+# ramp. It is a *cover-only* change by design -- the collar groove is untouched,
+# so an eased cover still goes onto every base already printed, and an old cover
+# still fits a new base.
+#
+# The floor it must not cross is the detent: below about 0.1 mm of engagement the
+# step the bead climbs stops clearing FDM's own layer-to-layer variance and the
+# joint degrades into a friction fit that rattles. 0.15 keeps half again over
+# that, and ``checks.py`` pins both ends on this box -- engagement above the
+# floor, bound under the ceiling -- so neither can be tuned away unnoticed. The
+# ALLEN cover is deliberately outside the ceiling and named there as such.
+BITS_SNAP_PROTRUSION = 0.35  # family 0.45; the eased bead, BITS cover only
+SNAP_ENGAGEMENT_FLOOR = 0.1  # under this the detent is inside print variance
+COVER_STRAIN_CEILING = 0.010  # PETG, repeated assembly (snap-fits/materials.md)
+
+
+def cover_snap_protrusion(name: str) -> float:
+    """How far one box's cover bead stands into its bore.
+
+    The one place that says which box gets which bead, mirroring ``box_fits``:
+    ALLEN keeps the family's ``SNAP_PROTRUSION`` outright, BITS takes the eased
+    ``BITS_SNAP_PROTRUSION`` argued above. Read by the cover, by the assembled
+    scene and by ``checks.py``, so a box cannot be eased in one and not the
+    others.
+    """
+    return SNAP_PROTRUSION if name == "allen" else BITS_SNAP_PROTRUSION
+
+
+def cover_snap_engagement(name: str) -> float:
+    """What that bead is still worth once the collar's slip gap is spent.
+
+    The number the joint's feel actually follows -- the radial deflection the
+    mouth has to find to let the bead off the collar -- rather than the modelled
+    protrusion, which flatters itself by the whole of ``SLIP/2``.
+    """
+    return cover_snap_protrusion(name) - SLIP / 2
+
+
+def cover_snap_strain(name: str) -> float:
+    """The mouth's hoop strain at that engagement, as a fraction.
+
+    ``snap-fits``' annular formula, ``eps = y / d``, with ``y`` the *diametral*
+    interference (twice the engagement -- the bead stands into the bore on every
+    side at once) and ``d`` the collar the mouth stretches over.
+    """
+    return 2 * cover_snap_engagement(name) / COLLAR_W
+
+
 # --- Colours ------------------------------------------------------------------
 # Base and insert both black; covers
 # translucent so the bits read through them (``tools.COVER_GLASS`` precedent).
@@ -427,6 +507,12 @@ __all__ = [
     "BITS_GUIDE_MOUTH_CH",
     "BITS_PITCH",
     "BITS_RELIEF_GAP_FLOOR",
+    "BITS_SNAP_PROTRUSION",
+    "COVER_STRAIN_CEILING",
+    "SNAP_ENGAGEMENT_FLOOR",
+    "cover_snap_engagement",
+    "cover_snap_protrusion",
+    "cover_snap_strain",
     "ALLEN_HOLE_DEPTH",
     "BITS_HOLE_DEPTH",
     "CAVITY_FLOOR_Z",
@@ -472,7 +558,9 @@ __all__ = [
     "LABEL_DEPTH",
     "LABEL_SIZE",
     "PAD",
+    "SLIP",
     "SNAP_GROOVE_ROOF",
+    "SNAP_PROTRUSION",
     "SNAP_Z",
     "TOP_FILLET",
     "WALL_LABEL_SIZE",
