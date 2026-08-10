@@ -94,23 +94,28 @@ MIN_WALL = 0.8
 TOOL_CLEARANCE = 0.5
 
 
+def _bore_label(s: DrillSet, cut_d: float) -> str:
+    """Name a bore by the drill that goes in it, not by the diameter it is cut
+    at. The two parted company when the small-bore shift arrived: the 1 mm bore
+    is cut 1.75, and a failure reported against "1.75 mm" names nothing a reader
+    can find on a drill or on the wall legend.
+    """
+    for drill in s.drills:
+        if abs(s.cut_d(drill) - cut_d) < TOL:
+            return f"{drill.nominal:g}"
+    return f"{cut_d:g}"
+
+
 def _bore_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
     """Every cut bore as ``(key, relieved_radius, x, y)`` -- the real footprint,
     not the nominal tool, which is what has to be packed and walled."""
-    items = [(f"{d:g}", c.relieved_bore_r(d), x, y) for d, x, y in s.bores]
+    items = [
+        (_bore_label(s, d), c.relieved_bore_r(d), x, y) for d, x, y in s.bores
+    ]
     items += [
         (f"hex{af:g}", _hex_r(af, c.RELIEF_FIT), x, y) for af, x, y in s.hex_bores
     ]
     return items
-
-
-def _land_ease(s: DrillSet, d: float) -> float:
-    """The size-dependent ease a set opts into for a bore of diameter ``d``:
-    ``config.small_bore_comp`` when the set asks for it, zero otherwise. Every
-    check that samples the land must go through this, or it verifies a radius
-    the geometry does not cut.
-    """
-    return c.small_bore_comp(d) if s.small_bore_comp else 0.0
 
 
 def _print_pose_y(y: float) -> float:
@@ -135,27 +140,32 @@ def check_fits(r: Report) -> None:
         f"{c.LAND_FIT:.2f} mm = {press:.2f} - {c.LAND_EXTRA_GRIP:.2f} "
         f"+ {c.LAND_EASE:.2f}",
     )
-    # The small-bore taper is a calibration knob, so its reading is pinned here
-    # like any other fit: the whole grip given back as the bore shrinks toward
-    # nothing, on a squared curve, and nothing at 4 mm and up.
-    r.check(
-        c.SMALL_BORE_COMP_MAX == c.SMALL_BORE_UNDERSIZE - c.LAND_FIT
-        and c.SMALL_BORE_COMP_EXP == 2.0
-        and c.SMALL_BORE_COMP_THRESHOLD == 4.0,
-        "the small-bore taper gives back the whole grip, squared, under 4.0 mm",
-        f"max {c.SMALL_BORE_COMP_MAX:.2f} mm = {c.SMALL_BORE_UNDERSIZE:.2f} - "
-        f"({c.LAND_FIT:.2f}), exponent {c.SMALL_BORE_COMP_EXP:g}",
+    # The small-bore shift has exactly one free constant and it is a printed
+    # measurement, so what is pinned here is the measurement rather than the
+    # constant: at the anchor size the curve must still put the land on the bore
+    # that was printed and proven. Change SMALL_BORE_ANCHOR_LAND only with a
+    # cartridge in hand.
+    anchor_land = 2 * c.land_bore_r(
+        c.SMALL_BORE_ANCHOR_D + c.small_bore_comp(c.SMALL_BORE_ANCHOR_D)
     )
-    # The taper may hand back the grip; it may never hand back more than there
-    # was. Past RELIEF_FIT the eased land would be wider than the relief above
-    # it -- the bore would step *inward* on the way out and the land would stop
-    # being the narrow point at all. Checked at the ceiling, so it holds for
-    # every bore however small, rather than only for the sizes a set happens to
-    # carry today.
     r.check(
-        c.SMALL_BORE_COMP_MAX < c.RELIEF_FIT - c.LAND_FIT,
-        "the fully eased land is still narrower than the relief above it",
-        f"{c.SMALL_BORE_COMP_MAX:.2f} of {c.RELIEF_FIT - c.LAND_FIT:.2f} mm",
+        abs(anchor_land - c.SMALL_BORE_ANCHOR_LAND) < TOL
+        and c.SMALL_BORE_COMP_THRESHOLD == 4.0,
+        "the small-bore shift lands the anchor bore on its measured diameter",
+        f"{c.SMALL_BORE_ANCHOR_D:g} mm drill -> {anchor_land:.3f} mm land "
+        f"(measured {c.SMALL_BORE_ANCHOR_LAND:.2f}), nothing above "
+        f"{c.SMALL_BORE_COMP_THRESHOLD:g} mm",
+    )
+    # The shift moves the cut diameter, so the three fits keep their ordering by
+    # construction however far it moves -- and that ordering *is* the design: a
+    # loose ASA guide that only steers, a tight TPU land that alone grips, and a
+    # relief between them that clears. Asserted on the fits rather than on any
+    # one bore, because that is the level the guarantee now lives at.
+    r.check(
+        c.LAND_FIT < c.RELIEF_FIT < c.GUIDE_FIT,
+        "land grips, relief clears, guide steers -- in that order, at every size",
+        f"land {c.LAND_FIT:+.2f} < relief {c.RELIEF_FIT:+.2f} < "
+        f"guide {c.GUIDE_FIT:+.2f} mm",
     )
     r.check(
         c.HEX_LAND_FIT == press + c.LAND_EASE,
@@ -470,7 +480,7 @@ def check_sets_table(r: Report) -> None:
             f"{[(d.nominal, d.shank) for d in s.drills if d.shank is not None and d.shank > d.nominal]}",
         )
         # The smallest land still has to print as a hole rather than close up.
-        smallest = min(c.land_bore_r(d, _land_ease(s, d)) * 2 for d, _x, _y in s.bores)
+        smallest = min(c.land_bore_r(d) * 2 for d, _x, _y in s.bores)
         r.check(
             smallest >= MIN_WALL - TOL,
             f"{s.name}: the smallest land is still a printable hole",
@@ -970,7 +980,7 @@ def check_land(s: DrillSet, insert: Part, r: Report) -> None:
     z_relief = c.CART_H - (c.LAND_H + c.LAND_LEAD_IN + 2.0)
 
     for d, x, y in s.bores:
-        land_r = c.land_bore_r(d, _land_ease(s, d))
+        land_r = c.land_bore_r(d)
         relief_r = (d + c.RELIEF_FIT) / 2
         py = _print_pose_y(y)  # the print pose mirrors Y; sample the real part
         ok = (
@@ -981,14 +991,14 @@ def check_land(s: DrillSet, insert: Part, r: Report) -> None:
         )
         r.check(
             ok,
-            f"{d:g} mm bore: land {land_r:.2f} / relief {relief_r:.2f}",
+            f"{_bore_label(s, d)} mm bore: land {land_r:.2f} / relief {relief_r:.2f}",
             f"sampled at z={z_land:.2f} and z={z_relief:.2f}",
         )
         # The step is the whole point: at land height the relief radius must be
         # solid, or the land is not actually narrower than the guide.
         r.check(
             is_solid_at(insert, x + land_r + PROBE, py, z_land),
-            f"{d:g} mm bore: land is proud of the relief",
+            f"{_bore_label(s, d)} mm bore: land is proud of the relief",
             f"{(relief_r - land_r) * 2:.2f} mm diametral step",
         )
 
@@ -1011,7 +1021,9 @@ def check_guides(s: DrillSet, base: Part, r: Report) -> None:
             base, x + gr + PROBE, y, z_mid
         )
         r.check(
-            ok, f"{d:g} mm guide bored to {gr * 2:.2f} mm", f"sampled at z={z_mid:.1f}"
+            ok,
+            f"{_bore_label(s, d)} mm guide bored to {gr * 2:.2f} mm",
+            f"sampled at z={z_mid:.1f}",
         )
 
     # Open all the way down to the floor a drill rests on, and no further.
@@ -1048,7 +1060,9 @@ def check_guides(s: DrillSet, base: Part, r: Report) -> None:
     # layout_bores packs on the *cartridge's* relieved bore and knows nothing about
     # how wide the guide is cut, so widening GUIDE_FIT spends a wall nothing else
     # is watching. This is the check that stops it going too far.
-    guides = [(f"{d:g}", (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in s.bores]
+    guides = [
+        (_bore_label(s, d), (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in s.bores
+    ]
     guides += [
         (f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in s.hex_bores
     ]
@@ -1076,18 +1090,14 @@ def check_guides(s: DrillSet, base: Part, r: Report) -> None:
         f"reach {reach:.2f} of {c.CAVITY_W / 2:.2f} mm",
     )
     # Every land is narrower than the guide beneath it -- checked against this
-    # set's own bores, since a shank allowance shifts both and a bug that applied
-    # it to only one would show up here and nowhere else. The eased land is the
-    # real cut, so it is the one compared; the worst case is the smallest bore,
-    # whose taper opens it the most.
-    steps = [
-        (d + c.GUIDE_FIT) - 2 * c.land_bore_r(d, _land_ease(s, d))
-        for d, _x, _y in s.bores
-    ]
+    # set's own bores, since the shank allowance and the small-bore shift move
+    # both and a bug that applied either to only one would show up here and
+    # nowhere else.
+    steps = [(d + c.GUIDE_FIT) - 2 * c.land_bore_r(d) for d, _x, _y in s.bores]
     r.check(
         all(step > 0 for step in steps),
         "every land is narrower than the guide beneath it",
-        f"min {min(steps):.2f} mm diametral step (eased land included)",
+        f"min {min(steps):.2f} mm diametral step",
     )
 
 

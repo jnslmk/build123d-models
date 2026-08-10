@@ -336,12 +336,37 @@ order, newest last:
 | what was printed | judgement | what changed |
 |---|---|---|
 | wood cartridge, `LAND_FIT = −0.10` | holds — and this is why the ribbed design was dropped — but harder than a tool tray wants; a drill lifts the base off the baseplate on the way out | `LAND_EASE = 0.05` added, opening both the round and hex lands by one named step |
+| metal cartridge, no small-bore compensation | the 1 and 1.5 mm bores will not take their drills at all | a linear taper on the land below 4 mm: +0.10 mm of clearance per mm under |
+| metal cartridge, linear taper | still too tight, and in a revealing order: 1 mm good, 1.5 and 2 refused, 2.5 marginal | the taper squared, so the residual interference rose with size rather than linearly |
+| metal cartridge, squared taper | **the finding.** Its 1.5 mm bore — land modelled 1.700 — holds a *1.0 mm* drill snugly; its 2.5 mm bore (land 2.600) is very nearly right for its own | the compensation became a shift of the **cut diameter** on a 1/√d curve, anchored on that 1.700, and the metal layout was re-solved around the fatter bores |
+
+That last row is the one worth reading twice, because it says the earlier two
+rows were fixing the wrong thing. Both of them assumed the printer closes a hole
+by a roughly constant amount — the 0.1–0.3 mm of rule 4 — and merely argued
+about how fast to give it back. The two lands above put the closure at **≈0.67 mm
+at 1.7 mm of hole and ≈0.08 mm at 2.6 mm**: nine tenths of the effect inside one
+millimetre of diameter. That is a nozzle unable to trace a tight inner
+perimeter, not a fit, and no clearance ladder was ever going to express it.
+
+Two consequences are now baked into the design:
+
+- **The shift moves the whole bore, not the land.** A drill reaches the land
+  through the relief above it and continues into the ASA guide below, so an eased
+  land behind an uncompensated relief is unreachable — which is exactly what the
+  squared taper shipped: a 1 mm bore with a 1.70 land behind a 1.32 relief.
+  `DrillSet.cut_d` is now the single place a bore's diameter is decided, and the
+  land, the relief, the guide and the packer's footprint all read it.
+- **Compensation is a layout question.** Fatter reliefs grew the small bores'
+  footprints by up to 0.38 mm of radius, which cost the 1 mm bore its wall, so
+  `FREE_LAYOUT` was re-solved. A cartridge-only fix was not available.
 
 `LAND_EASE` is deliberately half of `LAND_EXTRA_GRIP`: the useful band between
 *falls out* and *fights you* is narrow in an elastomer, and the printer's own
 hole undersize (0.1–0.3 mm) is wider than the correction. Ease again before
 reaching for `LAND_H` — a shorter land changes the contact area, which is the
 thing that was reasoned about above, while the ease only trims the interference.
+None of that applies under about 3 mm any more: there the closure, not the fit,
+sets the hole, and the instrument is `SMALL_BORE_ANCHOR_LAND`.
 
 ## Open questions
 
@@ -352,6 +377,15 @@ thing that was reasoned about above, while the ease only trims the interference.
   is grabbier per mm than a curved wall. The ribbed design found the same thing
   from the other side, wanting more interference on the hex than on the round
   bores. Expect these two to diverge again.
+- **Does the 1/√d curve hold between its two anchors?** It is fixed by one
+  reading at 1 mm and sanity-checked against one at 2.5 mm; 1.5 and 2 mm are
+  interpolation. If the next cartridge finds one of those two off while both
+  anchors are right, the curve's *shape* is wrong, not `SMALL_BORE_ANCHOR_LAND`.
+- **Do the ASA guides close like the TPU bores do?** They are compensated by the
+  same shift on the argument that the effect is the nozzle's geometry rather
+  than the material, and a guide grips nothing so erring wide is free. Nobody
+  has measured a small ASA bore on this printer. The cheap test is to drop a
+  1 mm drill into a bare base with the cartridge out.
 - **Is the land now on the flutes of the small drills?** See the table above —
   it depends on the bits, and neither reference table is measured. This is the
   open question the collar geometry created, and the cheapest way to close it is

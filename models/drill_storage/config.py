@@ -227,68 +227,68 @@ LAND_EXTRA_GRIP = 0.10
 LAND_EASE = 0.05  # opened by this much from the first printed cartridge
 LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP + LAND_EASE
 
-# --- Small-bore undersize taper ----------------------------------------------
-# The land *exploits* the printer's hole undersize as its interference: a bore
-# modelled at nominal arrives 0.1-0.3 mm small (measured 0.24 mm at 5 mm, rule 4
-# of fdm-fits-and-clearances), and that undersize is the grip. The catch is that
-# the undersize is a roughly constant absolute offset, so its bite scales
-# inversely with the hole: 0.25 mm is 2.5% of a 10 mm bore and 25% of a 1 mm one.
-# Below about 4 mm a small land stops being a press fit and becomes a wall the
-# drill cannot enter at all -- the metal set's 1 and 1.5 mm bores printed tight
-# enough that the bits would not go in.
+# --- Small-bore closure compensation ------------------------------------------
+# A small vertical hole prints undersize, and the land *exploits* that: a bore
+# modelled at nominal arrives small, and the shortfall is the interference that
+# grips (0.24 mm measured at 5 mm, rule 4 of fdm-fits-and-clearances). Two
+# printed cartridges have now shown that the shortfall is nothing like constant
+# below about 3 mm, and that is what this section exists to cancel.
 #
-# So below ``SMALL_BORE_COMP_THRESHOLD`` the land is eased back toward a slip
-# fit -- as a fraction of the whole interference rather than by a flat slope,
-# which is the correction the first printed cartridge asked for. Two numbers set
-# the curve, and both are readings rather than preferences:
+# The measurement, off the metal set, is at the top of the file's evidence in
+# this package because it is the only direct reading of a sub-2 mm bore:
 #
-#   * ``SMALL_BORE_COMP_MAX`` is the whole grip: the undersize a bore this small
-#     prints at, plus ``LAND_FIT``'s own tightening on top of it. That makes the
-#     taper's limit "give all of it back", never more, and it is what keeps the
-#     eased land inside the relief above it -- ``RELIEF_FIT - LAND_FIT`` is
-#     0.37, so the two converge as the bore shrinks and never cross.
+#   * a land modelled 1.700 takes a 1.0 mm drill *snugly* -- so that bore is
+#     arriving at roughly 1.03, i.e. ~0.67 mm of closure;
+#   * a land modelled 2.600 takes a 2.5 mm drill with a little to spare -- so
+#     that one is arriving at roughly 2.52, i.e. ~0.08 mm of closure.
 #
-#   * ``SMALL_BORE_COMP_EXP`` is why the taper is a curve and not a line. What
-#     limits a small bore is not strain in the TPU -- an elastomer gives at any
-#     of these numbers -- but the *drill*: it is seated by pushing on a slender
-#     column of HSS, whose buckling load falls away with the fourth power of its
-#     diameter, while the interference that column has to overcome falls only
-#     linearly. The interference a size can actually take therefore grows much
-#     faster than the size does, and a straight line between "all of it back at
-#     nothing" and "none of it back at 4 mm" leaves the whole middle over-tight.
+# Nine tenths of the effect appears in under a millimetre of hole. That is a
+# geometric limit rather than a material one: a 0.4 mm nozzle cannot trace the
+# inner perimeter of a sub-2 mm circle without over-depositing into the middle,
+# and the closure runs away as the loop tightens. Modelling it as a constant
+# offset -- which every earlier version of this section did, first as a flat
+# slope and then as a squared taper -- is what left the small bores unusable
+# through two prints.
 #
-# Squaring it is what the printed set reported: on the linear slope the 1 mm
-# bore took its drill and the 1.5, 2 and 2.5 did not, in that order of severity.
-# That ordering is the signature of a residual interference rising too steeply
-# with size, not of a ceiling in the wrong place -- the ceiling was already
-# right at 1 mm. The residual left after the curve is 0.02 / 0.05 / 0.09 / 0.14
-# / 0.20 mm at 1 / 1.5 / 2 / 2.5 / 3 mm, against 0.05 / 0.10 / 0.15 / 0.20 /
-# 0.25 before it, so every size below 4 mm gets looser and the smallest ones
-# keep the fit that already worked.
+# So the compensation is a **shift of the diameter the bore is cut at**, applied
+# before any fit, rather than an ease on the land alone. That distinction is the
+# whole correction. A drill reaches the land by passing *through* the relief
+# above it and then continues into the ASA guide below, so all three are in its
+# path: an eased land behind an uncompensated relief is unreachable, and the
+# 1 mm bore's relief (1.32) was narrower than the land it was supposed to lead
+# to (1.70). Shifting the cut diameter moves the land, the relief and the guide
+# together, and every clearance downstream stays exactly the fit it says it is.
 #
-# It stays a calibration knob, not a law, and a set opts in via
-# ``DrillSet.small_bore_comp`` rather than every set carrying it. Raise MAX if a
-# small bore still refuses a bit -- it is the only end that can still move at
-# 1 mm, where EXP has nothing left to give. Raise EXP if a mid-size bore
-# (2.5-3.5 mm) rattles while the small ones are right.
-SMALL_BORE_COMP_THRESHOLD = 4.0  # mm; at and below this, ease the land
-SMALL_BORE_UNDERSIZE = 0.30  # what a bore this small prints under its model
-SMALL_BORE_COMP_MAX = SMALL_BORE_UNDERSIZE - LAND_FIT  # 0.35 -- the whole grip
-SMALL_BORE_COMP_EXP = 2.0  # a curve, not a slope: see the buckling note above
+# The curve is 1/sqrt(d), which is the cheapest shape that both runs away at the
+# bottom and dies at the threshold. Its one free constant is fixed by the
+# measurement rather than chosen: at ``SMALL_BORE_ANCHOR_D`` the shift is
+# whatever puts the land on ``SMALL_BORE_ANCHOR_LAND``, the bore that was
+# printed and proven. Nothing here is a preference, so re-calibrating means
+# printing a bore and reading it, not turning a knob.
+#
+# Hex sockets are untouched -- the smallest is 6.3 mm across flats, well past
+# the threshold, and the closure is a curvature effect that a flat does not have.
+SMALL_BORE_COMP_THRESHOLD = 4.0  # mm; above this the closure is inside the fits
+SMALL_BORE_ANCHOR_D = 1.0  # the drill the anchor was read with
+SMALL_BORE_ANCHOR_LAND = 1.70  # land diameter that took it snugly, as printed
+# What the anchor asks the shift to be there, and the constant that follows.
+SMALL_BORE_ANCHOR_SHIFT = SMALL_BORE_ANCHOR_LAND - LAND_FIT - SMALL_BORE_ANCHOR_D
+SMALL_BORE_COMP_K = SMALL_BORE_ANCHOR_SHIFT / (
+    SMALL_BORE_ANCHOR_D**-0.5 - SMALL_BORE_COMP_THRESHOLD**-0.5
+)  # 1.5
 
 
 def small_bore_comp(d: float) -> float:
-    """Extra diametral clearance for a bore of diameter ``d`` under the
-    small-bore taper: ``0`` at the threshold and above, rising toward
-    ``SMALL_BORE_COMP_MAX`` as the bore shrinks toward nothing.
+    """How much wider than ``d`` a bore of that size has to be *cut* for it to
+    arrive at ``d`` -- zero at the threshold and above, running away below it.
 
-    Reads 0.33 / 0.30 / 0.26 / 0.21 / 0.15 mm at 1 / 1.5 / 2 / 2.5 / 3 mm.
+    Reads 0.75 / 0.48 / 0.31 / 0.20 / 0.12 mm at 1 / 1.5 / 2 / 2.5 / 3 mm. This
+    is a diameter shift, not a clearance: it is applied to the bore before
+    ``LAND_FIT`` / ``RELIEF_FIT`` / ``GUIDE_FIT``, so all three move with it.
     """
     if d >= SMALL_BORE_COMP_THRESHOLD:
         return 0.0
-    return SMALL_BORE_COMP_MAX * (
-        1.0 - (d / SMALL_BORE_COMP_THRESHOLD) ** SMALL_BORE_COMP_EXP
-    )
+    return SMALL_BORE_COMP_K * (d**-0.5 - SMALL_BORE_COMP_THRESHOLD**-0.5)
 
 
 # Sliding fit, TPU -- the relief above the land. It carries no grip at all, only
@@ -492,20 +492,27 @@ PACK_WALL_CLEARANCE = CART_WALL + CART_MOUTH_CH  # material + a formed lead-in
 
 
 def relieved_bore_r(d: float) -> float:
-    """The radius actually cut for a drill of diameter ``d`` -- the relief, not
-    the land, because the relief is the wider of the two and so is the footprint
-    the packer has to fit. The ``footprint_r`` handed to ``layout_bores``.
+    """The radius cut at the relief for a bore whose cut diameter is ``d`` --
+    the relief, not the land, because the relief is the wider of the two and so
+    is the footprint the packer has to fit. The ``footprint_r`` handed to
+    ``layout_bores``.
+
+    ``d`` is the *cut* diameter (``DrillSet.cut_d``), which for a small bore is
+    already wider than the drill by ``small_bore_comp``. That is why the shift
+    reaches the packer at all: it grows the footprint, and the layout has to be
+    re-solved around it rather than merely re-bored.
     """
     return (d + RELIEF_FIT) / 2
 
 
-def land_bore_r(d: float, ease: float = 0.0) -> float:
-    """The radius actually cut for a drill of diameter ``d`` at its grip land --
-    the press fit, plus a named size-dependent ease (``small_bore_comp``) where
-    one applies. The land, not the relief: the relief stays the wider footprint,
-    so this never feeds the packer and never moves a hole.
+def land_bore_r(d: float) -> float:
+    """The radius cut at the grip land for a bore whose cut diameter is ``d``.
+
+    The press fit and nothing else -- any small-bore compensation is already in
+    ``d`` by the time this is called, so the land, the relief and the guide all
+    inherit it and the ordering between the three stays the fits' business.
     """
-    return (d + LAND_FIT + ease) / 2
+    return (d + LAND_FIT) / 2
 
 
 __all__ = [
@@ -573,10 +580,11 @@ __all__ = [
     "RELIEF_FIT",
     "RIM_FLAT",
     "SHELL_COLOR",
-    "SMALL_BORE_COMP_EXP",
-    "SMALL_BORE_COMP_MAX",
+    "SMALL_BORE_ANCHOR_D",
+    "SMALL_BORE_ANCHOR_LAND",
+    "SMALL_BORE_ANCHOR_SHIFT",
+    "SMALL_BORE_COMP_K",
     "SMALL_BORE_COMP_THRESHOLD",
-    "SMALL_BORE_UNDERSIZE",
     "SHELL_COLLAR_H",
     "SHELL_FOOT_TOP",
     "SHELL_MATERIAL",

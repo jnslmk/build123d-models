@@ -61,16 +61,16 @@ def _hex_r(across_flats: float, fit: float) -> float:
     return (across_flats + fit) / 3**0.5
 
 
-def _cut_round_bore(d: float, x: float, y: float, land_ease: float = 0.0) -> None:
+def _cut_round_bore(d: float, x: float, y: float) -> None:
     """One plain round through-bore: a short grip land, a lead-in cone, then a
     relieved guide the rest of the way up. Call inside the active BuildPart.
 
-    ``land_ease`` opens the land beyond ``LAND_FIT`` -- the size-dependent
-    small-bore compensation (``config.small_bore_comp``) when the set opts in.
-    It only ever widens the land: the relief above stays put, so the packing
-    footprint and every spacing check are untouched by it.
+    ``d`` is the *cut* diameter -- ``DrillSet.cut_d``, which already carries the
+    shank correction and the small-bore shift -- so everything here is a plain
+    fit over it and the land, the relief and the mouth stay in proportion
+    however far the shift has moved the bore.
     """
-    land_r = c.land_bore_r(d, land_ease)
+    land_r = c.land_bore_r(d)
     relief_r = (d + c.RELIEF_FIT) / 2
 
     with Locations((x, y, 0.0)):
@@ -126,8 +126,9 @@ def hex_bore_tool(
     hex boxes name theirs by ``hex.config.HEX_AF``, which already carries a slip
     clearance the grip land should not inherit, so they pass their own tightened
     fit (``hex.config.HEX_LAND_FIT``). The relief above is untouched either way,
-    so the packing footprint and every spacing check are unaffected -- the same
-    contract ``_cut_round_bore``'s ``land_ease`` keeps.
+    so the packing footprint and every spacing check are unaffected by the
+    override -- unlike the round bores' small-bore shift, which moves the cut
+    diameter itself and so has to be packed around.
     """
     land_r = _hex_r(af, c.HEX_LAND_FIT if land_fit is None else land_fit)
     relief_r = _hex_r(af, c.RELIEF_FIT)
@@ -201,17 +202,15 @@ def key_rib() -> Part:
 def create_insert(
     bores: Sequence[tuple[float, float, float]],
     hex_bores: Sequence[tuple[float, float, float]] | None = None,
-    small_bore_comp: bool = False,
 ) -> Part:
     """The TPU cartridge: a keyed block of plain round bores, land at the bottom.
 
     ``bores`` are ``(diameter, x, y)`` and ``hex_bores`` ``(across_flats, x, y)``,
     both in the base's coordinates -- pass the same tuples ``create_base`` was
-    given its legend for, or the labels lie.
-
-    ``small_bore_comp`` opts in to ``config``'s size-dependent taper, opening
-    the grip lands of bores at and under the threshold progressively. A set
-    decides, not this function -- pass ``drill_set.small_bore_comp`` through.
+    given its legend for, or the labels lie. The diameter is the one to *cut*
+    (``DrillSet.cut_d``), shank correction and small-bore shift included; this
+    function applies fits over it and never second-guesses it, which is what
+    keeps the base's guides and the cartridge's lands on one number.
 
     Returned in print pose, top face on ``z=0`` -- upside down from how it sits
     in the base, so the grip land prints last, clear of the bed. The collar's
@@ -254,12 +253,7 @@ def create_insert(
         )
 
         for d, x, y in bores:
-            _cut_round_bore(
-                d,
-                x,
-                y,
-                land_ease=c.small_bore_comp(d) if small_bore_comp else 0.0,
-            )
+            _cut_round_bore(d, x, y)
         for af, x, y in hex_bores or []:
             add(hex_bore_tool(af, x, y), mode=Mode.SUBTRACT)
 
@@ -302,11 +296,7 @@ def create_insert(
 
 def create_insert_for(drill_set: DrillSet) -> Part:
     """The cartridge for one ``sets.DrillSet``, labelled and coloured."""
-    insert = create_insert(
-        drill_set.bores,
-        hex_bores=drill_set.hex_bores,
-        small_bore_comp=drill_set.small_bore_comp,
-    )
+    insert = create_insert(drill_set.bores, hex_bores=drill_set.hex_bores)
     insert.label = f"insert_tpu_{drill_set.name}"
     insert.color = c.CART_COLOR
     return insert

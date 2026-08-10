@@ -42,7 +42,7 @@ from .box import (
     layout_bores,
     wall_label_line_h,
 )
-from .freepack import legend_lines
+from .freepack import LEGEND_MAX_LINES, legend_lines
 from . import config as c
 
 # Minimum gap wanted above the longest tip when picking the cover's Gridfinity
@@ -191,24 +191,41 @@ class DrillSet:
     cover_h: float = field(init=False)
     legend_line_h: float = field(init=False)
 
+    def cut_d(self, drill: Drill) -> float:
+        """The diameter this set's bores are actually cut at for one drill.
+
+        Two corrections, in order, and both of them are the difference between
+        a number on a bit and a hole that holds it:
+
+        * the **shank**, measured or the set's uniform allowance below nominal,
+          because a drill goes in shank-first and only the shank ever touches;
+        * the **small-bore shift** (``config.small_bore_comp``) when the set
+          opts in, because under about 3 mm the printer closes a hole by much
+          more than any fit in ``config`` is expressing.
+
+        Every consumer takes its diameter from here -- the land, the relief, the
+        ASA guide, and the packer's footprint -- so a bore cannot be compensated
+        in one of them and not the others. That was the bug the second printed
+        cartridge found: an eased land behind a relief too narrow to reach it.
+        """
+        shank = drill.shank if drill.shank is not None else drill.nominal - self.shank_allowance
+        return shank + (c.small_bore_comp(shank) if self.small_bore_comp else 0.0)
+
+    def footprint_r(self, drill: Drill) -> float:
+        """What the packer has to reserve at this drill's position: its relieved
+        bore, or the drill's own body when a reduced shank makes the body the
+        wider thing standing above the tray. ``freepack`` solves against exactly
+        this, so a re-solve and an import agree by construction.
+        """
+        return max(c.relieved_bore_r(self.cut_d(drill)), drill.nominal / 2)
+
     def __post_init__(self) -> None:
         nominal = [d.nominal for d in self.drills]
-        # The diameter actually cut for each drill: its measured shank, or the
-        # nominal minus the set's uniform allowance. A drill stands on its shank,
-        # so the bore is cut to the shank, never the name.
-        bore_of = {
-            d.nominal: d.shank
-            if d.shank is not None
-            else d.nominal - self.shank_allowance
-            for d in self.drills
-        }
+        bore_of = {d.nominal: self.cut_d(d) for d in self.drills}
+        footprint_of = {d.nominal: self.footprint_r(d) for d in self.drills}
 
-        # Packed by the widest thing at each position: the insert's relieved bore
-        # (shank-sized) for a drill -- but the *body* stands above the tray at the
-        # nominal size, so a reduced-shank drill is packed by whichever is wider,
-        # exactly like a hex tool's head vs its socket. The body is nominal/2.
         def drill_footprint_r(nominal_d: float) -> float:
-            return max(c.relieved_bore_r(bore_of[nominal_d]), nominal_d / 2)
+            return footprint_of[nominal_d]
 
         # Packed by the widest thing cut at each position: the insert's relieved
         # bore for a drill, and for a hex tool whichever is bigger, its head or
@@ -257,7 +274,9 @@ class DrillSet:
             # No rows to read the legend off, so the lines are packed instead.
             # Four, not three: a free layout puts holes at arbitrary x, and three
             # lines cannot hold twelve labels without two of them colliding.
-            rows = legend_lines(list(pos), pos, WALL_LABEL_SIZE, max_lines=4)
+            rows = legend_lines(
+                list(pos), pos, WALL_LABEL_SIZE, max_lines=LEGEND_MAX_LINES
+            )
         # Keys and the legend stay nominal; the hole is cut to the shank.
         object.__setattr__(
             self,
@@ -336,18 +355,18 @@ WOOD = DrillSet(
 # What makes these numbers trustworthy is not the solver but ``checks.py``, which
 # re-derives every wall and every gap from them.
 FREE_LAYOUT: dict[str, tuple[float, float]] = {
-    "2.5": (+10.92, +14.68),
-    "3": (-3.99, +14.43),
-    "4": (-9.39, +13.93),
-    "1.5": (-15.18, +11.07),
-    "10": (+3.66, +10.93),
-    "6": (+12.93, +7.42),
-    "2": (-1.28, +4.75),
-    "TAP": (-9.97, +4.27),
-    "5": (-13.43, -5.30),
-    "STEP": (+6.09, -5.65),
-    "8": (-8.33, -11.93),
-    "1": (-13.86, -15.43),
+    "3": (+12.97, +14.37),
+    "5": (-2.27, +13.43),
+    "2": (+14.77, +10.13),
+    "10": (-10.93, +10.01),
+    "TAP": (+6.25, +8.00),
+    "2.5": (-3.24, +6.80),
+    "1.5": (+5.32, -0.59),
+    "8": (+11.93, -2.23),
+    "STEP": (-6.09, -6.00),
+    "4": (+13.93, -9.85),
+    "6": (+7.84, -12.93),
+    "1": (+2.54, -15.06),
 }
 
 # Ten HSS twist drills on DIN 338 jobber lengths, plus a 4 - 20 mm step drill.
@@ -365,24 +384,28 @@ FREE_LAYOUT: dict[str, tuple[float, float]] = {
 #
 # Rows are not a requirement though, only a tidy default. Freed from them, all
 # twelve fit with room: ``FREE_LAYOUT`` below is packed to a 1.75 mm worst wall
-# and a 1.54 mm worst gap, against the 1.50 / 1.10 they are held to -- so the
+# and a 1.48 mm worst gap, against the 1.50 / 1.10 they are held to -- so the
 # irregular layout is not a compromise on spacing, it beats the 1.27 mm of the
 # row layout it replaces on both counts.
 #
 # The 1 and 1.5 mm bores are the smallest holes in the package, and they are at
-# the edge of what a 0.4 mm nozzle resolves in TPU: a 0.95 mm land is barely two
-# extrusions wide. They used to print tight enough that the bits would not go in
-# at all -- the hole undersize a big bore turns into grip is a whole percentage
-# of a 1 mm bore -- so this set opts into the small-bore taper
-# (``config.SMALL_BORE_*``) and trades the grip on exactly those sizes for the
-# ability to insert them. The 4 mm and up bores are untouched.
+# the edge of what a 0.4 mm nozzle can resolve at all. This set opts into the
+# small-bore shift (``config.SMALL_BORE_*``), which cuts them substantially
+# *wider* than the drills they hold so that they arrive at the drill.
 #
-# This set is where that taper is calibrated, because it is the only one that
-# reaches down this far: the first cartridge cut to it took the 1 mm drill and
-# refused the 1.5, 2 and 2.5 in that order, which is what turned the taper from
-# a straight slope into the squared curve ``config`` now carries. Every bore
-# from 1.5 to 3 mm opened by 0.05-0.06 mm diametral; the 1 mm, the one size
-# that was already right, moved 0.03.
+# This set is where that shift is calibrated, because it is the only one that
+# reaches down this far, and it took two printed cartridges to read it. The
+# first said the small bores would not accept their bits at all. The second,
+# cut to a taper that assumed a constant ~0.3 mm of closure, said something far
+# more useful: its 1.5 mm bore -- land modelled 1.700 -- held a *1.0 mm* drill
+# snugly, while its 2.5 mm bore was very nearly right. Those two readings put
+# the closure at ~0.67 mm at 1.7 mm of hole and ~0.08 mm at 2.6 mm, which is
+# what moved the compensation from a taper on the land to a shift of the cut
+# diameter, and from a straight-ish curve to 1/sqrt(d). See ``config``.
+#
+# The shift is why this layout was re-solved rather than merely re-bored: it
+# widens the *relief* too, so the small bores' footprints grew by up to 0.38 mm
+# of radius and the old positions no longer kept the 1 mm bore its wall.
 METAL = DrillSet(
     name="metal",
     label="Metal",

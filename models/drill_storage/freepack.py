@@ -43,6 +43,16 @@ RESTARTS = 50
 SWEEPS = 2200
 PUSH = 0.35  # fraction of the overlap resolved per sweep, per hole
 
+# How many lines the wall legend may stack, and how many seeds ``main`` will try
+# before giving up. A layout is not usable just because the holes fit: every
+# hole also needs its label on the wall, and ``legend_lines`` packs those by the
+# holes' *x* alone -- so a layout that stacks four holes in one column is
+# perfectly packed and unlabellable. That is not hypothetical, it is what the
+# first re-solve after the small-bore shift produced. So the seed is a search,
+# not a constant, and ``main`` advances it until both constraints hold.
+LEGEND_MAX_LINES = 4
+SEED_ATTEMPTS = 40
+
 
 def sdf(px: float, py: float, half: float, corner_r: float) -> float:
     """Signed distance to the rounded-square wall, negative inside.
@@ -205,34 +215,50 @@ def main() -> None:
     from . import config as c
     from .sets import METAL
 
-    # Same footprints ``DrillSet.__post_init__`` packs with: the relieved bore
-    # of the *shank*, or the nominal body when a reduced shank makes the body
-    # the wider thing standing above the tray.
-    items = [
-        (
-            f"{d.nominal:g}",
-            max(
-                c.relieved_bore_r(
-                    d.shank if d.shank is not None else d.nominal - METAL.shank_allowance
-                ),
-                d.nominal / 2,
-            ),
-        )
-        for d in METAL.drills
-    ]
+    # The set's own footprint rule, called rather than restated: the relieved
+    # bore at the *cut* diameter -- shank correction and small-bore shift
+    # included -- or the drill's body when a reduced shank makes the body the
+    # wider thing standing above the tray. Re-deriving it here is how a solved
+    # layout drifts from the one the geometry is cut to.
+    items = [(f"{d.nominal:g}", METAL.footprint_r(d)) for d in METAL.drills]
     items += [
         (t.key, max(t.head_d / 2, (t.across_flats + c.RELIEF_FIT) / 3**0.5))
         for t in METAL.hex_tools
     ]
-    pos, slack = pack_free(
-        items,
-        half_w=c.PACK_HALF_W,
-        corner_r=c.PACK_CORNER_R,
-        hole_wall=c.PACK_HOLE_WALL,
-        wall_clearance=c.PACK_WALL_CLEARANCE,
-        margin=0.25,
+    from .box import WALL_LABEL_SIZE
+
+    for seed in range(SEED, SEED + SEED_ATTEMPTS):
+        pos, slack = pack_free(
+            items,
+            half_w=c.PACK_HALF_W,
+            corner_r=c.PACK_CORNER_R,
+            hole_wall=c.PACK_HOLE_WALL,
+            wall_clearance=c.PACK_WALL_CLEARANCE,
+            margin=0.25,
+            seed=seed,
+        )
+        if slack < 0.0:
+            continue
+        # The second constraint, and the one no amount of packing implies: every
+        # label has to land on the wall without touching its neighbour.
+        try:
+            lines = legend_lines(
+                list(pos), pos, WALL_LABEL_SIZE, max_lines=LEGEND_MAX_LINES
+            )
+        except ValueError:
+            continue
+        break
+    else:
+        raise SystemExit(
+            f"no layout in {SEED_ATTEMPTS} seeds both packs and labels -- the "
+            "tray is genuinely full, so drop a tool or grow the envelope rather "
+            "than widening the search"
+        )
+
+    print(
+        f"# solved with freepack.pack_free, seed {seed}, margin "
+        f"{slack:+.2f} mm over spec, {len(lines)} legend lines"
     )
-    print(f"# solved with freepack.pack_free, margin {slack:+.2f} mm over spec")
     print("FREE_LAYOUT = {")
     for key, (x, y) in sorted(pos.items(), key=lambda kv: -kv[1][1]):
         print(f'    "{key}": ({x:+.2f}, {y:+.2f}),')
