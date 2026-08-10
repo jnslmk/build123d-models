@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from math import acos, atan2, cos, degrees, hypot, radians, sin, sqrt
+from math import acos, cos, degrees, hypot, radians, sin, sqrt
 
 from build123d import (
     Align,
@@ -639,30 +639,35 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
     web = min(p.Y for p in pts) - slot_roof
     r.check(
         web >= e.POCKET_WEB - 1e-6,
-        "...and twice that to the strap slot's roof",
+        "...and more than that to the strap slot's roof",
         f"{web:.2f} mm above a slot whose roof is at y={slot_roof:.2f}; the "
         f"slot spans the full width, so this is the one that binds below",
     )
-    # And the doubling has to keep buying what it is for: a floor plane above
-    # the bore's underside, so the flange under it is whole rather than 2 mm of
-    # skin over the strap. Below -6.15 this check is the one that would notice.
+    # ...and the web is paid for by the slot's own position rather than out of
+    # the pocket. Asserted because the two moved together and only the pair is
+    # right: STRAP_ROOF opened up by exactly what the pocket needed over the
+    # slot, and check_strap_slot holds the floor that paid for it at 3 mm.
     r.check(
-        e.POCKET_Y_LOW > -e.GLAND_MAJOR_D / 2,
-        "...which is what lifts the floor plane clear of the bore",
-        f"pocket bottom at y={e.POCKET_Y_LOW:.2f} against a bore underside at "
-        f"{-e.GLAND_MAJOR_D / 2:.2f} -- below that it wraps the bore and the "
-        f"strap's web is only the {e.POCKET_CLEAR} mm named above",
+        e.strap_roof() >= e.POCKET_WEB,
+        "...and the slot moved down to pay for that web, not the pocket",
+        f"STRAP_ROOF {e.strap_roof():.2f} mm between the slot and the bore, of "
+        f"which {e.POCKET_WEB} is full-depth flange under the pocket; "
+        f"{e.strap_floor():.2f} mm left below the slot",
     )
-    # Not merely above it: clear enough of it that the bottom edge crosses the
-    # bore at a corner a printer and a probe can both see. Tangency is the
-    # failure mode, and it is a smooth one -- nothing else here would report it.
-    half = sqrt(max((e.GLAND_MAJOR_D / 2) ** 2 - e.POCKET_Y_LOW**2, 0.0))
-    corner = 180.0 - degrees(atan2(half, -e.POCKET_Y_LOW))
+
+    # The floor keeps a landing outboard of the chamfer's rim. This is the
+    # tangency check: the danger is not the bore itself but its lead-in, and a
+    # pocket wall that creeps in to meet that rim leaves a feather edge rather
+    # than a floor. Measured at the outline's closest approach to the axis,
+    # which is the bottom edge -- the one POCKET_WEB moves.
+    rim = e.GLAND_MAJOR_D / 2 + e.POCKET_LEAD
+    landing = min(hypot(p.X, p.Y) for p in pts) - rim
     r.check(
-        corner > 120.0,
-        "...and crosses it at a corner, not a tangent",
-        f"{corner:.0f} deg where the bottom edge meets the bore at "
-        f"x=+-{half:.2f} mm",
+        landing >= 0.5,
+        "floor keeps a landing outboard of the chamfer's rim",
+        f"{landing:.2f} mm of flat at the tightest point, past a rim at "
+        f"r={rim:.2f} -- and the pocket surrounds the bore rather than "
+        f"grazing it",
     )
 
     outside = min(_stadium_clearance(p.X, p.Y, e.CAP_W / 2, e.CAP_H / 2) for p in pts)
@@ -726,9 +731,9 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
     r.check(
         is_solid_at(cap, 0.0, y_web, e.CAP_T - 0.2)
         and is_solid_at(cap, 0.0, y_web, e.POCKET_FLOOR_Z + 0.2),
-        "web to the strap slot is really there, full depth",
-        f"material at y={y_web:.2f} both at the flange's inner face and level "
-        f"with the pocket -- the web is solid flange now, not a floor",
+        "web to the strap slot is really there",
+        f"material at y={y_web:.2f}, midway between the pocket's bottom edge "
+        f"and the slot's roof, at both the flange's inner face and the floor",
     )
     r.check(
         is_solid_at(
@@ -750,16 +755,15 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
         "floor's rim into the bore is chamfered, not left square",
         f"{e.POCKET_LEAD} mm cone, probed at r={r_cone:.2f}, z={z_cone:.2f}",
     )
-    # ...and clipped to the pocket, which is the half of that feature no
-    # envelope check would miss the absence of. Straight down from the pocket's
-    # bottom edge the bore's wall runs on up to CAP_T, and an unclipped cone
-    # would have cut a groove into it there -- air at this station, with a
-    # downward-facing roof over it, instead of the solid wall probed for here.
+    # ...and it is a ring, all the way round, rather than the part of one that
+    # a cone clipped to a pocket smaller than itself would leave. Probed on the
+    # bore's low side, which is where the pocket's own boundary is nearest.
     r.check(
-        is_solid_at(cap, 0.0, -r_cone, z_cone),
-        "...and clipped to the pocket, so it grooves nothing below it",
-        f"solid at y={-r_cone:.2f}, z={z_cone:.2f} -- under the pocket's "
-        f"bottom edge at y={e.POCKET_Y_LOW:.2f}, where the bore keeps its wall",
+        not is_solid_at(cap, 0.0, -(r_cone - 0.15), z_cone)
+        and is_solid_at(cap, 0.0, -(r_cone + 0.15), z_cone),
+        "...and the chamfer runs right round the rim",
+        f"same pair of probes on the bore's low side, where the pocket wall is "
+        f"{min(hypot(p.X, p.Y) for p in pts) - e.GLAND_MAJOR_D / 2:.2f} mm out",
     )
 
     # The pocket is what breaks the plug's flat top now, so the seams it gets
