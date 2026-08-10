@@ -38,12 +38,27 @@ left standing in the bore's way. A ring would have to dodge the bore; a
 half-disc simply has the bore taken out of it, and the same material takes the
 rocking moment off the two screws that a much longer ring used to.
 
+**And the flange behind the thread is hollow, because nothing there has a job.**
+The gland reaches ``GLAND_MALE_L`` = 8 mm into a flange the strap slot has made
+15.85 deep, so the column of material around the bore above the thread seals
+nothing and carries nothing. ``POCKET_*`` takes it back out, as one pocket sunk
+from above to ``POCKET_FLOOR_Z``, and the shape of that pocket is not drawn --
+it is ``POCKET_CLEAR`` = 2 mm held to each of the three things it could run
+into (the screw holes, the strap slot's roof, the outside) and nothing else.
+It costs the cap about 11% of its volume and it takes the plug with it where
+the plug is in the way, which is not a side effect: a pocket that stopped at
+``CAP_T`` under the plug's footprint would be a sealed void with 20 mm of plug
+printed over it. What it does *not* touch is the web between the bore and the
+strap slot -- that is the loaded member, and ``POCKET_Y_LOW`` is what keeps the
+pocket 2 mm clear of the slot it spans.
+
 **The gland is on the cap's own centre.** ``GLAND_Z`` is ``c.HEIGHT / 2``, so
 the bore, the flange and the plug are all one axis and the part is symmetric
 about it. Worth stating plainly, because it costs something: the wiring cavity's
 ceiling is at ``c.CAVITY_TOP_Z``, well below that axis, so a bore centred on the
-cap opens into the cavity through a slot only about
-``c.CAVITY_TOP_Z - (GLAND_Z - GLAND_MAJOR_D / 2)`` mm tall. That is narrower
+cap opens into the cavity through a slot only ``cavity_slot_h()`` mm tall --
+the relief pocket's floor plane sets that now, since it dips a millimetre below
+the bore's own underside, but only from 4.0 mm to 5.0. That is still narrower
 than the 6.7 mm cable the gland seals on, so **a cable cannot be fed from this
 gland into the tube's wiring cavity**; the gland is a fitting on a centred axis,
 not a route into the cavity. ``check_gland`` measures that slot rather than
@@ -76,21 +91,23 @@ Edge treatments, house rule: chamfer horizontal, fillet vertical. Two chamfers
 are taken while the part is still a plain two-step prism, before the bore, the
 screw pockets and the thread exist -- the bed face's outer wire
 (``EDGE_CHAMFER``, elephant's foot) and the plug's leading edge
-(``PLUG_LEAD_IN``). The hole mouths are coned as booleans instead. The flange
-has nothing to fillet -- it is a stadium, so its flanks run into its arcs
-tangentially and it has no vertical corners at all -- but the plug does: the
-gland bore leaves two lengthwise seams down its flat top where the cylinder
-breaks out through it, and those get ``PLUG_SEAM_FILLET`` after the bore is cut.
+(``PLUG_LEAD_IN``). The hole mouths are coned as booleans instead, the relief
+pocket's floor rim (``POCKET_LEAD``) among them. The flange has nothing to
+fillet -- it is a stadium, so its flanks run into its arcs tangentially and it
+has no vertical corners at all -- but the plug does: two lengthwise seams down
+its flat top where the cap's void breaks out through it, which get
+``PLUG_SEAM_FILLET`` once the pocket has decided where they are.
 The strap slot's two mouths get ``STRAP_MOUTH_R``, a fillet rather than a
 chamfer: the strap drags over them every time it is threaded, and a radius is
 what fabric wants. It is an OCC edge op on a closed mixed wire, so it goes
 through ``fillet_edge`` down a shrinking ladder -- see ``create_endcap``.
 
 Edges left square on purpose, and which should stay that way: the whole of the
-``CAP_T`` face, which is what beds against the extrusion's 0.5 mm wall; the
-gland bore's mouth there, which is the thread's own faded exit and the one place
-a lead-in would hand OCC a degenerate fuse (see ``GLAND_COLLAR``); the bore's
-crescent through the plug's tip, where only the outer wire got the lead-in; and
+``CAP_T`` face, which is what beds against the extrusion's 0.5 mm wall, and so
+the relief pocket's mouth on it too; the gland bore's mouth there, which is the
+thread's own faded exit and the one place a lead-in would hand OCC a degenerate
+fuse (see ``GLAND_COLLAR``); the void through the plug's tip, where only the
+outer wire got the lead-in and everything inside it faces the cavity; and
 one short line at the tail of each screw seat's breakout, where the seat's cone
 leaves the flank all but tangentially. That last one is a genuine sliver -- no
 probe can even measure its angle -- and it is the one edge here OCC will not
@@ -126,6 +143,7 @@ from build123d import (
     SlotOverall,
     add,
     extrude,
+    fillet,
 )
 
 from models.lib import fits
@@ -306,6 +324,58 @@ SCREW_SEAT_DEPTH = (SCREW_SEAT_D - SCREW_CLEAR_D) / 2
 # The floor is therefore simply the rest of the flange, which is most of it.
 SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
 
+# --------------------------------------------------------- the relief pocket
+
+# What the gland does not use, taken back out from the inside. The bought
+# gland's reach is ``GLAND_MALE_L`` = 8 mm and the flange is ``CAP_T`` = 15.85,
+# because the strap slot -- not the gland -- is what sizes the flange now. The
+# material around the bore above the thread therefore holds nothing and seals
+# nothing: the gland seals on its own flange against the *outer* face, and the
+# thread stops well short of here. So it comes out, as one pocket sunk from
+# above (through the plug where the plug is in the way) down to a landing over
+# the thread.
+#
+# Everything about its outline is a clearance rather than a shape. One number,
+# ``POCKET_CLEAR``, is held to every neighbour the pocket could reach:
+#
+# * the two screw clearance holes, hence ``POCKET_X``;
+# * the strap slot's roof, hence ``POCKET_Y_LOW`` -- the slot is 2 mm below the
+#   pocket's floor plane rather than beside it, and the web between the two is
+#   what the strap pulls on;
+# * the outside, hence ``POCKET_R``, which is the largest circle on the bore's
+#   axis that stays ``POCKET_CLEAR`` inside the flange's stadium. Conservative
+#   on purpose: it measures to the *arc centre*, so the true margin is never
+#   less than the nominal one and is a good deal more everywhere but the flanks.
+#
+# The plug's own outline never binds -- it is 12.44 wide against the flange's
+# 13.05 but it only exists below ``plug_top_z()``, where the pocket has already
+# been pulled in to ``POCKET_X`` by the screws -- and ``check_gland_pocket``
+# measures all four margins off the outline itself rather than trusting that.
+POCKET_CLEAR = 2.0
+
+POCKET_X = c.SCREW_SPACING / 2 - SCREW_CLEAR_D / 2 - POCKET_CLEAR  # 7.675
+POCKET_Y_LOW = STRAP_SLOT_Y + STRAP_SLOT_H / 2 + POCKET_CLEAR  # -7.15
+POCKET_R = CAP_W / 2 - POCKET_CLEAR - abs(_loc(c.TOP_ARC_Z))  # 8.85
+
+# The outline's own corners, where the circle runs into a flat. They are
+# concave in the material, so no house rule reaches them -- they are rounded
+# because a square internal corner in a printed pocket is a stress riser and a
+# slicer's worst infill case, not because an audit would catch them.
+POCKET_CORNER_R = 1.5
+
+# The floor. ``POCKET_COLLAR`` is the same one pitch of plain bore that
+# ``GLAND_COLLAR`` leaves at the other end of the thread, and for the same
+# reason: nothing else in the part is allowed to touch the thread's own
+# geometry, because a boolean cut into a thread is exactly the case where OCC's
+# fuse quietly returns the thread alone instead of the cap. ``POCKET_LEAD``
+# breaks the rim where the floor drops into the bore -- a horizontal convex
+# edge, so the house rule wants a chamfer, and it is cut as a cone rather than
+# taken as an OCC edge op on an edge with the thread a pitch and a half below
+# it.
+POCKET_COLLAR = GLAND_PITCH
+POCKET_LEAD = 0.5
+POCKET_FLOOR_Z = GLAND_MALE_L + POCKET_COLLAR + POCKET_LEAD  # 10.00
+
 # The seam where the seat opens out through the flank. A fillet, and the house
 # rule is not what decides it: this edge is neither cleanly horizontal nor
 # cleanly vertical, it is the curve where a 45 deg cone cuts a cylinder. It gets
@@ -354,6 +424,37 @@ def _cavity_outline(inset: float, top_gap: float) -> Sketch:
 def plug_section() -> Sketch:
     """The plug: the cavity's half-disc, solid, less its running clearance."""
     return _cavity_outline(PLUG_FIT / 2, PLUG_TOP_GAP)
+
+
+def pocket_section() -> Sketch:
+    """The relief pocket's outline: a disc, clipped by what it has to clear.
+
+    Every boundary here is one of the three neighbours, and nothing else:
+    ``POCKET_R`` is the outside, the two flats at ``POCKET_X`` are the screw
+    holes, and the bottom at ``POCKET_Y_LOW`` is the strap slot's roof. That is
+    why it is drawn as an intersection rather than as a shape -- move a screw or
+    deepen the slot and the pocket follows, instead of quietly closing on it.
+
+    The bore is not one of them: the pocket swallows it whole above the floor
+    (``POCKET_R`` is 8.85 against a 6.15 bore radius, and ``POCKET_Y_LOW`` is a
+    millimetre clear of its underside), which is the point -- the plain bore
+    above the thread is exactly the material being removed. Anything less than
+    clear of it would leave a tangential sliver of wall instead.
+    """
+    with BuildSketch() as s:
+        Circle(POCKET_R)
+        Rectangle(2 * POCKET_X, _big(), mode=Mode.INTERSECT)
+        with Locations((0, POCKET_Y_LOW)):
+            Rectangle(
+                _big(), _big(), align=(Align.CENTER, Align.MIN), mode=Mode.INTERSECT
+            )
+        fillet(s.vertices(), POCKET_CORNER_R)
+    return s.sketch
+
+
+def pocket_depth() -> float:
+    """How much of the flange the pocket takes back, on the bore's axis."""
+    return CAP_T - POCKET_FLOOR_Z
 
 
 def strap_slot_z() -> tuple[float, float]:
@@ -493,14 +594,22 @@ def plug_top_z() -> float:
 
 
 def cavity_slot_h() -> float:
-    """How much of the gland bore actually opens into the wiring cavity.
+    """How much of the cap's void actually opens into the wiring cavity.
 
     The bore is on the cap's centre and the cavity's ceiling is well below it,
-    so only the bore's lower crescent looks into the tube. This is the height of
-    that opening, and it is what says whether a cable can pass -- see the module
+    so only the lower crescent looks into the tube. This is the height of that
+    opening, and it is what says whether a cable can pass -- see the module
     docstring, which is explicit that it cannot.
+
+    Measured from whichever floor is lower, the bore's underside or the relief
+    pocket's: the pocket runs through the plug at ``POCKET_Y_LOW``, a
+    millimetre below the bore, so it is the pocket that sets this now. Worth
+    stating as a ``min`` rather than as the pocket's number, because the pocket
+    is free to move up (it is a clearance, driven by the strap slot) and the
+    claim has to keep tracking whichever is really lowest.
     """
-    return c.CAVITY_TOP_Z - (GLAND_Z - GLAND_MAJOR_D / 2)
+    floor = min(GLAND_Z - GLAND_MAJOR_D / 2, GLAND_Z + POCKET_Y_LOW)
+    return c.CAVITY_TOP_Z - floor
 
 
 def create_endcap() -> Part:
@@ -558,6 +667,32 @@ def create_endcap() -> Part:
             Circle(GLAND_MAJOR_D / 2)
         extrude(amount=CAP_T + PLUG_DEPTH, mode=Mode.SUBTRACT)
 
+        # The relief pocket, sunk from above down to POCKET_FLOOR_Z. One cut for
+        # both halves of it deliberately: over the flange's inner face it starts
+        # at CAP_T, and where the plug stands in the way it starts at the plug's
+        # tip and takes the plug with it -- which is not a side effect but the
+        # only printable answer, since a pocket that stopped at CAP_T under the
+        # plug's footprint would be a sealed void with 20 mm of plug printed
+        # over it. Cut before the plug's seam fillets, because it is what
+        # decides where those seams are: it opens the plug's flat top out past
+        # the bore's own crescent, so the edges to roll are its flats rather
+        # than ``plug_bore_half_width()``.
+        with BuildSketch(Plane.XY.offset(POCKET_FLOOR_Z)):
+            add(pocket_section())
+        extrude(amount=CAP_T + PLUG_DEPTH - POCKET_FLOOR_Z, mode=Mode.SUBTRACT)
+
+        # The rim where the floor drops into the bore: horizontal and convex, so
+        # a chamfer, cut as a cone for the same reason the gland's own lead-in
+        # is one. POCKET_COLLAR of plain bore is left between it and the thread.
+        with Locations((0, 0, POCKET_FLOOR_Z - POCKET_LEAD)):
+            Cone(
+                bottom_radius=GLAND_MAJOR_D / 2,
+                top_radius=GLAND_MAJOR_D / 2 + POCKET_LEAD,
+                height=POCKET_LEAD,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+
         # Screw seats: a 90 deg taper head's own cone, taken straight out of the
         # outer face, with the clearance hole carrying on through the rest of the
         # flange. Through the flange only -- the plug is a half-disc and the
@@ -589,12 +724,12 @@ def create_endcap() -> Part:
             mode=Mode.SUBTRACT,
         )
 
-        # The two seams the bore leaves down the plug's flat top, where the
-        # cylinder breaks out through it. They run the length of the plug and
-        # are vertical in print pose, so the house rule wants a fillet, not a
-        # chamfer -- and taken here, after the bore and before the thread, they
-        # are the only edges in the part at that (x, y).
-        fillet_edge(bp, _plug_bore_seams(bp), PLUG_SEAM_FILLET)
+        # The two seams down the plug's flat top, where what is taken out of the
+        # cap breaks through it. They run the length of the plug and are
+        # vertical in print pose, so the house rule wants a fillet, not a
+        # chamfer -- and taken here, after the pocket and before the thread,
+        # they are the only edges in the part at that (x, y).
+        fillet_edge(bp, _plug_top_seams(bp), PLUG_SEAM_FILLET)
         fillet_edge(bp, _plug_top_corners(bp), PLUG_SEAM_FILLET)
 
         # The strap slot, driven clean through the flange under the bore. Both
@@ -644,15 +779,22 @@ def plug_bore_half_width() -> float:
     return sqrt(max((GLAND_MAJOR_D / 2) ** 2 - drop**2, 0.0))
 
 
-def _plug_bore_seams(bp: BuildPart) -> ShapeList:
-    """The two lengthwise edges where the bore breaks out of the plug's top.
+def _plug_top_seams(bp: BuildPart) -> ShapeList:
+    """The two lengthwise edges where the cap's void breaks out of the plug's top.
 
     Selected by geometry rather than off a face: the plug's top face and the
     bore's wall both carry other wires (the tip's outer stadium, the thread's
-    exit), and only these two run the plug's length at the crescent's ends.
+    exit), and only these two run the plug's length at the void's ends.
+
+    They used to sit at ``plug_bore_half_width()``, the ends of the crescent the
+    bore alone took out of the plug. The relief pocket is wider than that
+    crescent everywhere it is in the plug, so the seams have moved out to its
+    flats -- ``check_gland_pocket`` asserts that they really did, since a pocket
+    that failed to reach the plug would leave the old seams where they were and
+    nothing else here would notice.
     """
     y_top = _loc(plug_top_z())
-    x_seam = plug_bore_half_width()
+    x_seam = POCKET_X
 
     def is_seam(edge) -> bool:
         bb = edge.bounding_box()
@@ -772,6 +914,8 @@ def create() -> Part:
 __all__ = [
     "create",
     "create_endcap",
+    "pocket_depth",
+    "pocket_section",
     "seated",
     "strap_floor",
     "screw_reach",

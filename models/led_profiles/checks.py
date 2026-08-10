@@ -543,16 +543,22 @@ def check_gland(cap: Part, r: Report) -> None:
     )
     # And the bore behind the thread really is plain, rather than the thread
     # having quietly followed the flange when it got deeper. Sampled at the
-    # crest radius, where a thread would show and a plain bore cannot.
+    # crest radius, where a thread would show and a plain bore cannot -- and
+    # inside ``POCKET_COLLAR``, which is all the plain bore there is now: the
+    # relief pocket takes the rest of that column out, so a probe at the old
+    # station (midway to CAP_T) would stand in the pocket and report "not
+    # threaded" about a place with no bore wall at all.
     r.check(
         not is_solid_at(
             cap,
             e.GLAND_MAJOR_D / 2 - 1.0825 * e.GLAND_PITCH / 2 + 0.25,
             _loc(e.GLAND_Z),
-            (e.GLAND_MALE_L + e.CAP_T) / 2,
+            e.GLAND_MALE_L + e.POCKET_COLLAR / 2,
         ),
         "...and the bore behind it is plain, not threaded",
-        f"probed midway between z={e.GLAND_MALE_L} and z={e.CAP_T}",
+        f"probed at z={e.GLAND_MALE_L + e.POCKET_COLLAR / 2:.2f}, inside the "
+        f"{e.POCKET_COLLAR} mm of plain bore between the thread and the "
+        f"pocket's chamfer",
     )
     # Cable has to fit through the thread's crests.
     minor = e.GLAND_MAJOR_D - 1.0825 * e.GLAND_PITCH
@@ -580,6 +586,167 @@ def check_gland(cap: Part, r: Report) -> None:
         len(turns) >= 3 * int(e.GLAND_THREAD_L / e.GLAND_PITCH),
         "thread crests are actually in the bore",
         f"{len(turns)} sampled stations carry material at r={r_crest:.2f}",
+    )
+
+
+def _stadium_clearance(x: float, y: float, half_w: float, half_h: float) -> float:
+    """Perpendicular distance from a point to a stadium's boundary, from inside.
+
+    Not the half-width at that height, which is the tempting shortcut and
+    overstates the margin badly anywhere off the straight band: at the top of
+    the pocket the horizontal reach to the flank is 11.2 mm while the wall
+    actually left is 6.4. Measured to the nearest arc centre instead, which is
+    what the wall is.
+    """
+    band = half_h - half_w
+    return half_w - (abs(x) if abs(y) <= band else hypot(x, abs(y) - band))
+
+
+def check_gland_pocket(cap: Part, r: Report) -> None:
+    """The relief pocket: what it took out, and what it left standing.
+
+    Read off the outline and off the solid, because the two can disagree in
+    both directions -- a pocket whose sketch is right but whose cut never
+    reached the plug leaves the part heavier than the constants claim, and a
+    pocket that closed on the strap slot leaves a part that is lighter than it
+    should be and broken where it matters.
+    """
+    r.section("Endcap relief pocket")
+
+    # --- the outline, against every neighbour it could reach ----------------
+    #
+    # Sampled off the real wire rather than off the three constants, so the
+    # corner fillets and the arc between the flats are included: a margin that
+    # only holds at the flats is not the margin.
+    # ty reads Sketch.wires()'s own self as Mixin1D and rejects the call; the
+    # same suppression is already on part.edges() elsewhere in this family.
+    wire = e.pocket_section().wires()[0]  # ty: ignore[invalid-argument-type]
+    pts = [wire @ (i / 720) for i in range(720)]
+
+    v = _loc(c.SCREW_BOSS_Z)
+    screw = (
+        min(hypot(abs(p.X) - c.SCREW_SPACING / 2, p.Y - v) for p in pts)
+        - e.SCREW_CLEAR_D / 2
+    )
+    r.check(
+        screw >= e.POCKET_CLEAR - 1e-6,
+        "pocket keeps its clearance to the screw holes",
+        f"{screw:.2f} mm of wall to a {e.SCREW_CLEAR_D} mm clearance hole, "
+        f"against {e.POCKET_CLEAR} asked for",
+    )
+
+    slot_roof = e.STRAP_SLOT_Y + e.STRAP_SLOT_H / 2
+    web = min(p.Y for p in pts) - slot_roof
+    r.check(
+        web >= e.POCKET_CLEAR - 1e-6,
+        "...and to the strap slot's roof",
+        f"{web:.2f} mm above a slot whose roof is at y={slot_roof:.2f}; the "
+        f"slot spans the full width, so this is the one that binds below",
+    )
+
+    outside = min(_stadium_clearance(p.X, p.Y, e.CAP_W / 2, e.CAP_H / 2) for p in pts)
+    r.check(
+        outside >= e.POCKET_CLEAR - 1e-6,
+        "...and to the outside of the flange",
+        f"{outside:.2f} mm of wall at the tightest point of the outline",
+    )
+
+    # The plug is narrower than the flange, so it gets its own pass -- over the
+    # part of the outline that is actually inside it.
+    y_chord = _loc(e.plug_top_z())
+    plug_pts = [p for p in pts if p.Y <= y_chord]
+    plug = min(
+        _stadium_clearance(
+            p.X,
+            p.Y,
+            (c.WIDTH - 2 * c.WALL - e.PLUG_FIT) / 2,
+            (c.HEIGHT - 2 * c.WALL - e.PLUG_FIT) / 2,
+        )
+        for p in plug_pts
+    )
+    r.check(
+        plug >= e.POCKET_CLEAR - 1e-6,
+        "...and to the outside of the plug, where it cuts through it",
+        f"{plug:.2f} mm, over the {len(plug_pts)} sampled points below the "
+        f"plug's flat top at y={y_chord:.2f}",
+    )
+
+    # --- the floor ----------------------------------------------------------
+    r.check(
+        abs(e.POCKET_FLOOR_Z - (e.GLAND_MALE_L + e.POCKET_COLLAR + e.POCKET_LEAD))
+        < 1e-9
+        and e.POCKET_COLLAR >= e.GLAND_PITCH,
+        "floor stops a collar and a lead-in above the thread",
+        f"thread ends at z={e.GLAND_MALE_L}, chamfer starts at "
+        f"{e.POCKET_FLOOR_Z - e.POCKET_LEAD:.2f}, floor at {e.POCKET_FLOOR_Z:.2f} "
+        f"-- {e.POCKET_COLLAR} mm of plain bore between the two, the same rule "
+        f"GLAND_COLLAR follows at the other end",
+    )
+    r.check(
+        e.pocket_depth() > 0,
+        "and it takes real depth out of the flange",
+        f"{e.pocket_depth():.2f} mm of {e.CAP_T} mm flange, plus the whole "
+        f"{e.PLUG_DEPTH} mm of plug where the pocket runs through it",
+    )
+
+    # --- and the same thing, read off the solid ------------------------------
+    y_probe = e.GLAND_MAJOR_D / 2 + 0.5  # clear of the bore, inside the pocket
+    r.check(
+        not is_solid_at(cap, 0.0, y_probe, e.CAP_T - 0.2)
+        and not is_solid_at(cap, 0.0, y_probe, e.POCKET_FLOOR_Z + 0.2),
+        "pocket is open, floor to the flange's inner face",
+        f"probed on the bore's axis at y={y_probe:.2f}",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, y_probe, e.POCKET_FLOOR_Z - 0.3),
+        "...and the floor under it is solid",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, e.POCKET_Y_LOW - e.POCKET_CLEAR / 2, e.CAP_T - 0.2),
+        "web to the strap slot is really there",
+        f"material at y={e.POCKET_Y_LOW - e.POCKET_CLEAR / 2:.2f}, halfway "
+        f"between the pocket's floor plane and the slot's roof",
+    )
+    r.check(
+        is_solid_at(
+            cap,
+            e.POCKET_X + e.POCKET_CLEAR / 2,
+            _loc(c.SCREW_BOSS_Z),
+            e.CAP_T - 0.2,
+        ),
+        "...and so is the wall between the pocket and a screw hole",
+    )
+
+    # The lead-in chamfer at the floor's inner rim: inside the cone is air, and
+    # a hair outboard of it, at the same height, is not.
+    z_cone = e.POCKET_FLOOR_Z - e.POCKET_LEAD / 2
+    r_cone = e.GLAND_MAJOR_D / 2 + e.POCKET_LEAD / 2
+    r.check(
+        not is_solid_at(cap, r_cone - 0.15, 0.0, z_cone)
+        and is_solid_at(cap, r_cone + 0.15, 0.0, z_cone),
+        "floor's rim into the bore is chamfered, not left square",
+        f"{e.POCKET_LEAD} mm cone, probed at r={r_cone:.2f}, z={z_cone:.2f}",
+    )
+
+    # The pocket is what breaks the plug's flat top now, so the seams it gets
+    # filleted at are its own flats and not the bore's crescent. Stated as a
+    # probe as well as an inequality: a pocket that never reached the plug
+    # would leave the old seams standing and the fillet would still "take".
+    r.check(
+        e.plug_bore_half_width() < e.POCKET_X,
+        "pocket reaches past the bore's crescent through the plug",
+        f"seams at {e.POCKET_X:.2f} mm, where the bore alone left them at "
+        f"{e.plug_bore_half_width():.2f}",
+    )
+    z_plug = e.CAP_T + e.PLUG_DEPTH / 2
+    y_plug = y_chord - 0.3
+    x_mid = (e.plug_bore_half_width() + e.POCKET_X) / 2
+    r.check(
+        not is_solid_at(cap, x_mid, y_plug, z_plug)
+        and is_solid_at(cap, e.POCKET_X + 0.5, y_plug, z_plug),
+        "...and it really is cut through the plug, not only the flange",
+        f"open at x={x_mid:.2f} and solid at x={e.POCKET_X + 0.5:.2f}, "
+        f"mid-plug at z={z_plug:.2f}",
     )
 
 
@@ -843,17 +1010,28 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
         # That test alone is not scope enough on its own (its docstring says
         # so): it would just as happily match the sub-mm screw-seat tail
         # sliver _is_screw_seat_sliver already names with its own, more
-        # specific reason. ``bb.max.Z`` at CAP_T narrows this predicate to
-        # "opens through the top face"; requiring more than 1 mm of span
-        # rules out both that sub-mm sliver and the *other* CAP_T-adjacent
-        # edges this file already names (_is_cap_t_face_edge's, which lie
-        # flat *at* CAP_T rather than climbing away from it, so their own
-        # span is ~0) -- so the two predicates partition disjointly rather
-        # than racing to claim the same edge.
+        # specific reason. ``bb.max.Z`` at one of the two flat ceilings below
+        # narrows this predicate to "opens through a face this part actually
+        # has"; requiring more than 1 mm of span rules out both that sub-mm
+        # sliver and the *other* CAP_T-adjacent edges this file already names
+        # (_is_cap_t_face_edge's, which lie flat *at* CAP_T rather than
+        # climbing away from it, so their own span is ~0) -- so the two
+        # predicates partition disjointly rather than racing to claim the
+        # same edge.
+        #
+        # There are two ceilings and not one because the relief pocket moved
+        # the second of them: the gland collar's wall used to run the whole
+        # flange and open through CAP_T, and now it stops at the pocket's
+        # chamfer, which is where the pocket takes the rest of that column
+        # out. Same seam, same non-edge, two millimetres lower.
         if edge.geom_type != GeomType.LINE:
             return False
         bb = edge.bounding_box()
-        if not (abs(bb.max.Z - e.CAP_T) < 0.02 and (bb.max.Z - bb.min.Z) > 1.0):
+        tops = (e.CAP_T, e.POCKET_FLOOR_Z - e.POCKET_LEAD)
+        if not (
+            any(abs(bb.max.Z - top) < 0.02 for top in tops)
+            and (bb.max.Z - bb.min.Z) > 1.0
+        ):
             return False
         return is_periodic_seam(cap, edge)
 
@@ -873,15 +1051,19 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
                 "CAP_T face left raw",
                 _is_cap_t_face_edge,
                 "the whole of the CAP_T face beds against the extrusion's "
-                "0.5 mm wall, and the gland bore's own faded thread exit sits "
-                "on it (endcap.py's module docstring)",
+                "0.5 mm wall, and both the gland bore's own faded thread exit "
+                "and the relief pocket's mouth sit on it (endcap.py's module "
+                "docstring). Breaking either would only open a gap that wall "
+                "has to span",
             ),
             (
                 "plug tip's inner wire left raw",
                 _is_plug_tip_inner_wire,
                 "the plug's lead-in chamfer (PLUG_LEAD_IN) only treats the "
                 "outer wire at z=CAP_T+PLUG_DEPTH; the bore's crescent through "
-                "that face is untouched by design (endcap.py's docstring)",
+                "that face, and the relief pocket's mouth around it, are "
+                "untouched by design (endcap.py's docstring) -- they face into "
+                "the tube's cavity and nothing mates against them",
             ),
             (
                 "screw seat's tail sliver left raw",
@@ -893,12 +1075,14 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
                 "measure its angle. check_screw_pockets bounds its length",
             ),
             (
-                "periodic bore/pocket seam opening through CAP_T",
+                "periodic bore/pocket seam opening through a flat ceiling",
                 _is_periodic_bore_seam,
                 "the closing seam of a cone or cylinder's own periodic "
                 "parametrisation (both screw seats' cones, the gland "
                 "collar's wall), where it happens to open through the flat "
-                "CAP_T face -- not a real material edge at all, confirmed by "
+                "CAP_T face or the relief pocket's chamfer, which is where "
+                "that wall stops now -- not a real material edge at all, "
+                "confirmed by "
                 "the seam's two 'adjacent' faces being IsSame() in OCC's own "
                 "topology map, so there is no second surface for "
                 "interior_angle to measure a dihedral angle against",
@@ -3335,6 +3519,7 @@ def run() -> Report:
     check_endcap(cap, r)
     check_screw_pockets(cap, r)
     check_gland(cap, r)
+    check_gland_pocket(cap, r)
     check_strap_slot(cap, r)
     check_endcap_edges(cap, r)
     check_cap_on_profile(r)
