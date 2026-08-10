@@ -32,6 +32,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 import website
 from model_deps import model_files
@@ -140,9 +141,8 @@ class LastEditedTests(unittest.TestCase):
             str(p.relative_to(website.HERE)): (new if p.name == "checks.py" else old)
             for p in files
         }
-        self.addCleanup(setattr, website, "_commit_dates", website._commit_dates)
-        website._commit_dates = lambda: fake
-        self.assertEqual(website._last_edited("lens_cap"), "2020-01-01T00:00:00Z")
+        with mock.patch.object(website, "_commit_dates", return_value=fake):
+            self.assertEqual(website._last_edited("lens_cap"), "2020-01-01T00:00:00Z")
 
     def test_a_model_is_never_older_than_its_own_source(self) -> None:
         dates = website._commit_dates()
