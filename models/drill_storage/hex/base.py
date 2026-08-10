@@ -1,13 +1,15 @@
 """The rigid half of a hex-bit box: a Gridfinity base with a cavity + guide bores.
 
 The family's ``base``, cut to this package's own heights. The argument is the
-same as ``drill_storage.base`` -- the base **guides** a bit upright through
-8.2 mm of rigid bore, and the TPU cartridge **grips** it; the guide never
-touches the land's job. What differs is the geometry: a 30 mm base instead of
-the family's 36 (a bit needs none of a drill's depth). Both boxes share the
-family's 1x1 envelopes; the only per-box numbers are the guide's size and
-mouth chamfer, passed in (``config.box_fits`` says which box gets which -- the
-BITS box shaves both, see ``config``).
+same as ``drill_storage.base`` -- the base **guides** a bit upright through a
+rigid bore (14.2 mm of it for ALLEN, 8.2 for BITS), and the TPU cartridge
+**grips** it; the guide never touches the land's job. What differs is the
+geometry: a 30 mm base instead of the family's 36 (a bit needs none of a
+drill's depth). Both boxes share the family's 1x1 envelopes; the per-box
+numbers are the guide's size and mouth chamfer (``config.box_fits`` says which
+box gets which -- the BITS box shaves both) and the floor it is sunk to
+(``config.guide_floor_z`` -- ALLEN sinks its keys 21 mm below the rim, BITS its
+bits 15), all passed in.
 
 Printed foot down, cavity up, in black ASA, no supports. ASA wants an
 enclosure; a 41.5 mm footprint is small enough that it is not fussy, but a
@@ -45,22 +47,26 @@ from ..base import key_slot_tool
 from . import config as c
 
 
-def hex_guide_tool(guide_af: float, x: float, y: float, mouth_ch: float) -> Part:
+def hex_guide_tool(
+    guide_af: float, x: float, y: float, mouth_ch: float, floor_z: float
+) -> Part:
     """One hex guide bore: a free-fit hex prism with a lead-in at its top mouth.
 
     ``base.hex_guide_tool``, re-cut at this package's heights. The guide grips
-    nothing -- its only job is to hold a bit upright over ``GUIDE_H`` so the
-    short TPU collar above does not have to. It is cut at the box's own guide
-    across-flats: ``HEX_AF + GUIDE_FIT`` (free) for ALLEN, the old one-material
-    drop-in socket (``BITS_GUIDE_AF``) for BITS -- ``config.box_fits`` is the
-    one place that decides.
+    nothing -- its only job is to hold a bit upright from ``floor_z`` up to the
+    cavity so the short TPU collar above does not have to. It is cut at the
+    box's own guide across-flats: ``HEX_AF + GUIDE_FIT`` (free) for ALLEN, the
+    old one-material drop-in socket (``BITS_GUIDE_AF``) for BITS --
+    ``config.box_fits`` is the one place that decides -- and sunk to the box's
+    own floor, ``config.guide_floor_z``, which is the deeper of the two for
+    ALLEN (its keys sit 21 mm down rather than 15).
     """
     r = guide_af / 3**0.5  # circumradius from across-flats
     with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(c.GUIDE_FLOOR_Z)):
+        with BuildSketch(Plane.XY.offset(floor_z)):
             with Locations((x, y)):
                 RegularPolygon(r, 6)
-        extrude(amount=c.GUIDE_H)
+        extrude(amount=c.CAVITY_FLOOR_Z - floor_z)
         with BuildSketch(Plane.XY.offset(c.CAVITY_FLOOR_Z - mouth_ch)):
             with Locations((x, y)):
                 RegularPolygon(r, 6)
@@ -94,6 +100,7 @@ def create_base(
     hex_bores: Sequence[tuple[float, float, float]],
     guide_af: float,
     guide_mouth_ch: float,
+    guide_floor_z: float,
     rows: Sequence[Sequence[str]] | None = None,
     hole_pos: Mapping[str, tuple[float, float]] | None = None,
 ) -> Part:
@@ -105,9 +112,13 @@ def create_base(
     decides where they are).
 
     ``guide_af`` is the across-flats the guides are cut at (loose, on purpose:
-    the base keeps a bit straight and the cartridge grips it) and
+    the base keeps a bit straight and the cartridge grips it),
     ``guide_mouth_ch`` their mouth chamfer -- both per box, from
-    ``config.box_fits``. The horizontal envelope is the family's 1x1 set for
+    ``config.box_fits`` -- and ``guide_floor_z`` the z they are sunk to, the
+    box's own ``config.guide_floor_z(name)``. Pass the same floor to
+    ``config.cover_h_for``: they are the two halves of one hole depth, and a
+    cover sized on the other box's floor fouls the tips or wastes a Gridfinity
+    unit. The horizontal envelope is the family's 1x1 set for
     both boxes (``config``); the heights and corner radii are shared too.
     ``rows`` and ``hole_pos`` come from ``config.socket_layout`` and engrave
     the size legend into the body walls; pass ``None`` for a box with no
@@ -140,11 +151,14 @@ def create_base(
             RectangleRounded(c.CAVITY_W, c.CAVITY_W, c.CAVITY_R)
         extrude(amount=c.CAVITY_H, mode=Mode.SUBTRACT)
 
-        # Guide bores, sunk from the cavity floor down to GUIDE_FLOOR_Z. A bit
-        # bottoms out there -- on the rigid base, never on TPU, which would
+        # Guide bores, sunk from the cavity floor down to the box's own floor. A
+        # bit bottoms out there -- on the rigid base, never on TPU, which would
         # creep under a point load -- so the cover math uses the same floor.
         for _af, x, y in hex_bores:
-            add(hex_guide_tool(guide_af, x, y, guide_mouth_ch), mode=Mode.SUBTRACT)
+            add(
+                hex_guide_tool(guide_af, x, y, guide_mouth_ch, guide_floor_z),
+                mode=Mode.SUBTRACT,
+            )
 
         # Groove that receives the cartridge's retention bead. Chamfered, not
         # round: it is the one downward-facing surface in a cavity that prints

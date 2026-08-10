@@ -6,8 +6,11 @@ reaches as far below its retention bead as it stands above it -- and every hex
 socket is cut by the family's own ``insert.hex_bore_tool``, so the land at the
 bottom grips on ``HEX_LAND_FIT`` and the relief above it clears on
 ``RELIEF_FIT``, exactly as a countersink's or a step drill's shank is held in
-the drill sets. The base guides a bit over 8.2 mm of rigid bore; this grips it
-over 3.5 mm of land, which is the whole point of the split.
+the drill sets -- except that the land is this package's own, tightened by
+``HEX_LAND_TIGHTEN`` because a socket here is named by ``HEX_AF`` rather than
+by a shank (``config``'s "The grip"). The base guides a bit over its rigid bore
+(14.2 mm ALLEN, 8.2 BITS); this grips it over 3.5 mm of land, which is the
+whole point of the split.
 
 Both boxes share the family's 35.68 mm cartridge; the only per-box number is
 the socket mouths' lead-in chamfer, passed in (``config.box_fits`` says which
@@ -95,9 +98,12 @@ def create_insert(
     ``BITS_CART_MOUTH_CH`` for BITS -- ``config.box_fits``). The cartridge
     width is the family's ``CART_W`` for both boxes.
 
-    The sockets are cut by the family's ``insert.hex_bore_tool``, untouched:
-    foot relief, ``HEX_LAND_FIT`` land, lead-in, ``RELIEF_FIT`` relief. The
-    mouth gets the family's hex frustum lead-in.
+    The sockets are cut by the family's ``insert.hex_bore_tool``: foot relief,
+    land, lead-in, ``RELIEF_FIT`` relief. The one number it is not given
+    straight is the land, which is this package's tightened ``HEX_LAND_FIT``
+    (``config``'s "The grip") -- a socket here is named by ``HEX_AF``, not by a
+    shank, so the family's fit would arrive carrying ``HEX_CLEARANCE`` on top.
+    The mouth gets the family's hex frustum lead-in.
 
     Returned in print pose, flat bottom on ``z=0``. The cartridge's own z=0 is
     the base's ``CAVITY_FLOOR_Z``, so a feature at world z appears here at
@@ -139,7 +145,10 @@ def create_insert(
         )
 
         for af, x, y in hex_bores:
-            add(_family_hex_bore_tool(af, x, y), mode=Mode.SUBTRACT)
+            add(
+                _family_hex_bore_tool(af, x, y, land_fit=c.HEX_LAND_FIT),
+                mode=Mode.SUBTRACT,
+            )
 
         # Lead-in at every mouth on the top face -- a *hex* frustum, not a cone.
         # A round cone cut into a hex hole only reaches the corners, leaving the

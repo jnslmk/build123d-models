@@ -21,9 +21,13 @@ the shave trades on -- the flat-face and top-rim walls at CART_WALL (measured
 with the rounded-square SDF, corner sockets included), the land and relief
 gaps between neighbours, and the two mouth gaps.
 
-What this file cannot tell you is whether the grip is right. ``HEX_LAND_FIT``
-is the family's judgement, settled by printed cartridges -- see
-``config.LAND_EASE`` and ``docs/design-notes.md``.
+What this file cannot tell you is whether the grip is right. The land these
+cartridges are cut at is the family's judgement (settled by printed cartridges
+-- see ``config.LAND_EASE`` and ``docs/design-notes.md``) tightened by this
+package's ``HEX_LAND_TIGHTEN``, and no measurement off a solid can say whether
+a key now lifts the base with it. What *is* checked is the pair of bounds that
+tightening has to stay inside: the land may not pass the family's own hex land
+measured from the shank, and the rigid guide below must stay looser than it.
 """
 
 from __future__ import annotations
@@ -58,6 +62,7 @@ from ..checks import (
     worst_bead_bite,
     worst_overhang,
 )
+from .. import config as fam
 from ..freepack import sdf, worst_slack
 from . import config as c
 from .base import create_base
@@ -200,6 +205,7 @@ def check_box(
     has_legend: bool,
     expected_assembled: float,
     expected_proud: float,
+    expected_depth: float,
 ) -> None:
     """Everything that has to hold for one hex box, on its three built parts.
 
@@ -209,16 +215,18 @@ def check_box(
     """
     guide_af, guide_mouth_ch, cart_mouth_ch = c.box_fits(name)
     hex_bores, rows, pos = c.socket_layout(name)
+    floor_z = c.guide_floor_z(name)
 
     base = create_base(
         hex_bores,
         guide_af=guide_af,
         guide_mouth_ch=guide_mouth_ch,
+        guide_floor_z=floor_z,
         rows=rows if has_legend else None,
         hole_pos=pos if has_legend else None,
     )
     insert = create_insert(hex_bores, mouth_ch=cart_mouth_ch)
-    cover_h = c.cover_h_for(bit_len)
+    cover_h = c.cover_h_for(bit_len, floor_z)
     size, label_z, horizontal = label_fit(cover_h, label)
     cover = create_cover(
         label,
@@ -274,17 +282,41 @@ def check_box(
         "assembled envelope is a whole Gridfinity Z unit",
         f"{assembled:.0f} mm = {assembled / HEIGHT_UNIT:.0f}U",
     )
-    headroom = (assembled - CAP_H) - (c.GUIDE_FLOOR_Z + bit_len)
+    headroom = (assembled - CAP_H) - (floor_z + bit_len)
     r.check(
         headroom >= c.COVER_TIP_CLEARANCE - TOL,
         "the longest tip clears the cap ceiling by the clearance asked for",
         f"{headroom:.2f} mm >= {c.COVER_TIP_CLEARANCE:.2f}",
     )
-    proud = (c.GUIDE_FLOOR_Z + bit_len) - c.BASE_TOTAL_H
+    proud = (floor_z + bit_len) - c.BASE_TOTAL_H
     r.check(
         abs(proud - expected_proud) < 0.05,
         "a bit stands proud of the base by the documented amount",
         f"{proud:.1f} mm (want {expected_proud:.1f})",
+    )
+    # ...and the hole it went into is the depth the box asked for. Measured off
+    # the floor the base was actually built with rather than off the config
+    # constant, so this fails if a box's depth is changed in ``config`` and the
+    # geometry, the cover or the docs are not brought along with it.
+    depth = c.BASE_TOTAL_H - floor_z
+    r.check(
+        abs(depth - expected_depth) < 0.05,
+        "a bit sinks the documented depth below the base rim",
+        f"{depth:.1f} mm (want {expected_depth:.1f}), leaving {proud:.1f} proud "
+        f"of a {bit_len:.0f} mm tool",
+    )
+    # What a deeper hole runs out of first: the solid body between the bore
+    # floor and the Gridfinity foot. Nothing else watches it -- ``floor_intact``
+    # below only samples 0.3 mm under the floor, so it would still pass with the
+    # bores opening into the foot's chamfer. ALLEN's 21 mm hole leaves 4.6 mm
+    # here; MIN_WALL is the printable floor, and any box wanting more depth than
+    # that allows has to move ``BASE_TOTAL_H``, not this number.
+    under_floor = floor_z - BASE_H
+    r.check(
+        under_floor >= MIN_WALL - TOL,
+        "the bores stop clear of the Gridfinity foot",
+        f"{under_floor:.2f} mm of solid body between the floor and BASE_H "
+        f"({BASE_H:.1f}), want >= {MIN_WALL:.1f}",
     )
 
     # The two grooves cut into the collar are the only features on this base
@@ -347,6 +379,30 @@ def check_box(
         f"all {len(hex_bores)} sockets: land at HEX_LAND_FIT, relief at RELIEF_FIT",
         f"land r {land_r:.3f} / relief r {rc:.3f} mm, sampled at insert z "
         f"{z_land:.2f} and {z_relief:.2f}",
+    )
+    # The two bounds the tightened land has to stay inside (config's "The grip").
+    # A socket here is named by HEX_AF, so its land carries HEX_CLEARANCE the
+    # family's does not: measured from the *shank*, it may come down to the
+    # family's own hex land and no further, or the step has overshot the one
+    # number that was ever proven on printed cartridges.
+    over_shank = (c.HEX_AF + c.HEX_LAND_FIT) - c.HEX_SHANK_AF
+    r.check(
+        fam.HEX_LAND_FIT - TOL <= over_shank <= fam.HEX_LAND_FIT + c.HEX_CLEARANCE,
+        "the tightened land stays between the family's hex land and the "
+        "untightened one",
+        f"shank +{over_shank:.2f} mm, between +{fam.HEX_LAND_FIT:.2f} (family) "
+        f"and +{fam.HEX_LAND_FIT + c.HEX_CLEARANCE:.2f} (untightened), "
+        f"tightened by {c.HEX_LAND_TIGHTEN:.2f}",
+    )
+    # ...and the split's own premise: the rigid guide below clears where the TPU
+    # land grips. A guide that gripped, or a land that cleared, would each
+    # quietly defeat the two-material design, and tightening the land is exactly
+    # the edit that could invert them.
+    r.check(
+        guide_af > c.HEX_AF + c.HEX_LAND_FIT,
+        "the rigid guide stays looser than the TPU land it feeds",
+        f"guide {guide_af:.2f} mm across-flats vs land "
+        f"{c.HEX_AF + c.HEX_LAND_FIT:.2f}",
     )
     ok = all(
         not is_solid_at(insert, x, y, z)
@@ -504,7 +560,7 @@ def check_box(
     # because the base guides and the insert grips -- open from the floor to
     # the cavity, and their mouths clear each other.
     gr = guide_af / 3**0.5
-    z_mid = c.GUIDE_FLOOR_Z + c.GUIDE_H / 2
+    z_mid = floor_z + c.guide_h(name) / 2
     ok = all(
         not is_solid_at(base, x + gr - PROBE, y, z_mid)
         and is_solid_at(base, x + gr + PROBE, y, z_mid)
@@ -518,7 +574,7 @@ def check_box(
     open_span = all(
         not is_solid_at(base, x, y, z)
         for _af, x, y in hex_bores
-        for z in (c.GUIDE_FLOOR_Z + 0.3, z_mid, c.CAVITY_FLOOR_Z - 0.3)
+        for z in (floor_z + 0.3, z_mid, c.CAVITY_FLOOR_Z - 0.3)
     )
     r.check(
         open_span,
@@ -526,7 +582,7 @@ def check_box(
         f"{len(hex_bores)} guides sampled at 3 heights",
     )
     floor_intact = all(
-        is_solid_at(base, x, y, c.GUIDE_FLOOR_Z - 0.3) for _af, x, y in hex_bores
+        is_solid_at(base, x, y, floor_z - 0.3) for _af, x, y in hex_bores
     )
     r.check(
         floor_intact,
@@ -653,8 +709,9 @@ def run() -> Report:
         c.ALLEN_BIT_LEN,
         "ALLEN",
         True,
-        70.0,
-        35.0,
+        63.0,
+        29.0,
+        21.0,
     )
     check_box(
         r,
@@ -664,6 +721,7 @@ def run() -> Report:
         False,
         42.0,
         10.0,
+        15.0,
     )
     return r
 

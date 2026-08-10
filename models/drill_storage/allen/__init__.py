@@ -15,8 +15,10 @@ translucent PETG cover) never share a bed. The parts are:
     uv run show drill_storage.allen.insert     # TPU, flat down, bores up
     uv run show drill_storage.allen.cover      # translucent, pillow top down
 
-The 50 mm keys stand 35 mm proud of the base rim; the 52 mm cover (70 mm /
-10U assembled) clears the longest key by about 2 mm.
+The 50 mm keys sink 21 mm into the base and stand 29 mm proud of its rim; the
+45 mm cover (63 mm / 9U assembled) clears the longest key by about 3 mm. The
+hole used to be 15 mm deep, which stood the keys 35 mm proud and cost a whole
+Gridfinity unit more cover to enclose them.
 
 The geometry is ``drill_storage.hex``'s -- the ALLEN box and the BITS driver-bit
 box are cut from the same base / insert / cover modules, and this package only

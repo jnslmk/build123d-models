@@ -30,10 +30,19 @@ uv run check drill_storage.allen
 **1x1 Gridfinity** (41.5 mm, pad, body and cover alike), eight sockets in the
 family's rows, the sizes engraved on the body walls largest → smallest.
 
-**Cover**: 52 mm (70 mm / 10U assembled, about 2 mm over the longest key tip).
+**Grip**: the cartridge's lands are cut `HEX_LAND_TIGHTEN` (0.10 mm across the
+flats) tighter than the family's, because a socket here is named by `HEX_AF` —
+which already carries the guide's slip clearance — rather than by the shank the
+family measures from. The argument, and what to do if a key still lifts the box
+or now fights you, are in [`../hex/config.py`](../hex/config.py)'s *The grip*.
+
+**Cover**: 45 mm (63 mm / 9U assembled, about 3 mm over the longest key tip).
 The base is 30 mm — the family's 36 mm is for drills that need the depth. Keys
-rest on the guide floor at z = 15 and stand 35 mm proud of the rim, which is
-how you pinch them out.
+sink **21 mm** below the rim (`ALLEN_HOLE_DEPTH`), resting on the rigid guide
+floor at z = 9, and stand 29 mm proud, which is how you pinch them out. The
+hole was 15 mm deep before, standing the keys 35 mm proud; sinking them the
+extra 6 mm buys a whole Gridfinity unit back on the cover (9U, not 10U) and
+still leaves 4.6 mm of solid body between the bores and the foot.
 
 The sibling set, `drill_storage.hex`, is the 16-piece 25 mm driver-bit box —
 same boxes, shaved clearances to fit a literal 4x4 grid — see

@@ -29,9 +29,17 @@ three clearances — the two mouth chamfers and the guide fit — and the margin
 that result are pinned by `checks.py`. The full argument and every shaved
 number are in [`config.py`](config.py).
 
-**Cover**: 31 mm (49 mm / 7U assembled). The base is 30 mm — the family's
-36 mm is for drills that need the depth. Bits rest on the guide floor at z = 15
-and stand 10 mm proud of the rim, which is how you pinch them out.
+**Cover**: 24 mm (42 mm / 6U assembled). The base is 30 mm — the family's
+36 mm is for drills that need the depth. Bits sink 15 mm below the rim
+(`BITS_HOLE_DEPTH`), resting on the guide floor at z = 15, and stand 10 mm
+proud, which is how you pinch them out. The ALLEN box sinks its keys deeper
+(21 mm) on the same base; `config.guide_floor_z` is the one place that says
+which box gets which.
+
+**Grip**: both cartridges' lands are cut `HEX_LAND_TIGHTEN` (0.10 mm across the
+flats) tighter than the family's, because a socket here is named by `HEX_AF` —
+which already carries the guide's slip clearance — rather than by the shank the
+family measures from. The argument is in [`config.py`](config.py)'s *The grip*.
 
 The sibling set, `drill_storage.allen`, is the 8-piece 50 mm hex-key box —
 same geometry, the family's clearances kept outright — see

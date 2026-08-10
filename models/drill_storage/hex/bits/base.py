@@ -27,6 +27,7 @@ def create() -> Part:
         hex_bores,
         guide_af=c.BITS_GUIDE_AF,
         guide_mouth_ch=c.BITS_GUIDE_MOUTH_CH,
+        guide_floor_z=c.guide_floor_z("bits"),
     )
     base.label = "base_bits"
     base.color = c.BASE_COLOR

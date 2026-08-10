@@ -28,9 +28,11 @@ translucent PETG cover) never share a bed. The parts are:
     uv run show drill_storage.hex.bits.insert  # TPU, flat down, bores up
     uv run show drill_storage.hex.bits.cover   # translucent, pillow top down
 
-Bits rest on the guide floor at z=15 and stand 10 mm proud of the rim; the
-31 mm cover (49 mm / 7U assembled) clears the longest bit by exactly
-``COVER_TIP_CLEARANCE`` and not a micron more.
+Bits sink ``BITS_HOLE_DEPTH`` (15 mm) below the rim, resting on the guide floor
+at z=15, and stand 10 mm proud; the 24 mm cover (42 mm / 6U assembled) clears
+the longest bit by exactly ``COVER_TIP_CLEARANCE`` and not a micron more. The
+ALLEN box sinks its keys 21 mm on the same base -- ``config.guide_floor_z`` is
+the one place that says which box gets which.
 
 The geometry is this package's, re-derived from the family's clearances; the
 argument lives with the family in ``drill_storage.config`` and its design
@@ -61,10 +63,12 @@ def create_box_scene(
     """One hex box, fully assembled: base, cartridge, tools, cover on top.
 
     Mirrors ``drill_storage.assembly.create_assembly`` (it builds one drill
-    set; this builds one of the two hex boxes). The bits stand on the rigid
-    guide floor, gripped by the cartridge's lands, with the translucent cover
-    seated on the shoulder. Both boxes share the family's 1x1 envelopes; the
-    per-box guide and mouth numbers come from ``config.box_fits``.
+    set; this builds one of the two hex boxes). The bits stand on the box's own
+    rigid guide floor, gripped by the cartridge's lands, with the translucent
+    cover seated on the shoulder. Both boxes share the family's 1x1 envelopes;
+    the per-box guide and mouth numbers come from ``config.box_fits`` and the
+    floor from ``config.guide_floor_z`` -- read once here, so the base, the
+    tools and the cover cannot disagree about how deep the hole is.
 
     Returns the children only -- each package wraps them in its own
     ``Compound``, so the scene carries the package's name
@@ -72,11 +76,13 @@ def create_box_scene(
     """
     guide_af, guide_mouth_ch, cart_mouth_ch = c.box_fits(name)
     hex_bores, rows, pos = c.socket_layout(name)
+    floor_z = c.guide_floor_z(name)
 
     base = create_base(
         hex_bores,
         guide_af=guide_af,
         guide_mouth_ch=guide_mouth_ch,
+        guide_floor_z=floor_z,
         rows=rows if has_legend else None,
         hole_pos=pos if has_legend else None,
     )
@@ -92,7 +98,7 @@ def create_box_scene(
     # Every bit is the same plain 1/4" hex shank, drawn standing on the guide
     # floor like the drill sets' bits stand on the base floor.
     tools = [
-        Pos(xp, yp, c.GUIDE_FLOOR_Z) * create_hex_tool(c.HEX_SHANK_AF, bit_len)
+        Pos(xp, yp, floor_z) * create_hex_tool(c.HEX_SHANK_AF, bit_len)
         for _af, xp, yp in hex_bores
     ]
     for tool in tools:
@@ -101,7 +107,7 @@ def create_box_scene(
 
     # create_cover returns print pose (pillow on the bed, mouth up); flip it
     # back and seat it on the shoulder, translucent so the bits read through.
-    cover_h = c.cover_h_for(bit_len)
+    cover_h = c.cover_h_for(bit_len, floor_z)
     size, label_z, horizontal = label_fit(cover_h, label)
     cover = create_cover(
         label,

@@ -108,7 +108,9 @@ def _cut_round_bore(d: float, x: float, y: float, land_ease: float = 0.0) -> Non
         )
 
 
-def hex_bore_tool(af: float, x: float, y: float) -> Part:
+def hex_bore_tool(
+    af: float, x: float, y: float, land_fit: float | None = None
+) -> Part:
     """A subtractable hex socket: foot relief, land, lead-in, relief.
 
     The exact profile ``_cut_round_bore`` cuts, in hex. Built as a standalone
@@ -116,8 +118,18 @@ def hex_bore_tool(af: float, x: float, y: float) -> Part:
     cartridge's builder, because ``loft`` consumes *pending* sketches -- mixing
     the two styles in one builder is how a stray sketch ends up lofted into
     something nobody asked for.
+
+    ``land_fit`` defaults to the family's ``HEX_LAND_FIT`` and is the one number
+    a caller may override, because it is the only one that depends on what ``af``
+    is measured from. The drill sets name a socket by its tool's *shank*
+    (``sets.HexTool.across_flats``), so the family fit applies as written; the
+    hex boxes name theirs by ``hex.config.HEX_AF``, which already carries a slip
+    clearance the grip land should not inherit, so they pass their own tightened
+    fit (``hex.config.HEX_LAND_FIT``). The relief above is untouched either way,
+    so the packing footprint and every spacing check are unaffected -- the same
+    contract ``_cut_round_bore``'s ``land_ease`` keeps.
     """
-    land_r = _hex_r(af, c.HEX_LAND_FIT)
+    land_r = _hex_r(af, c.HEX_LAND_FIT if land_fit is None else land_fit)
     relief_r = _hex_r(af, c.RELIEF_FIT)
     relief_z = c.LAND_H + c.LAND_LEAD_IN
 

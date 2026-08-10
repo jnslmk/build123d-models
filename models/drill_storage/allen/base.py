@@ -1,9 +1,11 @@
 """The rigid base for the ALLEN box: 1x1 Gridfinity, cavity + guide bores.
 
 Rigid half of the two-material ALLEN box: a black ASA base with a cavity that
-holds the TPU cartridge and eight hex guide bores under it, plus the size
-legend (1.5 / 2 / 2.5 / 3 / 4 / 5 / 6 / 8, largest first) engraved into the
-body walls. Shape, argument and print notes are in ``drill_storage.hex.base``.
+holds the TPU cartridge and eight hex guide bores under it, sunk to
+``ALLEN_HOLE_DEPTH`` (21 mm below the rim, so a 50 mm key stands 29 mm proud),
+plus the size legend (1.5 / 2 / 2.5 / 3 / 4 / 5 / 6 / 8, largest first)
+engraved into the body walls. Shape, argument and print notes are in
+``drill_storage.hex.base``.
 
 Printed foot down, cavity up, in black ASA, no supports.
 """
@@ -23,6 +25,7 @@ def create() -> Part:
         hex_bores,
         guide_af=c.HEX_AF + c.GUIDE_FIT,
         guide_mouth_ch=c.GUIDE_MOUTH_CH,
+        guide_floor_z=c.guide_floor_z("allen"),
         rows=rows,
         hole_pos=pos,
     )

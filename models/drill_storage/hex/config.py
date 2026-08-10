@@ -14,8 +14,10 @@ family's ``config.py``)::
 
     0.0  -  4.4   Gridfinity foot (BASE_H)
     4.4  - 18.0   body -- the ALLEN size legend lives on its walls
-   15.0           GUIDE_FLOOR_Z -- bits bottom out here, on the rigid base,
-                  never on TPU (which would creep under a point load)
+    9.0 / 15.0    guide_floor_z("allen") / ("bits") -- bits bottom out here, on
+                  the rigid base, never on TPU (which would creep under a point
+                  load). One box's own HOLE_DEPTH below the rim, no more shared
+                  than the bit length that sets it.
    18.0           BASE_FOOT_TOP, the shoulder the cover seats on
    18.0 - 30.0    collar, with the cover's snap groove at FOOT_TOP + SNAP_Z
    23.2           CAVITY_FLOOR_Z -- the cartridge sits here
@@ -24,8 +26,8 @@ family's ``config.py``)::
    27.2           cartridge retention bead / base groove (BEAD_Z)
    30.0           BASE_TOTAL_H -- base rim
 
-A bit rests on the guide floor at z=15 and rises through the guide bore (rigid)
-and the cartridge's hex land (TPU) into the cover: the ALLEN keys stand 35 mm
+A bit rests on its box's guide floor and rises through the guide bore (rigid)
+and the cartridge's hex land (TPU) into the cover: the ALLEN keys stand 29 mm
 proud of the rim, the driver bits 10 mm, which is how you pinch either out.
 
 The base is 30 mm, not the family's 36: the drill set's 36 is for drills that
@@ -69,7 +71,10 @@ from ..box import (
 # The hex boxes are the family's two-material design cut shorter and wider, so
 # every fit and every shared dimension is the family's own, re-exported so the
 # hex modules read one config (the family's ``config.py`` does the same for
-# ``box``). Nothing here is a number the hex boxes get to re-decide.
+# ``box``). Nothing *here* is a number the hex boxes get to re-decide: the one
+# family fit they do re-decide, the hex land, is absent from this block and
+# derived from the family's under "The grip" below, so the deviation is
+# impossible to mistake for a re-export.
 BEAD_BACK = fam.BEAD_BACK
 BEAD_LEAD_IN = fam.BEAD_LEAD_IN
 BEAD_TIP_FLAT = fam.BEAD_TIP_FLAT
@@ -100,7 +105,6 @@ GROOVE_TIP_FLAT = fam.GROOVE_TIP_FLAT
 MAX_OVERHANG = fam.MAX_OVERHANG
 GUIDE_FIT = fam.GUIDE_FIT
 GUIDE_MOUTH_CH = fam.GUIDE_MOUTH_CH
-HEX_LAND_FIT = fam.HEX_LAND_FIT
 KEY_D = fam.KEY_D
 KEY_FILLET = fam.KEY_FILLET
 KEY_LEAD_IN = fam.KEY_LEAD_IN
@@ -142,6 +146,32 @@ HEX_AF = HEX_SHANK_AF + HEX_CLEARANCE  # 6.5
 # at ``(af + RELIEF_FIT) / sqrt(3)``, against what ``insert.py`` cuts.
 HEX_SOCKET_R = (HEX_AF + fam.RELIEF_FIT) / 3**0.5
 
+# --- The grip ----------------------------------------------------------------
+# The one family fit these boxes re-decide, and the only one they have a reason
+# to: everything cut in this package is named by ``HEX_AF``, which already
+# carries ``HEX_CLEARANCE`` (0.15) of slip -- and the guide and the relief want
+# that slip, while the land does not. The family's own hex tools are named by
+# the *shank* instead (``sets.HexTool(across_flats=6.3)`` for a countersink), so
+# a family land lands at shank + HEX_LAND_FIT = +0.05, while these sockets were
+# landing at shank + HEX_CLEARANCE + HEX_LAND_FIT = +0.20. Three times the
+# family's grip allowance, on the same 1/4" shanks, from a clearance the land
+# was never meant to inherit.
+#
+# So the land gives some of it back. Two of the family's own 0.05 tuning steps
+# (``fam.LAND_EASE`` is the unit; this is deliberately expressed in it), which
+# lands these sockets at shank + 0.10: half the inherited slip removed, still
+# 0.05 looser than the family's proven hex land, so the step cannot overshoot
+# into a key that fights you on the way out. In TPU the modelled number is not
+# the printed one -- a bore this size prints 0.1-0.3 mm under -- so this is a
+# step in real interference, not a step from clearance into contact.
+#
+# It is a *named* step for the same reason ``LAND_EASE`` is: a printed cartridge
+# should be read as "how far from the family's land", not "what number was
+# typed". If a key still lifts the base with it, take the second 0.10 and reach
+# family parity; if one fights you, halve this back to one step.
+HEX_LAND_TIGHTEN = 2 * fam.LAND_EASE  # 0.10 across the flats, off the land only
+HEX_LAND_FIT = fam.HEX_LAND_FIT - HEX_LAND_TIGHTEN
+
 # Metric hex-key sizes in the 50 mm set, largest first -- the packer deals them
 # into rows in this order, so the biggest land in the back row like the drill
 # variants. The 25 mm driver bits are a mixed bag (Torx/PH/PZ/slotted) with no
@@ -172,13 +202,24 @@ BASE_TOTAL_H = BASE_FOOT_TOP + BASE_COLLAR_H  # 30.0
 # above the rim), so the cavity floor and the bead drop out of its geometry.
 CAVITY_FLOOR_Z = BASE_TOTAL_H - (fam.CART_H - fam.CART_PROUD)  # 23.2
 BEAD_Z = CAVITY_FLOOR_Z + fam.CART_BELOW_BEAD  # 27.2
-# Bits rest on the rigid floor, 15 mm up the body. The floor is as high as it
-# can be while a 25 mm driver bit still stands 10 mm proud of the rim (the same
-# proud heights the old one-material box documented), which is what makes the
-# guide short enough to leave the collar wall alone. Under the floor: 10.6 mm of
-# solid body, so the bores stop well above the foot.
-GUIDE_FLOOR_Z = 15.0
-GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 8.2 of rigid guide under the collar
+# How deep a tool sinks below the base rim -- per box, because it is the one
+# height a box gets to choose. It is the *whole* hole: guide bore plus the
+# cartridge's socket above it, measured from BASE_TOTAL_H down to the rigid
+# floor the tool bottoms out on, so ``bit_len - HOLE_DEPTH`` is what stands
+# proud and there is no second place for the two to disagree.
+#
+# BITS keeps 15.0: the floor is as high as it can be while a 25 mm driver bit
+# still stands 10 mm proud of the rim, which is what makes its guide short
+# enough to leave the collar wall alone.
+#
+# ALLEN sinks its keys 21.0 instead of the 15.0 it used to share, so a 50 mm key
+# stands 29 mm proud rather than 35 -- still far more than the pinch needs, and
+# it buys a whole Gridfinity unit back on the cover (63 mm assembled, 9U, where
+# the shallower hole needed 70 / 10U). The floor drops to z=9, leaving 4.6 mm
+# of solid body under the bores -- ``checks.py`` pins that against BASE_H, since
+# it is the number a deeper hole runs out of first.
+ALLEN_HOLE_DEPTH = 21.0
+BITS_HOLE_DEPTH = 15.0
 CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 6.8, the family's own
 # The two grooves cut into opposite faces of the same ring of collar wall, so
 # they must not overlap in z. Same 3.2 mm the family keeps, centre to centre --
@@ -295,12 +336,33 @@ COVER_COLOR = Color(0.86, 0.87, 0.84, 0.32)
 # guides and the cartridge's lands cannot disagree about it.
 
 
-def cover_h_for(bit_len: float) -> float:
-    """The cover for a bit length, quantised to a whole Gridfinity unit."""
+def guide_floor_z(name: str) -> float:
+    """The z one box's tools bottom out on: its own hole depth below the rim.
+
+    The one call that turns a box's ``*_HOLE_DEPTH`` into geometry -- the base's
+    guide bores, the cover height and the proud check all read it, so a box's
+    hole cannot get deeper in one of the three and not the others.
+    """
+    return BASE_TOTAL_H - (ALLEN_HOLE_DEPTH if name == "allen" else BITS_HOLE_DEPTH)
+
+
+def guide_h(name: str) -> float:
+    """One box's rigid guide: floor to cavity, 14.2 mm ALLEN / 8.2 mm BITS."""
+    return CAVITY_FLOOR_Z - guide_floor_z(name)
+
+
+def cover_h_for(bit_len: float, floor_z: float) -> float:
+    """The cover for a bit length, quantised to a whole Gridfinity unit.
+
+    ``floor_z`` is the box's own ``guide_floor_z(name)`` and is deliberately
+    required: a cover sized on the other box's floor is a cover that either
+    fouls the tips or wastes a Gridfinity unit, and neither shows up until the
+    box is printed.
+    """
     return cover_height_for(
         bit_len,
         headroom=COVER_TIP_CLEARANCE,
-        bore_floor_z=GUIDE_FLOOR_Z,
+        bore_floor_z=floor_z,
         foot_top=BASE_FOOT_TOP,
     )
 
@@ -365,6 +427,8 @@ __all__ = [
     "BITS_GUIDE_MOUTH_CH",
     "BITS_PITCH",
     "BITS_RELIEF_GAP_FLOOR",
+    "ALLEN_HOLE_DEPTH",
+    "BITS_HOLE_DEPTH",
     "CAVITY_FLOOR_Z",
     "CAVITY_H",
     "CART_W",
@@ -373,10 +437,10 @@ __all__ = [
     "COVER_TIP_CLEARANCE",
     "GROOVE_LIP_GAP",
     "GROOVE_SEPARATION",
-    "GUIDE_FLOOR_Z",
-    "GUIDE_H",
     "HEX_AF",
     "HEX_CLEARANCE",
+    "HEX_LAND_FIT",
+    "HEX_LAND_TIGHTEN",
     "HEX_SHANK_AF",
     "HEX_SOCKET_R",
     "INSERT_COLOR",
@@ -387,6 +451,8 @@ __all__ = [
     "LEGEND_Z",
     "MARGIN",
     "cover_h_for",
+    "guide_floor_z",
+    "guide_h",
     "socket_layout",
     "box_fits",
     # re-exported from ``box`` so the hex modules read one config
@@ -437,7 +503,6 @@ __all__ = [
     "MAX_OVERHANG",
     "GUIDE_FIT",
     "GUIDE_MOUTH_CH",
-    "HEX_LAND_FIT",
     "KEY_D",
     "KEY_FILLET",
     "KEY_LEAD_IN",
