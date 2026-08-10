@@ -45,20 +45,24 @@ nothing and carries nothing. ``POCKET_*`` takes it back out, as one pocket sunk
 from above to ``POCKET_FLOOR_Z``, and the shape of that pocket is not drawn --
 it is ``POCKET_CLEAR`` = 2 mm held to each of the three things it could run
 into (the screw holes, the strap slot's roof, the outside) and nothing else.
-It costs the cap about 11% of its volume and it takes the plug with it where
-the plug is in the way, which is not a side effect: a pocket that stopped at
-``CAP_T`` under the plug's footprint would be a sealed void with 20 mm of plug
-printed over it. What it does *not* touch is the web between the bore and the
-strap slot -- that is the loaded member, and ``POCKET_Y_LOW`` is what keeps the
-pocket 2 mm clear of the slot it spans.
+It takes the plug with it where the plug is in the way, which is not a side
+effect: a pocket that stopped at ``CAP_T`` under the plug's footprint would be
+a sealed void with 20 mm of plug printed over it.
+
+What it stays off is the web between the bore and the strap slot, the member
+the strap actually pulls on. ``POCKET_WEB`` is twice ``POCKET_CLEAR`` for that
+reason, and the doubling buys more than the 2 mm it reads as: it lifts the
+pocket's floor plane clear of the bore's own underside, so the bottom edge
+clips across the bore instead of passing beneath it and everything below
+``POCKET_Y_LOW`` keeps the flange's full depth.
 
 **The gland is on the cap's own centre.** ``GLAND_Z`` is ``c.HEIGHT / 2``, so
 the bore, the flange and the plug are all one axis and the part is symmetric
 about it. Worth stating plainly, because it costs something: the wiring cavity's
 ceiling is at ``c.CAVITY_TOP_Z``, well below that axis, so a bore centred on the
-cap opens into the cavity through a slot only ``cavity_slot_h()`` mm tall --
-the relief pocket's floor plane sets that now, since it dips a millimetre below
-the bore's own underside, but only from 4.0 mm to 5.0. That is still narrower
+cap opens into the cavity through a slot only ``cavity_slot_h()`` = 4.0 mm
+tall -- the bore's own underside sets it, the relief pocket's floor plane
+being above that rather than below. That is narrower
 than the 6.7 mm cable the gland seals on, so **a cable cannot be fed from this
 gland into the tube's wiring cavity**; the gland is a fitting on a centred axis,
 not a route into the cavity. ``check_gland`` measures that slot rather than
@@ -339,9 +343,8 @@ SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
 # ``POCKET_CLEAR``, is held to every neighbour the pocket could reach:
 #
 # * the two screw clearance holes, hence ``POCKET_X``;
-# * the strap slot's roof, hence ``POCKET_Y_LOW`` -- the slot is 2 mm below the
-#   pocket's floor plane rather than beside it, and the web between the two is
-#   what the strap pulls on;
+# * the strap slot's roof, hence ``POCKET_Y_LOW`` -- and that one gets
+#   ``POCKET_WEB``, twice the clearance, for the reason below;
 # * the outside, hence ``POCKET_R``, which is the largest circle on the bore's
 #   axis that stays ``POCKET_CLEAR`` inside the flange's stadium. Conservative
 #   on purpose: it measures to the *arc centre*, so the true margin is never
@@ -353,8 +356,24 @@ SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
 # measures all four margins off the outline itself rather than trusting that.
 POCKET_CLEAR = 2.0
 
+# Double, and the strap is only half the reason. At a bare ``POCKET_CLEAR`` the
+# pocket's floor plane sat at -7.15, which is *below the bore's own underside*
+# at -6.15 -- so the pocket wrapped the bore, and the only material left over
+# the strap slot was 2 mm of flange with the pocket's floor above it. Doubling
+# it lifts the floor plane clear of the bore instead: the bottom edge now clips
+# across the bore rather than passing under it, everything below -5.15 keeps
+# the flange's full 15.85 mm of depth, and the web the strap pulls on gets that
+# whole thickness back rather than 2 mm of it.
+#
+# There is no middle ground worth having here, which is why this is 2x and not
+# 1.25x: anywhere between -6.65 and -6.15 the pocket's floor runs tangent to
+# the bore and leaves a feather edge, so the useful values are "well under the
+# bore" (what this was) or "clear of it" (what it is). At -5.15 the corner
+# where the bottom edge crosses the bore measures 147 deg.
+POCKET_WEB = 2 * POCKET_CLEAR
+
 POCKET_X = c.SCREW_SPACING / 2 - SCREW_CLEAR_D / 2 - POCKET_CLEAR  # 7.675
-POCKET_Y_LOW = STRAP_SLOT_Y + STRAP_SLOT_H / 2 + POCKET_CLEAR  # -7.15
+POCKET_Y_LOW = STRAP_SLOT_Y + STRAP_SLOT_H / 2 + POCKET_WEB  # -5.15
 POCKET_R = CAP_W / 2 - POCKET_CLEAR - abs(_loc(c.TOP_ARC_Z))  # 8.85
 
 # The outline's own corners, where the circle runs into a flat. They are
@@ -372,6 +391,13 @@ POCKET_CORNER_R = 1.5
 # edge, so the house rule wants a chamfer, and it is cut as a cone rather than
 # taken as an OCC edge op on an edge with the thread a pitch and a half below
 # it.
+#
+# The cone is clipped to the pocket's own footprint before it is subtracted
+# (``_pocket_rim_chamfer``), which matters now that ``POCKET_Y_LOW`` sits above
+# the bore's underside: a bare cone is a full circle, and below the pocket the
+# bore's wall carries on up to ``CAP_T``, so an unclipped one would cut a
+# 0.5 mm annular groove into that wall with a downward-facing roof over it --
+# an overhang printed in mid-air, over nothing, for no reason.
 POCKET_COLLAR = GLAND_PITCH
 POCKET_LEAD = 0.5
 POCKET_FLOOR_Z = GLAND_MALE_L + POCKET_COLLAR + POCKET_LEAD  # 10.00
@@ -435,11 +461,13 @@ def pocket_section() -> Sketch:
     why it is drawn as an intersection rather than as a shape -- move a screw or
     deepen the slot and the pocket follows, instead of quietly closing on it.
 
-    The bore is not one of them: the pocket swallows it whole above the floor
-    (``POCKET_R`` is 8.85 against a 6.15 bore radius, and ``POCKET_Y_LOW`` is a
-    millimetre clear of its underside), which is the point -- the plain bore
-    above the thread is exactly the material being removed. Anything less than
-    clear of it would leave a tangential sliver of wall instead.
+    The bore is not one of them: the pocket takes its wall out wherever the two
+    overlap, which is the point -- the plain bore above the thread is exactly
+    the material being removed. ``POCKET_Y_LOW`` is what decides how much of it
+    goes: at -5.15 the bottom edge clips *across* the bore rather than passing
+    under it, so the bore keeps its wall below that line and the strap's web
+    keeps the flange's full depth. What the bottom edge must never do is graze
+    the bore -- anywhere near -6.15 it runs tangent and leaves a feather edge.
     """
     with BuildSketch() as s:
         Circle(POCKET_R)
@@ -455,6 +483,36 @@ def pocket_section() -> Sketch:
 def pocket_depth() -> float:
     """How much of the flange the pocket takes back, on the bore's axis."""
     return CAP_T - POCKET_FLOOR_Z
+
+
+def _pocket_rim_chamfer() -> Part:
+    """The chamfer at the floor's inner rim, clipped to the pocket's footprint.
+
+    A cone, taken as a boolean the way every other hole mouth in this file is
+    -- and then intersected with the pocket's own outline, which is the part
+    that is not decoration. ``POCKET_Y_LOW`` is above the bore's underside, so
+    the pocket surrounds the bore over most of it but not all: below the
+    pocket's bottom edge the bore's wall carries straight on up to ``CAP_T``.
+    A full-circle cone would cut a 0.5 mm groove into that wall, and the roof
+    of that groove is a downward-facing annulus with nothing under it.
+    Intersected, the chamfer exists exactly where the floor does.
+
+    Built outside ``create_endcap``'s builder for the same reason the thread
+    is: a nested ``BuildPart`` adds itself to its parent on exit, so a tool
+    constructed in place would be fused into the cap instead of cut out of it.
+    """
+    with BuildPart() as tool:
+        with Locations((0, 0, POCKET_FLOOR_Z - POCKET_LEAD)):
+            Cone(
+                bottom_radius=GLAND_MAJOR_D / 2,
+                top_radius=GLAND_MAJOR_D / 2 + POCKET_LEAD,
+                height=POCKET_LEAD,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+            )
+        with BuildSketch(Plane.XY.offset(POCKET_FLOOR_Z - POCKET_LEAD)):
+            add(pocket_section())
+        extrude(amount=POCKET_LEAD, mode=Mode.INTERSECT)
+    return tool.part
 
 
 def strap_slot_z() -> tuple[float, float]:
@@ -602,11 +660,12 @@ def cavity_slot_h() -> float:
     docstring, which is explicit that it cannot.
 
     Measured from whichever floor is lower, the bore's underside or the relief
-    pocket's: the pocket runs through the plug at ``POCKET_Y_LOW``, a
-    millimetre below the bore, so it is the pocket that sets this now. Worth
-    stating as a ``min`` rather than as the pocket's number, because the pocket
-    is free to move up (it is a clearance, driven by the strap slot) and the
-    claim has to keep tracking whichever is really lowest.
+    pocket's. As it stands that is the bore, at -6.15 against the pocket's
+    -5.15, so this is the same 4.0 mm it was before the pocket existed -- but
+    the pocket's floor is a *clearance* off the strap slot, free to move down
+    if the slot ever does, and at that point it would be the thing looking into
+    the cavity. The ``min`` is what keeps the claim tracking whichever is
+    really lowest instead of being re-derived by hand afterwards.
     """
     floor = min(GLAND_Z - GLAND_MAJOR_D / 2, GLAND_Z + POCKET_Y_LOW)
     return c.CAVITY_TOP_Z - floor
@@ -632,6 +691,9 @@ def create_endcap() -> Part:
         external=False,
         end_finishes=("fade", "fade"),
     )
+    # Same rule, same reason: a BuildPart opened inside another one adds itself
+    # to the parent on exit, so a subtractive tool has to be built out here.
+    rim_chamfer = _pocket_rim_chamfer()
 
     with BuildPart() as bp:
         with BuildSketch():
@@ -683,15 +745,10 @@ def create_endcap() -> Part:
 
         # The rim where the floor drops into the bore: horizontal and convex, so
         # a chamfer, cut as a cone for the same reason the gland's own lead-in
-        # is one. POCKET_COLLAR of plain bore is left between it and the thread.
-        with Locations((0, 0, POCKET_FLOOR_Z - POCKET_LEAD)):
-            Cone(
-                bottom_radius=GLAND_MAJOR_D / 2,
-                top_radius=GLAND_MAJOR_D / 2 + POCKET_LEAD,
-                height=POCKET_LEAD,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-                mode=Mode.SUBTRACT,
-            )
+        # is one, and clipped to the pocket so it cannot groove the bore's wall
+        # where the pocket does not reach. POCKET_COLLAR of plain bore is left
+        # between it and the thread.
+        add(rim_chamfer, mode=Mode.SUBTRACT)
 
         # Screw seats: a 90 deg taper head's own cone, taken straight out of the
         # outer face, with the clearance hole carrying on through the rest of the
