@@ -48,6 +48,7 @@ default-groups = ["dev", "viewer", "pdf"]
 packages = [
     "models",
     "models.lib",
+    "models.cable_spool",
     "models.drill_storage",
     "models.drill_storage.allen",
     "models.drill_storage.hex",

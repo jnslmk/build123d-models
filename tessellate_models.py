@@ -21,6 +21,15 @@ import importlib
 # a zero-arg ``create()`` belong here; the shared pieces a part is built from
 # (``led_profiles.cradle``, ``drill_storage.box``, ``models.lib``) are not models.
 MODELS = [
+    # 180 mm spool for a coiled patch cable: three identical discs on one hub,
+    # plus the rim clip that holds them together. The discs are a
+    # reconstruction of Printables 27496; the clip is a redesign, because the
+    # original's falls off.
+    "cable_spool",
+    "cable_spool.base",
+    "cable_spool.middle",
+    "cable_spool.cover",
+    "cable_spool.clip",
     "door_latch",
     # Gridfinity drill storage: the family view, then one variant per tool set.
     # A variant is an assembled scene plus its three printed parts -- ASA base,
