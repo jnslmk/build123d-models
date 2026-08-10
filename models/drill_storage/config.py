@@ -237,24 +237,58 @@ LAND_FIT = fits.for_material(fits.PRESS, CART_MATERIAL) - LAND_EXTRA_GRIP + LAND
 # drill cannot enter at all -- the metal set's 1 and 1.5 mm bores printed tight
 # enough that the bits would not go in.
 #
-# So below ``SMALL_BORE_COMP_THRESHOLD`` the land is eased by a linear taper:
-# ``SMALL_BORE_COMP_SLOPE`` mm of extra diametral clearance per millimetre the
-# hole falls short of the threshold -- +0.30 at 1 mm, +0.20 at 2 mm, +0.10 at
-# 3 mm, nothing at 4 mm and up. At the smallest end that returns the whole
-# measured undersize, which is the point: the bores that cannot be entered at
-# all are the ones that get the most. The slope is deliberately modest and is a
-# calibration knob, not a law -- the taper trades grip for insertability on
-# exactly the sizes that need it, and a set opts in via
-# ``DrillSet.small_bore_comp`` rather than every set carrying it. Raise the
-# slope if a small bore still refuses a bit; drop it if one rattles.
+# So below ``SMALL_BORE_COMP_THRESHOLD`` the land is eased back toward a slip
+# fit -- as a fraction of the whole interference rather than by a flat slope,
+# which is the correction the first printed cartridge asked for. Two numbers set
+# the curve, and both are readings rather than preferences:
+#
+#   * ``SMALL_BORE_COMP_MAX`` is the whole grip: the undersize a bore this small
+#     prints at, plus ``LAND_FIT``'s own tightening on top of it. That makes the
+#     taper's limit "give all of it back", never more, and it is what keeps the
+#     eased land inside the relief above it -- ``RELIEF_FIT - LAND_FIT`` is
+#     0.37, so the two converge as the bore shrinks and never cross.
+#
+#   * ``SMALL_BORE_COMP_EXP`` is why the taper is a curve and not a line. What
+#     limits a small bore is not strain in the TPU -- an elastomer gives at any
+#     of these numbers -- but the *drill*: it is seated by pushing on a slender
+#     column of HSS, whose buckling load falls away with the fourth power of its
+#     diameter, while the interference that column has to overcome falls only
+#     linearly. The interference a size can actually take therefore grows much
+#     faster than the size does, and a straight line between "all of it back at
+#     nothing" and "none of it back at 4 mm" leaves the whole middle over-tight.
+#
+# Squaring it is what the printed set reported: on the linear slope the 1 mm
+# bore took its drill and the 1.5, 2 and 2.5 did not, in that order of severity.
+# That ordering is the signature of a residual interference rising too steeply
+# with size, not of a ceiling in the wrong place -- the ceiling was already
+# right at 1 mm. The residual left after the curve is 0.02 / 0.05 / 0.09 / 0.14
+# / 0.20 mm at 1 / 1.5 / 2 / 2.5 / 3 mm, against 0.05 / 0.10 / 0.15 / 0.20 /
+# 0.25 before it, so every size below 4 mm gets looser and the smallest ones
+# keep the fit that already worked.
+#
+# It stays a calibration knob, not a law, and a set opts in via
+# ``DrillSet.small_bore_comp`` rather than every set carrying it. Raise MAX if a
+# small bore still refuses a bit -- it is the only end that can still move at
+# 1 mm, where EXP has nothing left to give. Raise EXP if a mid-size bore
+# (2.5-3.5 mm) rattles while the small ones are right.
 SMALL_BORE_COMP_THRESHOLD = 4.0  # mm; at and below this, ease the land
-SMALL_BORE_COMP_SLOPE = 0.10  # mm of extra diametral clearance per mm below
+SMALL_BORE_UNDERSIZE = 0.30  # what a bore this small prints under its model
+SMALL_BORE_COMP_MAX = SMALL_BORE_UNDERSIZE - LAND_FIT  # 0.35 -- the whole grip
+SMALL_BORE_COMP_EXP = 2.0  # a curve, not a slope: see the buckling note above
 
 
 def small_bore_comp(d: float) -> float:
     """Extra diametral clearance for a bore of diameter ``d`` under the
-    small-bore taper: ``0`` at the threshold and above, growing linearly below."""
-    return max(0.0, SMALL_BORE_COMP_SLOPE * (SMALL_BORE_COMP_THRESHOLD - d))
+    small-bore taper: ``0`` at the threshold and above, rising toward
+    ``SMALL_BORE_COMP_MAX`` as the bore shrinks toward nothing.
+
+    Reads 0.33 / 0.30 / 0.26 / 0.21 / 0.15 mm at 1 / 1.5 / 2 / 2.5 / 3 mm.
+    """
+    if d >= SMALL_BORE_COMP_THRESHOLD:
+        return 0.0
+    return SMALL_BORE_COMP_MAX * (
+        1.0 - (d / SMALL_BORE_COMP_THRESHOLD) ** SMALL_BORE_COMP_EXP
+    )
 
 
 # Sliding fit, TPU -- the relief above the land. It carries no grip at all, only
@@ -539,8 +573,10 @@ __all__ = [
     "RELIEF_FIT",
     "RIM_FLAT",
     "SHELL_COLOR",
-    "SMALL_BORE_COMP_SLOPE",
+    "SMALL_BORE_COMP_EXP",
+    "SMALL_BORE_COMP_MAX",
     "SMALL_BORE_COMP_THRESHOLD",
+    "SMALL_BORE_UNDERSIZE",
     "SHELL_COLLAR_H",
     "SHELL_FOOT_TOP",
     "SHELL_MATERIAL",

@@ -376,6 +376,13 @@ FREE_LAYOUT: dict[str, tuple[float, float]] = {
 # of a 1 mm bore -- so this set opts into the small-bore taper
 # (``config.SMALL_BORE_*``) and trades the grip on exactly those sizes for the
 # ability to insert them. The 4 mm and up bores are untouched.
+#
+# This set is where that taper is calibrated, because it is the only one that
+# reaches down this far: the first cartridge cut to it took the 1 mm drill and
+# refused the 1.5, 2 and 2.5 in that order, which is what turned the taper from
+# a straight slope into the squared curve ``config`` now carries. Every bore
+# from 1.5 to 3 mm opened by 0.05-0.06 mm diametral; the 1 mm, the one size
+# that was already right, moved 0.03.
 METAL = DrillSet(
     name="metal",
     label="Metal",

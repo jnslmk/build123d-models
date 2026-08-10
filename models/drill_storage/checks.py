@@ -136,12 +136,26 @@ def check_fits(r: Report) -> None:
         f"+ {c.LAND_EASE:.2f}",
     )
     # The small-bore taper is a calibration knob, so its reading is pinned here
-    # like any other fit: 0.10 mm of extra land clearance per mm below 4.0 mm,
-    # i.e. +0.30 at 1 mm and nothing at 4 mm and up.
+    # like any other fit: the whole grip given back as the bore shrinks toward
+    # nothing, on a squared curve, and nothing at 4 mm and up.
     r.check(
-        c.SMALL_BORE_COMP_SLOPE == 0.10 and c.SMALL_BORE_COMP_THRESHOLD == 4.0,
-        "the small-bore taper eases the land 0.10 mm per mm below 4.0 mm",
-        f"{c.SMALL_BORE_COMP_SLOPE:.2f} mm/mm below {c.SMALL_BORE_COMP_THRESHOLD:g} mm",
+        c.SMALL_BORE_COMP_MAX == c.SMALL_BORE_UNDERSIZE - c.LAND_FIT
+        and c.SMALL_BORE_COMP_EXP == 2.0
+        and c.SMALL_BORE_COMP_THRESHOLD == 4.0,
+        "the small-bore taper gives back the whole grip, squared, under 4.0 mm",
+        f"max {c.SMALL_BORE_COMP_MAX:.2f} mm = {c.SMALL_BORE_UNDERSIZE:.2f} - "
+        f"({c.LAND_FIT:.2f}), exponent {c.SMALL_BORE_COMP_EXP:g}",
+    )
+    # The taper may hand back the grip; it may never hand back more than there
+    # was. Past RELIEF_FIT the eased land would be wider than the relief above
+    # it -- the bore would step *inward* on the way out and the land would stop
+    # being the narrow point at all. Checked at the ceiling, so it holds for
+    # every bore however small, rather than only for the sizes a set happens to
+    # carry today.
+    r.check(
+        c.SMALL_BORE_COMP_MAX < c.RELIEF_FIT - c.LAND_FIT,
+        "the fully eased land is still narrower than the relief above it",
+        f"{c.SMALL_BORE_COMP_MAX:.2f} of {c.RELIEF_FIT - c.LAND_FIT:.2f} mm",
     )
     r.check(
         c.HEX_LAND_FIT == press + c.LAND_EASE,
