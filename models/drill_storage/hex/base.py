@@ -40,6 +40,7 @@ from ..box import (
     engrave_row_legend,
     gridfinity_foot,
     rim_chamfer_tool,
+    snap_groove_ring,
     snap_ring,
 )
 from ..base import key_slot_tool
@@ -145,11 +146,23 @@ def create_base(
         for _af, x, y in hex_bores:
             add(hex_guide_tool(guide_af, x, y, guide_mouth_ch), mode=Mode.SUBTRACT)
 
-        # Round groove that receives the cartridge's retention bead. Deliberately
-        # far from the cover's groove so the two never thin the same ring of
-        # collar wall -- GROOVE_SEPARATION pins that, like the family's.
+        # Groove that receives the cartridge's retention bead. Chamfered, not
+        # round: it is the one downward-facing surface in a cavity that prints
+        # facing up with no supports, and a half-round roof finishes horizontal
+        # -- see the family's ``config.py`` and ``box.snap_groove_ring``.
+        # Deliberately still clear of the cover's groove so the two never thin
+        # the same ring of collar wall -- GROOVE_LIP_GAP pins that, like the
+        # family's.
         add(
-            snap_ring(c.CAVITY_W, c.CAVITY_R, c.BEAD_Z, c.SHELL_GROOVE_R),
+            snap_groove_ring(
+                c.CAVITY_W,
+                c.CAVITY_R,
+                c.BEAD_Z,
+                depth=c.GROOVE_D,
+                floor=c.GROOVE_FLOOR,
+                roof=c.GROOVE_ROOF,
+                tip_flat=c.GROOVE_TIP_FLAT,
+            ),
             mode=Mode.SUBTRACT,
         )
 

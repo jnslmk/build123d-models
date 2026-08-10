@@ -59,6 +59,7 @@ from .box import (
     engrave_row_legend,
     gridfinity_foot,
     rim_chamfer_tool,
+    snap_groove_ring,
     snap_ring,
 )
 from . import config as c
@@ -230,11 +231,24 @@ def create_base(
         for af, x, y in hex_bores or []:
             add(hex_guide_tool(af, x, y), mode=Mode.SUBTRACT)
 
-        # Round groove that receives the cartridge's retention bead. Deliberately
-        # far from the cover's groove (z=30) so the two never thin the same ring
-        # of collar wall.
+        # Groove that receives the cartridge's retention bead. Chamfered, not
+        # round: this is the one downward-facing surface in the cavity, the base
+        # prints cavity-up with no supports, and an arc's roof finishes
+        # horizontal -- see config's "the groove that receives the bead" for the
+        # drooped lip that cost, and box.snap_groove_ring for the shape. Its
+        # floor reaches further down than its roof does up, so it swallows the
+        # bead's whole insertion ramp; it is deliberately still clear of the
+        # cover's groove (z=30) so the two never thin the same ring of wall.
         add(
-            snap_ring(c.CAVITY_W, c.CAVITY_R, c.BEAD_Z, c.SHELL_GROOVE_R),
+            snap_groove_ring(
+                c.CAVITY_W,
+                c.CAVITY_R,
+                c.BEAD_Z,
+                depth=c.GROOVE_D,
+                floor=c.GROOVE_FLOOR,
+                roof=c.GROOVE_ROOF,
+                tip_flat=c.GROOVE_TIP_FLAT,
+            ),
             mode=Mode.SUBTRACT,
         )
 

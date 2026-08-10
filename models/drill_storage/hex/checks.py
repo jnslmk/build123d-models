@@ -47,7 +47,7 @@ from ..box import (
     SNAP_Z,
     WALL_LABEL_SIZE,
 )
-from ..checks import is_flush_seam
+from ..checks import is_flush_seam, worst_overhang
 from ..freepack import sdf, worst_slack
 from . import config as c
 from .base import create_base
@@ -159,18 +159,20 @@ def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
         b = e.bounding_box()
         return abs(b.min.Z - top) < 0.05 and abs(b.max.Z - top) < 0.05
 
-    def on_a_groove(e) -> bool:
+    def on_the_cover_groove(e) -> bool:
         b = e.bounding_box()
         if abs(b.max.Z - b.min.Z) > 0.05:
             return False
-        # The cover's snap groove and the cartridge's bead groove, both round
-        # rings cut into the collar.
-        for z in (top + SNAP_Z, c.BEAD_Z):
-            if abs(b.min.Z - (z - SNAP_GROOVE_R)) < 0.05:
-                return True
-            if abs(b.min.Z - (z + SNAP_GROOVE_R)) < 0.05:
-                return True
-        return False
+        # The cover's snap groove alone, still the round ring ``snap_ring``
+        # cuts. The cartridge's bead groove used to be here beside it and is
+        # not any more: it is chamfered now, so its lips are blunt enough to
+        # pass on their own geometry (family ``config.py``, "the groove that
+        # receives the bead").
+        z = top + SNAP_Z
+        return (
+            abs(b.min.Z - (z - SNAP_GROOVE_R)) < 0.05
+            or abs(b.min.Z - (z + SNAP_GROOVE_R)) < 0.05
+        )
 
     def on_wall_legend(e) -> bool:
         b = e.bounding_box()
@@ -195,9 +197,9 @@ def _hex_base_allow(base: Part, has_legend: bool) -> tuple:
             "rim lands flat-on-flat (box.create_cover's COVER_SEAT_CH)",
         ),
         (
-            on_a_groove,
-            "round snap-groove rims -- the grooves are the mating "
-            "features, and rounding their lips would shrink engagement",
+            on_the_cover_groove,
+            "the cover groove's round rims -- the groove is the mating "
+            "feature, and rounding its lips would shrink engagement",
         ),
         (
             lambda e: is_flush_seam(base, e),
@@ -326,6 +328,29 @@ def check_box(
         abs(proud - expected_proud) < 0.05,
         "a bit stands proud of the base by the documented amount",
         f"{proud:.1f} mm (want {expected_proud:.1f})",
+    )
+
+    # The retention groove's roof is the one overhang on a base that prints
+    # cavity-up with no supports, and nothing else in this file would catch it:
+    # the groove is a mating feature, so the sharp-edge audit names its lips,
+    # and it is a ring inside a cavity, so no rendered view shows it. Measured
+    # off the solid, as the family does -- same groove, same argument, in
+    # ``drill_storage.config``.
+    z_lo, z_hi = c.BEAD_Z - c.GROOVE_FLOOR, c.BEAD_Z + c.GROOVE_ROOF
+    steepest, where = worst_overhang(base, z_lo, z_hi)
+    r.check(
+        steepest <= c.MAX_OVERHANG + 0.5,
+        "the retention groove prints without support",
+        f"steepest downward face {steepest:.1f} deg off vertical at {where} "
+        f"(max {c.MAX_OVERHANG:.0f})",
+    )
+    # ...and the two grooves in that one ring of wall still miss each other,
+    # lip to lip -- this groove is not symmetric about BEAD_Z any more.
+    r.check(
+        c.GROOVE_LIP_GAP > 0.0,
+        "cover groove and cartridge groove never thin the same wall",
+        f"{c.GROOVE_LIP_GAP:.1f} mm between their lips "
+        f"({c.GROOVE_SEPARATION:.1f} mm centre to centre)",
     )
 
     # The sockets in the insert: a land at the bottom (HEX_LAND_FIT) and a

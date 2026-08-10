@@ -42,6 +42,8 @@ the coincidence.
 
 from __future__ import annotations
 
+import math
+
 from build123d import Color
 
 from ..lib import fits
@@ -320,8 +322,62 @@ CART_BEAD = 0.6  # radial protrusion of the TPU bead
 BEAD_LEAD_IN = 2.4  # gentle insertion ramp below the tip
 BEAD_BACK = 1.1  # steeper retention face above it
 BEAD_TIP_FLAT = 0.3
-SHELL_GROOVE_R = SNAP_GROOVE_R  # same round pocket the cover's bead drops into
 BEAD_ENGAGEMENT = CART_BEAD - CART_SLIP / 2  # 0.44 mm of real overlap
+
+# --- The groove that receives the bead ----------------------------------------
+# The bead's negative, cut into the ASA cavity wall -- and a *chamfered* pocket
+# rather than the half-round one ``box.snap_ring`` cuts, for a reason that is
+# about the print rather than about the fit.
+#
+# The base prints foot-down, cavity up, so every downward-facing surface inside
+# the cavity is an overhang, and this groove's roof was the steepest one on the
+# part that is not a 45 deg Gridfinity bevel or an engraved glyph. A half-round
+# roof is an arc, and an arc's last stretch is horizontal however small its
+# radius: closing a 0.8 mm pocket on a circle leaves the topmost 0.2 mm layer to
+# span 0.53 mm of roof in one step -- a 69 deg overhang -- so the lip that holds
+# the cartridge down came out drooped into the groove it was supposed to bound.
+# That lip is the whole retention feature, so a print defect there is a fit
+# defect too, and it is what this shape was changed to fix.
+#
+# The roof is a straight ramp instead, rising exactly as far as the groove is
+# deep: 45 deg from vertical at every layer rather than only on average, which
+# is the difference that matters -- the arc averages 45 too and still finishes
+# horizontal. ``checks.py`` measures the angle off the built solid rather than
+# trusting this arithmetic.
+#
+# Retention survives the change, which is the point of doing it this way rather
+# than by shrinking the groove. What holds the cartridge down is the *bead's*
+# own back face -- 0.6 mm of reach over 0.95 mm of rise, ~32 deg off the pull
+# axis -- bearing on the groove's top lip. The roof behind that lip never
+# touched the bead and does not have to; all it owes the joint is to stay out
+# of the way, which a 45 deg ramp does more reliably than a drooping arc. The
+# lip itself moves up by GROOVE_ROOF - GROOVE_D = 0.15 mm, so the cartridge
+# gains that much lost motion before the catch bites, against a slip fit that
+# already gives it 0.16 mm sideways.
+#
+# The depth is named for what it is. It used to be ``SHELL_GROOVE_R``, a radius,
+# because a half-round pocket has nothing else to be described by; there is no
+# radius here any more, and calling the number one invited the next reader to
+# reach for ``snap_ring`` again. It is still the same 0.8 mm the cover's groove
+# is cut at, and still the same 0.8 mm of wall left behind it.
+GROOVE_D = SNAP_GROOVE_R  # 0.8 -- depth unchanged, so is the wall behind it
+GROOVE_TIP_FLAT = BEAD_TIP_FLAT  # flat at the deepest point, as on the bead
+GROOVE_ROOF_RISE = GROOVE_D  # rise == depth, i.e. 45 deg from vertical
+GROOVE_ROOF = GROOVE_TIP_FLAT / 2 + GROOVE_ROOF_RISE  # 0.95 above BEAD_Z
+GROOVE_ROOF_OVERHANG = math.degrees(math.atan2(GROOVE_D, GROOVE_ROOF_RISE))  # 45.0
+MAX_OVERHANG = 45.0  # what FDM prints unsupported, and what the roof is held to
+
+# The floor faces *upward*, so it costs the print nothing and is free to be
+# shaped for the fit instead -- and this is the second thing the reshape fixes.
+# The bead's insertion ramp is 2.25 mm long where the half-round groove's lower
+# half was 0.8, so the last stretch of that ramp had nowhere to go and sat
+# permanently crushed against the groove's bottom lip: up to 0.27 mm of
+# interference, on a bead whose entire engagement is 0.44. The ramp only stands
+# proud of the cartridge's own slip gap over its upper part, so the floor
+# reaches the wall exactly where it does, and below that the cavity's slip is
+# already clearance enough. The bead seats now instead of jamming short.
+BEAD_RAMP_H = BEAD_LEAD_IN - BEAD_TIP_FLAT / 2  # 2.25, the ramp's true rise
+GROOVE_FLOOR = BEAD_LEAD_IN - BEAD_RAMP_H * (CART_SLIP / 2) / CART_BEAD  # 1.80
 
 # --- Collar height ------------------------------------------------------------
 # The collar is centred on its own retention bead: it reaches exactly as far below
@@ -350,7 +406,13 @@ GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 23.2 of ASA guide under the collar
 # The two grooves cut into opposite faces of the same SHELL_WALL, so they must not
 # overlap in z or nothing is left between them. The cover's is at
 # SHELL_FOOT_TOP + SNAP_Z; this is the clearance the bead's groove keeps from it.
-GROOVE_SEPARATION = BEAD_Z - (SHELL_FOOT_TOP + SNAP_Z)  # 3.2, vs 1.6 required
+GROOVE_SEPARATION = BEAD_Z - (SHELL_FOOT_TOP + SNAP_Z)  # 3.2, centre to centre
+# ...but centres are no longer the thing to compare, because this groove is not
+# symmetric about BEAD_Z any more: its floor reaches 1.8 mm down and its roof
+# only 0.95 mm up. So the gap is measured lip to lip, which is what the wall
+# between them actually is. 0.6 mm of full-thickness wall, and shrinking as
+# GROOVE_FLOOR grows -- checks.py fails before it reaches zero.
+GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (SHELL_FOOT_TOP + SNAP_Z + SNAP_GROOVE_R)
 
 # --- Keying -------------------------------------------------------------------
 # The base's engraved wall legend only tells the truth in one orientation, and a
@@ -415,6 +477,7 @@ __all__ = [
     "BEAD_BACK",
     "BEAD_ENGAGEMENT",
     "BEAD_LEAD_IN",
+    "BEAD_RAMP_H",
     "BEAD_TIP_FLAT",
     "BEAD_Z",
     "BORE_FLOOR_Z",
@@ -430,7 +493,15 @@ __all__ = [
     "CART_PROUD",
     "CART_R",
     "CART_SLIP",
+    "GROOVE_D",
+    "GROOVE_FLOOR",
+    "GROOVE_LIP_GAP",
+    "GROOVE_ROOF",
+    "GROOVE_ROOF_OVERHANG",
+    "GROOVE_ROOF_RISE",
     "GROOVE_SEPARATION",
+    "GROOVE_TIP_FLAT",
+    "MAX_OVERHANG",
     "CART_TOP_Z",
     "CART_W",
     "CART_WALL",
@@ -469,7 +540,6 @@ __all__ = [
     "SMALL_BORE_COMP_THRESHOLD",
     "SHELL_COLLAR_H",
     "SHELL_FOOT_TOP",
-    "SHELL_GROOVE_R",
     "SHELL_MATERIAL",
     "SHELL_TOP_CHAMFER",
     "SHELL_TOTAL_H",

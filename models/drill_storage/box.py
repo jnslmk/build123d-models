@@ -479,6 +479,52 @@ def snap_bead_ring(
     return ring.part
 
 
+def snap_groove_ring(
+    size: float,
+    corner_r: float,
+    z: float,
+    depth: float,
+    floor: float,
+    roof: float,
+    tip_flat: float = SNAP_TIP_FLAT,
+) -> Part:
+    """A chamfered groove ring, to **subtract** from the wall of a bore.
+
+    ``snap_bead_ring`` seen from the other side of the joint: the same quad
+    cross-section, cut *into* a bore of side ``size`` instead of standing out of
+    a plug. ``floor`` is how far below ``z`` its lower face meets the wall again
+    and ``roof`` how far above -- the two are named rather than shared because a
+    groove's two faces answer to completely different constraints, which is the
+    whole reason this exists next to ``snap_ring``.
+
+    The reason is the *print*, not the fit. A groove in a wall that prints
+    vertically has a roof, and that roof is an overhang. ``snap_ring`` closes
+    one on a circular arc, and an arc's last stretch is horizontal however small
+    the radius: over a 0.8 mm half-round pocket the topmost 0.2 mm layer has to
+    close 0.53 mm of roof in one step -- a 69 deg overhang -- so the lip that
+    bounds the groove droops into it and the mating feature arrives blunt and
+    undersized. A straight ramp whose rise is at least its depth is 45 deg or
+    gentler at every layer, not on average -- each one half carried by the one
+    below -- and it costs the joint nothing, because what retains is the
+    *bead's* face bearing on the groove's lip, not the roof behind it. The lip
+    is exactly what the arc was destroying.
+
+    The floor is the opposite case and gets no such constraint: it faces
+    upward, so it is free to be shaped for the fit, which for a snap bead means
+    long enough to swallow the bead's whole insertion ramp.
+    """
+    return snap_bead_ring(
+        size,
+        corner_r,
+        z,
+        protrusion=depth,
+        lead_in=floor,
+        back=roof,
+        tip_flat=tip_flat,
+        outward=True,
+    )
+
+
 def rim_chamfer_tool(width: float, corner_r: float, top_z: float, ch: float) -> Part:
     """A subtract tool that 45-deg-chamfers a rounded-square top outer rim.
 

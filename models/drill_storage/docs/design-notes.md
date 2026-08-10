@@ -224,6 +224,51 @@ going on.
 The bead sits at z=37 and the cover's groove at z=30, far enough apart that
 neither thins the other's ring of collar wall.
 
+**The groove is a chamfer, not a pocket, and that is a printing decision.** It
+started as `box.snap_ring`'s half-round pocket — the obvious negative of a bead
+tip — and the first printed bases showed why that is wrong here. The base prints
+foot-down with the cavity facing up and no supports, so the groove's roof is an
+overhang, and a circular roof finishes *horizontal* however small its radius: the
+topmost 0.2 mm layer over a 0.8 mm pocket has to close 0.53 mm of roof in one
+step, a 69° overhang. What droops is not decoration, it is the lip the cartridge
+hangs from — the whole retention feature, printed blunt and undersized.
+
+So the roof is a straight ramp rising exactly as far as the groove is deep: 45°
+at every layer rather than only on average — the arc averages 45° too, and still
+finishes horizontal. That is the whole difference. The joint
+does not notice, and that is the point of fixing it this way rather than by
+making the groove shallower. What holds the cartridge down is the *bead's* own
+back face — 0.6 mm of reach over 0.95 mm of rise, some 32° off the pull axis —
+bearing on the groove's top lip. The roof behind that lip never touched the bead;
+all it owed the joint was to stay out of the way, which a straight ramp does more
+reliably than an arc the printer cannot follow. The lip rises 0.15 mm, so the
+cartridge gains that much lost motion before the catch bites, against a slip fit
+that already gives it 0.16 mm sideways.
+
+The floor of the groove faces *upward*, costs the print nothing, and was
+therefore free to be shaped for the fit instead — which exposed a second, older
+bug. The bead's insertion ramp is 2.25 mm long where the half-round groove's
+lower half was 0.8, so its last millimetre had nowhere to go and sat permanently
+crushed against the groove's bottom lip: up to 0.27 mm of interference, on a bead
+whose entire engagement is 0.44 mm. The floor now reaches 1.8 mm below `BEAD_Z`,
+which is exactly where the ramp stops standing proud of the cartridge's own slip
+gap, so the bead drops in instead of jamming short of home. Being asymmetric
+about `BEAD_Z` is what makes `GROOVE_LIP_GAP` the number to watch rather than
+`GROOVE_SEPARATION`: 0.6 mm of full-thickness wall between this groove's bottom
+lip and the cover groove's top one.
+
+`checks.py` measures the roof angle off the built solid rather than trusting the
+arithmetic, because nothing else in the file would have caught the original: the
+groove is a mating feature, so the sharp-edge audit names its lips as exceptions,
+and it is a ring inside a cavity, so no rendered view shows it. The half-round
+version passed every check in this package.
+
+The cover's own groove, on the *outside* of the collar at z=30, is still
+`snap_ring`'s half-round pocket and has the identical defect. It is left alone
+deliberately: it is a different joint, shared by every base and every cover in
+this repo (`box.create_base`, `hex.base`), so re-cutting it is a change to five
+box families' snap fit rather than to this one's retention.
+
 **Keying.** The base's engraved legend is only true in one orientation and a
 rounded square goes in four ways. The key rib stands *outside* the cartridge body,
 on the +X face — the one face pair carrying no legend — so it can never collide

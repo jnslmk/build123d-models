@@ -87,6 +87,17 @@ CART_WALL = fam.CART_WALL
 CAVITY_MOUTH_CH = fam.CAVITY_MOUTH_CH
 CAVITY_R = fam.CAVITY_R
 EFFECTIVE_LAND_H = fam.EFFECTIVE_LAND_H
+# The retention groove's profile, chamfered rather than half-round so its roof
+# prints unsupported -- the argument, and the drooped lip that provoked it, are
+# in the family's ``config.py``. It is the family's groove receiving the
+# family's bead, so none of it is re-decided here either.
+GROOVE_D = fam.GROOVE_D
+GROOVE_FLOOR = fam.GROOVE_FLOOR
+GROOVE_ROOF = fam.GROOVE_ROOF
+GROOVE_ROOF_OVERHANG = fam.GROOVE_ROOF_OVERHANG
+GROOVE_ROOF_RISE = fam.GROOVE_ROOF_RISE
+GROOVE_TIP_FLAT = fam.GROOVE_TIP_FLAT
+MAX_OVERHANG = fam.MAX_OVERHANG
 GUIDE_FIT = fam.GUIDE_FIT
 GUIDE_MOUTH_CH = fam.GUIDE_MOUTH_CH
 HEX_LAND_FIT = fam.HEX_LAND_FIT
@@ -104,7 +115,6 @@ PACK_HALF_W = fam.PACK_HALF_W
 PACK_HOLE_WALL = fam.PACK_HOLE_WALL
 PACK_WALL_CLEARANCE = fam.PACK_WALL_CLEARANCE
 RELIEF_FIT = fam.RELIEF_FIT
-SHELL_GROOVE_R = fam.SHELL_GROOVE_R
 SHELL_TOP_CHAMFER = fam.SHELL_TOP_CHAMFER
 SHELL_WALL = fam.SHELL_WALL
 
@@ -171,8 +181,11 @@ GUIDE_FLOOR_Z = 15.0
 GUIDE_H = CAVITY_FLOOR_Z - GUIDE_FLOOR_Z  # 8.2 of rigid guide under the collar
 CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 6.8, the family's own
 # The two grooves cut into opposite faces of the same ring of collar wall, so
-# they must not overlap in z. Same 3.2 mm the family keeps.
+# they must not overlap in z. Same 3.2 mm the family keeps, centre to centre --
+# and, since the cartridge groove is chamfered and no longer symmetric about
+# BEAD_Z, the same 0.6 mm of full-thickness wall lip to lip.
 GROOVE_SEPARATION = BEAD_Z - (BASE_FOOT_TOP + SNAP_Z)
+GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (BASE_FOOT_TOP + SNAP_Z + SNAP_GROOVE_R)
 
 # --- The ALLEN wall legend ----------------------------------------------------
 # Re-fitted to the shortened body exactly as the old one-material base fitted
@@ -356,6 +369,7 @@ __all__ = [
     "CAVITY_W",
     "COVER_COLOR",
     "COVER_TIP_CLEARANCE",
+    "GROOVE_LIP_GAP",
     "GROOVE_SEPARATION",
     "GUIDE_FLOOR_Z",
     "GUIDE_H",
@@ -412,6 +426,13 @@ __all__ = [
     "CAVITY_MOUTH_CH",
     "CAVITY_R",
     "EFFECTIVE_LAND_H",
+    "GROOVE_D",
+    "GROOVE_FLOOR",
+    "GROOVE_ROOF",
+    "GROOVE_ROOF_OVERHANG",
+    "GROOVE_ROOF_RISE",
+    "GROOVE_TIP_FLAT",
+    "MAX_OVERHANG",
     "GUIDE_FIT",
     "GUIDE_MOUTH_CH",
     "HEX_LAND_FIT",
@@ -429,7 +450,6 @@ __all__ = [
     "PACK_HOLE_WALL",
     "PACK_WALL_CLEARANCE",
     "RELIEF_FIT",
-    "SHELL_GROOVE_R",
     "SHELL_TOP_CHAMFER",
     "SHELL_WALL",
 ]

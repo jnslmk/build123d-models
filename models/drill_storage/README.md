@@ -44,7 +44,12 @@ progressively, a shorter steeper face above so it still detents going in.
 
 **Base → cartridge.** The cartridge drops into a 6.8 mm cavity at the top of the
 base and clicks in on its own bead — outward, on the TPU, so seating it costs a
-squeeze rather than deflecting an ASA wall. A key rib on the +X face means it
+squeeze rather than deflecting an ASA wall. The groove that receives it is
+chamfered rather than half-round, because the base prints cavity-up without
+supports and a round groove's roof finishes horizontal: the lip the cartridge
+hangs from used to droop into the groove it bounds. Its roof is now a 45° ramp
+and its floor reaches far enough down to swallow the bead's whole insertion
+ramp — see `docs/design-notes.md`. A key rib on the +X face means it
 only goes in one way round, which is what makes the base's engraved legend true.
 
 **Cartridge → bit.** The bore is plain and round, and it grips on a **3.5 mm

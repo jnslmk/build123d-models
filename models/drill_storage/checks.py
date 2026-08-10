@@ -195,9 +195,9 @@ def check_retention(r: Report) -> None:
         f"slip/2 {c.CART_SLIP / 2:.2f})",
     )
     r.check(
-        c.CART_BEAD <= c.SHELL_GROOVE_R + TOL,
+        c.CART_BEAD <= c.GROOVE_D + TOL,
         "bead tip fits inside the groove that receives it",
-        f"bead {c.CART_BEAD:.2f} <= groove r {c.SHELL_GROOVE_R:.2f}",
+        f"bead {c.CART_BEAD:.2f} <= groove depth {c.GROOVE_D:.2f}",
     )
     r.check(
         c.BEAD_LEAD_IN > c.BEAD_BACK,
@@ -208,6 +208,41 @@ def check_retention(r: Report) -> None:
         c.BEAD_Z + c.BEAD_BACK < c.SHELL_TOTAL_H,
         "bead seats below the base rim",
         f"{c.BEAD_Z + c.BEAD_BACK:.1f} mm",
+    )
+    # The two things the groove's chamfered profile has to deliver. Neither is
+    # visible in a projection and both were wrong when the groove was a
+    # half-round pocket: see config's "the groove that receives the bead".
+    #
+    # The roof is the overhang. This is the arithmetic; check_groove measures
+    # the same angle off the built solid, which is the claim that actually
+    # matters.
+    r.check(
+        c.GROOVE_ROOF_OVERHANG <= c.MAX_OVERHANG + TOL,
+        "the retention groove's roof is a self-supporting ramp",
+        f"{c.GROOVE_ROOF_OVERHANG:.1f} deg from vertical "
+        f"({c.GROOVE_D:.2f} mm deep over {c.GROOVE_ROOF_RISE:.2f} mm of rise, "
+        f"max {c.MAX_OVERHANG:.0f})",
+    )
+    # ...and the floor is the fit. The bead's ramp stands proud of the
+    # cartridge's slip gap over its upper BEAD_RAMP_H * (1 - slip/2 / bead), and
+    # every millimetre of that has to have somewhere to go or the bead seats
+    # crushed against the groove's bottom lip instead of dropping into it.
+    # GROOVE_FLOOR is derived from the same two numbers, so the two sides agree
+    # by construction today; what this catches is GROOVE_FLOOR being trimmed by
+    # hand later to buy back collar wall. check_groove walks the built solid.
+    ramp_proud = c.BEAD_RAMP_H * (1 - (c.CART_SLIP / 2) / c.CART_BEAD)
+    r.check(
+        c.GROOVE_FLOOR >= c.BEAD_TIP_FLAT / 2 + ramp_proud - TOL,
+        "the groove's floor swallows the whole of the bead's insertion ramp",
+        f"floor {c.GROOVE_FLOOR:.2f} mm below BEAD_Z vs "
+        f"{c.BEAD_TIP_FLAT / 2 + ramp_proud:.2f} mm of proud ramp",
+    )
+    r.check(
+        c.GROOVE_FLOOR > c.GROOVE_ROOF,
+        "the groove reaches further down than up -- it is not symmetric, and "
+        "the two faces answer to different things",
+        f"floor {c.GROOVE_FLOOR:.2f} mm (the fit) vs roof "
+        f"{c.GROOVE_ROOF:.2f} mm (the print)",
     )
 
 
@@ -220,10 +255,19 @@ def check_wall_budget(r: Report) -> None:
         "flat rim survives both top chamfers",
         f"{c.RIM_FLAT:.2f} mm (min {MIN_WALL})",
     )
+    # Both grooves are cut into the same 1.6 mm ring of collar wall, from
+    # opposite faces, and each is checked against the depth it is really cut at
+    # rather than against the other's -- they are the same 0.8 today and are two
+    # different numbers, one owned by the cover's joint and one by this package.
     r.check(
-        c.SHELL_WALL - c.SHELL_GROOVE_R >= MIN_WALL - TOL,
+        c.SHELL_WALL - SNAP_GROOVE_R >= MIN_WALL - TOL,
         "collar wall survives the cover's snap groove",
-        f"{c.SHELL_WALL - c.SHELL_GROOVE_R:.2f} mm",
+        f"{c.SHELL_WALL - SNAP_GROOVE_R:.2f} mm",
+    )
+    r.check(
+        c.SHELL_WALL - c.GROOVE_D >= MIN_WALL - TOL,
+        "cavity wall survives the cartridge's retention groove",
+        f"{c.SHELL_WALL - c.GROOVE_D:.2f} mm",
     )
     r.check(
         c.SHELL_WALL - c.KEY_D >= MIN_WALL - TOL,
@@ -237,12 +281,14 @@ def check_wall_budget(r: Report) -> None:
     )
     # The two grooves are cut into opposite faces of the same SHELL_WALL, so what
     # matters is that the *grooves* do not overlap in z -- the bead's ramp is on
-    # the TPU and takes nothing out of the base.
-    need = SNAP_GROOVE_R + c.SHELL_GROOVE_R
+    # the TPU and takes nothing out of the base. Lip to lip, not centre to
+    # centre: the cartridge's groove is chamfered and reaches 1.8 mm below
+    # BEAD_Z against 0.95 above, so its centre says nothing about where it ends.
     r.check(
-        c.GROOVE_SEPARATION > need,
+        c.GROOVE_LIP_GAP > 0.0,
         "cover groove and collar groove never thin the same wall",
-        f"{c.GROOVE_SEPARATION:.1f} mm apart, {need:.1f} mm required",
+        f"{c.GROOVE_LIP_GAP:.1f} mm of full-thickness wall between their lips "
+        f"({c.GROOVE_SEPARATION:.1f} mm centre to centre)",
     )
     # The seat is the one dimension that must NOT move: it feeds
     # cover_height_for, so lowering it mints a taller cover for one model and
@@ -454,6 +500,115 @@ def check_envelope(s: DrillSet, base: Part, insert: Part, r: Report) -> None:
         c.CART_ABOVE_BEAD >= c.BEAD_BACK + c.CART_PROUD - TOL,
         "reach above the bead covers its retention face and the grip lip",
         f"{c.CART_ABOVE_BEAD:.2f} mm vs {c.BEAD_BACK + c.CART_PROUD:.2f} mm needed",
+    )
+
+
+def worst_overhang(part: Part, z_lo: float, z_hi: float) -> tuple[float, str]:
+    """The steepest downward-facing surface lying wholly between two heights,
+    in degrees off vertical -- 0 is a plain wall, 90 a flat ceiling.
+
+    Measured from the solid rather than from the numbers that produced it,
+    because an overhang is exactly the kind of thing a sweep or a boolean can
+    quietly hand back different from what was drawn. Faces are sampled on a
+    grid rather than at one point: the surfaces this is aimed at include swept
+    tori round the cavity's corners, whose steepness is not constant.
+
+    Faces are taken only if they lie *wholly* inside the band, which is what
+    scopes this to one feature -- the cavity wall itself spans the whole cavity
+    and drops out, as does anything cut through the band from outside it.
+
+    Shared with the hex checks, which import this one.
+    """
+    worst, where = 0.0, "nothing overhanging"
+    for face in part.faces():  # ty: ignore[invalid-argument-type]
+        bb = face.bounding_box()
+        if bb.min.Z < z_lo - TOL or bb.max.Z > z_hi + TOL:
+            continue
+        for u in (0.02, 0.25, 0.5, 0.75, 0.98):
+            for v in (0.02, 0.25, 0.5, 0.75, 0.98):
+                try:
+                    at = face.position_at(u, v)
+                    n = face.normal_at(at)
+                except Exception:
+                    continue
+                if n.Z >= 0.0:
+                    continue
+                angle = math.degrees(math.asin(min(1.0, -n.Z)))
+                if angle > worst:
+                    worst, where = angle, f"z={at.Z:.2f}"
+    return worst, where
+
+
+def _bead_reach(z: float) -> float:
+    """How far the seated cartridge's bead stands out from its own body at
+    height ``z`` in the base's frame -- ``0`` outside the bead entirely.
+
+    ``box.snap_bead_ring``'s quad, read back as a function of height: a ramp of
+    ``BEAD_RAMP_H`` up to the tip flat, then the retention face down to nothing
+    at ``BEAD_Z + BEAD_BACK``. The cartridge bottoms out on the cavity floor, so
+    this is fixed in the base's coordinates and not a function of how hard
+    anyone pushed.
+    """
+    half = c.BEAD_TIP_FLAT / 2
+    if z < c.BEAD_Z - c.BEAD_LEAD_IN or z > c.BEAD_Z + c.BEAD_BACK:
+        return 0.0
+    if z <= c.BEAD_Z - half:  # the long insertion ramp
+        return c.CART_BEAD * (z - (c.BEAD_Z - c.BEAD_LEAD_IN)) / c.BEAD_RAMP_H
+    if z <= c.BEAD_Z + half:  # the flat at the tip
+        return c.CART_BEAD
+    return c.CART_BEAD * (1 - (z - c.BEAD_Z - half) / (c.BEAD_BACK - half))
+
+
+def check_groove(s: DrillSet, base: Part, r: Report) -> None:
+    """The retention groove, on both counts it is cut for: it has to print, and
+    it has to receive the bead.
+
+    Nothing else in this file catches either. The groove is a mating feature, so
+    the sharp-edge audit names its lips as exceptions; it is a ring inside a
+    cavity, so no rendered view shows it; and the bead lives on the *other*
+    part, so no check on the cartridge alone can see the two interfere. The
+    half-round groove this replaced passed everything here while asking its
+    topmost layer to close 0.53 mm of roof in one step and while crushing the
+    last millimetre of the bead's ramp against its own bottom lip.
+    """
+    r.section(f"{s.name}: retention groove")
+    z_lo, z_hi = c.BEAD_Z - c.GROOVE_FLOOR, c.BEAD_Z + c.GROOVE_ROOF
+    worst, where = worst_overhang(base, z_lo, z_hi)
+    r.check(
+        worst <= c.MAX_OVERHANG + 0.5,
+        "the groove prints without support",
+        f"steepest downward face {worst:.1f} deg off vertical at {where} "
+        f"(max {c.MAX_OVERHANG:.0f}), sampled over z={z_lo:.2f}..{z_hi:.2f}",
+    )
+    # ...and it is a groove at all: full depth at the bead's own height, solid
+    # behind it. Sampled on +Y, which carries neither the key slot nor a legend.
+    y_wall = c.CAVITY_W / 2
+    r.check(
+        not is_solid_at(base, 0.0, y_wall + c.GROOVE_D - PROBE, c.BEAD_Z)
+        and is_solid_at(base, 0.0, y_wall + c.GROOVE_D + PROBE, c.BEAD_Z),
+        "the groove is cut to GROOVE_D and no further",
+        f"{c.GROOVE_D:.2f} mm deep at z={c.BEAD_Z:.1f}, leaving "
+        f"{c.SHELL_WALL - c.GROOVE_D:.2f} mm of wall",
+    )
+    # The fit, walked rather than argued: at every height the bead reaches past
+    # the cartridge's own slip gap, the ASA it would reach into has to be gone.
+    # This is the check the old groove failed -- its lower half was 0.8 mm deep
+    # against a 2.25 mm ramp, so the ramp seated crushed rather than dropping in.
+    worst_z, worst_bite = 0.0, -math.inf
+    for i in range(101):
+        z = c.BEAD_Z - c.BEAD_LEAD_IN + i * (c.BEAD_LEAD_IN + c.BEAD_BACK) / 100
+        surface = c.CART_W / 2 + _bead_reach(z)
+        if surface <= y_wall:  # still inside the cavity's own slip gap
+            continue
+        bite = surface - y_wall  # how far into the wall the bead reaches here
+        if is_solid_at(base, 0.0, surface - 0.02, z) and bite > worst_bite:
+            worst_z, worst_bite = z, bite
+    r.check(
+        worst_bite < 0.0,
+        "the seated bead is clear of ASA over its whole profile",
+        "sampled at 101 heights across the bead"
+        if worst_bite < 0.0
+        else f"{worst_bite:.2f} mm of interference at z={worst_z:.2f}",
     )
 
 
@@ -852,12 +1007,14 @@ def check_key(s: DrillSet, base: Part, insert: Part, r: Report) -> None:
     )
     # Sample low in the cavity, deliberately clear of the retention groove: the
     # collar is short enough that mid-cavity lands *inside* the groove at BEAD_Z,
-    # where the wall is legitimately void and proves nothing about the key.
-    z = c.CAVITY_FLOOR_Z + 2.0
+    # where the wall is legitimately void and proves nothing about the key. The
+    # groove is not symmetric about BEAD_Z, so this is measured against its own
+    # bottom lip rather than against a radius either side of the centre.
+    z = c.CAVITY_FLOOR_Z + 1.0
     r.check(
-        abs(z - c.BEAD_Z) > c.SHELL_GROOVE_R + 0.5,
+        z < c.BEAD_Z - c.GROOVE_FLOOR - 0.5,
         "key probe height is clear of the retention groove",
-        f"z={z:.1f}, groove at {c.BEAD_Z:.1f}+/-{c.SHELL_GROOVE_R:.1f}",
+        f"z={z:.1f}, groove floor at {c.BEAD_Z - c.GROOVE_FLOOR:.1f}",
     )
     r.check(
         not is_solid_at(base, c.CAVITY_W / 2 + c.KEY_D / 2, 0.0, z),
@@ -988,16 +1145,24 @@ def _base_allow(base: Part) -> tuple:
             and abs(b.max.Z - c.SHELL_FOOT_TOP) < 0.05
         )
 
-    def on_a_groove(e) -> bool:
+    def on_the_cover_groove(e) -> bool:
+        """The rims of the *cover's* groove on the outside of the collar, which
+        is still the half-round pocket ``snap_ring`` cuts and so still meets the
+        wall tangentially at a square rim.
+
+        The cartridge's groove inside the cavity is deliberately not here any
+        more: it is chamfered now (config's "the groove that receives the
+        bead"), so its lips measure 135 and 156 deg and pass the audit on their
+        own geometry rather than on a promise.
+        """
         b = e.bounding_box()
         if abs(b.max.Z - b.min.Z) > 0.05:
             return False
-        for z in (c.SHELL_FOOT_TOP + SNAP_Z, c.BEAD_Z):
-            if abs(b.min.Z - (z - c.SHELL_GROOVE_R)) < 0.05:
-                return True
-            if abs(b.min.Z - (z + c.SHELL_GROOVE_R)) < 0.05:
-                return True
-        return False
+        z = c.SHELL_FOOT_TOP + SNAP_Z
+        return (
+            abs(b.min.Z - (z - SNAP_GROOVE_R)) < 0.05
+            or abs(b.min.Z - (z + SNAP_GROOVE_R)) < 0.05
+        )
 
     return (
         (on_wall_face, "engraved size legend -- bevelling a glyph destroys it"),
@@ -1007,8 +1172,8 @@ def _base_allow(base: Part) -> tuple:
             "rim lands flat-on-flat (box.create_cover's COVER_SEAT_CH)",
         ),
         (
-            on_a_groove,
-            "round snap-groove rims -- the groove is the mating "
+            on_the_cover_groove,
+            "the cover groove's round rims -- the groove is the mating "
             "feature, and rounding its lips would shrink engagement",
         ),
         (
@@ -1167,6 +1332,7 @@ def check_set(s: DrillSet, r: Report) -> None:
     cover = create_cover_for(s)
 
     check_envelope(s, base, insert, r)
+    check_groove(s, base, r)
     check_cover_interface(s, cover, r)
     check_layout(s, r)
     check_hex_tools(s, r)
