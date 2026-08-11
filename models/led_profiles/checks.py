@@ -34,6 +34,7 @@ from models.lib.checks import (
     interior_angle,
     is_periodic_seam,
     is_solid_at,
+    is_vertical_seam,
     sharp_convex_edges,
 )
 from models.lib.edges import as_part
@@ -1867,26 +1868,17 @@ def check_strap_edges(part: Part, r: Report) -> None:
         # sharp_convex_edges now reports the None edges min_length used to
         # let through unseen (see its docstring): one per boss, on the bolt
         # clearance bore's own cylindrical wall (the ``Cylinder`` cut in
-        # ``create_strap``, between its two lead-in cones). That wall is a
-        # periodic surface -- OCC always parametrises a cylinder's
-        # circumference to wrap rather than genuinely start and stop -- so it
-        # needs a seam edge in its own wire, and where that seam lands there
-        # is no second face to take a dihedral angle against, which is why
-        # interior_angle answers None (the "not shared by exactly two faces"
-        # case its docstring documents, not an acute wedge the probe failed
-        # on). ``is_periodic_seam`` confirms this against OCC's own topology
-        # rather than the edge's position -- see that function's docstring
-        # for why. Scoped to a straight, purely-vertical LINE (both ends at
-        # the same X and Y) so this cannot also claim some other edge that
-        # merely happens to share a seam somewhere else on the part; checked
-        # against every edge on the strap, not assumed, and only these two
-        # -- one per boss -- match both conditions at once.
-        if edge.geom_type != GeomType.LINE:
-            return False
-        bb = edge.bounding_box()
-        if bb.size.X > 0.05 or bb.size.Y > 0.05:
-            return False
-        return is_periodic_seam(part, edge)
+        # ``create_strap``, between its two lead-in cones). is_vertical_seam
+        # does the proof -- LINE, degenerate X/Y bbox, then is_periodic_seam
+        # against OCC's own topology (see its docstring); the 0.05 tolerance
+        # is the deliberate loosening that function documents: these bore
+        # walls are not perfectly vertical, so the 1e-6 default would reject
+        # the very seams they are. Scoped so this cannot also claim some
+        # other edge that merely happens to share a seam somewhere else on
+        # the part; checked against every edge on the strap, not assumed,
+        # and only these two -- one per boss -- match both conditions at
+        # once.
+        return is_vertical_seam(part, edge, tolerance=0.05)
 
     # The raw-edge rule, made falsifiable. Unlike every other part in the
     # family, the strap needed no allow list at all for its *sharp* edges:

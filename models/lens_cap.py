@@ -29,7 +29,6 @@ from build123d import (
     BuildPart,
     BuildSketch,
     Circle,
-    GeomType,
     Mode,
     Part,
     Pos,
@@ -37,7 +36,7 @@ from build123d import (
     extrude,
 )
 
-from models.lib.checks import Report, is_periodic_seam, is_solid_at, sharp_convex_edges
+from models.lib.checks import Report, is_solid_at, is_vertical_seam, sharp_convex_edges
 
 INNER_DIA = 51.0
 WALL_THICKNESS = 1.2
@@ -215,17 +214,13 @@ def check() -> Report:
         # from its side), so the "seam" is the untrimmed cylinder's own
         # periodic parametrisation closing up on itself, nothing else: OCC
         # always needs one somewhere on a bounded face cut from a periodic
-        # surface, and here there is no boolean cut anywhere nearby for it to
-        # coincide with, unlike a seam that happens to land on a genuine
-        # near-tangent sliver elsewhere in this repo (see
-        # ``is_periodic_seam``'s docstring on why that distinction matters
-        # and why this check does not stop at "same face").
-        if edge.geom_type != GeomType.LINE:
-            return False
-        bb = edge.bounding_box()
-        if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
-            return False
-        return is_periodic_seam(part, edge)
+        # surface, and here there is no boolean cut anywhere nearby for it
+        # to coincide with, unlike a seam that happens to land on a genuine
+        # near-tangent sliver elsewhere in this repo. is_vertical_seam does
+        # the proof itself (LINE, degenerate X/Y bbox, then
+        # is_periodic_seam against OCC's own topology -- see its docstring,
+        # which also carries that sliver distinction).
+        return is_vertical_seam(part, edge)
 
     edges = sharp_convex_edges(
         part,

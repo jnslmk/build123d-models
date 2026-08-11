@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from build123d import Axis, Edge, Part, ShapeList, Vector
+from build123d import Axis, Edge, GeomType, Part, ShapeList, Vector
 
 # OCP ships no stubs for these; they resolve fine at runtime.
 from OCP.BRepClass3d import BRepClass3d_SolidClassifier  # ty: ignore[unresolved-import]
@@ -372,6 +372,64 @@ def periodic_seams(part: Part):
         return len(faces) == 2 and faces[0].IsSame(faces[1])
 
     return is_seam
+
+
+def is_vertical_seam(part: Part, edge: Edge, tolerance: float = 1e-6) -> bool:
+    """True when ``edge`` is a straight, purely-vertical LINE whose only two
+    topological neighbours are the same face -- a bore or wall's own periodic
+    closing seam, not a boundary between two surfaces.
+
+    This is the scoped form of ``is_periodic_seam`` that every bore/wall
+    seam allow-predicate in this repo used to re-derive for itself, line for
+    line: the edge must be a LINE, its bounding box must be degenerate in X
+    and Y (the edge runs straight down at one (x, y), which is exactly what
+    a cylinder or cone wall's seam looks like once a boolean cut has trimmed
+    it open), and then ``is_periodic_seam`` answers the topology question
+    against OCC's own edge-to-face ancestor map. The two scoping checks
+    exist because the bare ``is_periodic_seam`` would just as happily claim
+    a seam that happens to land on a genuine near-tangent sliver elsewhere
+    on the part -- the confusion this repo has already had once (see its
+    docstring) -- and the repo's five one-off copies of exactly this
+    predicate (door_latch, lens_cap, round_snap_box, drill_storage's bore
+    family, and led_profiles' bolt-bore site) are why it finally earns a
+    home here. Two other led_profiles predicates --
+    ``_is_periodic_bore_seam`` and ``_is_stand_periodic_seam`` -- share
+    only the broad shape (LINE, some bounding-box guard, then
+    ``is_periodic_seam``), not this exact predicate: their guards differ
+    from the X/Y degeneracy this one enforces (a Z-position/span window at
+    CAP_T, and none at all), so they stay inline rather than migrate.
+
+    Not, on its own, a safety verdict. ``is_periodic_seam``'s caveat applies
+    unchanged: this is *necessary* evidence that ``interior_angle`` could not
+    have measured a dihedral angle here, not *sufficient* evidence that the
+    edge is safe to leave unexplained -- a real near-tangent boolean cut can
+    itself land its seam at a vertical line. So a caller's ``allow`` entry
+    should still scope this to its own feature (which bore or wall, that
+    nothing cuts sideways into it) and still state its own reason; this
+    predicate only answers "is this the periodic closing seam of a purely
+    vertical surface".
+
+    ``tolerance`` is the allowance on the X/Y bounding-box degeneracy. 1e-6
+    absorbs the floating noise of an actually-vertical line. A larger value
+    is a deliberate loosening for walls that are merely *near*-vertical:
+    led_profiles' bolt-bore site passes 0.05 because those bores' walls are
+    not perfectly plumb, and the tighter default would reject their seams.
+    A value smaller than 1e-6 is not meaningful: it would reject a genuinely
+    vertical edge whose bbox measures a few ulps off zero.
+
+    One-edge form only, deliberately -- exactly the relationship
+    ``is_periodic_seam`` has to ``periodic_seams``, and no batch variant is
+    built because none of this repo's callers audits vertical seams in bulk
+    (the lofted-shell case that motivated ``periodic_seams`` has no
+    X/Y-degenerate seams to batch). If one ever appears, add
+    ``vertical_seams(part, tolerance)`` next to this the same way.
+    """
+    if edge.geom_type != GeomType.LINE:
+        return False
+    bb = edge.bounding_box()
+    if bb.size.X > tolerance or bb.size.Y > tolerance:
+        return False
+    return is_periodic_seam(part, edge)
 
 
 class SharpEdgeSurvey(NamedTuple):

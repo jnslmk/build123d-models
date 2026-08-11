@@ -32,7 +32,6 @@ from build123d import (
     BuildPart,
     Compound,
     Cylinder,
-    GeomType,
     Locations,
     Mode,
     Part,
@@ -45,8 +44,8 @@ from build123d import (
 from models.lib import fits
 from models.lib.checks import (
     Report,
-    is_periodic_seam,
     is_solid_at,
+    is_vertical_seam,
     sharp_convex_edges,
 )
 from models.lib.edges import chamfer_edge
@@ -705,27 +704,19 @@ def check() -> Report:
         # of those is a plain revolved/extruded cylinder -- nothing ever cuts
         # sideways into one -- so it carries its own closing seam purely from
         # OCC's periodic parametrisation, with no nearby boolean cut for that
-        # seam to coincide with (unlike a seam that lands on a genuine
-        # near-tangent sliver elsewhere in this repo; see
-        # ``is_periodic_seam``'s docstring for why that distinction matters
-        # and why this does not stop at "same face"). Where a wall also
-        # carries the interlocking bead (lip OD, lid bore ID), the fused
-        # torus locally interrupts the wall and splits its one seam into two
-        # -- still the same untrimmed periodic seam on either side, not a
-        # second feature, which is why this predicate matches 4 edges on 3
-        # walls on the box and 3 on 2 on the lid rather than one apiece.
-        # Scoped to a straight, purely-vertical LINE so this cannot also
-        # claim some other, differently-shaped edge -- in particular, not the
-        # bead's own closing seam (a circular arc, not a straight vertical
-        # line), which is a classic source of a genuine tangent-runout sliver
-        # elsewhere but is not among the edges this predicate has ever
-        # matched here.
-        if e.geom_type != GeomType.LINE:
-            return False
-        b = e.bounding_box()
-        if b.size.X > 1e-6 or b.size.Y > 1e-6:
-            return False
-        return is_periodic_seam(part, e)
+        # seam to coincide with. Where a wall also carries the interlocking
+        # bead (lip OD, lid bore ID), the fused torus locally interrupts the
+        # wall and splits its one seam into two -- still the same untrimmed
+        # periodic seam on either side, not a second feature, which is why
+        # this predicate matches 4 edges on 3 walls on the box and 3 on 2 on
+        # the lid rather than one apiece. is_vertical_seam supplies the LINE
+        # / degenerate-X-Y-bbox / is_periodic_seam proof itself (see its
+        # docstring); what stays local is the scoping -- in particular that
+        # this must not claim the bead's own closing seam (a circular arc,
+        # not a straight vertical line), a classic source of a genuine
+        # tangent-runout sliver elsewhere but never among the edges this
+        # predicate has matched here.
+        return is_vertical_seam(part, e)
 
     box_allow = (
         (

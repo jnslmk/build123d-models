@@ -8,7 +8,6 @@ from build123d import (
     BuildSketch,
     Circle,
     Face,
-    GeomType,
     Kind,
     Locations,
     Mode,
@@ -23,7 +22,7 @@ from build123d import (
     offset,
 )
 
-from models.lib.checks import Report, is_periodic_seam, is_solid_at, sharp_convex_edges
+from models.lib.checks import Report, is_solid_at, is_vertical_seam, sharp_convex_edges
 from models.lib.edges import as_part
 
 LATCH_LENGTH = 85.0
@@ -230,16 +229,11 @@ def check() -> Report:
         # on the pivot screw hole's own cylindrical wall -- nothing cuts
         # sideways into that bore, so it is OCC's own periodic seam and
         # nothing else, not a sign of the KNOWN rim-chamfer defect below.
-        # Confirmed via is_periodic_seam rather than assumed from position
-        # (see that function's docstring for why "same face" alone is not
-        # enough elsewhere in this repo, and why it is enough here: no
-        # nearby boolean cut for this seam to coincide with).
-        if edge.geom_type != GeomType.LINE:
-            return False
-        bb = edge.bounding_box()
-        if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
-            return False
-        return is_periodic_seam(part, edge)
+        # is_vertical_seam does the proof (LINE, degenerate X/Y bbox, then
+        # is_periodic_seam against OCC's own topology -- see its docstring);
+        # what is left to state here is why position scoping is enough on
+        # this part: no nearby boolean cut for this seam to coincide with.
+        return is_vertical_seam(part, edge)
 
     edges = sharp_convex_edges(
         part,

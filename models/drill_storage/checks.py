@@ -32,8 +32,8 @@ from build123d import BuildSketch, FontStyle, GeomType, Part, Text
 from ..lib import fits
 from ..lib.checks import TOL as TOL
 from ..lib.checks import Report as Report
-from ..lib.checks import is_periodic_seam
 from ..lib.checks import is_solid_at as is_solid_at
+from ..lib.checks import is_vertical_seam
 from ..lib.checks import sharp_convex_edges
 from . import config as c
 from . import sets
@@ -1185,13 +1185,13 @@ def _is_bore_seam(part: Part, edge) -> bool:
     rather than assumed from the repeating grid position: checked for every
     one of the 11 (base) and 22 (insert) matches on the wood set, not just a
     couple spot-checked by hand.
+
+    The LINE / degenerate-X-Y-bbox / is_periodic_seam proof itself is
+    ``is_vertical_seam`` (models.lib.checks), which this family's bores match
+    exactly; what stays here is the scoping to "a round bore's own wall" and
+    the reason string the call sites below attach to it.
     """
-    if edge.geom_type != GeomType.LINE:
-        return False
-    bb = edge.bounding_box()
-    if bb.size.X > 1e-6 or bb.size.Y > 1e-6:
-        return False
-    return is_periodic_seam(part, edge)
+    return is_vertical_seam(part, edge)
 
 
 def edge_faces(part: Part, edge) -> list:
