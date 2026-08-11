@@ -483,9 +483,29 @@ STONE = DrillSet(
 
 ALL = (WOOD, METAL, STONE)
 
+# The roster registry: the sets the website + CI list as variants. Aliasing
+# ``ALL`` keeps a single tuple of sets -- a fourth set is added there and shows
+# up here (and in the variant roster) with nothing else to hand-sync.
+DRILL_SETS: tuple[DrillSet, ...] = ALL
+
+
+def roster_names() -> list[str]:
+    """The variant module paths these sets contribute to the model roster.
+
+    Each set is four names -- the assembled scene plus its three printed parts,
+    base, insert and cover -- concatenated in registry order.
+    """
+    return [
+        f"drill_storage.{s.name}{suffix}"
+        for s in DRILL_SETS
+        for suffix in ("", ".base", ".insert", ".cover")
+    ]
+
+
 __all__ = [
     "ALL",
     "COVER_TIP_CLEARANCE",
+    "DRILL_SETS",
     "HEX_SOCKET_DEPTH",
     "METAL",
     "STONE",
@@ -494,4 +514,5 @@ __all__ = [
     "DrillSet",
     "HexTool",
     "StepDrill",
+    "roster_names",
 ]

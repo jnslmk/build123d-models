@@ -9,6 +9,8 @@ import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
 
 import importlib
 
+from models.drill_storage.sets import roster_names
+
 # The model roster the website + CI expose. The **single** source of truth:
 # ``main.py`` builds straight from this list rather than keeping its own copy.
 #
@@ -34,22 +36,13 @@ MODELS = [
     # Gridfinity drill storage: the family view, then one variant per tool set.
     # A variant is an assembled scene plus its three printed parts -- ASA base,
     # TPU cartridge, PETG cover -- which are three filaments and so three jobs.
-    # ``allen`` is the 8-piece hex-key box and ``hex`` the 16-piece driver-bit
-    # box: both 1x1 Gridfinity, cut from the same hex geometry (BITS shaves its
-    # lead-in clearances), each a rigid base + TPU insert + translucent cover.
+    # The per-set names are spliced from ``sets.roster_names()`` so the roster
+    # and the set definitions cannot drift. ``allen`` is the 8-piece hex-key
+    # box and ``hex`` the 16-piece driver-bit box: both 1x1 Gridfinity, cut
+    # from the same hex geometry (BITS shaves its lead-in clearances), each a
+    # rigid base + TPU insert + translucent cover.
     "drill_storage",
-    "drill_storage.wood",
-    "drill_storage.wood.base",
-    "drill_storage.wood.insert",
-    "drill_storage.wood.cover",
-    "drill_storage.metal",
-    "drill_storage.metal.base",
-    "drill_storage.metal.insert",
-    "drill_storage.metal.cover",
-    "drill_storage.stone",
-    "drill_storage.stone.base",
-    "drill_storage.stone.insert",
-    "drill_storage.stone.cover",
+    *roster_names(),
     "drill_storage.allen",
     "drill_storage.allen.base",
     "drill_storage.allen.insert",
