@@ -441,9 +441,10 @@ Only external connections required: **24 V, GND, DATA**.
 - [x] Strap + cradle (the shared interface)
 - [x] Corner connector, parametric angle
 - [ ] Folding tripod stand — post, three printed swinging legs, two keepers.
-      Geometry, fits and load path done and checked; **the edge treatment is
-      not finished**, so `uv run check led_profiles` fails on
-      `check_stand_edges`. Nothing else in the stand's checks fails.
+      Geometry, fits and load path done and checked. **The edge treatment is not
+      finished**: `check_stand_edges` fails and is skipped behind
+      `checks.SKIP_STAND_EDGES`, so the printed rims are sharper than the rest
+      of this family. Nothing else in the stand's checks fails.
       The cable problem §10 opened is **closed by deletion**: the seat is
       `gland.free_length()` above the floor and the bore under it is open, so
       nothing stands in line with the gland at all.

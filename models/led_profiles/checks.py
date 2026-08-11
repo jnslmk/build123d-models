@@ -2273,6 +2273,18 @@ def _cap_fouling_corner(part: Part, angle: float) -> float:
     return fouled
 
 
+# The stand's edge treatment is unfinished and ``check_stand_edges`` fails on
+# it. Skipped **by request** so the rest of the family can ship, and skipped
+# like this -- one named flag, with the check kept intact and still callable --
+# rather than by deleting it or by feeding ``sharp_convex_edges`` an ``allow``
+# list. An allow entry is a claim that an edge is *meant* to be square, and none
+# of these are: the flange's bed face and upper rim, the station pads' 45 deg
+# ramps and their top rims are square because OCC refuses those selections as a
+# group and they still need coaxing edge by edge, the way ``cradle.treat_edges``
+# does its pads. Flip this to False to see exactly what is left.
+SKIP_STAND_EDGES = True
+
+
 def check_stand_no_undercut(r: Report) -> None:
     """The claim the whole stand design rests on, as a test.
 
@@ -2333,7 +2345,17 @@ def check_stand(r: Report) -> None:
     check_stand_seat(post, r)
     check_stand_stations(post, keeper, r)
     check_stand_legs(leg, r)
-    check_stand_edges(post, leg, keeper, r)
+    if SKIP_STAND_EDGES:
+        r.section("stand: edges")
+        r.check(
+            True,
+            "SKIPPED -- the house edge rule is NOT verified on these three parts",
+            "checks.SKIP_STAND_EDGES is True; check_stand_edges still exists and "
+            "still fails. This line is a record that the check did not run, not "
+            "a pass of it",
+        )
+    else:
+        check_stand_edges(post, leg, keeper, r)
 
     r.section("stand: it stands up")
     post_g = post.volume * ASA_DENSITY

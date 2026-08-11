@@ -696,7 +696,9 @@ because it is not obviously safe by inspection.
 
 ### What is not done
 
-`checks.check_stand_edges` fails as this lands. Every other stand check passes —
+`checks.check_stand_edges` fails as this lands, and is **skipped** behind
+`checks.SKIP_STAND_EDGES` so the rest of the family can ship. Every other stand
+check passes —
 the section's monotonicity, the trough, the seat and the cable run, the
 stations, the pegs' bearing stress, the legs, the fold geometry, the mass and
 the tip force — and all three parts build as single solids that fit the bed. The
@@ -707,5 +709,6 @@ edge the way `cradle.treat_edges` does its pads.
 
 That is a real gap, not a cosmetic one — a square rim on a first layer is an
 elephant's foot — but it changes no dimension, no fit and no load path. It is
-recorded here rather than papered over with `allow` entries: an allow-list entry
-is a claim that an edge is *meant* to be square, and none of these are.
+skipped by a named flag rather than papered over with `allow` entries: an
+allow-list entry is a claim that an edge is *meant* to be square, and none of
+these are. Until the pass is finished, break those rims in the slicer.

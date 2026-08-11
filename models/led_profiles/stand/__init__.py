@@ -56,16 +56,18 @@ lips run the full height and are vertical edges, so they are filleted; the
 flange's outline and the post's top rim are horizontal and chamfered; every hole
 mouth is a boolean cone rather than an OCC edge op, per house style.
 
-**Known incomplete, and the check says so rather than an allow-list hiding it.**
-``checks.check_stand_edges`` currently fails: the geometry and the load path are
-finished and verified, the DFM edge treatment is not. What is left is a long
-tail rather than a hole in the design -- the flange's bed face and upper rim
-(where OCC refuses the outer wire and has to be coaxed edge by edge), the
-station pads' tapered ramps, and the pads' top rims. None of it changes a
-dimension, a fit or a load path; all of it is a printed part that is sharper
-than this family ships. Do not add ``allow`` entries to make the check pass:
-the entries would be false, and a false allow-list is exactly what
-``sharp_convex_edges`` exists to prevent.
+**Known incomplete, and skipped by name rather than hidden.** The geometry, the
+fits and the load path are finished and verified; the DFM edge treatment is not.
+``checks.check_stand_edges`` exists, still fails, and is **skipped** behind
+``checks.SKIP_STAND_EDGES`` -- one flag to flip back. What is left is a long
+tail rather than a hole in the design: the flange's bed face and upper rim
+(where OCC refuses the outer wire as a group and it has to be coaxed edge by
+edge), the station pads' 45 deg ramps, and the pads' top rims. None of it
+changes a dimension, a fit or a load path; all of it is a printed part sharper
+than this family ships, so **break those rims by hand in the slicer or expect an
+elephant's foot** until the pass is finished. It is skipped rather than
+allow-listed on purpose: an ``allow`` entry is a claim that an edge is *meant*
+to be square, and none of these are.
 """
 
 from __future__ import annotations
