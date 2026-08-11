@@ -40,7 +40,6 @@ from build123d import (
     Rotation,
     SortBy,
     Torus,
-    chamfer,
 )
 
 from models.lib import fits
@@ -50,6 +49,7 @@ from models.lib.checks import (
     is_solid_at,
     sharp_convex_edges,
 )
+from models.lib.edges import chamfer_edge
 
 # --- Box interior (the two numbers the user actually cares about) -----------
 INNER_DIA = 78.0  # ID of the box
@@ -246,16 +246,6 @@ PARAMS = [
 ]
 
 
-def _chamfer_edge(builder, edge, size):
-    """Chamfer one edge, isolating an OCC failure so it can't cascade."""
-    saved = builder.part
-    try:
-        chamfer(edge, length=size)
-    except Exception as exc:  # noqa: BLE001 -- OCC edge ops are flaky
-        builder.part = saved
-        print(f"warning: chamfer skipped ({exc})")
-
-
 def _dims(inner_dia, body_wall, lid_wall, clearance):
     """Shared radii so box and lid stay mated."""
     inner_r = inner_dia / 2
@@ -282,7 +272,7 @@ def _rim_lead_in(lip_wall: float) -> float:
     0.075 mm of lead-in on this lip -- far below what a 0.4 mm nozzle resolves,
     i.e. trading a real chamfer for a nominal one.
 
-    This also keeps ``_chamfer_edge`` from having to swallow an OCC failure: an
+    This also keeps ``chamfer_edge`` from having to swallow an OCC failure: an
     over-large chamfer is what made it roll back and silently restore the sharp
     edge it was called to remove.
     """
@@ -323,18 +313,18 @@ def create_box(
 
         # Exterior bottom ring: 45 chamfer (clean edge + elephant's-foot relief).
         bottom = box.faces().sort_by(Axis.Z).first
-        _chamfer_edge(box, bottom.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
+        chamfer_edge(box, bottom.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
         # Both lead-ins on the lip's top rim, sized so the rim keeps MIN_WALL of
         # flat between them (see _rim_lead_in).
         rim_lead_in = _rim_lead_in(lip_r - inner_r)
         if rim_lead_in > 0:
             # Outer edge first, so the lid funnels onto the lip.
             top = box.faces().sort_by(Axis.Z).last
-            _chamfer_edge(box, top.edges().sort_by(SortBy.RADIUS).last, rim_lead_in)
+            chamfer_edge(box, top.edges().sort_by(SortBy.RADIUS).last, rim_lead_in)
             # Then the cavity mouth's inner edge -- re-query the top face, since
             # the previous chamfer just changed its outer boundary.
             top = box.faces().sort_by(Axis.Z).last
-            _chamfer_edge(box, top.edges().sort_by(SortBy.RADIUS).first, rim_lead_in)
+            chamfer_edge(box, top.edges().sort_by(SortBy.RADIUS).first, rim_lead_in)
 
     return box.part
 
@@ -385,12 +375,10 @@ def create_lid(
         mouth_lead_in = max(0.0, min(LEAD_IN, lid_wall - MIN_WALL))
         mouth = lid.faces().sort_by(Axis.Z).first
         if mouth_lead_in > 0:
-            _chamfer_edge(
-                lid, mouth.edges().sort_by(SortBy.RADIUS).first, mouth_lead_in
-            )
+            chamfer_edge(lid, mouth.edges().sort_by(SortBy.RADIUS).first, mouth_lead_in)
         # Exterior top ring: 45 chamfer (ends up on the bed once flipped).
         top = lid.faces().sort_by(Axis.Z).last
-        _chamfer_edge(lid, top.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
+        chamfer_edge(lid, top.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
 
     # Print pose: flip so the open mouth faces up, then re-seat on z=0.
     part = Rotation(180, 0, 0) * lid.part

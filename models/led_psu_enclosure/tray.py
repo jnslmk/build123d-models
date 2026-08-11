@@ -33,12 +33,12 @@ from build123d import (
     Plane,
     RectangleRounded,
     add,
-    chamfer,
     extrude,
     loft,
 )
 
 from . import config as c
+from ..lib.edges import chamfer_edge
 from .util import top_chamfer_tool
 
 MIN_Z = (Align.CENTER, Align.CENTER, Align.MIN)
@@ -97,16 +97,6 @@ def _plate_stud(x: float, y: float) -> Part:
                 mode=Mode.SUBTRACT,
             )
     return bp.part
-
-
-def _chamfer_edge(builder: BuildPart, edge, size: float) -> None:
-    """Chamfer one edge, isolating an OCC failure so it can't cascade."""
-    saved = builder.part
-    try:
-        chamfer(edge, length=size)
-    except Exception as exc:  # noqa: BLE001 -- OCC edge ops are flaky
-        builder.part = saved  # ty: ignore[invalid-assignment]
-        print(f"warning: chamfer skipped ({exc})")
 
 
 def _cavity() -> Part:
@@ -226,7 +216,7 @@ def create_tray() -> Part:
         # --- Edges ------------------------------------------------------------
         # Bottom exterior ring: 45 chamfer, doubling as elephant's-foot relief.
         bottom = bp.faces().sort_by(Axis.Z).first
-        _chamfer_edge(bp, bottom.edges(), c.RING_CHAMFER)
+        chamfer_edge(bp, bottom.edges(), c.RING_CHAMFER)
         # Outer top edge of the rim. Boolean, not the OCC edge op: the top face
         # also carries the gasket groove, and OCC is flaky on such faces.
         add(

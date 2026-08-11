@@ -125,9 +125,9 @@ faces, then sort that face's current edges, inside the builder context:
 with BuildPart() as box:
     ...
     bottom = box.faces().sort_by(Axis.Z).first
-    _chamfer_edge(box, bottom.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
+    chamfer_edge(box, bottom.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
     top = box.faces().sort_by(Axis.Z).last
-    _chamfer_edge(box, top.edges().sort_by(SortBy.RADIUS).last, LEAD_IN)
+    chamfer_edge(box, top.edges().sort_by(SortBy.RADIUS).last, LEAD_IN)
 ```
 
 Each call re-runs its own selection against the builder as it stands at that
