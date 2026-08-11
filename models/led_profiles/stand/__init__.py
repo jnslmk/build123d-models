@@ -466,12 +466,29 @@ def seated_legs() -> list[Part]:
 
 
 def seated_keepers() -> list[Part]:
-    """The two keepers, snapped onto their stations."""
+    """The two keepers, dropped onto their stations -- pegs **down**.
+
+    A keeper goes into the post the other way up from the way it prints. Its
+    print pose stands the pegs up off the bed (``keeper.py``: no overhang, no
+    bridge), and the post's sockets open upward, so fitting one is a 180 deg
+    flip. The flip is taken about **y**, which is the axis the section is
+    symmetric in -- x is mirrored and nothing changes, where a flip about x
+    would swap the arch's mouth for its crown and put the opening at the back.
+
+    Then it drops until the peg roots meet the pads' top face at
+    ``station_z(z)[1]``, which lands the arch centred on the station: that is
+    what ``station_z``'s ``top = centre - KEEPER_W / 2`` means, and it leaves
+    the peg tips 1 mm clear of the socket floor (``SOCKET_DEPTH``'s relief), so
+    the keeper seats on the pads rather than on its own pegs.
+    """
     from .keeper import create_keeper, KEEPER_COLOR
 
     out: list[Part] = []
     for i, z in enumerate(sc.STATIONS):
-        placed = as_part(Pos(0, 0, sc.LEG_T + z) * create_keeper())
+        placed = as_part(
+            Pos(0, 0, sc.LEG_T + z + sc.KEEPER_W / 2)
+            * (Rotation(0, 180, 0) * create_keeper())
+        )
         placed.label = f"stand keeper {i}"
         placed.color = KEEPER_COLOR
         out.append(placed)

@@ -2344,6 +2344,7 @@ def check_stand(r: Report) -> None:
     check_stand_trough(post, r)
     check_stand_seat(post, r)
     check_stand_stations(post, keeper, r)
+    check_stand_seated(r)
     check_stand_legs(leg, r)
     if SKIP_STAND_EDGES:
         r.section("stand: edges")
@@ -2515,6 +2516,66 @@ def check_stand_stations(post: Part, keeper: Part, r: Report) -> None:
         f"{crown - c.HEIGHT / 2:.1f} mm before the tube meets the crown -- it "
         f"cannot leave the mouth without passing that",
     )
+
+
+def check_stand_seated(r: Report) -> None:
+    """The keepers as ``assemblies.standing`` actually places them.
+
+    Every other check on this family measures a part in its own frame, and that
+    is exactly the blind spot this one covers: a keeper can be perfect and still
+    go into the post upside down. It printed pegs-up and the sockets open
+    upward, so ``seated_keepers`` has to turn it over -- and nothing above would
+    notice if it stopped. The symptom is not subtle in the viewer (two pegs
+    standing in the air, the arch floating half its own width clear of the pads)
+    and it was invisible here, so it is stated as a test rather than left to the
+    eye.
+
+    Sampled on the *placed* solids, not derived from the same offsets that
+    place them: an assertion recomputed from the expression under test passes
+    whatever that expression says.
+    """
+    r.section("stand: the keepers, as seated")
+    post = stand_mod.seated()
+    keepers = stand_mod.seated_keepers()
+
+    r.check(
+        len(keepers) == len(sc.STATIONS),
+        "one keeper per station",
+        f"{len(keepers)} keepers, {len(sc.STATIONS)} stations",
+    )
+    for keeper, centre in zip(keepers, sc.STATIONS):
+        top = stand_mod.station_z(centre)[1] + sc.LEG_T  # the pads' seating face
+        floor = top - sc.SOCKET_DEPTH
+        bb = keeper.bounding_box()
+
+        for u in (sc.PEG_U, -sc.PEG_U):
+            r.check(
+                is_solid_at(keeper, u, sc.PEG_Y, top - sc.PEG_L / 2),
+                f"the peg at u={u:+.0f} is down in its socket at z={centre:.0f}",
+                f"keeper material on the socket's axis {sc.PEG_L / 2:.0f} mm "
+                f"below the pads' face at z={top:.1f} -- pegs point down, the "
+                f"way the sockets open",
+            )
+        r.check(
+            bb.min.Z > floor + 1e-9,
+            f"and stops short of the socket floor at z={centre:.0f}",
+            f"lowest keeper material z={bb.min.Z:.1f} against a floor at "
+            f"z={floor:.1f}: it seats on the pads, not on its own peg tips "
+            f"(SOCKET_DEPTH's {sc.SOCKET_DEPTH - sc.PEG_L:.1f} mm relief)",
+        )
+        r.check(
+            abs(bb.max.Z - (sc.LEG_T + centre + sc.KEEPER_W / 2)) < 0.01,
+            f"the arch is centred on the station at z={centre:.0f}",
+            f"crown at z={bb.max.Z:.1f}, half an arch above the station's "
+            f"z={sc.LEG_T + centre:.1f}",
+        )
+        shared = _shared_volume(post, keeper)
+        r.check(
+            shared < 0.01,
+            f"and it fouls nothing on the post at z={centre:.0f}",
+            f"{shared:.4f} mm^3 shared -- the pegs are a {sc.PEG_FIT:.2f} mm "
+            f"sliding fit and the arch clears the flanks",
+        )
 
 
 def check_stand_legs(part: Part, r: Report) -> None:
