@@ -81,14 +81,18 @@ STEP (or ask which format) when the request names it.
 ```bash
 # Install dependencies
 uv sync
+uv sync --no-group viewer --no-group pdf  # in a cloud session, where both fail to build
 
-# Show a model in the viewer (starts viewer in background if needed)
+# Show a model in the viewer (starts viewer in background if needed).
+# Not available in a cloud session -- see Post-Update Verification for what to
+# send the user instead.
 uv run show lens_cap
 
 # Export a model to STEP and STL (no viewer); hand over the STL unless STEP was asked for
 uv run export lens_cap
 
-# Render model to SVG (no viewer needed) — preferred for agent workflows
+# Render model to SVG (no viewer needed) — preferred for agent workflows, and
+# the thing to send the user in a cloud session
 uv run render lens_cap                    # exports/lens_cap_iso.svg
 uv run render lens_cap --view top         # exports/lens_cap_top.svg
 uv run render lens_cap --view front       # exports/lens_cap_front.svg
@@ -125,13 +129,62 @@ uv run selection                      # JSON output + human summary
 
 ## Post-Update Verification
 
-After modifying any model, always verify it visually in the viewer:
+**After every edit to a model, verify it visually and put the result in front
+of the user — immediately, without being asked.** That is the last step of any
+model change. *How* you do it depends on where you are running, and there are
+two answers because one of them does not work in the cloud.
+
+### Locally: the viewer
 
 ```bash
 uv run show <model_name>
 ```
 
-This opens the model in the 3D viewer so you can confirm geometry, orientation, and colors before considering the task complete. **Always run `uv run show <model_name>` immediately after every edit to a model — do not wait to be asked — so the user can see the change live in the viewer.** It is the last step of any model change.
+This opens the model in the 3D viewer, live, so geometry, orientation and
+colours can all be confirmed there and the user is already looking at it.
+
+### In the Claude cloud environment: a rendered image, sent to the user
+
+`uv run show` cannot work in a cloud session and `uv sync` will not even
+install what it would need. The container has no display, and the `viewer`
+group's `pygobject` ships no Linux wheel, so it is a source build against
+system headers the container does not have — a plain `uv sync` dies on
+`girepository-2.0` before anything is installed. The model build never imports
+it, so drop that one group and skip the re-sync afterwards:
+
+```bash
+uv sync --no-group viewer               # once per container
+uv run --no-sync render <model_name>    # exports/<model_name>_iso.svg
+```
+
+`--no-sync` is not optional and it is not only for `render`: a bare `uv run`
+re-syncs the *default* groups first, which puts `viewer` straight back and
+fails again. Every `uv run` in a cloud container wants it — `check`, `export`,
+`ruff`, `ty`, `python main.py`, all of them.
+
+Drop **only** `viewer`. The `pdf` group's `pycairo` is also a source build but
+its headers *are* present, so it installs fine — and dropping it costs a
+spurious `unresolved-import: cairo` in `uv run ty check .`, which reads like a
+real failure at exactly the moment you are trying to leave the tree clean.
+
+Detect the environment rather than guessing at it: `CLAUDE_CODE_REMOTE=true` is
+set in a cloud session and `DISPLAY` is not.
+
+Then **send that SVG to the user as an inline-rendered image** — in Claude Code
+that is `SendUserFile` with `display: "render"`, which draws it in the app the
+way the viewer would have. SVG is the format to send precisely because it
+renders inline. Naming a path in prose shows nobody anything: `exports/` is
+gitignored and lives on a container the user cannot open. Render the view that
+actually carries the change rather than the default every time — `--view front`
+for a section, `--scale` up for a small feature on a long part — and send more
+than one when one cannot settle the question.
+
+Say which of the two you did, because a render is not a viewer and the gap is
+not cosmetic. `render_svg` draws hidden-line art from `create()`: it shows
+geometry, orientation and print pose faithfully, and it shows **no colour at
+all**, which is occasionally the thing under review. When colour is the
+question in a cloud session, say so plainly instead of implying the render
+cleared it.
 
 ## Architecture
 
