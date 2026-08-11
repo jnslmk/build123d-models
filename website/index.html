@@ -88,8 +88,9 @@
 
   /* The model picker below the family select: one chip row per level of the
      model's dotted name, each row holding only the siblings that exist under
-     what is already chosen. 41 models never appear at once — a family shows
-     between zero and nine chips. See buildTree()/renderPicker(). */
+     what is already chosen — minus any level with one chip, which is a name,
+     not a choice. 52 models never appear at once: a family shows between zero
+     and nine chips. See buildTree()/renderPicker(). */
   #picker { margin-top: 10px; display: flex; flex-direction: column; gap: 9px; }
   #picker .pk-cap { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 4px; }
   #picker .pk-row { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -1009,26 +1010,54 @@ function chip(node, depth, self) {
 // One row per level of the current path, each showing only the siblings valid
 // under the levels above it. Rebuilt from `current` on every selection, so the
 // picker never holds state of its own to fall out of sync.
+// A level whose row would hold a single chip is not a choice: it is the name
+// grammar showing through, where a package exists only to group what is under
+// it. `drill_storage.hex` has exactly one child, `bits`, so that row offered
+// one button that could not be declined, above the row that actually picks a
+// part. It is skipped -- the segment stays in the name, and the row below
+// still carries its caption, so nothing about where you are is lost.
+//
+// Only when the lone chip carries no model of its own, which is the whole of
+// the "naming layer" case AGENTS.md describes. A chip is the only way to reach
+// a node's own model once you are below it, so skipping a row whose chip is a
+// real destination would strand that model rather than tidy the picker.
+function soleNamingChild(node, depth) {
+  if (node.children.size !== 1) return null;
+  if (depth === 1 && node.model) return null;   // the row also carries `Overview`
+  const only = node.children.values().next().value;
+  return only.model ? null : only;
+}
+
 function renderPicker() {
   const segs = current.name.split('.');
   el.family.value = segs[0];
   el.picker.textContent = '';
   let node = tree.children.get(segs[0]);
   for (let depth = 1; node && node.children.size; depth++) {
-    const lvl = document.createElement('div'); lvl.className = 'pk-lvl';
-    // No caption on the first row: the family select sits directly above it.
-    if (depth > 1) {
-      const cap = document.createElement('div');
-      cap.className = 'pk-cap'; cap.textContent = pretty(segs[depth - 1]);
-      lvl.append(cap);
+    const skipped = soleNamingChild(node, depth);
+    if (!skipped) {
+      const lvl = document.createElement('div'); lvl.className = 'pk-lvl';
+      // No caption on the first row: the family select sits directly above it.
+      // Taken off the node rather than off `segs`, because a skipped level can
+      // put the row deeper into the tree than the chosen name reaches.
+      if (depth > 1) {
+        const cap = document.createElement('div');
+        cap.className = 'pk-cap'; cap.textContent = pretty(node.seg);
+        lvl.append(cap);
+      }
+      const row = document.createElement('div'); row.className = 'pk-row';
+      if (depth === 1 && node.model) row.append(chip(node, depth, true));
+      for (const child of node.children.values()) row.append(chip(child, depth));
+      lvl.append(row);
+      el.picker.append(lvl);
     }
-    const row = document.createElement('div'); row.className = 'pk-row';
-    if (depth === 1 && node.model) row.append(chip(node, depth, true));
-    for (const child of node.children.values()) row.append(chip(child, depth));
-    lvl.append(row);
-    el.picker.append(lvl);
-    if (!segs[depth]) break;         // nothing chosen this deep: stop here
-    node = node.children.get(segs[depth]);
+    // Nothing chosen this deep: stop -- unless the level was skipped, in which
+    // case keep going down through it. Otherwise the row that *is* a choice
+    // would be unreachable from the scene above it: `drill_storage.hex` would
+    // show no way down to base/insert/cover at all, the one chip that used to
+    // lead there having just been removed.
+    if (!segs[depth] && !skipped) break;
+    node = node.children.get(segs[depth]) || skipped;
   }
 }
 
