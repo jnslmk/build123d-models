@@ -298,6 +298,31 @@ def _adjacent_faces(part: Part) -> dict:
     return faces
 
 
+def adjacent_faces(part: Part, edge) -> list:
+    """The faces of ``part`` that share ``edge``, matched by position.
+
+    Two calls to ``Face.edges()`` hand back separate Python objects for the
+    same geometry, so an edge cannot be matched across faces by ``is`` or
+    ``==``; the identity has to be geometric -- an edge's centre plus its
+    length, the same ``_edge_key`` that ``_adjacent_faces`` hashes every edge
+    of the solid by. This is the public single-edge form of that lookup.
+    Each face is reported at most once, even when two of its edges share the
+    lookup key (coincident edges on a degenerate face).
+
+    Builds the whole edge-to-faces map on every call, which is the right cost
+    for the handful of edges an ``allow`` predicate tests and quadratic for a
+    survey of most of a part's edges -- exactly the relationship
+    ``is_periodic_seam`` has to ``periodic_seams``. Callers that need every
+    edge at once should use the batch form ``_adjacent_faces`` directly (or
+    pass a prebuilt ``faces`` pair to ``interior_angle``) instead of paying
+    one full map build per edge.
+    """
+    # dict.fromkeys dedups by the OCC shape hash (same TShape + Location)
+    # while preserving first-seen order, matching edge_faces' break-per-face
+    # semantics.
+    return list(dict.fromkeys(_adjacent_faces(part).get(_edge_key(edge), [])))
+
+
 def is_periodic_seam(part: Part, edge: Edge) -> bool:
     """True when ``edge``'s only two topological neighbours are the same face
     -- the closing seam of a periodic surface, not a boundary between two.
@@ -430,6 +455,47 @@ def is_vertical_seam(part: Part, edge: Edge, tolerance: float = 1e-6) -> bool:
     if bb.size.X > tolerance or bb.size.Y > tolerance:
         return False
     return is_periodic_seam(part, edge)
+
+
+def is_flush_seam(part: Part, edge) -> bool:
+    """A convex edge that measures a genuine, exact 180 deg -- not a corner at
+    all, but a residual split where a boolean subtract's own tool boundary
+    landed exactly flush with a face the part already had.
+
+    The drill family's ``base.key_slot_tool`` is the worked example: its mouth
+    fillet is anchored tangent to the cavity wall on purpose (see that
+    function's docstring for why: a fillet offset *short* of the wall is
+    always a tighter, worse angle than the plain corner it replaces, so full
+    tangency is the only geometry that actually helps). OCC leaves the
+    coincident plane as two abutting faces rather than silently merging them
+    into one -- ``Part.clean()`` does not remove it either, checked rather
+    than assumed -- so the edge between them survives into ``part.edges()``
+    with nothing on either side of it.
+
+    ``sharp_convex_edges`` reports such an edge as *unclassifiable*, not
+    sharp: its own probe cannot find an "inside" wedge here because there
+    genuinely isn't one to find, which is a different claim from "could not
+    be measured". This confirms that claim independently of the probe, by a
+    direct measurement rather than an absence of one: both adjacent faces'
+    normals, sampled at three points along the edge (not just its centre, so
+    a seam that is only *partly* flush cannot slip through), are
+    antiparallel -- the same plane, seen from both sides.
+    """
+    if edge.geom_type != GeomType.LINE:
+        return False
+    faces = adjacent_faces(part, edge)
+    if len(faces) != 2:
+        return False
+    for t in (0.1, 0.5, 0.9):
+        at = edge.position_at(t)
+        try:
+            n0 = faces[0].normal_at(at)
+            n1 = faces[1].normal_at(at)
+        except Exception:
+            return False
+        if n0.get_angle(n1) < 180 - 1e-3:
+            return False
+    return True
 
 
 class SharpEdgeSurvey(NamedTuple):

@@ -42,6 +42,7 @@ from build123d import Part
 
 from ...lib.checks import TOL as TOL
 from ...lib.checks import Report as Report
+from ...lib.checks import is_flush_seam
 from ...lib.checks import is_solid_at as is_solid_at
 from ...lib.checks import sharp_convex_edges
 from ..box import (
@@ -58,7 +59,6 @@ from ..box import (
     WALL_LABEL_SIZE,
 )
 from ..checks import (
-    is_flush_seam,
     label_window,
     wall_legend_window,
     worst_bead_bite,

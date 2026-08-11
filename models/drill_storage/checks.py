@@ -27,11 +27,12 @@ import math
 import sys
 from collections.abc import Sequence
 
-from build123d import BuildSketch, FontStyle, GeomType, Part, Text
+from build123d import BuildSketch, FontStyle, Part, Text
 
 from ..lib import fits
 from ..lib.checks import TOL as TOL
 from ..lib.checks import Report as Report
+from ..lib.checks import is_flush_seam
 from ..lib.checks import is_solid_at as is_solid_at
 from ..lib.checks import is_vertical_seam
 from ..lib.checks import sharp_convex_edges
@@ -1192,68 +1193,6 @@ def _is_bore_seam(part: Part, edge) -> bool:
     the reason string the call sites below attach to it.
     """
     return is_vertical_seam(part, edge)
-
-
-def edge_faces(part: Part, edge) -> list:
-    """The faces of ``part`` that share ``edge``, matched by position.
-
-    The same identity ``models.lib.checks._adjacent_faces`` uses internally
-    (an edge's centre + length, since two calls to ``Face.edges()`` hand back
-    separate Python objects for the same geometry) -- re-derived here rather
-    than imported, because that helper stays private to its owner module.
-    Shared with the hex checks, which import this one
-    (``drill_storage.hex.checks``).
-    """
-    at, length = edge.center(), edge.length
-    key = (round(at.X, 4), round(at.Y, 4), round(at.Z, 4), round(length, 4))
-    faces = []
-    for face in part.faces():  # ty: ignore[invalid-argument-type]
-        for e in face.edges():  # ty: ignore[invalid-argument-type]
-            c = e.center()
-            if (round(c.X, 4), round(c.Y, 4), round(c.Z, 4), round(e.length, 4)) == key:
-                faces.append(face)
-                break
-    return faces
-
-
-def is_flush_seam(part: Part, edge) -> bool:
-    """A convex edge that measures a genuine, exact 180 deg -- not a corner at
-    all, but a residual split where a boolean subtract's own tool boundary
-    landed exactly flush with a face the part already had.
-
-    ``base.key_slot_tool``'s mouth fillet is anchored tangent to the cavity
-    wall on purpose (see that function's docstring for why: a fillet offset
-    *short* of the wall is always a tighter, worse angle than the plain
-    corner it replaces, so full tangency is the only geometry that actually
-    helps). OCC leaves the coincident plane as two abutting faces rather than
-    silently merging them into one -- ``Part.clean()`` does not remove it
-    either, checked rather than assumed -- so the edge between them survives
-    into ``part.edges()`` with nothing on either side of it.
-
-    ``sharp_convex_edges`` reports it as *unclassifiable*, not sharp: its own
-    probe cannot find an "inside" wedge here because there genuinely isn't
-    one to find, which is a different claim from "could not be measured".
-    This confirms that claim independently of the probe, by a direct
-    measurement rather than an absence of one: both adjacent faces' normals,
-    sampled at three points along the edge (not just its centre, so a seam
-    that is only *partly* flush cannot slip through), are antiparallel --
-    the same plane, seen from both sides.
-    """
-    if edge.geom_type != GeomType.LINE:
-        return False
-    faces = edge_faces(part, edge)
-    if len(faces) != 2:
-        return False
-    for t in (0.1, 0.5, 0.9):
-        at = edge.position_at(t)
-        try:
-            n0 = faces[0].normal_at(at)
-            n1 = faces[1].normal_at(at)
-        except Exception:
-            return False
-        if n0.get_angle(n1) < 180 - 1e-3:
-            return False
-    return True
 
 
 def _base_allow(base: Part, s: DrillSet) -> tuple:
