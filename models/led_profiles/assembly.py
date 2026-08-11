@@ -100,12 +100,16 @@ def printed_parts(angle: float = 60.0) -> list[Part]:
     from . import stand as stand_mod
     from . import strap as strap_mod
     from .endcap import create_endcap
+    from .stand import keeper as keeper_mod
+    from .stand import leg as leg_mod
 
     parts = [
         create_endcap(),
         strap_mod.create_strap(),
         corner_mod.create_corner(angle),
-        stand_mod.create_stand_hub(),
+        stand_mod.create_post(),
+        leg_mod.create_leg(),
+        keeper_mod.create_keeper(),
         feet_mod.create_eye_foot(),
         feet_mod.create_wall_foot(),
     ]

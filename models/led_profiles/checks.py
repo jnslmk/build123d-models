@@ -16,14 +16,13 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
-from math import acos, cos, degrees, hypot, radians, sin, sqrt
+from math import cos, hypot, radians, sin, sqrt
 
 from build123d import (
     Align,
     Compound,
     Cylinder,
     GeomType,
-    Location,
     Part,
     Pos,
     Rotation,
@@ -44,9 +43,13 @@ from . import config as c
 from . import corner as corner_mod
 from . import endcap as e
 from . import feet as feet_mod
+from . import gland as gl
 from . import gland as gland_mod
 from . import mount_config as mc
 from . import stand as stand_mod
+from .stand import config as sc
+from .stand import keeper as keeper_mod
+from .stand import leg as leg_mod
 from . import strap as strap_mod
 from .assembly import create_bare
 from .assembly import parts as lamp_parts
@@ -2270,648 +2273,337 @@ def _cap_fouling_corner(part: Part, angle: float) -> float:
     return fouled
 
 
-def check_stand(r: Report) -> None:
-    """The hub, and the number that decides whether it is any use."""
-    r.section("Stand")
-    part = stand_mod.create_stand_hub()
-    check_mount_basics(part, "stand hub", r)
-    check_stand_edges(part, r)
-    check_stand_gusset(part, r)
-    check_stand_gland_cable(part, r)
+def check_stand_no_undercut(r: Report) -> None:
+    """The claim the whole stand design rests on, as a test.
 
-    hub_g = part.volume * ASA_DENSITY
-    f_tip = stand_mod.tip_force(hub_g)
+    design-notes S1 says nothing wraps this section. The reason is stronger
+    than "the diffuser is in the way": the assembled tube's width is
+    **monotonically non-decreasing** from z=0 to the straight band and constant
+    across it, so for a trough opening upward, every section below a lip is
+    narrower than the gap that lip leaves -- the tube slides straight out at
+    any lip height. Retention needs a lip past ``TOP_ARC_Z``, which is
+    diffuser, and loading the diffuser routes the stand through its snap hooks
+    instead of the aluminium.
+
+    That is why ``stand.keeper`` is a key in a socket and not a snap on the
+    tube, and it is worth a check rather than a paragraph, because the snap is
+    the obvious thing to reach for and it is wrong every time.
+    """
+    r.section("stand: the section offers no undercut")
+
+    def half_width(z: float) -> float:
+        if z <= c.BOT_ARC_Z:
+            return sqrt(max(c.RADIUS**2 - (c.BOT_ARC_Z - z) ** 2, 0.0))
+        if z <= c.TOP_ARC_Z:
+            return c.RADIUS
+        return sqrt(max(c.RADIUS**2 - (z - c.TOP_ARC_Z) ** 2, 0.0))
+
+    step = 0.05
+    samples = [i * step for i in range(int(c.TOP_ARC_Z / step) + 1)]
+    widths = [2 * half_width(z) for z in samples]
+    r.check(
+        all(b >= a - 1e-9 for a, b in zip(widths, widths[1:])),
+        "width never decreases below the top arc",
+        f"{samples[0]:.0f}..{samples[-1]:.2f} mm sampled at {step} mm",
+    )
+
+    worst = max(
+        (max(widths[: i + 1]) - widths[i], samples[i]) for i in range(len(samples))
+    )
+    r.check(
+        worst[0] <= 1e-9,
+        "no lip below the rim can retain the tube",
+        f"best undercut anywhere below z={c.TOP_ARC_Z:.2f} is {worst[0]:.3f} mm",
+    )
+    r.check(
+        2 * half_width(c.RIM_Z) >= c.WIDTH - 1e-9,
+        "the trough's mouth is the tube's full width, so it slides in freely",
+        f"{2 * half_width(c.RIM_Z):.2f} mm at the rim against {c.WIDTH:.2f} overall",
+    )
+
+
+def check_stand(r: Report) -> None:
+    """The folding tripod stand: post, three legs, two keepers."""
+    post = stand_mod.create_post()
+    leg = leg_mod.create_leg()
+    keeper = keeper_mod.create_keeper()
+
+    check_stand_no_undercut(r)
+    check_stand_trough(post, r)
+    check_stand_seat(post, r)
+    check_stand_stations(post, keeper, r)
+    check_stand_legs(leg, r)
+    check_stand_edges(post, leg, keeper, r)
+
+    r.section("stand: it stands up")
+    post_g = post.volume * ASA_DENSITY
+    leg_g = leg.volume * ASA_DENSITY
+    keeper_g = keeper.volume * ASA_DENSITY
+    f_tip = sc.tip_force(post_g + 2 * keeper_g, leg_g)
     r.check(
         f_tip > 0.5,
         "tip force at the top of the tube",
-        f"{f_tip:.2f} N ({f_tip / 9.81 * 1000:.0f} g of push) -- studio class, sandbag it",
+        f"{f_tip:.2f} N ({f_tip / 9.81 * 1000:.0f} g of push) at a "
+        f"{sc.leg_reach():.0f} mm reach -- studio class, weight it down",
     )
     r.check(
-        stand_mod.SOCKET_DEPTH >= 3 * c.HEIGHT,
-        "socket depth",
-        f"{stand_mod.SOCKET_DEPTH:.0f} mm = {stand_mod.SOCKET_DEPTH / c.HEIGHT:.1f} x the section",
+        True,
+        "printed mass",
+        f"post {post_g:.0f} g + 3 x leg {leg_g:.0f} g + 2 x keeper {keeper_g:.0f} g "
+        f"= {post_g + 3 * leg_g + 2 * keeper_g:.0f} g",
     )
-    # Where the well sits is the easiest thing in the part to get wrong, so it
-    # is asserted against the endcap it has to clear rather than against a
-    # remembered number. It read -6.0 while the gland bore was pushed down the
-    # wiring cavity and reads 0.0 now the bore is on the cap's centre; either is
-    # correct, and a well that stopped tracking the bore is not.
-    r.check(
-        abs(stand_mod.GLAND_OFFSET - (e.GLAND_Z - c.HEIGHT / 2)) < 0.01,
-        "gland well is centred on the endcap's bore, wherever that is",
-        f"{stand_mod.GLAND_OFFSET:+.2f} mm off the tube axis, "
-        f"endcap.GLAND_Z {e.GLAND_Z:.2f} against an axis at {c.HEIGHT / 2:.2f}",
-    )
-    r.check(
-        not is_solid_at(part, 0, stand_mod.GLAND_OFFSET, stand_mod.FLANGE_T + 2),
-        "gland well is open",
-    )
-    r.check(
-        not is_solid_at(part, 0, stand_mod.GLAND_OFFSET, stand_mod.FLANGE_T / 2),
-        "and drains through the flange",
-    )
-    # The seat is the annulus around the well, so the sample has to be clear of
-    # the well -- and the well's edge moves with GLAND_OFFSET, so the sample is
-    # derived from WELL_D rather than typed. A fixed y=10.0 used to be outside a
-    # well that sat 6 mm off-axis and is inside the concentric one, which is a
-    # check that would have failed for the wrong reason.
-    y_seat = stand_mod.WELL_D / 2 + 1.5
-    r.check(
-        is_solid_at(part, 0, y_seat, stand_mod.SEAT_Z - 1),
-        "seat carries the endcap around the well",
-        f"sampled at y={y_seat:.2f}, clear of a well {stand_mod.WELL_D:.2f} across "
-        f"centred at {stand_mod.GLAND_OFFSET:+.2f}",
-    )
-    r.check(
-        not is_solid_at(part, 0, -stand_mod.PEDESTAL_D / 2 + 2, stand_mod.FLANGE_T + 3),
-        "cable exits the back of the well",
-    )
-
-    # The socket needs its own strap bosses; without them the insert holes cut
-    # air. Sample past the insert's own reach (MOUTH_Y - INSERT_DEPTH = -7.2)
-    # but short of PAD_BASE_V (-9.0, where the pad itself stops) -- the pad no
-    # longer runs to the stadium's back tip, see PAD_BASE_V's own comment.
-    z = stand_mod.STATIONS[0]
-    r.check(is_solid_at(part, mc.BOSS_U, -8.5, z), "socket has strap bosses")
-    r.check(
-        not is_solid_at(part, mc.BOSS_U, mc.CRADLE_DEPTH + stand_mod.SINK - 2.0, z),
-        "and their inserts are drilled inward",
-        "Align.MAX here would drill outward into the air",
-    )
-
-
-def check_stand_edges(part: Part, r: Report) -> None:
-    """The hub's edges are actually broken, not merely asked to be.
-
-    Same instrument as ``check_corner_edges``: ``chamfer_edge`` and
-    ``fillet_edge`` swallow an OCC refusal by design, so every treatment is read
-    back off the solid as a pair of samples -- one point in the material the op
-    should have removed (or, for a concave fillet, added), one just past it that
-    must be unchanged.
-
-    The stand needs its own copy rather than sharing the corner's, because it is
-    the family's odd one out: it prints standing on its flange, so the house
-    rule's "vertical" is global Z here, the socket's mouth lips are vertical
-    edges that take fillets instead of a horizontal rim that takes a chamfer,
-    and the tube's lead-in is the rim at ``TOP_Z`` because the tube drops in
-    from above.
-    """
-    ch, fr = mc.EDGE_CHAMFER, mc.EDGE_FILLET
-    lip = stand_mod.LIP_FILLET
-    hw, hh = stand_mod.SOCKET_HALF_W, stand_mod.SOCKET_HALF_H
-    top, seat = stand_mod.TOP_Z, stand_mod.SEAT_Z
-    pad_x = mc.BOSS_U + mc.BOSS_OD / 2
-
-    # The rim at TOP_Z is the tube's lead-in. On every other mount in the family
-    # the tube arrives sideways through a horizontal mouth; here it drops in
-    # from above, so this chamfer is functional and not merely a broken edge.
-    bore = (c.WIDTH + mc.BORE_FIT) / 2
-    r.check(
-        not is_solid_at(part, bore + 0.3 * ch, 0, top - 0.3 * ch),
-        "socket rim chamfered -- the tube's lead-in from above",
-        f"{ch} mm at u={bore:.2f}",
-    )
-    r.check(
-        is_solid_at(part, bore + 1.2 * ch, 0, top - 0.3 * ch),
-        "...and no more than that",
-    )
-    r.check(
-        not is_solid_at(part, hw - 0.3 * ch, 0, top - 0.3 * ch),
-        "socket rim chamfered -- outer silhouette too",
-    )
-
-    # The mouth lips are vertical, so they take a fillet -- and a smaller one
-    # than EDGE_FILLET, because over the collar band the lip is only
-    # SOCKET_HALF_W - COLLAR_HALF_W wide. Sampled a few mm above a boss pad's
-    # crown, which is where the lip corner is not buried in a pad -- and not
-    # the two stations' midpoint any more, because each boss's gusset now
-    # climbs past the wall's own half-width before it reaches that pad (see
-    # GUSSET_SUPPORT_U/_RUN), which eats into the lip's continuous stretch
-    # from the *next* station's side.
-    z_gap = stand_mod.STATIONS[0] + mc.STRAP_W / 2 + 3.0
-    r.check(
-        not is_solid_at(part, hw - 0.17 * lip, stand_mod.MOUTH_Y - 0.17 * lip, z_gap),
-        "mouth lips filleted",
-        f"R{lip}; R{fr} would leave "
-        f"{stand_mod.SOCKET_HALF_W - stand_mod.COLLAR_HALF_W - fr:.2f} mm of lip",
-    )
-    r.check(
-        is_solid_at(part, hw - 0.53 * lip, stand_mod.MOUTH_Y - 0.53 * lip, z_gap),
-        "...and the lip itself is still there",
-    )
-
-    # The one structural blend on the part: the socket cantilevers off the
-    # pedestal, and this fillet adds material rather than removing it.
-    r.check(
-        is_solid_at(part, 0, -(hh + 0.19 * fr), seat + 0.2 * fr),
-        "socket root filleted where it stands on the pedestal",
-        f"R{fr}, carrying a {top - seat:.0f} mm cantilever",
-    )
-    r.check(
-        not is_solid_at(part, 0, -(hh + 0.59 * fr), seat + 0.6 * fr),
-        "...and the fillet stops at that radius",
-    )
-    # Deliberately *not* filleted: the collar bore's root. The cap has only
-    # this much clearance a side, and a blend there would stop it seating.
-    r.check(
-        not is_solid_at(part, stand_mod.COLLAR_HALF_W - 0.1, 0, seat + 0.2 * fr),
-        "collar bore's root left raw -- a fillet there would unseat the cap",
-        f"{stand_mod.COLLAR_HALF_W - CAP_W / 2:.2f} mm of clearance a side to lose",
-    )
-
-    # Boss pads: vertical corners filleted, crowns and undersides chamfered.
-    r.check(
-        not is_solid_at(
-            part,
-            pad_x - 0.16 * fr,
-            stand_mod.MOUTH_Y - 0.16 * fr,
-            stand_mod.STATIONS[0],
-        ),
-        "boss pads' outboard corners filleted",
-        f"R{fr}",
-    )
-    r.check(
-        is_solid_at(
-            part, pad_x - 0.6 * fr, stand_mod.MOUTH_Y - 0.6 * fr, stand_mod.STATIONS[0]
-        ),
-        "...and the corner itself is still there",
-    )
-    # Sampled at v=-3.0, not the old -12.0 -- the pad no longer reaches that
-    # deep (PAD_BASE_V=-9.0), see its own comment in stand.py.
-    z = stand_mod.STATIONS[0] + mc.STRAP_W / 2
-    r.check(
-        not is_solid_at(part, pad_x - 0.3 * ch, -3.0, z - 0.3 * ch),
-        "boss pad crown chamfered",
-        "upward-facing",
-    )
-    # The underside does *not* get the same pairwise check: the pad's whole
-    # underside is now the 45 deg gusset (check_stand_gusset below), not an
-    # 0.8 mm edge chamfer. A sliver of edge still survives at the pad's own
-    # outboard-bottom corner, where the gusset's far face and the pad's own
-    # rectangle meet, and _boss_undersides still chamfers it -- but asserting
-    # that sliver by point-sample would pin down an incidental seam rather
-    # than the real fix, which check_stand_gusset verifies directly.
-
-    # The two exposed rings, both facing up, both chamfered off their radius
-    # rather than off the face above them -- those faces carry the counterbores
-    # and the whole socket footprint.
-    for z, rad, label in (
-        (stand_mod.FLANGE_T, stand_mod.FLANGE_D / 2, "flange top rim"),
-        (seat, stand_mod.PEDESTAL_D / 2, "pedestal top rim"),
-    ):
+    for name, part in (("post", post), ("leg", leg), ("keeper", keeper)):
+        bb = part.bounding_box()
         r.check(
-            not is_solid_at(part, rad - 0.25 * ch, 0, z - 0.5 * ch),
-            f"{label} chamfered",
-            f"{ch} mm",
+            len(part.solids()) == 1 and bb.size.X <= BED and bb.size.Y <= BED,
+            f"{name} is one solid and fits the bed",
+            f"{len(part.solids())} solid, {bb.size.X:.0f} x {bb.size.Y:.0f} mm, "
+            f"bed {BED:.0f}",
+        )
+
+
+def check_stand_trough(part: Part, r: Report) -> None:
+    """The post is the family's cradle section, stood on end."""
+    r.section("stand: the trough")
+    z = (sc.STATIONS[0] + sc.STATIONS[1]) / 2  # clear of both stations' pads
+
+    r.check(
+        not is_solid_at(part, 0.0, 0.0, z),
+        "the tube's own space is empty",
+        f"sampled on the axis at z={z:.0f}",
+    )
+    back = -(c.HEIGHT + mc.BORE_FIT) / 2
+    r.check(
+        is_solid_at(part, 0.0, back - mc.CRADLE_WALL / 2, z)
+        and not is_solid_at(part, 0.0, back - mc.CRADLE_WALL - 1.0, z),
+        "a full wall behind the tube",
+        f"{mc.CRADLE_WALL:.1f} mm from y={back:.2f} to {back - mc.CRADLE_WALL:.2f}",
+    )
+    r.check(
+        not is_solid_at(part, 0.0, sc.MOUTH_Y + 1.0, z),
+        "the mouth is open above the rim",
+        f"nothing at y={sc.MOUTH_Y + 1:.2f}, so the diffuser is never shadowed "
+        f"except by a keeper",
+    )
+    flank = (c.WIDTH + mc.BORE_FIT) / 2
+    r.check(
+        is_solid_at(part, flank + mc.CRADLE_WALL / 2, 0.0, z),
+        "and full walls beside it",
+        f"sampled at x={flank + mc.CRADLE_WALL / 2:.2f}",
+    )
+
+
+def check_stand_seat(part: Part, r: Report) -> None:
+    """The seat, and the one identity design-notes S10 turned on."""
+    r.section("stand: the seat and the cable")
+    y = -(sc.WELL_D / 2 + 2.0)
+    r.check(
+        is_solid_at(part, 0.0, y, sc.SEAT_Z - 1.0)
+        and not is_solid_at(part, 0.0, y, sc.SEAT_Z + 1.0),
+        "the endcap lands on solid material",
+        f"seat at z={sc.SEAT_Z:.1f}, sampled at y={y:.2f} -- outside the "
+        f"{sc.WELL_D:.2f} well, inside the tube's own footprint",
+    )
+    r.check(
+        sc.SEAT_Z > sc.FLANGE_T,
+        "the seat is above the flange, not in it",
+        f"{sc.SEAT_Z:.1f} against a {sc.FLANGE_T:.0f} mm flange",
+    )
+
+    # S10's identity, used forwards: what stands in line with the gland is the
+    # whole run from the seat to the floor, and it is derived from the cable.
+    in_line = sc.SEAT_Z + sc.LEG_T
+    r.check(
+        in_line >= gl.free_length() - 1e-9,
+        "nothing in line with the gland for the cable's first run",
+        f"{in_line:.1f} mm of clear drop against free_length() = "
+        f"{gl.free_length():.1f} (gland {mc.GLAND_PROUD:.1f} + stub "
+        f"{gl.CABLE_STUB:.0f})",
+    )
+    clear = all(
+        not is_solid_at(part, 0.0, 0.0, z)
+        for z in (0.5, sc.FLANGE_T / 2, sc.FLANGE_T + 2.0, sc.SEAT_Z - 1.0)
+    )
+    r.check(
+        clear,
+        "and the bore proves it rather than the arithmetic alone",
+        f"four samples on the axis from z=0.5 to {sc.SEAT_Z - 1:.1f}, all empty",
+    )
+    r.check(
+        sc.WELL_D >= mc.GLAND_ENV_D,
+        "the bore clears the fitted gland's envelope",
+        f"{sc.WELL_D:.2f} against {mc.GLAND_ENV_D:.2f} across the hex corners",
+    )
+
+
+def check_stand_stations(post: Part, keeper: Part, r: Report) -> None:
+    """The keeper stations: what they grip, and what holds them."""
+    r.section("stand: the keeper stations")
+    low = sc.STATIONS[0] - sc.KEEPER_W / 2
+    r.check(
+        low >= sc.SEAT_Z + e.CAP_T,
+        "the lower keeper grips aluminium, not the endcap",
+        f"station starts at z={low:.1f}; the endcap ends at "
+        f"{sc.SEAT_Z + e.CAP_T:.2f} (design-notes S3: no mount loads the "
+        f"two M2 self-tappers)",
+    )
+    for centre in sc.STATIONS:
+        bottom, top = stand_mod.station_z(centre)
+        r.check(
+            not is_solid_at(post, sc.PEG_U, sc.PEG_Y, top - sc.PEG_L / 2),
+            f"socket at z={centre:.0f} is open",
+            f"pad {bottom:.1f}..{top:.1f}, socket {sc.SOCKET_DEPTH:.0f} deep",
         )
         r.check(
-            is_solid_at(part, rad - 1.5 * ch, 0, z - 0.5 * ch),
-            f"...and no more than that ({label})",
+            is_solid_at(post, sc.PEG_U, sc.PEG_Y, bottom + 1.0),
+            f"and bottoms on a floor at z={centre:.0f}",
+            f"{sc.PAD_H - sc.SOCKET_DEPTH:.1f} mm of pad under it",
         )
 
-    # Boolean cone lead-ins at every mouth that is not a heat-set insert.
-    px, py = stand_mod._pivot_positions()[0]
     r.check(
-        not is_solid_at(
-            part, px + stand_mod.PIVOT_CLEAR_D / 2 + 0.5 * ch, py, 0.25 * ch
-        ),
-        "pivot holes have a bed-face lead-in cone",
-        "boolean: that face also carries the drain and the flange's own rim",
+        sc.PEG_FIT > 0,
+        "the peg is a sliding fit in ASA, not a press",
+        f"{sc.PEG_FIT:.2f} mm diametral -- fits.SLIDING for ASA; SNUG there is "
+        f"an interference",
+    )
+    stress = sc.peg_bearing_stress()
+    r.check(
+        stress < 10.0,
+        "the pegs carry the abuse case as bearing, not as a snap",
+        f"{sc.keeper_pull():.0f} N over 2 x {sc.PEG_D:.0f} x {sc.PEG_L:.0f} mm "
+        f"= {stress:.2f} MPa, against 10 MPa sustained (design-notes S3)",
+    )
+
+    # The keeper touches nothing: same rule as strap.py.
+    r.check(
+        sc.KEEPER_CLEAR >= mc.DIFFUSER_CLEAR - 1e-9,
+        "the keeper clears the diffuser rather than pressing on it",
+        f"{sc.KEEPER_CLEAR:.1f} mm all round, the family's DIFFUSER_CLEAR",
+    )
+    crown = c.HEIGHT / 2 + sc.KEEPER_CLEAR
+    r.check(
+        not is_solid_at(keeper, 0.0, crown - 0.3, sc.KEEPER_W / 2)
+        and is_solid_at(keeper, 0.0, crown + sc.KEEPER_T / 2, sc.KEEPER_W / 2),
+        "and the crown is where that clearance says it is",
+        f"bore ends at y={crown:.2f}, {sc.KEEPER_T:.1f} mm of wall above it",
     )
     r.check(
-        is_solid_at(part, px + stand_mod.PIVOT_CLEAR_D / 2 + 0.5 * ch, py, 0.875 * ch),
-        "...and it is only EDGE_CHAMFER deep",
+        crown - c.HEIGHT / 2 <= mc.DIFFUSER_CLEAR + 1e-9,
+        "so the tube's play is bounded by the keeper, not by the trough",
+        f"{crown - c.HEIGHT / 2:.1f} mm before the tube meets the crown -- it "
+        f"cannot leave the mouth without passing that",
     )
-    # And the pivot counterbore's own floor, six millimetres up. Sampled below
-    # that floor, in the material the cone takes out -- above it is the
-    # counterbore's void, where every sample reads "not solid" whether or not
-    # anything was ever cut (the same trap feet.py's floor cone fell into).
-    lead = mc.BOLT_LEAD_IN
-    cbore_floor = stand_mod.FLANGE_T - stand_mod.PIVOT_CBORE_H
+
+
+def check_stand_legs(part: Part, r: Report) -> None:
+    """One leg: the pivot, the stop, and whether three of them nest."""
+    r.section("stand: the legs")
+    bb = part.bounding_box()
     r.check(
-        not is_solid_at(
-            part,
-            px + stand_mod.PIVOT_CLEAR_D / 2 + 0.6 * lead,
-            py,
-            cbore_floor - 0.2 * lead,
-        ),
-        "pivot counterbore floors are coned where they step down to the hole",
-        "a square shoulder at a layer line, directly under the bolt that "
-        "carries the tripod",
+        bb.size.X <= BED - 6.0,
+        "the leg fits the smaller bed lying flat, with margin",
+        f"{bb.size.X:.0f} mm against a {BED:.0f} mm bed",
     )
     r.check(
-        is_solid_at(
-            part,
-            px + stand_mod.PIVOT_CLEAR_D / 2 + 1.6 * lead,
-            py,
-            cbore_floor - 0.2 * lead,
-        ),
-        "...and the M6 head's seat outboard of it is still flat",
+        not is_solid_at(part, 0.0, 0.0, sc.LEG_T / 2),
+        "the pivot bore goes through",
+        f"{sc.PIVOT_CLEAR_D:.1f} mm for an M6",
     )
     r.check(
-        not is_solid_at(
-            part,
-            0.55 * mc.DRAIN_D,
-            stand_mod.GLAND_OFFSET,
-            stand_mod.FLANGE_T - 0.375 * ch,
-        ),
-        "the well's drain is funnelled, so the well actually empties into it",
+        not is_solid_at(part, 0.0, sc.PIVOT_NUT_POCKET_D / 2 - 1.0, 1.0)
+        and is_solid_at(part, 0.0, sc.PIVOT_NUT_POCKET_D / 2 - 1.0, sc.LEG_T - 1.0),
+        "with a nyloc pocket in the underside only",
+        f"{sc.PIVOT_NUT_POCKET_D:.2f} across corners, "
+        f"{sc.PIVOT_NUT_POCKET_H:.1f} deep, so the leg still lies flat",
     )
     r.check(
-        is_solid_at(
-            part,
-            mc.DRAIN_D / 2 + 1.5 * ch,
-            stand_mod.GLAND_OFFSET,
-            stand_mod.FLANGE_T - 0.25 * ch,
-        ),
-        "...and no more than that",
+        is_solid_at(part, sc.STOP_SLOT_R, 0.0, sc.LEG_T + sc.STOP_PIN_H / 2),
+        "the stop pin stands proud of the top face",
+        f"{sc.STOP_PIN_D:.2f} x {sc.STOP_PIN_H:.1f} into a "
+        f"{sc.STOP_SLOT_W:.1f} x {sc.STOP_SLOT_DEPTH:.1f} slot",
     )
-    # The cable slot's mouth, all four edges of it. The cable is never clamped
-    # here, so these are chafe edges, and they are now one boolean flare rather
-    # than a fillet on the vertical pair (stand._cable_mouth_flare). Sampled at
-    # the slot's own corner, quarter of the way into the flare's depth: inside
-    # the funnel it has opened by three quarters of a chamfer in *both* axes,
-    # which is what tells a 45 deg flare from the old fillet -- that one opened
-    # the sides and left the floor and the ceiling square.
-    sx = stand_mod.CABLE_SLOT_W / 2
-    sy = -sqrt((stand_mod.PEDESTAL_D / 2) ** 2 - sx**2)
-    slot_z0 = stand_mod.FLANGE_T + 1.0
-    for label, z, lift in (
-        ("floor", slot_z0, 0.25 * ch),
-        ("ceiling", slot_z0 + stand_mod.CABLE_SLOT_W, -0.25 * ch),
-    ):
-        r.check(
-            not is_solid_at(part, sx + 0.25 * ch, sy + 0.25 * ch, z + lift),
-            f"cable slot's mouth flared at its {label} corner",
-            f"{ch} mm at 45 deg, cut as a boolean -- OCC will not chamfer it",
+    r.check(
+        sc.STOP_PIN_D < sc.STOP_SLOT_W and sc.STOP_PIN_H < sc.STOP_SLOT_DEPTH,
+        "and clears the slot it rides in",
+        f"{sc.STOP_SLOT_W - sc.STOP_PIN_D:.2f} mm across, "
+        f"{sc.STOP_SLOT_DEPTH - sc.STOP_PIN_H:.2f} mm deep",
+    )
+
+    # Nesting: the two swinging legs run parallel half-way through the sweep.
+    pitch = sc.PIVOT_R * sqrt(3.0)
+    gap = pitch * abs(sin(radians(sc.LEG_AZIMUTHS[2] - sc.LEG_FOLD_SWEEP / 2)))
+    r.check(
+        gap > sc.LEG_W,
+        "the two folding legs clear each other mid-sweep",
+        f"{gap:.1f} mm between their centre lines against a {sc.LEG_W:.0f} mm bar",
+    )
+    r.check(
+        sum(1 for d in sc.LEG_FOLD_DIRS if d == 0.0) == 1,
+        "exactly one leg is indexed rather than swung",
+        "a uniform sweep rotates the tripod instead of packing it -- "
+        "see config.LEG_FOLD_DIRS",
+    )
+
+
+def _is_stand_socket_mouth(edge) -> bool:
+    """A keeper socket's mouth, or the peg tip that seats in it."""
+    rad = cradle_mod.arc_radius(edge)
+    if rad is None:
+        return False
+    return any(
+        abs(rad - x) < 0.35
+        for x in (
+            (sc.PEG_D + sc.PEG_FIT) / 2,
+            (sc.PEG_D + sc.PEG_FIT) / 2 + sc.PEG_LEAD_IN,
+            sc.PEG_D / 2,
+            sc.PEG_D / 2 - sc.PEG_LEAD_IN,
         )
-    r.check(
-        is_solid_at(part, sx + 1.5 * ch, sy + 1.5 * ch, stand_mod.FLANGE_T + 5),
-        "...and the slot is still CABLE_SLOT_W wide behind the flare",
     )
 
-    # The family-wide exception, asserted rather than assumed: a printed lead-in
-    # removes the material the heat-set insert has to melt into.
-    r.check(
-        is_solid_at(
-            part,
-            mc.BOSS_U + mc.INSERT_D / 2 + 0.125 * ch,
-            stand_mod.MOUTH_Y - 0.25 * ch,
-            stand_mod.STATIONS[0],
-        ),
-        "insert mouths have no lead-in -- the deliberate exception",
-        "the insert's own chamfer guides it; a printed one starves it",
-    )
-    # And the counterbore mouths, for a reason particular to this part:
-    # PIVOT_R - PIVOT_CBORE_D / 2 clears the pedestal wall by only this much.
-    gap = stand_mod.PIVOT_R - stand_mod.PIVOT_CBORE_D / 2 - stand_mod.PEDESTAL_D / 2
-    r.check(
-        is_solid_at(
-            part,
-            stand_mod.PIVOT_R - stand_mod.PIVOT_CBORE_D / 2 + 0.25 * ch,
-            py - 4.0,
-            stand_mod.FLANGE_T - 0.625 * ch,
-        ),
-        "counterbore mouths left raw -- a cone there would undercut the pedestal",
-        f"{gap:.2f} mm between the counterbore and the pedestal's wall",
+
+def _is_stand_pivot_mouth(edge) -> bool:
+    """A pivot bore, its counterbore, their cone lead-ins, or a nut pocket."""
+    rad = cradle_mod.arc_radius(edge)
+    if rad is None:
+        return False
+    return any(
+        abs(rad - x) < 0.35
+        for x in (
+            sc.PIVOT_CLEAR_D / 2,
+            sc.PIVOT_CLEAR_D / 2 + sc.PIVOT_LEAD_IN,
+            sc.PIVOT_CBORE_D / 2,
+            sc.PIVOT_CBORE_D / 2 + sc.PIVOT_LEAD_IN,
+            sc.STOP_SLOT_W / 2,
+            sc.STOP_PIN_D / 2,
+        )
     )
 
-    # The raw-edge rule, made falsifiable, over the whole solid. The stand is
-    # the family's odd one out (see this function's own docstring), so its
-    # bore/wall seam is matched by position -- pinned at X = +/-BORE -- not
-    # by the vertical/short-length test the other mounts' lying-down troughs
-    # use: the collar-to-nominal bore step at z=SEAT_Z+CAP_T runs in Y, not
-    # Z, because this part's own "vertical" is global Z throughout.
-    z0 = stand_mod.FLANGE_T + 1.0  # cable slot box, bed-side face
-    z1 = z0 + mc.CABLE_OD + 2.0  # cable slot box, well-side face (CABLE_SLOT_W)
 
-    def _is_stand_seam(edge) -> bool:
-        r = _edge_radius(edge)
-        if r is not None and abs(r - _SEAM_BORE_R) < 0.02:
-            return True
-        if r is not None and abs(r - mc.CRADLE_OUTER_HALF_W) < 0.02:
-            return True
-        if edge.geom_type != GeomType.LINE:
-            return False
-        bb = edge.bounding_box()
-        return (
-            bb.size.X < 0.05
-            and abs(abs((bb.min.X + bb.max.X) / 2) - _SEAM_BORE_R) < 0.1
-        )
-
-    def _is_pivot_cbore_mouth(edge) -> bool:
-        r = _edge_radius(edge)
-        bb = edge.bounding_box()
-        return (
-            r is not None
-            and abs(r - stand_mod.PIVOT_CBORE_D / 2) < 0.02
-            and abs(bb.min.Z - stand_mod.FLANGE_T) < 0.05
-        )
-
-    def _is_well_seat_mouth(edge) -> bool:
-        # The well's mouth in the seat plane, and only that one. The predicate
-        # used to be "any arc of the well's radius", which swept in the two
-        # arcs 31 mm lower where the cable slot cuts the well -- a different
-        # pair of edges, on a different face, with a different reason.
-        r = _edge_radius(edge)
-        bb = edge.bounding_box()
-        return (
-            r is not None
-            and abs(r - stand_mod.WELL_D / 2) < 0.02
-            and abs(bb.min.Z - stand_mod.SEAT_Z) < 0.05
-        )
-
-    def _is_well_slot_crossing(edge) -> bool:
-        # KNOWN GAP: the cable slot's floor and ceiling where they cross the
-        # well's barrel, at the slot's own two heights.
-        r = _edge_radius(edge)
-        bb = edge.bounding_box()
-        return (
-            r is not None
-            and abs(r - stand_mod.WELL_D / 2) < 0.02
-            and (abs(bb.min.Z - z0) < 0.05 or abs(bb.min.Z - z1) < 0.05)
-        )
-
-    def _is_collar_bore_root(edge) -> bool:
-        # An *arc* on this outline is collar geometry only if it turns at the
-        # collar's own radius. The position fallback below is for the straight
-        # root edges, which have no radius to match -- letting arcs reach it
-        # too is how two R``EDGE_FILLET`` fillet residuals ended up filed under
-        # a reason about the cap's seat (see _is_socket_root_runout). Its
-        # tolerance is 0.05, tighter than the 0.1 exclusion _socket_root
-        # itself uses, so an edge that merely *ends* on the collar cannot pass
-        # for one that lies on it.
-        r = _edge_radius(edge)
-        if r is not None:
-            return abs(r - stand_mod.COLLAR_HALF_W) < 0.02
-        ctr = edge.bounding_box().center()
-        return abs(stand_mod._collar_dist(ctr.X, ctr.Y)) < 0.05
-
-    def _is_socket_root_runout(edge) -> bool:
-        # KNOWN GAP: where the socket-root fillet stops dead at the collar.
-        # An arc of exactly EDGE_FILLET, standing on the collar bore's own
-        # flank -- neither of which the collar's geometry has anywhere.
-        r = _edge_radius(edge)
-        ctr = edge.bounding_box().center()
-        return (
-            r is not None
-            and abs(r - mc.EDGE_FILLET) < 0.02
-            and abs(stand_mod._collar_dist(ctr.X, ctr.Y)) < 0.5
-        )
-
-    def _is_stand_periodic_seam(edge) -> bool:
-        # sharp_convex_edges now reports the None edges min_length used to
-        # let through unseen (see its docstring), and the hub is where that
-        # bites hardest in this family: 16 straight LINE edges, none of them
-        # sharp, at every bore/boss/well the hub carries -- the two long
-        # (~48 mm) ones running the collar/tube bore's full height, six more
-        # at the boss pads (z 3-9), and six repeating at three heights up the
-        # cable well (z 88.8/123.8/158.8, one predicate-defeating detail: on
-        # these six the seam runs *horizontally* along Y at fixed Z rather
-        # than vertically, which is exactly the shape a position- or
-        # orientation-based predicate would need a new clause for and a
-        # topology-based one does not care about at all.
-        #
-        # Every one of these is a cylindrical or conical bore/boss wall's own
-        # periodic seam -- OCC always parametrises that circumference to
-        # wrap rather than genuinely start and stop -- landing somewhere on
-        # the part's boundary because of where the boolean cuts happened to
-        # trim it. ``is_periodic_seam`` confirms this against OCC's own
-        # topology (both "adjacent" faces are the literal same
-        # ``TopoDS_Face``) for all 16, checked rather than assumed: this is
-        # not a guess extended from the two or three edges spotted by hand.
-        # There being 16 rather than the handful this file's other periodic-
-        # seam predicates name is why this is one broad entry instead of
-        # sixteen narrow ones threaded through one-off position windows --
-        # the existing family-specific entries above (bore/wall seam, pivot
-        # counterbore, collar bore root, ...) already carry their own
-        # specific reasons for the *sharp* edges each feature leaves; this
-        # entry is what the same features' *unmeasurable* seams get, since
-        # "why is this edge here" is one shared, geometric answer regardless
-        # of which bore or boss it belongs to.
-        return edge.geom_type == GeomType.LINE and is_periodic_seam(part, edge)
-
-    _check_sharp_edges(
-        part,
-        "stand hub",
-        r,
+def check_stand_edges(post: Part, leg: Part, keeper: Part, r: Report) -> None:
+    """The house edge rule on all three printed parts."""
+    allow = (
         (
-            (
-                "insert mouth left raw",
-                _is_insert_mouth_edge,
-                "a printed lead-in removes the material the heat-set has to "
-                "melt into -- the family-wide exception",
-            ),
-            (
-                "bore/wall seam (cross-section at a discontinuity)",
-                _is_stand_seam,
-                "the tube bore's and the collar bore's own cross-section, "
-                "including the collar-to-nominal step at z=SEAT_Z+CAP_T -- "
-                "same family as cradle.vertical_corners' exclusion, pinned "
-                "by position here since this part does not lie on its side",
-            ),
-            (
-                "pivot counterbore mouth left raw",
-                _is_pivot_cbore_mouth,
-                "PIVOT_R - PIVOT_CBORE_D/2 clears the pedestal wall by only "
-                "0.25 mm -- a cone there would undercut the pedestal "
-                "(this function's own docstring)",
-            ),
-            (
-                "gland well's mouth in the seat left raw",
-                _is_well_seat_mouth,
-                "_socket_root excludes it: at this height it is a ceiling "
-                "over the well, not a root, and its arc looks like a root "
-                "edge to any position test",
-            ),
-            (
-                "well/cable-slot crossing, horizontal pair (KNOWN GAP)",
-                _is_well_slot_crossing,
-                "the slot's floor and ceiling where they cut the well's "
-                "barrel. Its vertical pair is filleted (_cable_well_corners) "
-                "and its outer mouth is flared (_cable_mouth_flare), but a "
-                "flare at this end grows faster than the barrel curves away "
-                "and would break out through the well wall a few mm in -- so "
-                "these two are stated rather than treated",
-            ),
-            (
-                "collar bore root left raw",
-                _is_collar_bore_root,
-                "_socket_root excludes it: the seat is already only ~0.6 mm "
-                "wide at the narrowest, and a fillet there would stop the "
-                "cap seating altogether",
-            ),
-            (
-                "socket-root fillet run-out at the collar (KNOWN GAP)",
-                _is_socket_root_runout,
-                "not collar geometry at all: the R2.5 socket-root fillet "
-                "ending dead against _socket_root's collar exclusion, on the "
-                "blend it adds in front of the mouth. Same species as the "
-                "corner's own mouth fillet (corner.MOUTH_FILLET) -- but "
-                "widening the exclusion only moves the run-out onto the "
-                "mouth plane, it does not remove it",
-            ),
-            (
-                "bore/boss/well periodic seam (unmeasurable, not unsafe)",
-                _is_stand_periodic_seam,
-                "16 straight seams across the tube bore, collar bore, boss "
-                "pads and cable well, none of them sharp -- confirmed via "
-                "is_periodic_seam against OCC's own topology, not position, "
-                "since these span two different edge orientations and three "
-                "repeated well heights that no single bounding-box window "
-                "would catch without becoming a new predicate per feature",
-            ),
+            "hole and socket mouths left to their boolean cones",
+            lambda edge: _is_stand_socket_mouth(edge) or _is_stand_pivot_mouth(edge),
+            "every hole mouth in this family is coned as a boolean rather than "
+            "chamfered as an OCC edge op, so its rim is already at 45 deg and "
+            "the arcs that ring it are the cone's own seams",
+        ),
+        (
+            "the nut pocket's flats",
+            lambda edge: abs(edge.bounding_box().min.Z) < 0.01
+            and abs(edge.bounding_box().max.Z) < 0.01
+            and edge.length < sc.PIVOT_NUT_POCKET_D,
+            "a hex pocket's six edges bed against a nyloc's flats; breaking "
+            "them would only let the nut turn",
         ),
     )
-
-
-def check_stand_gusset(part: Part, r: Report) -> None:
-    """The boss pads' real fix: a 45 deg ramp, not a cosmetic edge chamfer.
-
-    ``check_stand_edges`` verifies the pad's *edges* are broken where the
-    house rule says to; this verifies the pad's whole underside is actually
-    self-supporting, by measuring the angle of the surface ``_boss_gusset``
-    adds -- not by re-checking the constants (``GUSSET_SUPPORT_U``/``_RUN``)
-    it was built from, which would only prove the arithmetic agrees with
-    itself. The angle is read off the built solid: each ramp face's normal is
-    looked up directly, and the angle a plane makes with horizontal equals the
-    angle its normal makes with the vertical (Z) axis regardless of which way
-    the normal happens to point -- build123d makes no promise about that
-    (``models/lib/checks.py``). So neither this formula nor
-    ``_gusset_faces``'s own selection ever has to resolve that sign: both
-    work from ``abs()`` of the normal's components -- ``abs(n.Z)`` here,
-    ``abs(n.Y)`` and ``abs(n.Z)`` there for its tilt window -- and neither
-    calls an outward-orientation probe like ``models.lib.checks._outward``.
-    ``_gusset_faces`` still needs its position/shape predicate on top of that
-    tilt window, to tell the six ramps apart from each other and from the
-    socket lip's own flat vertical faces.
-
-    "Overhang angle" is measured from horizontal throughout: 90 deg is a
-    vertical wall (no overhang), 0 deg is a flat ceiling (the worst case), and
-    45 deg is the conventional FDM self-supporting threshold -- the same one
-    every boolean lead-in cone elsewhere in this file already assumes.
-    """
-    faces = stand_mod._gusset_faces(part)
-    r.check(
-        len(faces) == 6,
-        "a gusset ramp found under every boss pad, both sides",
-        f"{len(faces)} of 6 -- 3 stations x 2 sides",
-    )
-    angles = [degrees(acos(min(1.0, abs(f.normal_at(f.center()).Z)))) for f in faces]
-    worst = min(angles, default=-1.0)
-    r.check(
-        bool(faces) and worst >= 45.0 - 0.01,
-        "every gusset ramp is self-supporting",
-        f"{worst:.1f} deg from horizontal, worst of {len(faces)} -- >=45 deg needed",
-    )
-
-
-def _gland_in_hub() -> Location:
-    """Where a lamp's lower gland sits in the stand hub's own frame.
-
-    ``stand.seated`` is the identity (the hub's print pose *is* its assembly
-    pose), so hub-local and standing-world coordinates are the same thing --
-    which is what lets this check place a gland without building the 1.5 m
-    scene. The axis is the well's: ``GLAND_OFFSET`` back from the hub's centre,
-    starting at the seat, pointing **down**. ``gland.py``'s local +Z is the
-    direction the gland points, so the rotation is a straight flip; the gland
-    is a solid of revolution about that axis, so its clocking carries nothing.
-    """
-    return Pos(0, stand_mod.GLAND_OFFSET, stand_mod.SEAT_Z) * Rotation(180, 0, 0)
-
-
-def check_stand_gland_cable(part: Part, r: Report) -> None:
-    """Does the tripod hub clear a fitted gland -- and then the cable?
-
-    Two different questions, and the stand answers them differently.
-
-    ``WELL_D`` and ``WELL_H`` are ``GLAND_ENV_D + 2`` and ``GLAND_PROUD + 2``,
-    so the well was cut for the gland by construction. What was never checked
-    is that the arithmetic survives contact with the *offset* -- the well is
-    9 mm off the hub's axis and the gland hangs off the tube's, and those two
-    only coincide because ``GLAND_OFFSET`` was set to make them. Intersecting
-    a placed gland against the built hub is what tests that, rather than
-    re-reading the constants at each other.
-
-    The cable is the question nothing in this family had ever asked, and the
-    answer does not depend on the gland at all. ``SEAT_Z`` is
-    ``FLANGE_T + WELL_H``, so the in-line room from the cap's face to the top
-    of the flange is *always* ``WELL_H``, whatever the gland measures. While
-    that was ``GLAND_PROUD + 2`` the cable had two millimetres against the
-    ~30 it needs, and measuring the gland -- which took ``GLAND_PROUD`` from an
-    assumed 30 to 18.8 and shrank the well to match -- moved it not at all.
-    That is why the well is now cut to ``gland.free_length()`` instead: the one
-    number that makes the room track the cable rather than the fitting.
-
-    The cable leaves the nose **along the gland's axis**, i.e. straight down,
-    and ``CABLE_BEND_R`` (26.8 mm, 4 x OD for a fixed installation) says it
-    cannot have turned anywhere meaningful inside the next ~27 mm -- so what
-    the well has to provide is that whole run, not a straight bore for it.
-    Inside the run the cable is already curving: it reaches the barrel wall,
-    ``WELL_D / 2`` out from the gland's axis, after a descent that at the
-    tightest legal radius is 21.2 mm and at the 32 mm radius it actually takes
-    is 23.7 mm, landing it at z=18.4 -- inside the cable slot's 13.0..21.7
-    mouth, which is why the exit that was already there still serves. See
-    ``gland.free_length``.
-    """
-    place = _gland_in_hub()
-    gland = as_part(place * gland_mod.create_gland())
-    cable = as_part(place * gland_mod.create_cable())
-
-    # The mock is only worth intersecting if it is still the shape the mounts
-    # were cut for, so hold it to both numbers it stands in for. Neither is
-    # typed into gland.py: both fall out of the measured flats and lengths in
-    # mount_config, so these two assertions are what keeps a caliper reading
-    # and the geometry it implies from parting company. The widest hex is drawn
-    # unclocked, so across its corners is the bounding box's own width; the
-    # reach past the cap face is the same box measured from z=0.
-    bb = gland_mod.create_gland().bounding_box()
-    r.check(
-        abs(bb.size.X - mc.GLAND_ENV_D) < 0.01,
-        "gland mock is GLAND_ENV_D across its corners",
-        f"{bb.size.X:.2f} mm against an envelope of {mc.GLAND_ENV_D:.1f}",
-    )
-    r.check(
-        abs(bb.max.Z - mc.GLAND_PROUD) < 0.01,
-        "...and stands GLAND_PROUD off the cap's face",
-        f"{bb.max.Z:.2f} mm against {mc.GLAND_PROUD:.1f}",
-    )
-
-    fouled = _shared_volume(gland, part)
-    r.check(
-        fouled < 0.01,
-        "the offset well clears a fitted gland",
-        f"{fouled:.3f} mm^3 shared with the hub",
-    )
-    r.check(
-        stand_mod.WELL_H - mc.GLAND_PROUD > 1.0,
-        "...with the well floor below its nose",
-        f"{stand_mod.WELL_H - mc.GLAND_PROUD:.1f} mm of slack at the bottom",
-    )
-
-    # And now the cable. Both of these failed until the well was cut for the
-    # cable rather than the gland (``stand.WELL_H = gland.free_length()``, the
-    # "more room under the seat" of the two directions design notes §10 left
-    # open). They are still the assertions that keep it: the in-line room is
-    # ``WELL_H`` by construction, so anything that trims the pedestal back
-    # towards ``GLAND_PROUD + 2`` reopens the defect and fails here.
-    in_line = stand_mod.SEAT_Z - stand_mod.FLANGE_T
-    need = gland_mod.free_length()
-    r.check(
-        in_line >= need,
-        "the hub leaves the cable its bend radius in line with the gland",
-        f"{in_line:.1f} mm from the seat to the flange, {need:.1f} mm needed "
-        f"({mc.GLAND_PROUD:.1f} gland + {gland_mod.CABLE_STUB:.0f} cable) "
-        f"-- {in_line - need:+.1f} mm. WELL_H is free_length itself, so this "
-        f"room tracks the cable and not the fitting; trimming the pedestal "
-        f"back towards GLAND_PROUD + 2 is what would reopen it",
-    )
-    struck = _shared_volume(cable, part)
-    r.check(
-        struck < 0.01,
-        "...and the cable's first bend radius is clear of the hub",
-        f"{struck:.1f} mm^3 driven through the flange",
-    )
+    for name, part in (
+        ("stand post", post),
+        ("stand leg", leg),
+        ("stand keeper", keeper),
+    ):
+        _check_sharp_edges(part, name, r, allow)
 
 
 def check_feet(r: Report) -> None:

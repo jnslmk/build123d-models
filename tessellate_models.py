@@ -68,6 +68,8 @@ MODELS = [
     "led_profiles.corner",
     "led_profiles.strap",
     "led_profiles.stand",
+    "led_profiles.stand.leg",
+    "led_profiles.stand.keeper",
     "led_profiles.feet",
     # The enclosure: the assembled scene, the slicer layout, and every printed
     # part on its own.

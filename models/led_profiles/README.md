@@ -148,8 +148,10 @@ holding that on.
 Corners stay coplanar, which costs ~94 mm of unlit tube per vertex — set by the
 two glands pointing at each other, not by the cable, because the jumper loop
 lives behind the form plane inside the corner's web. The stand is a light
-folding tripod after the Astera AX1‑STD; **~85 g of push at the top topples it**,
-which is what that class of stand is. `docs/design-notes.md` §4 has the sum.
+folding tripod after the Astera AX1‑STD, and it is now **entirely printed** bar
+three M6 pivots: **~61 g of push at the top topples it**, which is what that
+class of stand is, and about a third worse than the bought-steel-bar version it
+replaced. `docs/design-notes.md` §4 has the sum and §11 the trade.
 
 **This family prints in ASA, not PETG** — UV outdoors, and HDT against a tube
 that runs 40–60 °C. That changes the fits: `fits.SNUG` in ASA is −0.05 mm, an
@@ -164,7 +166,9 @@ corner somewhere sheltered. §5 has the depths.
 | `strap` | 58 × 18 × 20 mm | 2 × M4 × 16 socket cap |
 | `cradle` | 60 × 58 × 21 mm | 4 × M4 heat-set inserts |
 | `corner 60°` | 156 × 127 × 29 mm | 8 × M4 inserts, 4 straps |
-| `stand hub` | 90 × 90 × 145 mm | 3 × M6 pivots, 6 × M4 inserts |
+| `stand` (post) | 78 × 71 × 225 mm | 3 × M6 × 30 + nyloc |
+| `stand.leg` ×3 | 238 × 26 × 13 mm | — |
+| `stand.keeper` ×2 | 53 × 30 × 38 mm | — |
 | `eye foot` | 60 × 58 × 21 mm | 2 × M6 eye bolts + nyloc |
 | `wall foot` | 60 × 58 × 21 mm | 2 × M5 into the wall |
 
@@ -173,11 +177,24 @@ number because it is derived: the strap's own arch is 19.5 mm at its widest, and
 the head has to seat clear of that flank. See `docs/design-notes.md` §"The bolt
 circle is derived, not chosen" — 19.5 was the number, and it did not work.
 
-Bought for the stand: three flat bars, 20 × 3 × 250 mm, Ø6.5 hole 12 mm from one
-end — stainless or galvanised, not plain mild steel if it lives outdoors.
+Bought for the stand: **three M6 × 30 socket caps and three M6 nylocs**, and
+nothing else. The legs used to be bought flat bar and are now printed, which is
+what took the hardware list down to six pieces and the tip force with it.
+
+The stand is the one mount in the family that **captures rather than clips**,
+and the reason is worth stating because a clip is the obvious thing to reach
+for. The assembled tube's width rises monotonically to its straight band and is
+constant across it, so no lip hooks it from any direction that stays off the
+diffuser — §1's conclusion, arrived at from the other side, and
+`checks.check_stand_no_undercut` holds it as a test. So the post is a vertical
+cradle, and two **keepers** drop into sockets to close its mouth: pegs in holes,
+not a snap, because design-notes §3's abuse case puts 96 N of forward pull on
+the lower one and a snap on this geometry is worth about 30 N. Fitting a lamp
+is two motions — drop it in, drop the keepers in — and no tools at all.
 
 ```bash
 uv run show led_profiles.corner         # one part; also .strap .stand .feet
+uv run show led_profiles.stand.leg      # and .stand.keeper
 uv run export led_profiles.corner       # its STL for the slicer
 ```
 
@@ -202,7 +219,7 @@ exportable, and on the generated website alongside the parts:
 | module | shows |
 |---|---|
 | `assemblies.triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
-| `assemblies.standing` | 1 lamp vertical in the tripod hub, legs deployed, straps at all 3 stand stations, lower endcap on the seat |
+| `assemblies.standing` | 1 lamp vertical on the tripod stand, three printed legs deployed on the floor, both keepers seated, lower endcap on the seat |
 | `assemblies.suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
 
 ```bash
@@ -423,10 +440,13 @@ Only external connections required: **24 V, GND, DATA**.
 - [x] Mounting family designed — `docs/design-notes.md`
 - [x] Strap + cradle (the shared interface)
 - [x] Corner connector, parametric angle
-- [x] Folding tripod stand hub — **clears the gland, not the cable**; the well
-      leaves 2 mm in line with the gland's nose against a 26.8 mm bend radius,
-      so the cable has nowhere to turn. `checks.check_stand_gland_cable` fails
-      on it and `docs/design-notes.md` §10 lists the ways out.
+- [ ] Folding tripod stand — post, three printed swinging legs, two keepers.
+      Geometry, fits and load path done and checked; **the edge treatment is
+      not finished**, so `uv run check led_profiles` fails on
+      `check_stand_edges`. Nothing else in the stand's checks fails.
+      The cable problem §10 opened is **closed by deletion**: the seat is
+      `gland.free_length()` above the floor and the bore under it is open, so
+      nothing stands in line with the gland at all.
 - [x] Suspension eye and wall feet
 - [ ] PCB mount inside the endcap
 - [ ] PCB (ESP32 Mini + power distribution + LED output)

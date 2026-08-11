@@ -57,6 +57,7 @@ packages = [
     "models.drill_storage.stone",
     "models.drill_storage.wood",
     "models.led_profiles",
+    "models.led_profiles.stand",
     "models.led_profiles.assemblies",
     "models.led_psu_enclosure",
     "models.salad_bowl_lamp",

@@ -14,7 +14,7 @@ alongside as they get designed.
     uv run show led_profiles                # the full 1.5 m lamp, caps on
     uv run show led_profiles.corner         # one part; also .strap .stand .feet
     uv run show led_profiles.assemblies.triangle   # 3 lamps, 3 corners, 12 straps
-    uv run show led_profiles.assemblies.standing   # upright in the tripod hub
+    uv run show led_profiles.assemblies.standing   # upright on the tripod stand
     uv run show led_profiles.assemblies.suspended  # hung from two eye feet
     uv run export led_profiles.corner       # STLs for the slicer, a part at a time
     uv run check led_profiles               # hold it all to its measurements
@@ -29,7 +29,9 @@ from .endcap import create_endcap
 from .feet import create_eye_foot, create_wall_foot
 from .gland import create_cable, create_gland
 from .profile import create_diffuser, create_extrusion, create_strip
-from .stand import create_stand_hub
+from .stand import create_post
+from .stand.keeper import create_keeper
+from .stand.leg import create_leg
 from .strap import create_strap
 
 # ``create()`` is a finished lamp: bought aluminium, bought diffuser, the COB
@@ -55,7 +57,9 @@ __all__ = [
     "create_gland",
     "create_print_layout",
     "create_section",
-    "create_stand_hub",
+    "create_keeper",
+    "create_leg",
+    "create_post",
     "create_standing",
     "create_strap",
     "create_strip",

@@ -267,10 +267,13 @@ Modelled on the [Astera AX1‑STD](https://astera-led.com/products/tubestand/):
 three legs that swing out and nest together for packing, holding the tube
 vertically close to the floor. No ballast at all.
 
-A printed hub carries three **bought flat bars** (20 × 3 × 250 mm, Ø6.5 hole one
-end) on M6 pivots through clevis ears at 120°, friction held by nyloc and
-washers. The tube sits in a vertical cradle; its lower endcap lands in a well
-with a side cable exit.
+A printed post carries three **printed legs** on M6 pivots at 120°, friction
+held by nyloc. The legs lie flat on the floor and swing about *vertical* axes,
+which is what nests them and what keeps every bore in the part a plain vertical
+hole. The tube sits in a vertical cradle — the family's own trough, stood on end
+— and its lower endcap lands on a seat with the bore under it open to the floor.
+Two keepers close the trough's mouth. §11 records what changed and why; the
+numbers below are the current ones.
 
 **The gland is on the tube axis** — `GLAND_Z` = `HEIGHT / 2` — so the well is
 concentric. It was 6 mm off-axis (`GLAND_Z` = 9.0 against a tube axis at 15.0)
@@ -284,13 +287,21 @@ the part.
 
 ### The stability number, stated plainly
 
-    m      = 0.45 (tube) + 0.15 (hub) + 3 × 0.118 (legs)   = 0.95 kg
-    r_eff  = 275 × cos 60°                                  = 137 mm
-    F_tip  = m·g·r / h = 0.95 × 9.81 × 0.137 / 1.5          = 0.85 N
+    m      = 0.45 (tube) + 0.095 (post) + 3 × 0.048 (legs)
+             + 2 × 0.010 (keepers)                          = 0.71 kg
+    r_eff  = 256 × cos 60°                                  = 128 mm
+    F_tip  = m·g·r / h = 0.71 × 9.81 × 0.128 / 1.5          = 0.59 N
 
-**About 85 g of horizontal push at the top topples it.** That is not a defect —
+**About 61 g of horizontal push at the top topples it.** That is not a defect —
 it is what this class of stand is, and the Astera original is no better. It is
-studio kit used in controlled space and normally sandbagged.
+studio kit used in controlled space and normally sandbagged. It is also **30 %
+worse than the bought-flat-bar version**, and that is the price of printing the
+legs: steel is 7.85 g/cm³ and ASA is 1.07, so three bars went from 354 g to
+145 g and `F_tip` is linear in mass. §11 has the ledger.
+
+Reach cannot buy it back, either — `LEG_LEN` is set by the smaller printer's
+bed, not by taste. The lever is 1.5 m and the base is not; the only real lever
+left is ballast, which this stand deliberately does not carry.
 
 Two things worth knowing before anyone quotes a tip *angle* instead: a tripod
 tips about the line joining two adjacent legs, which is at `r × cos 60°` — **half**
@@ -588,3 +599,113 @@ ever reopens:
   change.
 - **Re-terminate below the cap.** The same question §9 asks of the corner
   pigtails, and the same answer would serve both.
+
+
+---
+
+## 11. Printed legs, a captured tube, and the snap that could not exist
+
+The stand was rebuilt to two requests — simpler to mount, and everything
+printed — and both of them turned on the same fact, which is worth recording
+because it is the one a fresh pair of eyes gets wrong first.
+
+### The snap that could not exist
+
+The brief asked for the lamp to *clip* into the stand rather than bolt to it.
+The obvious design is a C that closes past the tube's widest line, and it does
+not work — not because it is hard to size, but because there is nothing to hook.
+The assembled tube's width is monotonically non-decreasing from `z = 0` to the
+straight band and *constant* across it:
+
+| z | width | |
+|---|---|---|
+| 5.00 | 20.54 mm | |
+| 10.00 | 25.38 mm | |
+| 13.05 | 26.10 mm | widest line |
+| 13.05–17.45 | 26.10 mm | straight flanks — parallel, no undercut anywhere |
+| 20.00 | 25.60 mm | diffuser |
+
+For a trough opening upward, the tube leaves by translating out of the mouth,
+so every section *below* a lip has to pass that lip's gap — and every one of
+them is narrower than it. The tube slides straight out at any lip height. The
+only lips that retain are above `TOP_ARC_Z`, which is diffuser: they shadow the
+light, they trap a bought part, and worse, they route the stand's load through
+the diffuser's own snap hooks instead of the aluminium.
+
+So §1's "nothing wraps the tube" is not a preference about collars. It is a
+property of the section, and `checks.check_stand_no_undercut` now states it as a
+test rather than as a paragraph, sampled at 0.05 mm, so the next person to reach
+for a clip gets a failing check instead of a printed part that drops a lamp.
+
+The retention therefore moved to where both sides of the joint are ours to
+choose: **the post**. The tube is *captured* — a vertical cradle on three sides,
+a keeper across the mouth.
+
+### And the keeper is a key, not a snap either
+
+The keeper could plausibly have snapped onto the post, whose outer stadium
+*does* curve back in below its widest line. It would assemble beautifully and
+hold nothing. The return angle that geometry offers is about 20° at the lip, and
+against ASA's 0.7 % repeated strain that is worth roughly 30 N however the arm
+is proportioned, while §3's abuse case — 10 N at the tube's far tip, reacted as
+a couple by two keepers 140 mm apart — puts **96 N** of forward pull on the
+lower one. A snap is an assembly aid. It is not a retention feature at this
+load.
+
+Two pegs in two sockets carry the same pull as a bearing stress:
+96 / (2 × 6 × 20) = **0.40 MPa**, against the 10 MPa this family allows
+sustained. The thing between the lamp and the floor is solid material rather
+than a spring at three times its rating, and fitting one is still a single
+downward push.
+
+### The ledger for printing the legs
+
+| | bought bar | printed leg | |
+|---|---|---|---|
+| leg mass | 118 g | 48 g | steel 7.85 vs ASA 1.07 g/cm³ |
+| reach | 275 mm | 256 mm | bed-limited, not taste |
+| `F_tip` | 0.85 N | 0.59 N | −30 % |
+| bought hardware | 3 bars + 3 × M6 + nyloc | 3 × M6 + nyloc | |
+
+Nothing here is free and none of it is hidden: `checks.check_stand` recomputes
+`F_tip` from the built solids and fails below 0.5 N, so the trade is bounded.
+
+### What it deleted
+
+§10's cable defect is gone, and not by solving it — by removing the identity
+that caused it. There is no well: `SEAT_Z` is `gland.free_length()` less the leg
+thickness the flange stands on, and the bore under the seat runs straight
+through the flange into open air between the legs. Nothing stands in line with
+the gland at all, so the 28 mm shortfall has nowhere to live. That is §10's
+first "direction not taken" — *exit in line, not across* — which was ruled out
+only because the old hub's flange sat on the floor. Legs that lie flat put the
+flange one leg thickness up instead, and the cascade that ruled it out never
+happens.
+
+### One thing to know before folding it
+
+The three legs do **not** fold the same way. Nesting means they all end up
+pointing one direction, and their deployed directions are 120° apart, so the
+sweeps are 0 and ±120 — not 120 all round, which would just rotate the tripod
+and leave it spread. The rear leg is *indexed* (its stop is a plain socket, no
+arc) and the two front legs fold back onto it. That also puts the leg that
+carries the post's own mass on the one that never moves. Half-way through the
+sweep the two folding legs run parallel with 26 mm between their centre lines
+against a 24 mm bar; it clears, but `checks.check_stand_legs` holds that number
+because it is not obviously safe by inspection.
+
+### What is not done
+
+`checks.check_stand_edges` fails as this lands. Every other stand check passes —
+the section's monotonicity, the trough, the seat and the cable run, the
+stations, the pegs' bearing stress, the legs, the fold geometry, the mass and
+the tip force — and all three parts build as single solids that fit the bed. The
+gap is the house edge rule on the printed parts: the flange's bed face and upper
+rim, the station pads' 45° ramps and their top rims are still square, because
+OCC refuses several of those selections as a group and they need coaxing edge by
+edge the way `cradle.treat_edges` does its pads.
+
+That is a real gap, not a cosmetic one — a square rim on a first layer is an
+elephant's foot — but it changes no dimension, no fit and no load path. It is
+recorded here rather than papered over with `allow` entries: an allow-list entry
+is a claim that an edge is *meant* to be square, and none of these are.
