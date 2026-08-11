@@ -44,13 +44,12 @@ from build123d import (
     Pos,
     RectangleRounded,
     RegularPolygon,
-    Rotation,
     add,
     extrude,
     loft,
 )
 
-from ..lib.edges import bottom_chamfer_tool
+from ..lib.edges import bottom_chamfer_tool, reseat_on_bed
 from .box import hex_mouth_tool, rim_chamfer_tool, snap_bead_ring
 from . import config as c
 from .sets import DrillSet
@@ -290,8 +289,7 @@ def create_insert(
     # inward, so the grip end prints last on the clean upper layers and the
     # mouth lead-ins take the bed instead. Rotating about X keeps the key rib on
     # the +X face; the rounded-square body is symmetric in Y.
-    part = Rotation(180, 0, 0) * cart.part
-    return Pos(0, 0, -part.bounding_box().min.Z) * part
+    return reseat_on_bed(cart.part, flip=True)
 
 
 def create_insert_for(drill_set: DrillSet) -> Part:

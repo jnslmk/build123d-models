@@ -27,13 +27,13 @@ from build123d import (
     Plane,
     Pos,
     RectangleRounded,
-    Rotation,
     add,
     extrude,
     loft,
 )
 
 from . import config as c
+from ..lib.edges import reseat_on_bed
 from .util import as_part
 from .util import bottom_chamfer_tool, top_chamfer_tool
 
@@ -109,8 +109,7 @@ def _build_lid_use_pose() -> Part:
 
 def create_lid() -> Part:
     """The lid in print pose: weather face on the bed, skirt pointing up."""
-    flipped = as_part(Rotation(180, 0, 0) * _build_lid_use_pose())
-    part = as_part(Pos(0, 0, -flipped.bounding_box().min.Z) * flipped)
+    part = reseat_on_bed(_build_lid_use_pose(), flip=True)
     part.label = "lid"
     return part
 

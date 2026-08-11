@@ -23,9 +23,7 @@ from build123d import (
     Mode,
     Part,
     Plane,
-    Pos,
     RectangleRounded,
-    Rotation,
     Text,
     add,
     chamfer,
@@ -34,7 +32,7 @@ from build123d import (
     loft,
 )
 
-from ...lib.edges import chamfer_edge
+from ...lib.edges import chamfer_edge, reseat_on_bed
 from ..box import (
     CAP_FILLET,
     CAP_H,
@@ -170,8 +168,7 @@ def create_cover(
             chamfer_edge(cover, mouth, c.LABEL_CHAMFER)
     # Print orientation: flip the cover upside down (pillow top on the bed, open
     # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
-    part = Rotation(180, 0, 0) * cover.part
-    return Pos(0, 0, -part.bounding_box().min.Z) * part
+    return reseat_on_bed(cover.part, flip=True)
 
 
 __all__ = ["create_cover", "label_fit"]

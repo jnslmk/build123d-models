@@ -24,8 +24,10 @@ from build123d import (
     Mode,
     Part,
     Plane,
+    Pos,
     Rectangle,
     RectangleRounded,
+    Rotation,
     add,
     chamfer,
     extrude,
@@ -43,6 +45,21 @@ def as_part(shape: Any) -> Part:
     one documented place instead of scattering ignores through every module.
     """
     return cast(Part, shape)
+
+
+def reseat_on_bed(part: Part, flip: bool = False) -> Part:
+    """Seat a part on the bed: translate so ``bounding_box().min.Z`` is z=0.
+
+    The repo's print-pose rule (AGENTS.md, "Design Guidelines"): parts print
+    bottom-to-top and a model IS its print orientation, so a part must come
+    out already sitting on the bed -- Z+ is the print direction. Lids and
+    caps built closed-top-up get flipped 180 deg about X (``flip=True``) so
+    the open mouth faces up, then re-seated on z=0. This is the
+    one-line-to-three-line idiom that prose documents; the transform is
+    rigid, so it never changes the part, only how it lies on the bed.
+    """
+    flipped = as_part(Rotation(180, 0, 0) * part) if flip else part
+    return as_part(Pos(0, 0, -flipped.bounding_box().min.Z) * flipped)
 
 
 def chamfer_edge(builder: BuildPart, edges, size: float) -> bool:

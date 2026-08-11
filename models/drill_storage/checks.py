@@ -36,6 +36,7 @@ from ..lib.checks import is_flush_seam
 from ..lib.checks import is_solid_at as is_solid_at
 from ..lib.checks import is_vertical_seam
 from ..lib.checks import sharp_convex_edges
+from ..lib.fits import MIN_WALL
 from . import config as c
 from . import sets
 from .box import (
@@ -83,11 +84,6 @@ from .sets import DrillSet
 from .base import create_base_for
 
 PROBE = 0.08  # how far either side of a modelled radius we sample for material
-
-# The absolute minimum wall a 0.4 mm nozzle resolves: 2 perimeters. Below this a
-# feature does not slice as a wall at all, it merges with its neighbour. The same
-# figure is the floor for a *hole*: under two extrusions wide, a bore closes up.
-MIN_WALL = 0.8
 
 # Air between two steel tools standing in the tray. Not a printed wall, so it is
 # not MIN_WALL: nothing has to slice here, the tools only have to not touch, and

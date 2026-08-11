@@ -39,12 +39,10 @@ from build123d import (
     Locations,
     Mode,
     Part,
-    Pos,
-    Rotation,
     Sphere,
 )
 
-from ..lib.edges import as_part, fillet_edge
+from ..lib.edges import fillet_edge, reseat_on_bed
 from .config import BOWL_PARAMS, DEFAULT, Lamp
 
 # A scene, not a print job -- see tessellate_models.model_is_assembly.
@@ -75,7 +73,8 @@ def create_bowl(lamp: Lamp = DEFAULT) -> Part:
         with Locations((0, 0, rim_from_centre)):
             Cylinder(
                 radius=lamp.bowl_r + 1,
-                height=2 * lamp.bowl_r,  # clears the far pole; R + 1 leaves a cap behind
+                height=2
+                * lamp.bowl_r,  # clears the far pole; R + 1 leaves a cap behind
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.SUBTRACT,
             )
@@ -98,8 +97,7 @@ def create_bowl(lamp: Lamp = DEFAULT) -> Part:
             )
 
     # Turn it over: the rim plane becomes z = 0 and the dome goes up.
-    part = as_part(Rotation(180, 0, 0) * bowl.part)
-    part = as_part(Pos(0, 0, -part.bounding_box().min.Z) * part)
+    part = reseat_on_bed(bowl.part, flip=True)
     part.label = "bowl (bought)"
     part.color = STEEL
     return part

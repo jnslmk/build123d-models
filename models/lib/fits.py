@@ -22,6 +22,11 @@ numbers, and how to re-measure them for your own machine, lives in the
 
 from __future__ import annotations
 
+MIN_WALL = 0.8
+"""The absolute minimum wall a 0.4 mm nozzle resolves: 2 perimeters. Below this a
+feature does not slice as a wall at all, it merges with its neighbour. The same
+figure is the floor for a *hole*: under two extrusions wide, a bore closes up."""
+
 PRESS = -0.10
 """Interference fit: assembled with force, not meant to come apart."""
 

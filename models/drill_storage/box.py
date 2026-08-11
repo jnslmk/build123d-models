@@ -52,10 +52,8 @@ from build123d import (
     Part,
     Plane,
     Polygon,
-    Pos,
     RectangleRounded,
     RegularPolygon,
-    Rotation,
     Text,
     add,
     chamfer,
@@ -65,7 +63,7 @@ from build123d import (
     sweep,
 )
 
-from ..lib.edges import chamfer_edge
+from ..lib.edges import chamfer_edge, reseat_on_bed
 
 # --- Gridfinity standard ------------------------------------------------------
 GRID = 42.0
@@ -1159,5 +1157,4 @@ def create_cover(
             chamfer_edge(cover, mouth, LABEL_CHAMFER)
     # Print orientation: flip the cover upside down (pillow top on the bed, open
     # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
-    part = Rotation(180, 0, 0) * cover.part
-    return Pos(0, 0, -part.bounding_box().min.Z) * part
+    return reseat_on_bed(cover.part, flip=True)

@@ -45,6 +45,7 @@ from ...lib.checks import Report as Report
 from ...lib.checks import is_flush_seam
 from ...lib.checks import is_solid_at as is_solid_at
 from ...lib.checks import sharp_convex_edges
+from ...lib.fits import MIN_WALL
 from ..box import (
     BASE_H,
     BODY_W,
@@ -72,10 +73,6 @@ from .cover import create_cover, label_fit
 from .insert import create_insert
 
 PROBE = 0.08  # how far either side of a modelled radius we sample for material
-
-# The absolute minimum wall a 0.4 mm nozzle resolves: 2 perimeters. The same
-# figure is the floor for a *hole*: under two extrusions wide, a bore closes up.
-MIN_WALL = 0.8
 
 # ``pack_rows`` rounds every position it solves onto a 0.01 mm grid, so a hole
 # it pushed out to *exactly* its wall clearance can land up to half a step

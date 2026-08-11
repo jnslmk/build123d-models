@@ -31,12 +31,12 @@ from build123d import (
     Circle,
     Mode,
     Part,
-    Pos,
     chamfer,
     extrude,
 )
 
 from models.lib.checks import Report, is_solid_at, is_vertical_seam, sharp_convex_edges
+from models.lib.edges import reseat_on_bed
 
 INNER_DIA = 51.0
 WALL_THICKNESS = 1.2
@@ -141,7 +141,7 @@ def create(
     # up — the closed disc becomes the smooth first layer on the bed instead of
     # an unsupported bridge across the cavity. Just re-seat on z=0.
     part = builder.part
-    return Pos(0, 0, -part.bounding_box().min.Z) * part
+    return reseat_on_bed(part)
 
 
 def check() -> Report:

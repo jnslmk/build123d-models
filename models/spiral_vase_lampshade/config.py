@@ -28,6 +28,8 @@ from __future__ import annotations
 from dataclasses import dataclass, fields
 from math import atan, degrees, pi
 
+from ..lib.fits import MIN_WALL
+
 # --- Constants that are not sliders ------------------------------------------
 
 FADE_IN = 0.10
@@ -62,15 +64,6 @@ a foot for most of its height rather than a wall that starts vanishing at the
 first layer. Above this the bore opens out to the shell's own wall, which is
 material being *removed* as the part rises -- every layer a subset of the one
 below it, so nothing there is printed over air.
-"""
-
-MIN_WALL = 0.8
-"""Two perimeters of a 0.4 mm nozzle: below this a wall does not slice as a wall.
-
-Vase mode prints one bead per layer and the slicer's external extrusion width
-decides how fat that bead is (the reference design asks for 0.6 mm). This is the
-*modelled* wall -- what the inner surface is offset by, and what makes the shade
-a shell rather than a surface.
 """
 
 LAYER_HEIGHT = 0.2
@@ -233,6 +226,10 @@ class Shade:
     pinch: float = 1.0
 
     # -- Shell ----------------------------------------------------------------
+    # Vase mode prints one bead per layer and the slicer's external extrusion
+    # width decides how fat that bead is (the reference design asks for 0.6 mm).
+    # MIN_WALL is the *modelled* wall -- what the inner surface is offset by,
+    # and what makes the shade a shell rather than a surface.
     wall: float = MIN_WALL
 
     # -- Construction resolution (not sliders; see Z_SECTIONS) ----------------

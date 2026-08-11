@@ -48,7 +48,8 @@ from models.lib.checks import (
     is_vertical_seam,
     sharp_convex_edges,
 )
-from models.lib.edges import chamfer_edge
+from models.lib.edges import chamfer_edge, reseat_on_bed
+from models.lib.fits import MIN_WALL
 
 # --- Box interior (the two numbers the user actually cares about) -----------
 INNER_DIA = 78.0  # ID of the box
@@ -77,7 +78,6 @@ INNER_HEIGHT = 20.0  # usable depth from the floor up
 BODY_WALL = 2.4  # box lower body wall (thick: carries the lip + lid + gap)
 LID_WALL = 1.2  # lid wall + top (thin: nests into the recess, carries a bead)
 FLOOR = 2.4  # box floor thickness
-MIN_WALL = 0.8  # 2 perimeters at a 0.4 mm nozzle -- fdm-fits-and-clearances
 # The lip's top face is a free rim, not a structural wall: it carries no load
 # and both of its edges get a lead-in chamfer. It only has to stay printable --
 # one full extrusion wide, so the top face is a real flat rather than the crest
@@ -380,8 +380,7 @@ def create_lid(
         chamfer_edge(lid, top.edges().sort_by(SortBy.RADIUS).last, RING_CHAMFER)
 
     # Print pose: flip so the open mouth faces up, then re-seat on z=0.
-    part = Rotation(180, 0, 0) * lid.part
-    return Pos(0, 0, -part.bounding_box().min.Z) * part
+    return reseat_on_bed(lid.part, flip=True)
 
 
 def create(
