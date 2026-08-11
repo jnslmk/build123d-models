@@ -672,9 +672,11 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
 
     outside = min(_stadium_clearance(p.X, p.Y, e.CAP_W / 2, e.CAP_H / 2) for p in pts)
     r.check(
-        outside >= e.POCKET_CLEAR - 1e-6,
-        "...and to the outside of the flange",
-        f"{outside:.2f} mm of wall at the tightest point of the outline",
+        outside >= e.POCKET_WALL - 1e-6,
+        "...and POCKET_WALL of shell to the outside of the flange",
+        f"{outside:.2f} mm at the tightest point of the outline, against "
+        f"{e.POCKET_WALL} asked for -- this one is a wall, not a gap: it is "
+        f"what the screws clamp against the extrusion",
     )
 
     # The plug is narrower than the flange, so it gets its own pass -- over the
@@ -692,9 +694,12 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
     )
     r.check(
         plug >= e.POCKET_CLEAR - 1e-6,
-        "...and to the outside of the plug, where it cuts through it",
+        "...and at least POCKET_CLEAR to the outside of the plug",
         f"{plug:.2f} mm, over the {len(plug_pts)} sampled points below the "
-        f"plug's flat top at y={y_chord:.2f}",
+        f"plug's flat top at y={y_chord:.2f}. Held to the clearance and not to "
+        f"POCKET_WALL on purpose: the plug is narrower than the flange by "
+        f"{(e.CAP_W - (c.WIDTH - 2 * c.WALL - e.PLUG_FIT)) / 2:.2f} mm a side "
+        f"and stands inside the tube, clamping nothing",
     )
 
     # --- the floor ----------------------------------------------------------
@@ -987,6 +992,22 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
     r.check(
         is_solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
         "...and the plug's tip is still there",
+    )
+    # The corners that lead-in leaves where its facets meet. At 0.4 they were
+    # sub-millimetre; at 2.0 they are 2-3 mm and there are four of them, so
+    # they are rolled rather than named. Read back with the same selector that
+    # fed the fillet: an empty answer is the assertion that it took. This is a
+    # ladder (0.5 is refused here, 0.3 takes), and it is the ladder that makes
+    # the check worth having -- a silent drop to a smaller radius is fine, a
+    # silent skip of every rung is not, and both look identical in a render.
+    corners = e.plug_tip_corner_edges(cap)
+    r.check(
+        not corners,
+        "...and the corners its facets leave are rolled, not raw",
+        "nothing sharp left in the chamfer's own band"
+        if not corners
+        else f"{len(corners)} left: "
+        + "; ".join(f"{ed.geom_type} len={ed.length:.2f}" for ed in corners),
     )
 
     # The raw-edge rule (AGENTS.md), made falsifiable: every convex edge left

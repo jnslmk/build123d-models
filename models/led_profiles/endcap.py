@@ -44,10 +44,10 @@ The gland reaches ``GLAND_MALE_L`` = 8 mm into a flange the strap slot has made
 nothing and carries nothing. ``POCKET_*`` takes it back out, as one pocket sunk
 from above to ``POCKET_FLOOR_Z``, and the shape of that pocket is not drawn --
 it is the flange's own stadium less what it has to keep clear of, which is the
-screw holes, the strap slot's roof and ``POCKET_CLEAR`` = 2 mm of wall. It
+screw holes, the strap slot's roof and ``POCKET_WALL`` = 3 mm of shell. It
 takes the plug with it where the plug is in the way, which is not a side
 effect: a pocket that stopped at ``CAP_T`` under the plug's footprint would be
-a sealed void with 20 mm of plug printed over it.
+a sealed void with the whole ``PLUG_DEPTH`` printed over it.
 
 The one neighbour that gets more than the clearance is the strap slot, which
 is the only member here under load. ``POCKET_WEB`` = 3 mm of full-depth flange
@@ -100,9 +100,12 @@ pocket's floor rim (``POCKET_LEAD``) among them. The flange has nothing to
 fillet -- it is a stadium, so its flanks run into its arcs tangentially and it
 has no vertical corners at all -- but the plug does: two lengthwise seams down
 its flat top where the cap's void breaks out through it, which get
-``PLUG_SEAM_FILLET`` once the pocket has decided where they are.
-The strap slot's two mouths get ``STRAP_MOUTH_R``, a fillet rather than a
-chamfer: the strap drags over them every time it is threaded, and a radius is
+``PLUG_SEAM_FILLET`` once the pocket has decided where they are. The tip's
+lead-in has corners of its own now that it is 2 mm deep -- four places where
+its facets run into each other or into the pocket -- and those are rolled too,
+down the same shrinking ladder (``plug_tip_corner_edges``, at
+``PLUG_TIP_FILLET``). The strap slot's two mouths get ``STRAP_MOUTH_R``, a
+fillet rather than a chamfer: the strap drags over them every time it is threaded, and a radius is
 what fabric wants. It is an OCC edge op on a closed mixed wire, so it goes
 through ``fillet_edge`` down a shrinking ladder -- see ``create_endcap``.
 
@@ -276,22 +279,40 @@ STRAP_SLOT_Y = -(GLAND_MAJOR_D / 2 + STRAP_ROOF + STRAP_SLOT_H / 2)  # -9.90
 # and a ring would have had to dodge the bore rather than simply lose the
 # material to it.
 #
-# 20, up from 15, and the strap is why. The plug is what holds the cap square
-# against a moment applied at the flange -- ``check_endcap`` asserts it is the
-# deeper of the two -- and both halves of that argument got worse at once: the
-# flange nearly doubled, so its lever arm did, and the strap is a load pulling
-# on that lever which the cap never used to carry. Cheap to give: the plug is
-# inside 1.5 m of tube and costs nothing but print time.
-PLUG_DEPTH = 20.0
+# How far the cap inserts into the extrusion. 16, and it is the one number
+# here that is simply specified rather than derived -- there is nothing in the
+# tube for the plug to bottom out on, so what it is worth is a judgement about
+# how much of a moment arm the cap should have, and 16 is the call.
+#
+# It went 15 -> 20 when the strap slot arrived (the flange nearly doubled, so
+# the lever arm the plug resists did, and the strap is a load on that lever the
+# cap never used to carry) and 20 -> 16 now. What still holds either way is
+# ``check_endcap``'s claim that the plug, not the flange, is what keeps the cap
+# square: 16 is still deeper than ``CAP_T``, and only just, so that assertion
+# is now a real constraint on this number rather than a comfortable one.
+PLUG_DEPTH = 16.0
 # SLIDING, not SNUG -- it has to go together against a 1.5 m aluminium
 # extrusion's straightness, not a printed hole.
 PLUG_FIT = fits.SLIDING
 PLUG_TOP_GAP = 0.4  # clears the screw bosses bulging out of the cavity ceiling
 
 # Lead-in on the plug's leading edge, so it starts into the cavity instead of
-# catching on it. 0.4 mm is already ~3.5x the radial clearance and leaves a flat
-# the slicer can lay real beads on.
-PLUG_LEAD_IN = 0.4
+# catching on it. 2.0 mm, which is far more than the 0.11 mm of radial
+# clearance needs -- it is a hand aid rather than an alignment feature: the cap
+# goes into 1.5 m of extrusion that is only straight to the tolerance the
+# extruder felt like, and a long taper finds the cavity from further out.
+#
+# It costs the engagement 2 mm of its 16, and it is taken off the *outer* wire
+# only, so the rib either side of the pocket loses 2 mm of its 4.77 mm width
+# at the tip and none of it further in.
+PLUG_LEAD_IN = 2.0
+
+# The corners the tip's lead-in leaves where its own facets meet, and where
+# they cross the relief pocket. 0.3 rather than ``PLUG_SEAM_FILLET``'s 0.5,
+# and measured rather than chosen: OCC refuses 0.5 on all four of them, so a
+# ladder starting there would spend a guaranteed failure per build -- ten of
+# them across the assembly views -- to land here anyway.
+PLUG_TIP_FILLET = 0.3
 
 # The two lengthwise seams the gland bore leaves down the plug's flat top. A
 # fillet, not a chamfer: they are vertical in print pose. Kept small because the
@@ -358,16 +379,25 @@ SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
 # * the two screw clearance holes, hence ``POCKET_X``;
 # * the strap slot's roof, hence ``POCKET_Y_LOW`` -- and that one gets
 #   ``POCKET_WEB``, more than the clearance, for the reason below;
-# * the outside, which needs no constant at all: the outline's own outer
-#   boundary *is* the flange's stadium shrunk by ``POCKET_CLEAR``, and
-#   shrinking a stadium is exact, so every point of it is that far in by
-#   construction rather than by a radius somebody has to keep true.
+# * the outside, hence ``POCKET_WALL``: the outline's own outer boundary *is*
+#   the flange's stadium shrunk by it, and shrinking a stadium is exact, so
+#   every point of it is that far in by construction rather than by a radius
+#   somebody has to keep true.
 #
 # The plug's own outline never binds -- it is 12.44 wide against the flange's
 # 13.05 but it only exists below ``plug_top_z()``, where the pocket has already
 # been pulled in to ``POCKET_X`` by the screws -- and ``check_gland_pocket``
 # measures all four margins off the outline itself rather than trusting that.
 POCKET_CLEAR = 2.0
+
+# The wall the pocket leaves to the outside of the flange, and the only one of
+# the three that is a *wall* rather than a gap to another feature: it is what
+# is left of the shell once the pocket is taken out of it, and it beds against
+# the extrusion all the way round. 3.0 rather than ``POCKET_CLEAR`` because
+# 2 mm of shell is thin for the one face the screws clamp against, and because
+# nothing is gained by the last millimetre -- the pocket runs out to 10.25 from
+# the axis at the top either way.
+POCKET_WALL = 3.0
 
 # More than ``POCKET_CLEAR``, because this neighbour is the one member here
 # under load -- the strap pulls on the web between the slot and the bore, and
@@ -465,14 +495,14 @@ def pocket_section() -> Sketch:
     """The relief pocket's outline: the flange, less what it has to clear.
 
     Every boundary here is one of the three neighbours, and nothing else: the
-    outer wire is the flange's own stadium shrunk by ``POCKET_CLEAR``, the two
+    outer wire is the flange's own stadium shrunk by ``POCKET_WALL``, the two
     flats at ``POCKET_X`` are the screw holes, and the bottom at
     ``POCKET_Y_LOW`` is the strap slot's roof. That is why it is drawn as an
     intersection rather than as a shape -- move a screw or the slot and the
     pocket follows, instead of quietly closing on it.
 
     Starting from the flange rather than from a disc on the bore's axis is what
-    makes "at least ``POCKET_CLEAR`` from the outside" a construction instead
+    makes "``POCKET_WALL`` of shell left all round" a construction instead
     of a claim, and it is worth a good deal of pocket: a circle big enough to
     reach the flange's top would have run out through its flanks long before,
     so the disc this used to be stopped 5 mm short of the wall it was sized
@@ -487,7 +517,7 @@ def pocket_section() -> Sketch:
     millimetre clear at -7.65.
     """
     with BuildSketch() as s:
-        SlotOverall(CAP_H - 2 * POCKET_CLEAR, CAP_W - 2 * POCKET_CLEAR, rotation=90)
+        SlotOverall(CAP_H - 2 * POCKET_WALL, CAP_W - 2 * POCKET_WALL, rotation=90)
         Rectangle(2 * POCKET_X, _big(), mode=Mode.INTERSECT)
         with Locations((0, POCKET_Y_LOW)):
             Rectangle(
@@ -827,6 +857,15 @@ def create_endcap() -> Part:
             if fillet_edge(bp, strap_mouth_edges(bp), radius):
                 break
 
+        # The corners the tip's own lead-in leaves, now that the lead-in is
+        # 2 mm rather than 0.4 and its facets are big enough to leave real
+        # edges where they meet. Taken after the pocket, because two of the
+        # four are the pocket's flats crossing the chamfer and do not exist
+        # before it.
+        for radius in (PLUG_TIP_FILLET, 0.2):
+            if fillet_edge(bp, plug_tip_corner_edges(bp), radius):
+                break
+
         # The seams where the two screw seats open through the flank. Taken
         # last of the edge work and before the thread, so the selection is
         # made against a part that is otherwise finished. Same ladder
@@ -882,6 +921,49 @@ def _plug_top_seams(bp: BuildPart) -> ShapeList:
         )
 
     return ShapeList([edge for edge in bp.edges().filter_by(Axis.Z) if is_seam(edge)])
+
+
+def plug_tip_corner_edges(shape: BuildPart | Part) -> ShapeList:
+    """Sharp corners left where the tip's lead-in chamfer turns a corner.
+
+    A chamfer taken round a wire that has corners leaves one edge per corner,
+    where its two facets run into each other. At ``PLUG_LEAD_IN`` = 0.4 those
+    were sub-millimetre and below the audit's notice; at 2.0 they are 2-3 mm
+    of genuinely sharp edge, and there are four -- two where the chamfer
+    crosses the relief pocket's flats, two where its chord facet meets its arc
+    facet out at the plug's flanks.
+
+    Selected the way ``screw_seam_edges`` is, and for the same reason: a box
+    test finds the chamfer's own band, and then the *angle* decides, because
+    that band also holds the chamfer's two blunt 135 deg wires. Requiring some
+    span in z drops the tip face's own flat wires, which are named raw in
+    ``check_endcap_edges`` rather than rolled.
+
+    Public because ``checks`` runs it again on the finished part: an empty
+    result there is the assertion that the fillet took.
+    """
+    part = shape.part if isinstance(shape, BuildPart) else shape
+    if part is None:
+        return ShapeList([])
+    tip = CAP_T + PLUG_DEPTH
+
+    def in_chamfer_band(edge) -> bool:
+        bb = edge.bounding_box()
+        return (
+            bb.min.Z > tip - PLUG_LEAD_IN - 0.05
+            and bb.max.Z < tip + 0.05
+            and (bb.max.Z - bb.min.Z) > 0.05
+        )
+
+    edges = part.edges()  # ty: ignore[invalid-argument-type]
+    near = [edge for edge in edges if in_chamfer_band(edge)]
+    return ShapeList(
+        [
+            edge
+            for edge in near
+            if (angle := interior_angle(part, edge)) is None or angle <= 120.0
+        ]
+    )
 
 
 def _plug_top_corners(bp: BuildPart) -> ShapeList:
@@ -991,6 +1073,7 @@ def create() -> Part:
 __all__ = [
     "create",
     "create_endcap",
+    "plug_tip_corner_edges",
     "pocket_depth",
     "pocket_section",
     "seated",
