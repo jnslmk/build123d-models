@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cairo
-from build123d import Edge, Part, PositionMode
-from render_svg import get_model_part
+from build123d import Part
+from render_svg import edge_to_polyline, get_model_part
 
 A4_WIDTH_MM = 210
 A4_HEIGHT_MM = 297
@@ -77,20 +77,6 @@ class ProjectedView:
         return self.max_y - self.min_y
 
 
-def _edge_to_polyline(edge: Edge) -> list[tuple[float, float]]:
-    """Convert an edge to sampled 2D points."""
-    if edge.geom_type.name == "LINE":
-        start = edge.start_point()
-        end = edge.end_point()
-        return [(start.X, start.Y), (end.X, end.Y)]
-
-    # Sample non-linear edges by parameter for consistent PDF vector output.
-    point_count = max(8, min(96, int(edge.length) + 8))
-    params = [i / (point_count - 1) for i in range(point_count)]
-    points = edge.positions(params, position_mode=PositionMode.PARAMETER)
-    return [(point.X, point.Y) for point in points]
-
-
 def _project_view(part: Part, view: str) -> ProjectedView:
     origin, up, look_at = _camera_for_view(part, view)
     # build123d declares ``project_to_viewport`` on ``Mixin1D``, so a type
@@ -105,8 +91,8 @@ def _project_view(part: Part, view: str) -> ProjectedView:
         look_at=look_at,
     )
 
-    visible = [_edge_to_polyline(edge) for edge in visible_edges]
-    hidden = [_edge_to_polyline(edge) for edge in hidden_edges]
+    visible = [edge_to_polyline(edge) for edge in visible_edges]
+    hidden = [edge_to_polyline(edge) for edge in hidden_edges]
     line_segments: list[tuple[float, float, float, float]] = []
     circles: list[tuple[float, float, float, bool]] = []
 

@@ -91,13 +91,18 @@ uv run show lens_cap
 # Export a model to STEP and STL (no viewer); hand over the STL unless STEP was asked for
 uv run export lens_cap
 
-# Render model to SVG (no viewer needed) — preferred for agent workflows, and
-# the thing to send the user in a cloud session
+# Render model to SVG or PNG (no viewer needed) — preferred for agent workflows
 uv run render lens_cap                    # exports/lens_cap_iso.svg
 uv run render lens_cap --view top         # exports/lens_cap_top.svg
 uv run render lens_cap --view front       # exports/lens_cap_front.svg
 uv run render lens_cap out.svg --scale 2  # custom output and scale
 # Views: iso (default), front, back, left, right, top, bottom
+
+# PNG of the same drawing — this is the one to SEND the user, because a chat
+# client displays a raster inline and hands an SVG back as a download card
+uv run render lens_cap --png              # exports/lens_cap_iso.png
+uv run render lens_cap --png --px 2400    # bigger; default is 1600 square
+uv run render lens_cap shot.png           # a .png output path needs no flag
 
 # Run a model's geometry assertions, exit non-zero on failure
 uv run check lens_cap
@@ -153,8 +158,8 @@ system headers the container does not have — a plain `uv sync` dies on
 it, so drop that one group and skip the re-sync afterwards:
 
 ```bash
-uv sync --no-group viewer               # once per container
-uv run --no-sync render <model_name>    # exports/<model_name>_iso.svg
+uv sync --no-group viewer                     # once per container
+uv run --no-sync render <model_name> --png    # exports/<model_name>_iso.png
 ```
 
 `--no-sync` is not optional and it is not only for `render`: a bare `uv run`
@@ -170,14 +175,23 @@ real failure at exactly the moment you are trying to leave the tree clean.
 Detect the environment rather than guessing at it: `CLAUDE_CODE_REMOTE=true` is
 set in a cloud session and `DISPLAY` is not.
 
-Then **send that SVG to the user as an inline-rendered image** — in Claude Code
+Then **send that PNG to the user as an inline-rendered image** — in Claude Code
 that is `SendUserFile` with `display: "render"`, which draws it in the app the
-way the viewer would have. SVG is the format to send precisely because it
-renders inline. Naming a path in prose shows nobody anything: `exports/` is
-gitignored and lives on a container the user cannot open. Render the view that
-actually carries the change rather than the default every time — `--view front`
-for a section, `--scale` up for a small feature on a long part — and send more
-than one when one cannot settle the question.
+way the viewer would have. Naming a path in prose shows nobody anything:
+`exports/` is gitignored and lives on a container the user cannot open.
+
+**`--png`, not the default SVG, and this was tested rather than assumed.** An
+SVG sent to the Claude Code app arrives as a *download card* — a filename and a
+size, with the drawing behind a click — so sending one is barely better than
+naming the path. The PNG of the same projection renders inline. `render_svg`
+grew `render_png` for exactly this: same views, same hidden-line output, cairo
+rasterises it (`--px` sets the size, default 1600). Prefer SVG only for
+something that will be scaled or edited later, like a `docs/` asset.
+
+Render the view that actually carries the change rather than the default every
+time — `--view front` for a section, a sub-part model rather than the whole
+scene for a small feature — and send more than one when one cannot settle the
+question. A 1.5 m assembly framed whole is a thin line and shows nothing.
 
 Say which of the two you did, because a render is not a viewer and the gap is
 not cosmetic. `render_svg` draws hidden-line art from `create()`: it shows
