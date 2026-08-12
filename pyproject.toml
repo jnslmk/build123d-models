@@ -30,6 +30,7 @@ deps = "model_deps:main"
 render = "render_svg:main"
 render-a4 = "render_a4_pdf:main"
 selection = "selection:main"
+sketch = "sketch:main"
 website = "website:main"
 
 [tool.uv]
@@ -64,7 +65,7 @@ packages = [
     "models.sonicare_charger_holder",
     "models.spiral_vase_lampshade",
 ]
-py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "model_deps", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "tessellate_models", "website"]
+py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "model_deps", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "sketch", "tessellate_models", "website"]
 
 [dependency-groups]
 dev = [

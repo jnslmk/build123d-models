@@ -104,6 +104,11 @@ uv run render lens_cap --png              # exports/lens_cap_iso.png
 uv run render lens_cap --png --px 2400    # bigger; default is 1600 square
 uv run render lens_cap shot.png           # a .png output path needs no flag
 
+# Compare several crude options BEFORE modelling any of them properly.
+# See "Sketch before you model" -- this is the idea stage, not a model.
+uv run sketch box_closure             # exports/sketch-box_closure.html
+uv run sketch sketches/box_closure.py out.html
+
 # Run a model's geometry assertions, exit non-zero on failure
 uv run check lens_cap
 
@@ -131,6 +136,74 @@ uv run python -m unittest discover -s tests -t .
 # Query selection buffer (elements clicked in viewer)
 uv run selection                      # JSON output + human summary
 ```
+
+## Sketch before you model
+
+**When the open question is *which shape*, do not answer it by building one
+model well. Build four badly and put them side by side.** Everything below this
+section — named fits, edge treatments, `checks.py`, registration, CI — is the
+cost of being *right*, and paying it before the shape is chosen means paying it
+three more times.
+
+The numbers are lopsided enough to settle the argument. A concept-grade variant
+(boxes and cylinders, no fillets, no clearances, no checks) builds in ~0.03 s and
+renders in ~0.05 s. `led_psu_enclosure.create()` takes 37 s and
+`drill_storage.wood.base` 16 s, before lint, types, a commit and a Pages deploy.
+Four options cost **one interpreter start, not four models**.
+
+```bash
+uv run sketch box_closure     # sketches/box_closure.py -> exports/sketch-box_closure.html
+```
+
+A sketch is a plain module in `sketches/`, which is **gitignored on purpose**:
+
+```python
+"""How should a small parts box close?"""      # the question -- becomes the heading
+
+from build123d import *
+from sketch import variant
+
+FIDELITY = "Massing only -- dimensions invented"   # stamped on the sheet
+NOTES = "Free-text argument, rendered at the bottom."
+
+@variant(spec={"Parts": "2", "Reopens": "freely"}, views=("iso", "right"))
+def stepped_rabbet():
+    """Lid drops onto a recessed shelf. No undercuts, prints either way up."""
+    ...
+    return part
+```
+
+The sheet is read off that: module docstring is the question, each decorated
+function is a lettered candidate (name → title, docstring → prose), and the
+`spec` dicts become one comparison table whose columns are the union of their
+keys — so **keep the keys identical across variants**, or a key only one
+declares reads as a gap in the others rather than as the difference it is.
+
+Then **publish the HTML as an artifact and give the user the link.** That is the
+delivery step, the same way a render is for a finished model. The file is one
+self-contained page — inline SVG bound to `currentColor`, so it follows the
+reader's theme and stays sharp at any zoom, and no external anything.
+
+Three rules keep this from rotting into a second, worse `models/`:
+
+- **A sketch is never committed.** `sketches/` is gitignored, and that is the
+  whole mechanism. A sketch has invented dimensions, no fits from
+  `models.lib.fits`, no edge treatments and no checks; committed, it would sit
+  in the tree looking like a model, breaking every rule below, indistinguishable
+  from the real thing in six months. `sketch.py` and its test are repo
+  furniture; what they consume is not.
+- **A winning sketch is rebuilt, not promoted.** The chosen candidate gets
+  written properly under `models/` from scratch, and the sketch is deleted. It
+  was an argument, not a draft.
+- **Say the fidelity, per sheet.** How crude to be depends on the question:
+  topology needs blocks, proportion needs measured massing. `FIDELITY` is
+  stamped on the sheet so a reader can never mistake which one they are looking
+  at. When it is proportion under discussion, say in chat that the massing is
+  measured — the default stamp claims the opposite.
+
+Scale is not depth: four variants differing only in a fillet radius are not a
+sheet, they are one model rendered four times. Vary the thing the question is
+about.
 
 ## Post-Update Verification
 
@@ -210,9 +283,10 @@ This is a collection of 3D printable models using build123d (Python CAD library)
   plus `.build-stamps.json`, the per-model fingerprints that make the build
   incremental — CI caches this whole directory, so deleting it costs a full rebuild
 - `tessellate_models.py` - `MODELS`, the one roster the website, CI and `main.py` read
+- `sketches/` - Throwaway idea-stage massing files, gitignored (see **Sketch before you model**)
 - `main.py` - Builds and exports the stale models in `MODELS`, in parallel
 - `model_deps.py` - The import graph `main.py` decides staleness from, and `uv run deps`
-- `show.py` / `export_model.py` / `check.py` / `render_svg.py` - the `uv run` entry points
+- `show.py` / `export_model.py` / `check.py` / `render_svg.py` / `sketch.py` - the `uv run` entry points
 - `website.py` - Builds the static site bundle from `MODELS`
 
 Every entry point addresses a model by **name**, and a name is a *module path under
