@@ -209,69 +209,73 @@ about.
 
 **After every edit to a model, verify it visually and put the result in front
 of the user — immediately, without being asked.** That is the last step of any
-model change. *How* you do it depends on where you are running, and there are
-two answers because one of them does not work in the cloud.
-
-### Locally: the viewer
+model change. Both environments now share one way of showing a model: a
+self-contained HTML artifact, built by `uv run view`, that renders the model
+with the same three.js viewer the deployed site uses. There is no second,
+cloud-only path to keep in sync.
 
 ```bash
-uv run show <model_name>
+uv run view lens_cap                 # exports/lens_cap.html — one self-contained file
+uv run view lens_cap --serve         # also serve it on http://127.0.0.1:8000, for your own browser
 ```
 
-This opens the model in the 3D viewer, live, so geometry, orientation and
-colours can all be confirmed there and the user is already looking at it.
+The artifact is one file: three.js and its loaders are inlined, and the model's
+GLB (colour) — or STL if the GLB is missing — is embedded as a base64 data URI.
+It renders the same house-blue default, ground grid, orbit controls and camera
+framing as the site, from the shared `website/viewer.js`. It builds the GLB on
+demand if the model has not been built yet, so it works straight after a source
+edit. It is what the agent *shows*; it is not a build step and is never
+committed (`exports/` is gitignored).
 
-### In the Claude cloud environment: a rendered image, sent to the user
+Then **put it in front of the user**:
 
-`uv run show` cannot work in a cloud session and `uv sync` will not even
-install what it would need. The container has no display, and the `viewer`
-group's `pygobject` ships no Linux wheel, so it is a source build against
-system headers the container does not have — a plain `uv sync` dies on
-`girepository-2.0` before anything is installed. The model build never imports
-it, so drop that one group and skip the re-sync afterwards:
+- **Locally**, open it with the browser tool: `file://<repo>/exports/<name>.html`.
+  Or `uv run view <name> --serve` and open the printed URL when you want it in
+  your own browser.
+- **In the Claude cloud environment**, publish the HTML file as an artifact,
+  which hands the user a private claude.ai URL and opens it in their browser.
+  Because the file is self-contained under the artifact's strict CSP (no
+  external requests), it renders as-is — nothing else needs to be shipped
+  alongside it.
+
+`uv run show` (the OCP viewer) still exists and is still the right tool when
+you need to *interact* with the geometry — picking a face or edge with the
+Element Picker to get a build123d selector, say — rather than merely present
+it. The artifact is for showing the result, not for inspecting the model.
+
+When an artifact cannot be shown — a model whose embedded GLB would exceed the
+cloud artifact's ~16 MiB rendered cap, or a session without artifact support —
+fall back to the rendered image:
+
+```bash
+uv run render lens_cap --png          # exports/lens_cap_iso.png
+```
+
+`--png`, not the default SVG: an SVG sent to the Claude app arrives as a
+*download card*, while the PNG of the same projection renders inline. `render`
+is also what produces `docs/` assets. Say which of the two you did — a render
+is hidden-line art from `create()`, not the shaded live view, and the gap
+matters when colour is the question.
+
+### In the cloud, every `uv run` wants `--no-sync`
+
+A cloud container has no display, and the `viewer` group's `pygobject` ships no
+Linux wheel — a plain `uv sync` dies on `girepository-2.0` before anything is
+installed. Drop that one group (the model build never imports it) and pass
+`--no-sync` to every `uv run` — otherwise a bare `uv run` re-syncs the default
+groups and fails again:
 
 ```bash
 uv sync --no-group viewer                     # once per container
-uv run --no-sync render <model_name> --png    # exports/<model_name>_iso.png
+uv run --no-sync view lens_cap
+uv run --no-sync check lens_cap
 ```
-
-`--no-sync` is not optional and it is not only for `render`: a bare `uv run`
-re-syncs the *default* groups first, which puts `viewer` straight back and
-fails again. Every `uv run` in a cloud container wants it — `check`, `export`,
-`ruff`, `ty`, `python main.py`, all of them.
 
 Drop **only** `viewer`. The `pdf` group's `pycairo` is also a source build but
 its headers *are* present, so it installs fine — and dropping it costs a
-spurious `unresolved-import: cairo` in `uv run ty check .`, which reads like a
-real failure at exactly the moment you are trying to leave the tree clean.
-
-Detect the environment rather than guessing at it: `CLAUDE_CODE_REMOTE=true` is
-set in a cloud session and `DISPLAY` is not.
-
-Then **send that PNG to the user as an inline-rendered image** — in Claude Code
-that is `SendUserFile` with `display: "render"`, which draws it in the app the
-way the viewer would have. Naming a path in prose shows nobody anything:
-`exports/` is gitignored and lives on a container the user cannot open.
-
-**`--png`, not the default SVG, and this was tested rather than assumed.** An
-SVG sent to the Claude Code app arrives as a *download card* — a filename and a
-size, with the drawing behind a click — so sending one is barely better than
-naming the path. The PNG of the same projection renders inline. `render_svg`
-grew `render_png` for exactly this: same views, same hidden-line output, cairo
-rasterises it (`--px` sets the size, default 1600). Prefer SVG only for
-something that will be scaled or edited later, like a `docs/` asset.
-
-Render the view that actually carries the change rather than the default every
-time — `--view front` for a section, a sub-part model rather than the whole
-scene for a small feature — and send more than one when one cannot settle the
-question. A 1.5 m assembly framed whole is a thin line and shows nothing.
-
-Say which of the two you did, because a render is not a viewer and the gap is
-not cosmetic. `render_svg` draws hidden-line art from `create()`: it shows
-geometry, orientation and print pose faithfully, and it shows **no colour at
-all**, which is occasionally the thing under review. When colour is the
-question in a cloud session, say so plainly instead of implying the render
-cleared it.
+spurious `unresolved-import: cairo` in `uv run ty check .`. Detect the
+environment rather than guessing at it: `CLAUDE_CODE_REMOTE=true` is set in a
+cloud session and `DISPLAY` is not.
 
 ## Architecture
 
