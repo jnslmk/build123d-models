@@ -56,6 +56,15 @@ blows through it has to answer for itself rather than quietly halving the margin
 It came down with the magnets. A 6 x 2 disc has well under half the pull of the
 8 x 3 this started with, so the 250 g that budget once allowed would have been a
 number that no longer stood for anything. 175 g is about 1.4x the part.
+
+**The discs have since gone to 5 x 1 and this number has not moved, which is a
+debt rather than a decision.** A 5 x 1 has roughly a third of a 6 x 2's pull, so
+eight of them are holding the same 126 g on a good deal less margin than 175 g
+was meant to describe. The budget cannot simply follow them down -- 126 g of part
+is 126 g of part, and a budget under it would fail on the part it was written
+for -- so what has to answer for itself is the magnet count, on the bowl, with
+``fit_test``: if eight 5 x 1 discs slide, the fix is more of them or thicker
+ones, and this number gets rewritten around whatever that turns out to be.
 """
 
 BETWEEN = [22.5 + 90.0 * k for k in range(4)]
@@ -87,9 +96,10 @@ def check_bowl(bowl: Part, lamp: Lamp, r: Report) -> None:
 
     for depth in (0.5, lamp.rim_inset, 13.0, 23.0, 60.0):
         radius = lamp.bowl_inner_radius(depth)
+        clear = lamp.bowl_clear_radius(depth)  # the bead, where there is one
         at = f"depth {depth:.1f}, r {radius:.2f}"
         r.check(is_solid_at(bowl, radius + lamp.bowl_wall / 2, 0, depth), f"steel at {at}")
-        r.check(not is_solid_at(bowl, radius - 0.4, 0, depth), f"air inside at {at}")
+        r.check(not is_solid_at(bowl, clear - 0.4, 0, depth), f"air inside at {at}")
         r.check(
             not is_solid_at(bowl, radius + lamp.bowl_wall + 0.4, 0, depth),
             f"air outside at {at}",
@@ -108,6 +118,63 @@ def check_bowl(bowl: Part, lamp: Lamp, r: Report) -> None:
         not is_solid_at(bowl, lamp.bowl_hole_d / 2 - 2.0, 0, lamp.bowl_outer_height(0) - 0.4),
         "the hole is the diameter it claims",
     )
+
+
+def check_bead(bowl: Part, shade: Part, lamp: Lamp, r: Report) -> None:
+    """The bead is on the bowl, and the shade gets past it -- all the way in.
+
+    The second half is the one worth writing down. A part that clears an
+    obstruction where it comes to *rest* is not a part that fits: the shade is
+    pushed up through the mouth, so every ring of the band passes the throat on
+    the way, and the test that catches a band which merely ends up in the right
+    place is to put the shade at depths it only occupies mid-insertion and look
+    for steel. Sampled by real intersection rather than by comparing radii,
+    because a radius is what the model believes and a boolean is what it built.
+    """
+    r.section("bead and travel")
+    throat = lamp.bead_throat_radius()
+    crest = lamp.bead_depth + lamp.bead_w / 2
+
+    r.check(
+        is_solid_at(bowl, throat + 0.2, 0, crest),
+        f"the bead is there, {lamp.bead_h:.1f} mm proud over {lamp.bead_w:.1f} mm",
+        f"throat r {throat:.2f} against a {lamp.bowl_inner_radius(crest):.2f} mm sphere",
+    )
+    r.check(
+        not is_solid_at(bowl, throat - 0.2, 0, crest),
+        "and the throat is open inboard of it",
+    )
+    r.check(
+        abs(lamp.bowl_clear_radius(lamp.seat_start_depth()) - lamp.bowl_inner_radius(lamp.seat_start_depth())) < 1e-9,
+        "the seat starts below the bead, on bare sphere",
+        f"seat from depth {lamp.seat_start_depth():.2f} mm, bead ends at "
+        f"{lamp.bead_depth + lamp.bead_w:.2f} mm",
+    )
+
+    widest = max(lamp.band_outer_radius(z) for z in (0.0, lamp.band_h / 2, lamp.band_h))
+    r.check(
+        widest <= throat - lamp.bead_clear + 1e-9,
+        "nothing on the shade is wider than the throat",
+        f"widest {widest:.2f} mm, throat {throat:.2f} mm, clearance {lamp.bead_clear:.2f} mm",
+    )
+    r.check(
+        shade.bounding_box().max.X <= throat - lamp.bead_clear + 1e-6,
+        "which the built part agrees with, not just the numbers",
+        f"{shade.bounding_box().max.X:.2f} mm",
+    )
+
+    # Four rungs of the way in, chosen so the bead sits against a different part
+    # of the band each time: level with its top edge, a third up, two thirds, and
+    # finally where it comes to rest.
+    for offset in (lamp.rim_inset - lamp.band_h, lamp.rim_inset - 2 * lamp.band_h / 3,
+                   lamp.rim_inset - lamp.band_h / 3, lamp.rim_inset):
+        placed = as_part(Pos(0, 0, offset) * shade)
+        fouled = (placed & bowl).volume
+        r.check(
+            fouled < 1.0,
+            f"the shade passes the bead {offset - lamp.rim_inset:+.1f} mm from seated",
+            f"{fouled:.3f} mm3 of overlap",
+        )
 
 
 def check_shade_body(shade: Part, lamp: Lamp, r: Report) -> None:
@@ -217,8 +284,26 @@ def check_band_wall(shade: Part, lamp: Lamp, r: Report) -> None:
 
 
 def check_seat(shade: Part, bowl: Part, lamp: Lamp, r: Report) -> None:
-    """The band's face *is* the bowl's inner surface, and the part drops in."""
+    """The band's face *is* the bowl's inner surface, and the part drops in.
+
+    Over the band's upper half, which is what the bead left of it -- below
+    ``band_relief_height()`` the face is deliberately not on the sphere, and
+    ``check_bead`` owns that half. The claim that survives the bead is the one
+    that mattered in the first place: every magnet, not every millimetre of band,
+    lands on steel.
+    """
     r.section("seat")
+    r.check(
+        lamp.band_relief(lamp.pad_depth_z) < 1e-9,
+        "the magnet circle sits on the sphere, clear of the bead's relief",
+        f"pads at z={lamp.pad_depth_z:.2f}, relief ends at "
+        f"{lamp.band_relief_height():.2f} mm",
+    )
+    r.check(
+        lamp.pad_depth_z - lamp.pocket_d / 2 >= lamp.band_relief_height() - 1e-9,
+        "and so does the whole of every bore, not just its axis",
+        f"lowest bore edge z={lamp.pad_depth_z - lamp.pocket_d / 2:.2f} mm",
+    )
     # Sampled *between* the pads: on a pad's own axis the seat is correctly not
     # there, because that is exactly where the pocket is.
     for angle in BETWEEN:
@@ -227,11 +312,11 @@ def check_seat(shade: Part, bowl: Part, lamp: Lamp, r: Report) -> None:
             at = f"{angle:.1f} deg, z={z:.0f}"
             r.check(
                 is_solid_at(shade, *_polar(face - 0.2, angle, z)),
-                f"band reaches the seat at {at}",
+                f"band reaches its outer face at {at}",
             )
             r.check(
                 not is_solid_at(shade, *_polar(face + 0.2, angle, z)),
-                f"band stops at the seat at {at}",
+                f"band stops there at {at}",
             )
 
     r.check(
@@ -509,6 +594,7 @@ def run() -> Report:
     shade = create_shade(lamp)
     band = create_fit_test()
     check_bowl(bowl, lamp, r)
+    check_bead(bowl, shade, lamp, r)
     check_shade_body(shade, lamp, r)
     check_eye(shade, lamp, r)
     check_band_wall(shade, lamp, r)

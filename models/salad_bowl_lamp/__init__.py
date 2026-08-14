@@ -7,6 +7,14 @@ of concentric rings on a cross drops into the mouth and is held there by eight
 disc magnets pulling on the steel from the inside. Nothing is drilled, glued or
 clamped to the bowl beyond the one hole it already has.
 
+The mouth is not a plain circle, and that one measurement shapes the printed
+part more than any other: a bead runs round the inside of it where the lip is
+rolled, 4 mm wide and 1 mm proud, making the opening narrower than the bowl
+behind it. So the grille's outer band is cut back to a straight cylinder over its
+lower half to pass that throat, and beds onto the steel over its upper half,
+where its magnets are. ``config.bead_h = 0`` takes the bead back off for a bowl
+whose mouth is plain, and the band re-cuts itself as a full-height taper seat.
+
     uv run show salad_bowl_lamp             # bowl and shade together
     uv run show salad_bowl_lamp.shade       # the printed part, in print pose
     uv run show salad_bowl_lamp.bowl        # the bought bowl, as measured

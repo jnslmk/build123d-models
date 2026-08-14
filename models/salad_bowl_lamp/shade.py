@@ -4,24 +4,34 @@
     uv run export salad_bowl_lamp.shade      # white PLA, no supports
 
 Five concentric rings, 20 mm tall and 2.4 mm thick, tied together by four cross
-arms of the same section, hung in the mouth of the inverted bowl by eight disc
-magnets. All of those numbers are sliders on the website (``PARAMS``); they are
+arms of the same section, hung in the mouth of the inverted bowl by eight 5 x 1
+disc magnets. All of those numbers are sliders on the website (``PARAMS``); they are
 the lamp this repo built, not the only lamp this module can cut. From underneath it is the sketch this was drawn from; from the side it
 is a baffle -- 20 mm of vertical wall between each 16 mm of air cuts the direct
 view of the bulb at anything but a steep angle, which is the job.
 
 **Print pose is use pose**, and it is the good one either way. The outer band
-follows the bowl, so it *narrows* going up: every layer is smaller than the one
-below it, the part is self-supporting by construction, and the widest ring --
-200 mm of it -- lands flat on the bed. No supports, no turning it over.
+follows the bowl, so it *narrows* going up: no layer is wider than the one below
+it, the part is self-supporting by construction, and the widest ring -- nearly
+200 mm of it -- lands flat on the bed. The bead's relief does not spoil that;
+what it replaces the arc with is a vertical cylinder, which is the one thing that
+prints even better than a taper. No supports, no turning it over.
 
-Three decisions carry the design:
+Four decisions carry the design:
 
 * **The seat is a taper, not a clearance.** The band's outer face is the bowl's
   own inner sphere with nothing subtracted, so the shade slides up the dome
   until it beds. Being a 10.5 deg taper it cannot jam -- a part printed oversize
   simply comes to rest a little shallower -- and unlike a clearance fit it puts
   every magnet on steel rather than near it.
+* **The bead in the mouth caps every diameter on the part.** The bowl's opening
+  is 1 mm narrower than the sphere behind it, and the shade is pushed up through
+  that opening, so the constraint is not "clear the bead where you come to rest"
+  -- it is "be narrower than the throat everywhere, because every ring of the
+  band passes through it on the way in". ``_seat_envelope`` is where that is
+  enforced, once, for the whole part. What it costs is the band's lower half:
+  below ``band_relief_height()`` the face is a plain cylinder standing off the
+  steel, and the seat is what is left above it.
 * **The magnet touches the steel.** The pocket opens outward and the magnet is
   flush with the surface, with no cap over it. Burying a magnet under 0.4--0.8 mm
   of plastic (the ``part-joints`` default) is right when it meets another magnet;
@@ -29,10 +39,11 @@ Three decisions carry the design:
   is wanted in shear. Air gap is the one thing that kills such a joint, so the
   plastic gets out of the way and glue does the retaining.
 * **The band is one even wall, inside and out.** Both of its faces are struck
-  from the bowl's own sphere centre, so it is ``WALL`` thick along every pocket
-  axis and its inside is as plain as its outside -- no bosses, no pads, nothing
-  standing proud where a hand goes when the shade is lifted out. A 2 mm magnet
-  in a 2.4 mm wall is what makes that possible, with 0.4 mm left behind it; the
+  from the bowl's own sphere centre, and where the bead forces one of them off
+  that sphere it forces both, so the band is ``WALL`` thick along every pocket
+  axis over its whole height and its inside is as plain as its outside -- no
+  bosses, no pads, nothing standing proud where a hand goes when the shade is
+  lifted out. A 1 mm magnet in a 2.4 mm wall leaves 1.4 mm behind it; the
   argument is in ``config.MIN_BACKING`` and ``Lamp.band_inner_radius``.
 
 One construction note that is easy to get wrong: everything is built oversize
@@ -58,6 +69,7 @@ from build123d import (
     BuildSketch,
     Circle,
     Color,
+    Line,
     Mode,
     Part,
     Plane,
@@ -67,6 +79,7 @@ from build123d import (
     Sketch,
     ThreePointArc,
     Vector,
+    Vertex,
     add,
     chamfer,
     extrude,
@@ -89,6 +102,13 @@ TRIM_OVERSIZE = 2.0
 """How far past the seat the blanks are built before the single trim.
 
 Only has to be bigger than any gap it is covering; nothing measures it.
+"""
+
+TOL = 1e-9
+"""When a relief or a seat is short enough to be no segment at all.
+
+Guards the degenerate ends of ``_face_curve``: with no bead there is no straight
+run to draw, and on a bowl whose bead swallows the whole band there is no arc.
 """
 
 
@@ -119,16 +139,78 @@ def _ring(lamp: Lamp, r_bottom: float, r_top: float, wall: float | None = None) 
     return ring.part
 
 
+def _face_curve(lamp: Lamp, radius) -> None:
+    """Draw one of the band's two faces into the caller's ``BuildLine``.
+
+    Both faces have the same shape and the same break in them: an arc on the
+    bowl's own sphere down to ``band_relief_height()``, and below that a straight
+    run where the bead's throat, not the sphere, sets the diameter (see
+    ``config.band_outer_radius``). Drawing them through one function is what
+    keeps the two in step -- they have to stay ``wall`` apart, and a relief drawn
+    into one face and not the other is a band that thins toward the bed.
+
+    With no bead the relief is zero and this draws exactly the single arc the
+    band was cut from before, straight run and all its guards skipped.
+
+    ``radius`` is ``band_outer_radius`` or ``band_inner_radius``. Always drawn
+    bottom to top, whichever way round the caller's loop runs: ``make_face``
+    combines the pending edges into a wire by their endpoints, so a face closes
+    on which points meet rather than on the order they were drawn in.
+
+    Line objects find their builder through build123d's context variable rather
+    than the call frame, so unlike a nested *builder* (see ``_teardrop``) they
+    can be drawn from a helper.
+    """
+    zc = lamp.band_relief_height()
+    top = lamp.band_h
+    if zc > TOL:
+        Line((radius(0.0), 0.0), (radius(zc), zc))
+    if zc < top - TOL:
+        ThreePointArc(
+            (radius(zc), zc),
+            (radius((zc + top) / 2), (zc + top) / 2),
+            (radius(top), top),
+        )
+
+
+def _end_corners(profile: BuildSketch, outermost: bool) -> list[Vertex]:
+    """The profile's two corners at its bottom and top, on one side or the other.
+
+    Picked by position rather than by taking the two extreme radii, because the
+    bead's relief leaves a third, nearly-tangent vertex partway up each face --
+    see ``_band`` for what chamfering that one instead would cost.
+
+    **Grouped on Y, not Z, and these profiles are drawn on ``Plane.XZ``.** A
+    ``BuildSketch``'s ``vertices()`` come back in the sketch's own local frame,
+    where height is Y and every Z is exactly 0 -- the workplane is only applied
+    when the sketch is placed. Grouping on Z therefore does not fail, it silently
+    returns *one* group holding every vertex, so both ends of the loop pick the
+    same corner and the other end ships raw. That is not a hypothetical: it got
+    written that way first, and what caught it was ``check_edges``, not the build.
+    """
+    corners = []
+    for end in (profile.vertices().group_by(Axis.Y)[0], profile.vertices().group_by(Axis.Y)[-1]):
+        ordered = end.sort_by(Axis.X)
+        corners.append(ordered[-1] if outermost else ordered[0])
+    return corners
+
+
 def _band(lamp: Lamp) -> Part:
-    """The outer ring: an arc inside, an oversize blank outside.
+    """The outer ring: the finished inside face, an oversize blank outside.
 
     The inside is final here and is the one face that has to be right, because
-    it is what the magnet pockets bottom out in -- an arc struck from the same
-    centre as the seat, so the wall is ``wall`` thick measured along a pocket's
-    own axis rather than only in plan. The outside is left long and faced off by
+    it is what the magnet pockets bottom out in -- struck from the same centre as
+    the seat, so the wall is ``wall`` thick measured along a pocket's own axis
+    rather than only in plan. The outside is left long and faced off by
     ``_seat_envelope`` along with everything else, which is why only the two
     inner corners are chamfered here: the outer two do not survive the trim, and
     the envelope carries their chamfer instead.
+
+    Those two corners are picked out by where they sit -- lowest and highest, and
+    innermost of each -- rather than by taking the two smallest radii on the
+    profile. The bead's relief puts a third vertex on this face where the arc
+    meets the straight run, and it is nearly tangent, so a chamfer landing there
+    would break a corner that is not one and leave a real corner raw.
     """
     with BuildPart() as band:
         with BuildSketch(Plane.XZ) as profile:
@@ -138,18 +220,14 @@ def _band(lamp: Lamp) -> Part:
                     (lamp.band_outer_radius(lamp.band_h) + TRIM_OVERSIZE, lamp.band_h),
                     (lamp.band_inner_radius(lamp.band_h), lamp.band_h),
                 )
-                ThreePointArc(
-                    (lamp.band_inner_radius(lamp.band_h), lamp.band_h),
-                    (lamp.band_inner_radius(lamp.band_h / 2), lamp.band_h / 2),
-                    (lamp.band_inner_radius(0.0), 0.0),
-                )
+                _face_curve(lamp, lamp.band_inner_radius)
                 Polyline(
                     (lamp.band_inner_radius(0.0), 0.0),
                     (lamp.band_outer_radius(0.0) + TRIM_OVERSIZE, 0.0),
                 )
             make_face()
             if lamp.chamfer > 0:
-                chamfer(profile.vertices().sort_by(Axis.X)[:2], length=lamp.chamfer)
+                chamfer(_end_corners(profile, outermost=False), length=lamp.chamfer)
         revolve(axis=Axis.Z)
     return band.part
 
@@ -193,15 +271,20 @@ def _seat_envelope(lamp: Lamp) -> Part:
     intersection faces the band and docks all four arms in a single operation.
     The two outer corners carry the chamfer that the band's own profile cannot,
     since its outer face is cut away here.
+
+    This is also where the bead is answered, and answering it *here* is what
+    makes the answer complete: the envelope is the only thing that sets the
+    shade's outside diameter, so capping its profile at ``band_cap_radius()``
+    caps every part of the shade at once -- band, arm ends and all -- at the one
+    diameter that passes the throat. The band does not merely clear the bead
+    where it comes to rest; nothing on the shade is ever wider than the hole it
+    has to travel through, which is the only version of the claim that survives
+    the part being pushed in.
     """
     with BuildPart() as envelope:
         with BuildSketch(Plane.XZ) as profile:
             with BuildLine():
-                ThreePointArc(
-                    (lamp.band_outer_radius(0.0), 0.0),
-                    (lamp.band_outer_radius(lamp.band_h / 2), lamp.band_h / 2),
-                    (lamp.band_outer_radius(lamp.band_h), lamp.band_h),
-                )
+                _face_curve(lamp, lamp.band_outer_radius)
                 Polyline(
                     (lamp.band_outer_radius(lamp.band_h), lamp.band_h),
                     (0.0, lamp.band_h),
@@ -210,7 +293,7 @@ def _seat_envelope(lamp: Lamp) -> Part:
                 )
             make_face()
             if lamp.chamfer > 0:
-                chamfer(profile.vertices().sort_by(Axis.X)[-2:], length=lamp.chamfer)
+                chamfer(_end_corners(profile, outermost=True), length=lamp.chamfer)
         revolve(axis=Axis.Z)
     return envelope.part
 
