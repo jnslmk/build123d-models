@@ -16,19 +16,21 @@ geometry the shade cares about is where the shade expects it.
 
 The shape is a spherical cap, which is forced by the measurements rather than
 assumed -- see ``config``. On top of the cap sits the one feature of the real
-bowl that the shade cannot be designed without: **the bead round the inside of
-the mouth**, where the lip is rolled. It is 4 mm wide and stands 1 mm proud of
-the sphere with rounded transitions at both ends, and it is modelled here rather
-than idealised away because it, not the rim, is the narrowest circle in the bowl.
-``bead_h = 0`` takes it back off for a bowl that does not have one.
+bowl that the shade cannot be designed without: **the bulge just inside the
+mouth**, 4 mm across and standing 1 mm proud of the sphere with rounded
+transitions at both ends. It is modelled here rather than idealised away because
+it is what the band's notch is cut to clear. ``bead_h = 0`` takes it back off for
+a bowl that does not have one.
 
 Two places still knowingly depart from the real bowl, both in directions that
 cannot flatter the fit:
 
-* **The rim's own edge is modelled as a plain rounded corner**, and the bead is a
-  ring on the inside face rather than a section through a genuinely rolled hem.
-  What the fit needs from a rolled lip is how far into the mouth it reaches;
-  where the steel doubles back behind it changes nothing the shade can touch.
+* **The bulge is drawn as a full ring**, which is the envelope of where it could
+  be rather than a claim that it runs all the way round. The shade can come to
+  rest at any azimuth, so its notch has to clear the bulge wherever the bulge
+  turns out to sit, and a ring is the shape that asserts exactly that. It is
+  also, deliberately, the pessimistic reading for a seated-clearance check and
+  the optimistic one for nothing.
 * **Wall thickness is nominal.** The shade fits the *inside* sphere, so if the
   steel is thicker than 0.8 mm the shade seats a little shallower, and if it is
   thinner, a little deeper. The seat is a taper; that is the failure mode it is
@@ -72,25 +74,25 @@ worse than no slider."""
 STEEL = Color(0.78, 0.80, 0.83)
 
 BEAD_BURY = 0.5
-"""How far into the steel the bead's blank reaches, as a fraction of the wall.
+"""How far into the steel the bulge's blank reaches, as a fraction of the wall.
 
-The bead's profile is a lune between the sphere and itself, and a lune whose
-outer edge sat *on* the sphere would hand the fuse two coincident faces to
-reconcile -- the failure mode this repo already documents in ``shade.py``. Buried
-half a wall deep instead, the fuse is a plain overlap, and the surplus is inside
-steel that the shade never touches.
+The profile is a lune between the sphere and itself, and a lune whose outer edge
+sat *on* the sphere would hand the fuse two coincident faces to reconcile -- the
+failure mode this repo already documents in ``shade.py``. Buried half a wall deep
+instead, the fuse is a plain overlap, and the surplus is inside steel that the
+shade never touches.
 """
 
 
 def _bead(lamp: Lamp) -> Part:
-    """The rolled lip's bead: a ring standing proud of the inside of the mouth.
+    """The bulge: a ring standing proud of the inside of the mouth.
 
     Built in lamp coordinates (rim plane at z = 0, depth measured up into the
     dome), because that is where it is fused on, and sampled from
     ``bead_protrusion`` rather than drawn from arcs so the profile cannot drift
-    from the number ``bead_throat_radius`` -- and therefore the whole band -- is
-    derived from. Both curves end on the sphere, where the protrusion is zero, so
-    the ring blends into the bowl's inside instead of stepping off it.
+    from the numbers the band's notch is cut to. Both curves end on the sphere,
+    where the protrusion is zero, so the ring blends into the bowl's inside
+    instead of stepping off it.
     """
     steps = 24
     depths = [lamp.bead_depth + i * lamp.bead_w / steps for i in range(steps + 1)]
@@ -155,7 +157,7 @@ def create_bowl(lamp: Lamp = DEFAULT) -> Part:
                 mode=Mode.SUBTRACT,
             )
 
-    # Turn it over: the rim plane becomes z = 0 and the dome goes up. The bead
+    # Turn it over: the rim plane becomes z = 0 and the dome goes up. The bulge
     # goes on afterwards, in that pose, for two reasons -- it is measured from
     # the rim plane, and adding it first would put a second ring of edges at the
     # rim height the fillet above selects on.

@@ -3,9 +3,9 @@
     uv run check salad_bowl_lamp
     uv run python -m models.salad_bowl_lamp.checks
 
-Almost nothing here is visible in a projection. Whether the band clears the bowl,
-whether the magnets touch it, whether 0.4 mm of plastic really survives behind a
-2 mm pocket in a 2.4 mm wall, whether the band's inside stayed plain, and -- the
+Almost nothing here is visible in a projection. Whether the band's notch clears
+the bulge in the mouth, whether the magnets touch the steel, whether the backing
+behind a pocket really survives it, whether the band's inside stayed plain, and -- the
 one that decides whether the part prints -- which way up the teardrop pockets
 point, are all interior facts about a solid, so they get point-sampled rather
 than eyeballed. The shade is checked in its own coordinates (underside at z = 0)
@@ -59,12 +59,13 @@ number that no longer stood for anything. 175 g is about 1.4x the part.
 
 **The discs have since gone to 5 x 1 and this number has not moved, which is a
 debt rather than a decision.** A 5 x 1 has roughly a third of a 6 x 2's pull, so
-eight of them are holding the same 126 g on a good deal less margin than 175 g
-was meant to describe. The budget cannot simply follow them down -- 126 g of part
-is 126 g of part, and a budget under it would fail on the part it was written
-for -- so what has to answer for itself is the magnet count, on the bowl, with
-``fit_test``: if eight 5 x 1 discs slide, the fix is more of them or thicker
-ones, and this number gets rewritten around whatever that turns out to be.
+eight of them are holding 141 g on a good deal less margin than 175 g was meant
+to describe -- and the part grew, too, when the band was taken down to the rim.
+The budget cannot simply follow the magnets down: 141 g of part is 141 g of part,
+and a budget under it would fail on the part it was written for. So what has to
+answer for itself is the magnet count, on the bowl, with ``fit_test``: if eight
+5 x 1 discs slide, the fix is more of them or thicker ones, and this number gets
+rewritten around whatever that turns out to be.
 """
 
 BETWEEN = [22.5 + 90.0 * k for k in range(4)]
@@ -94,9 +95,14 @@ def check_bowl(bowl: Part, lamp: Lamp, r: Report) -> None:
     r.check(is_solid_at(bowl, rim_wall, 0, 0.5), "steel just above the rim plane")
     r.check(not is_solid_at(bowl, rim_wall, 0, -0.5), "nothing below the rim plane")
 
-    for depth in (0.5, lamp.rim_inset, 13.0, 23.0, 60.0):
+    # Half a millimetre in from the shade's underside rather than level with it.
+    # With no reveal that datum is the rim plane itself, where the rim's own
+    # fillet and the bulge's buried end face meet: a probe there lands on a
+    # corner and answers about the tolerance, not the steel. The rim plane has
+    # its own two checks above, taken from either side of it on purpose.
+    for depth in sorted({0.5, lamp.rim_inset + 0.5, 13.0, 23.0, 60.0}):
         radius = lamp.bowl_inner_radius(depth)
-        clear = lamp.bowl_clear_radius(depth)  # the bead, where there is one
+        clear = lamp.bowl_clear_radius(depth)  # the bulge, where there is one
         at = f"depth {depth:.1f}, r {radius:.2f}"
         r.check(is_solid_at(bowl, radius + lamp.bowl_wall / 2, 0, depth), f"steel at {at}")
         r.check(not is_solid_at(bowl, clear - 0.4, 0, depth), f"air inside at {at}")
@@ -121,60 +127,74 @@ def check_bowl(bowl: Part, lamp: Lamp, r: Report) -> None:
 
 
 def check_bead(bowl: Part, shade: Part, lamp: Lamp, r: Report) -> None:
-    """The bead is on the bowl, and the shade gets past it -- all the way in.
+    """The bulge is on the bowl, and the band's notch clears it seated, all round.
 
-    The second half is the one worth writing down. A part that clears an
-    obstruction where it comes to *rest* is not a part that fits: the shade is
-    pushed up through the mouth, so every ring of the band passes the throat on
-    the way, and the test that catches a band which merely ends up in the right
-    place is to put the shade at depths it only occupies mid-insertion and look
-    for steel. Sampled by real intersection rather than by comparing radii,
-    because a radius is what the model believes and a boolean is what it built.
+    **Seated is the whole claim, and that is a real limit rather than a gap in
+    the checking.** The band's seat is the bowl's own sphere, which is a
+    millimetre wider than the bulge leaves at that depth, so no assertion here
+    can say the shade is pushed straight down past it -- it is not, and a check
+    that claimed otherwise would be measuring a lamp this is not. It goes in
+    tilted, past a bulge that is one lump rather than a ring (``config.bead_w``),
+    and how much room the taper gives it to tilt is arithmetic on the seat's own
+    slope, not a property of this solid. What *is* asserted here is the part that
+    a boolean can settle: that the notch is deep enough, tall enough, and
+    everywhere the bulge could be, since the shade may come to rest at any
+    azimuth.
     """
-    r.section("bead and travel")
+    r.section("bulge and notch")
     throat = lamp.bead_throat_radius()
     crest = lamp.bead_depth + lamp.bead_w / 2
 
     r.check(
         is_solid_at(bowl, throat + 0.2, 0, crest),
-        f"the bead is there, {lamp.bead_h:.1f} mm proud over {lamp.bead_w:.1f} mm",
-        f"throat r {throat:.2f} against a {lamp.bowl_inner_radius(crest):.2f} mm sphere",
+        f"the bulge is there, {lamp.bead_h:.1f} mm proud over {lamp.bead_w:.1f} mm",
+        f"leaves r {throat:.2f} against a {lamp.bowl_inner_radius(crest):.2f} mm sphere",
     )
     r.check(
         not is_solid_at(bowl, throat - 0.2, 0, crest),
-        "and the throat is open inboard of it",
-    )
-    r.check(
-        abs(lamp.bowl_clear_radius(lamp.seat_start_depth()) - lamp.bowl_inner_radius(lamp.seat_start_depth())) < 1e-9,
-        "the seat starts below the bead, on bare sphere",
-        f"seat from depth {lamp.seat_start_depth():.2f} mm, bead ends at "
-        f"{lamp.bead_depth + lamp.bead_w:.2f} mm",
+        "and the mouth is open inboard of it",
     )
 
-    widest = max(lamp.band_outer_radius(z) for z in (0.0, lamp.band_h / 2, lamp.band_h))
+    # The notch has to outlast the bulge in both directions: deeper than it
+    # everywhere it stands proud, and still at full depth past its far edge.
+    seated = as_part(Pos(0, 0, lamp.rim_inset) * shade)
+    steps = 24
+    gaps = []
+    for i in range(steps + 1):
+        depth = lamp.bead_depth + i * lamp.bead_w / steps
+        z = depth - lamp.rim_inset
+        if not 0.0 <= z <= lamp.band_h:
+            continue
+        gaps.append((depth, lamp.bowl_clear_radius(depth) - lamp.band_outer_radius(z)))
+    tightest = min(gaps, key=lambda g: g[1])
     r.check(
-        widest <= throat - lamp.bead_clear + 1e-9,
-        "nothing on the shade is wider than the throat",
-        f"widest {widest:.2f} mm, throat {throat:.2f} mm, clearance {lamp.bead_clear:.2f} mm",
+        tightest[1] >= lamp.bead_clear - 1e-9,
+        "the notch clears the bulge over every millimetre of it",
+        f"tightest {tightest[1]:.2f} mm at depth {tightest[0]:.2f}, asked for "
+        f"{lamp.bead_clear:.2f} mm",
     )
     r.check(
-        shade.bounding_box().max.X <= throat - lamp.bead_clear + 1e-6,
-        "which the built part agrees with, not just the numbers",
-        f"{shade.bounding_box().max.X:.2f} mm",
+        lamp.band_notch_top() >= lamp.bead_depth + lamp.bead_w - lamp.rim_inset,
+        "and is still at full depth past the bulge's far edge",
+        f"notch full to {lamp.band_notch_top():.2f} mm, bulge ends at "
+        f"{lamp.bead_depth + lamp.bead_w - lamp.rim_inset:.2f} mm",
     )
 
-    # Four rungs of the way in, chosen so the bead sits against a different part
-    # of the band each time: level with its top edge, a third up, two thirds, and
-    # finally where it comes to rest.
-    for offset in (lamp.rim_inset - lamp.band_h, lamp.rim_inset - 2 * lamp.band_h / 3,
-                   lamp.rim_inset - lamp.band_h / 3, lamp.rim_inset):
-        placed = as_part(Pos(0, 0, offset) * shade)
-        fouled = (placed & bowl).volume
-        r.check(
-            fouled < 1.0,
-            f"the shade passes the bead {offset - lamp.rim_inset:+.1f} mm from seated",
-            f"{fouled:.3f} mm3 of overlap",
-        )
+    # Round the whole bowl, not just at one angle: the shade is free to come to
+    # rest at any azimuth, so the mock's ring is the envelope of everywhere the
+    # lump could be and the seated part has to miss all of it.
+    fouled = (seated & bowl).volume
+    r.check(
+        fouled < 1.0,
+        "the seated shade touches no part of that ring, at any angle",
+        f"{fouled:.3f} mm3 of overlap",
+    )
+    r.check(
+        lamp.band_notch_ramp_top() + 1e-9 < lamp.pad_depth_z - lamp.pocket_d / 2,
+        "the notch is finished well below the lowest magnet bore",
+        f"ramp ends at {lamp.band_notch_ramp_top():.2f} mm, bores start at "
+        f"{lamp.pad_depth_z - lamp.pocket_d / 2:.2f} mm",
+    )
 
 
 def check_shade_body(shade: Part, lamp: Lamp, r: Report) -> None:
@@ -286,23 +306,17 @@ def check_band_wall(shade: Part, lamp: Lamp, r: Report) -> None:
 def check_seat(shade: Part, bowl: Part, lamp: Lamp, r: Report) -> None:
     """The band's face *is* the bowl's inner surface, and the part drops in.
 
-    Over the band's upper half, which is what the bead left of it -- below
-    ``band_relief_height()`` the face is deliberately not on the sphere, and
-    ``check_bead`` owns that half. The claim that survives the bead is the one
-    that mattered in the first place: every magnet, not every millimetre of band,
-    lands on steel.
+    Everywhere above the bulge's notch, which is 17 of the band's 23 mm -- inside
+    the notch the face is deliberately not on the sphere, and ``check_bead`` owns
+    that. The claim that has to hold either way is the one that mattered in the
+    first place: every magnet lands on steel.
     """
     r.section("seat")
     r.check(
-        lamp.band_relief(lamp.pad_depth_z) < 1e-9,
-        "the magnet circle sits on the sphere, clear of the bead's relief",
-        f"pads at z={lamp.pad_depth_z:.2f}, relief ends at "
-        f"{lamp.band_relief_height():.2f} mm",
-    )
-    r.check(
-        lamp.pad_depth_z - lamp.pocket_d / 2 >= lamp.band_relief_height() - 1e-9,
-        "and so does the whole of every bore, not just its axis",
-        f"lowest bore edge z={lamp.pad_depth_z - lamp.pocket_d / 2:.2f} mm",
+        lamp.band_setback(lamp.pad_depth_z) < 1e-9,
+        "the magnet circle sits on the sphere, clear of the notch",
+        f"pads at z={lamp.pad_depth_z:.2f}, notch done by "
+        f"{lamp.band_notch_ramp_top():.2f} mm",
     )
     # Sampled *between* the pads: on a pad's own axis the seat is correctly not
     # there, because that is exactly where the pocket is.

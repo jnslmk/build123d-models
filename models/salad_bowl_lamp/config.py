@@ -32,12 +32,14 @@ over the rim's own 100 mm radius, which is the same as saying the bowl is very
 slightly shallower than a true hemisphere. That matches the photographs.
 
 With one exception, and it is the exception the band is shaped around: **there is
-a bead running round the inside of the mouth**, 4 mm of it standing 1 mm proud
-with rounded transitions, where the lip is rolled. It makes the mouth the
-narrowest circle in the bowl, so ``bead_throat_radius()`` -- not the rim, and not
-the sphere -- is what every diameter of the shade has to pass, at every point of
-its travel rather than only where it comes to rest. That single number is why the
-band's lower half is cut back off the steel and why its magnets sit above centre.
+a bulge just inside the mouth**, 4 mm across and standing 1 mm proud of the
+sphere with rounded transitions. The band meets it with a notch -- the bottom
+5.8 mm of its outer face cut back 1.3 mm, full depth over the bulge and then
+ramped at 45 deg back onto the sphere -- rather than by being made smaller
+everywhere. So the seat is still the sphere over 17 of the band's 23 mm, the
+magnets still sit mid-band on bare steel, and the band now reaches down to the
+rim plane instead of starting 3 mm above it. What that costs, and the condition
+it carries, are on ``bead_w`` where the numbers are.
 """
 
 from __future__ import annotations
@@ -78,31 +80,19 @@ fit class is read that way, so it is said here rather than left to be inferred.
 
 A fit class is a diametral allowance because the usual case is a shaft in a bore,
 where the two are concentric and the error splits over both sides. This is not
-that. The shade has to slide *past* a bead on a spun bowl that is out of round by
-more than any printer error, so what has to clear is the worst single azimuth,
-not the average of two opposite ones. Read radially, FREE-in-PLA leaves 0.30 mm
-all round, and the extra half costs about 0.5 mm of seat length per 0.1 mm --
-cheap next to a shade that hangs up on the bead and never reaches the steel.
+that. What the notch has to clear is a lump on one wall of a spun bowl that is
+out of round by more than any printer error, so what matters is the worst single
+azimuth, not the average of two opposite ones. Read radially, FREE-in-PLA leaves
+0.30 mm all round the bulge, and the only thing more of it costs is a slightly
+deeper notch in a skirt that touches nothing.
 """
 
-PAD_MARGIN = 0.3
-"""How far above the relief a magnet's bore must start to count as on the steel.
+NOTCH_MARGIN = 0.5
+"""How far past the bulge's far edge the notch stays at full depth.
 
-The band only touches the bowl above ``band_relief_height()``; below that it is
-cut back to clear the bead. A pocket straddling that line would put part of its
-magnet over the gap, which is the one thing this joint cannot survive, so
-``pad_depth_z`` keeps the whole bore this much clear of it.
-"""
-
-SEAT_FRACTION = 0.4
-"""How much of the band's height must still reach the steel, bead or no bead.
-
-The bead sets a floor under the reveal: the deeper the band sits, the smaller the
-sphere it is cut to and the sooner it drops under the throat, so *reveal* is what
-buys back seat. On the default lamp the floor is 0.8 mm and the reveal is 3 mm,
-so nothing moves; on a bowl with a fat enough bead ``Lamp.of`` raises the reveal
-until four tenths of the band bed down, rather than handing back a shade that
-hangs on its magnets alone.
+The bulge is measured off a bowl by hand and it does not end on a line. Half a
+millimetre of overrun before the ramp starts is what keeps a bulge measured a
+touch short from meeting the ramp instead of the notch.
 """
 
 MIN_GAP = 2.0  # narrowest air a ring is allowed to leave its neighbour
@@ -131,24 +121,29 @@ class Lamp:
     bowl_wall: float = 0.8  # spun sheet; nominal, and the shade only needs it to exist
     bowl_hole_d: float = 42.0
 
-    # --- The bead round the inside of the mouth ------------------------------
-    # Measured on the bowl: a rolled lip leaves a bead running right round the
-    # inside of the opening, 4 mm of it, standing 1 mm proud with rounded
-    # transitions at both ends. It is the narrowest circle in the bowl, so it --
-    # not the rim -- is what every diameter of the shade has to get past, and it
-    # is the reason the band's lower half is cut back. ``bead_h = 0`` removes it
-    # and gives back exactly the bowl and the shade this model had before it was
-    # measured, which is what a bowl with a plain rolled edge wants.
+    # --- The bulge inside the mouth ------------------------------------------
+    # Measured on the bowl: a bulge just inside the opening, 4 mm across,
+    # standing 1 mm proud of the sphere with rounded transitions at both ends.
+    # The band answers it with a notch round its bottom rather than by being made
+    # smaller, and that is a choice with a condition attached: **it assumes the
+    # bulge is a lump, not a ring.** A shade whose seat is on the sphere is
+    # 1 mm wider than a continuous ring of this height would leave, so it could
+    # never be pushed through one; past a single lump it tilts in, which the
+    # taper gives it room to do (5 mm down the seat the bore is already 1 mm
+    # wider than the part). The mock draws the bulge as a full ring anyway --
+    # the shade can come to rest at any azimuth, so the ring is the envelope of
+    # everywhere the lump could be, and the notch has to clear all of it.
+    # ``bead_h = 0`` removes both and gives back the plain taper seat.
     bead_w: float = 4.0
     bead_h: float = 1.0
-    bead_depth: float = 0.0  # from the rim plane to the bead's near edge
+    bead_depth: float = 0.0  # from the rim plane to the bulge's near edge
     bead_clear: float = BEAD_CLEAR
 
     # --- The printed shade ---------------------------------------------------
-    band_h: float = 20.0  # "about 2 cm high": every ring and every cross arm
+    band_h: float = 23.0  # every ring and every cross arm
     wall: float = 2.4  # radial on a ring, tangential on an arm, normal on the band
     chamfer: float = 0.6  # every horizontal edge, cut in the revolved profile
-    rim_inset: float = 3.0
+    rim_inset: float = 0.0
     seat_clear: float = 0.0
     eye_d: float = 45.0
     ring_count: int = 5
@@ -190,17 +185,25 @@ class Lamp:
         v["bowl_wall"] = _clamp(v["bowl_wall"], 0.2, 3.0)
         v["bowl_hole_d"] = _clamp(v["bowl_hole_d"], 4.0, v["bowl_d"] / 2)
 
-        # The bead, next, because it is measured on the bowl rather than chosen,
-        # and from here on it is what the band's diameters answer to. Only its
-        # own sanity is enforced: it has to fit inside the dome it runs round.
+        # The bulge, next, because it is measured on the bowl rather than chosen
+        # and the notch is cut from it. Only its own sanity is enforced here: it
+        # has to fit inside the dome it sits in.
         v["bead_depth"] = _clamp(v["bead_depth"], 0.0, 0.25 * v["bowl_h"])
         v["bead_w"] = _clamp(v["bead_w"], 0.0, 0.25 * v["bowl_h"])
         v["bead_h"] = _clamp(v["bead_h"], 0.0, min(5.0, 0.05 * v["bowl_d"]))
         v["bead_clear"] = _clamp(v["bead_clear"], 0.0, 2.0)
 
-        # Wall and magnet, settled together -- see MIN_BACKING for which way.
+        # Wall, magnet and notch, settled together. Two things eat the wall from
+        # opposite sides -- the pocket from outside (MIN_BACKING) and the notch
+        # from the same side lower down (fits.MIN_WALL of skirt has to survive
+        # it) -- and in both cases what moves is the wall, for the reason
+        # MIN_BACKING gives: a magnet never shrinks into a pocket it does not
+        # fill, and a notch never stops short of the bulge it exists to clear.
         v["magnet_t"] = _clamp(v["magnet_t"], 0.5, 8.0)
-        v["wall"] = _clamp(max(v["wall"], v["magnet_t"] + MIN_BACKING), *WALL_RANGE)
+        notch = v["bead_h"] + v["bead_clear"] if v["bead_h"] > 0 and v["bead_w"] > 0 else 0.0
+        v["wall"] = _clamp(
+            max(v["wall"], v["magnet_t"] + MIN_BACKING, notch + fits.MIN_WALL), *WALL_RANGE
+        )
         v["magnet_t"] = min(v["magnet_t"], v["wall"] - MIN_BACKING)
 
         # How much of the dome the band may occupy. band_inner_radius stays real
@@ -209,16 +212,6 @@ class Lamp:
         # the point where its inside face closes to nothing.
         headroom = v["bowl_h"] - v["bowl_wall"] - v["wall"]
         v["rim_inset"] = _clamp(v["rim_inset"], 0.0, 0.4 * headroom)
-        v["band_h"] = _clamp(v["band_h"], 4.0, 0.85 * (headroom - v["rim_inset"]))
-
-        # Then the floor the bead puts under the reveal -- after band_h, because
-        # it is a fraction of it (see SEAT_FRACTION), and before the chamfer,
-        # which is a fraction of what band_h ends up being. Raising the inset
-        # spends headroom, so band_h is re-clamped for what is left of it. The
-        # 0.4 cap wins if the two ever disagree: a band with no dome to sit in is
-        # a worse part than one with a short seat.
-        floor = cls(**v).seat_start_depth() - (1 - SEAT_FRACTION) * v["band_h"]
-        v["rim_inset"] = _clamp(max(v["rim_inset"], floor), 0.0, 0.4 * headroom)
         v["band_h"] = _clamp(v["band_h"], 4.0, 0.85 * (headroom - v["rim_inset"]))
         v["chamfer"] = _clamp(v["chamfer"], 0.0, min(v["wall"], v["band_h"]) / 3)
 
@@ -259,24 +252,13 @@ class Lamp:
         return 2 * (self.band_inner_radius(0.0) - self.wall - span)
 
     def _max_magnet_d(self) -> float:
-        """Largest disc whose teardrop still fits the seat it has to sit in.
+        """Largest disc whose teardrop peak still clears the band's top edge.
 
-        Two bounds, and the smaller wins. The first is the band's top edge: the
-        peak, not the bore, is what runs out of room there, standing
-        ``pocket_d/2 * sqrt(2)`` above an axis at mid-height. The second is the
-        seat itself -- above the relief the bead forces there is only
-        ``band_h - band_relief_height()`` of band still touching steel, and the
-        whole teardrop, bore below and peak above, has to fit inside it.
-
-        Taking the minimum is a shade conservative: whichever of the two
-        ``pad_depth_z`` actually lands on, only that one binds. On the default
-        lamp they are 12.6 mm and 7.3 mm -- the bead's window is what binds, and
-        a 5 mm disc clears it with 2 mm to spare -- and the price of being wrong
-        the other way is a pocket that breaks out of its own band.
+        The peak, not the bore, is what runs out of room: it stands
+        ``pocket_d/2 * sqrt(2)`` above the axis, and the axis is at mid-height.
         """
         room = self.band_h / 2 - self.chamfer - 0.5
-        window = self.band_h - self.chamfer - 0.5 - self.band_relief_height() - PAD_MARGIN
-        return 2 * min(room / sqrt(2), window / (1 + sqrt(2))) - self.magnet_fit
+        return 2 * room / sqrt(2) - self.magnet_fit
 
     def _max_magnets(self) -> int:
         """How many pockets fit round the seat without running into each other.
@@ -326,14 +308,14 @@ class Lamp:
         return sqrt(self.bowl_r_in**2 - dz**2)
 
     def bead_protrusion(self, depth: float) -> float:
-        """How far the bead stands proud of the sphere, ``depth`` mm in from the rim.
+        """How far the bulge stands proud of the sphere, ``depth`` mm in from the rim.
 
-        Zero outside the bead, ``bead_h`` across its crest, and a raised cosine
+        Zero outside the bulge, ``bead_h`` across its crest, and a raised cosine
         in between -- which is what "round transitions" has to mean here, since
         no single arc can leave the sphere and arrive at the crest tangent to
-        both. The transition is ``bead_h`` long at each end, so a 4 mm bead
+        both. The transition is ``bead_h`` long at each end, so a 4 mm bulge
         standing 1 mm proud is 1 mm of blend, 2 mm of crest, 1 mm of blend; a
-        bead too shallow to fit two of those is all blend and no crest.
+        bulge too shallow to fit two of those is all blend and no crest.
         """
         if self.bead_h <= 0.0 or self.bead_w <= 0.0:
             return 0.0
@@ -348,22 +330,24 @@ class Lamp:
         return self.bead_h
 
     def bowl_clear_radius(self, depth: float) -> float:
-        """The bowl's inside with the bead counted in -- what is actually open."""
+        """The bowl's inside with the bulge counted in -- what is actually open."""
         return self.bowl_inner_radius(depth) - self.bead_protrusion(depth)
 
     def bead_throat_radius(self) -> float:
         """The narrowest circle in the bowl: 97.99 mm on the default lamp.
 
-        Sampled across the bead rather than solved, because where it pinches is
-        not where the crest is thickest. The bowl is still narrowing as the bead
-        runs inward, so the throat sits at the crest's *far* edge -- and if the
-        bead were ever shallow and wide enough for the sphere's own taper to
-        outrun the blend, it would move again. Sampling finds it either way.
+        Sampled across the bulge rather than solved, because where it pinches is
+        not where the crest is thickest. The bowl is still narrowing as the bulge
+        runs inward, so the tightest point sits at the crest's *far* edge -- and
+        if the bulge were ever shallow and wide enough for the sphere's own taper
+        to outrun the blend, it would move again. Sampling finds it either way.
 
-        Every diameter of the shade answers to this one number: the band has to
-        pass it going in, at every point of its travel, so nothing about the band
-        may be wider than this less ``bead_clear`` -- not merely the part of it
-        that ends up level with the bead.
+        Reported rather than designed to. **The band is wider than this**: its
+        seat is on the sphere, which is 1 mm bigger than the bulge leaves at that
+        depth, so a shade cannot be pushed straight down a bore of this size. It
+        goes in tilted, past a bulge that is one lump rather than a ring -- see
+        ``bead_w``'s comment on the fields, and ``checks.check_bead`` for what is
+        and is not asserted about it.
         """
         if self.bead_h <= 0.0 or self.bead_w <= 0.0:
             return self.bowl_inner_radius(self.bead_depth)
@@ -391,71 +375,93 @@ class Lamp:
 
     @property
     def pad_depth_z(self) -> float:
-        """Height of the pocket axis: mid-band, unless the bead has taken mid-band.
+        """Height of the pocket axis. Mid-band, so the magnets pull on a single
+        circle through the part's own centre of mass and nothing tips.
 
-        Mid-band is where it wants to be, so the magnets pull on a single circle
-        through the part's own centre of mass and nothing tips, and with no bead
-        that is exactly where it stays. A bead holds the band's lower part off
-        the steel (``band_relief_height``), and a magnet over that gap is a
-        magnet that does not hold, so the circle rises just far enough to clear
-        it -- 12.75 mm rather than 10 mm on the default lamp, which puts it above
-        the centre of mass rather than through it. That is the harmless
-        direction: the shade hangs from the circle instead of balancing on it.
-
-        There is no upper bound here, and that is a decision rather than an
-        oversight. Keeping the teardrop's peak under the band's top edge is
-        ``_max_magnet_d``'s job, done by shrinking the magnet, and it can fail
-        only where the 2 mm floor on ``magnet_d`` bites -- a band so short that
-        no real disc fits it at all. Capping the pad there instead would drag the
-        bore back down across the relief's own kink, and a pocket cut across that
-        ridge severs the wedge above it: measured, on the smallest lamp the
-        sliders can ask for, a 0.003 mm3 chip that leaves the shade as two
-        solids. A pocket that runs out through the top edge is the better failure
-        of the two -- it is still one connected part, and it is visibly wrong
-        rather than quietly wrong.
+        11.5 mm on the default lamp, against a notch that has finished by 5.8 mm,
+        so every bore is well clear of it and lands on bare sphere. That is not
+        left to luck -- ``checks.py`` asserts the gap rather than assuming a
+        23 mm band always has one.
         """
-        return max(
-            self.band_h / 2,
-            self.band_relief_height() + PAD_MARGIN + self.pocket_d / 2,
-        )
+        return self.band_h / 2
 
-    def seat_start_depth(self) -> float:
-        """Depth at which the bowl has narrowed to the band's widest allowed circle.
+    def band_notch_depth(self) -> float:
+        """How far the notch is cut back from the seat: the bulge, plus clearance.
 
-        Above this the band can lie on the sphere; below it, the bead's throat is
-        the tighter of the two and the band has to be cut back off the steel.
-        12.80 mm on the default lamp, against a 3 mm reveal -- which is why the
-        band's lower 9.8 mm is relieved and its upper 10.2 mm is the seat.
+        1.30 mm on the default lamp. Radial, and measured from the sphere the
+        rest of the band lies on, because that is the surface the bulge itself
+        stands proud of.
         """
-        cap = self.band_cap_radius() + self.seat_clear
-        if cap >= self.bowl_r_in:
+        if self.bead_h <= 0.0 or self.bead_w <= 0.0:
             return 0.0
-        return sqrt(self.bowl_r_in**2 - cap**2) - self.rim_drop
+        return self.bead_h + self.bead_clear
 
-    def band_cap_radius(self) -> float:
-        """The widest the band may be anywhere: the throat, less its clearance."""
-        return self.bead_throat_radius() - self.bead_clear
+    def band_notch_top(self) -> float:
+        """How far up the band the notch stays at full depth: 4.5 mm by default.
 
-    def band_relief_height(self) -> float:
-        """How much of the band, from its underside up, is held off the steel.
-
-        Zero on a bowl with no bead, and then everything below behaves exactly as
-        it did before one was measured.
+        The bulge's own far edge plus ``NOTCH_MARGIN``, measured in the band's
+        own coordinates -- so a reveal above the rim, if there is one, shortens
+        the notch rather than moving it.
         """
-        return _clamp(self.seat_start_depth() - self.rim_inset, 0.0, self.band_h)
+        if self.band_notch_depth() <= 0.0:
+            return 0.0
+        top = self.bead_depth + self.bead_w + NOTCH_MARGIN - self.rim_inset
+        return _clamp(top, 0.0, self.band_h)
 
-    def band_relief(self, z: float) -> float:
-        """How far the band is cut back from the seat at ``z``, to clear the bead.
+    def band_notch_ramp_top(self) -> float:
+        """Where the notch has ramped back out to the seat: 5.8 mm by default.
 
-        Both of the band's faces take the same cut, so the wall stays the wall:
-        relieving the outside alone would leave 1.0 mm of plastic at the bottom
-        of a 2.4 mm band, on the one ring that has to hold a 200 mm first layer
-        down.
+        The notch does not step back out, it ramps at 45 deg, which is why this
+        stands one ``band_notch_depth`` above ``band_notch_top``. A step would
+        leave a horizontal face pointing at the bed with 1.3 mm of nothing under
+        it -- the band prints from this end, so that face is an overhang, and a
+        45 deg run is the house answer to one.
         """
-        return max(0.0, self._seat_sphere(z) - self.band_cap_radius())
+        if self.band_notch_depth() <= 0.0:
+            return 0.0
+        return _clamp(self.band_notch_top() + self.band_notch_depth(), 0.0, self.band_h)
+
+    def band_skirt(self) -> float:
+        """What is left of the wall below the notch: 1.10 mm on the default lamp.
+
+        The notch is cut from the outside only, so this is the wall less the
+        notch's depth. ``Lamp.of`` will not let it fall below ``fits.MIN_WALL``
+        -- a deeper bulge grows the wall rather than thinning this away.
+        """
+        return self.wall - self.band_notch_depth()
+
+    def skirt_chamfer(self) -> float:
+        """The chamfer the band's bottom edges get, which is not the part's.
+
+        A 0.6 mm chamfer needs 1.2 mm of face to be taken off both corners of,
+        and the skirt has 1.10 mm. Cut at full size the two would meet 0.05 mm up
+        and leave a raw 90 deg knife edge running right round the part -- built
+        exactly that, and ``checks.sharp_convex_edges`` is what found it. A third
+        of the skirt leaves the same proportion of flat between them that the
+        rest of the part's edges have.
+        """
+        return min(self.chamfer, max(0.0, self.band_skirt() / 3))
+
+    def band_setback(self, z: float) -> float:
+        """How far the band's outer face is held off the seat at ``z``.
+
+        Full depth over the bulge, nothing above the ramp, and a straight run
+        between. This is the *only* place the band leaves the bowl's sphere:
+        everything above ``band_notch_ramp_top`` is seat, which is what makes
+        the taper a taper over 17 of the band's 23 mm.
+        """
+        depth = self.band_notch_depth()
+        if depth <= 0.0:
+            return 0.0
+        top, ramp = self.band_notch_top(), self.band_notch_ramp_top()
+        if z <= top:
+            return depth
+        if z >= ramp:
+            return 0.0
+        return depth * (ramp - z) / (ramp - top)
 
     def _seat_sphere(self, z: float) -> float:
-        """Where the band's outer face would be with no bead in the way."""
+        """Where the band's outer face lies with nothing cut out of it."""
         return self.bowl_inner_radius(self.rim_inset + z) - self.seat_clear
 
     def pad_backing(self) -> float:
@@ -477,19 +483,10 @@ class Lamp:
         """The band's outer face, ``z`` mm up from the shade's underside.
 
         The bowl's own inner sphere, less ``seat_clear`` -- which is zero, and
-        that is the design -- and then capped at the bead's throat, which on this
-        bowl takes the lower half. Above ``band_relief_height()`` this is
-        ``bowl_inner_radius`` exactly and the paragraph below is the whole story;
-        below it the face is a plain cylinder at ``band_cap_radius()``, standing
-        0.3 mm off the bead at its closest and about 1.4 mm off the steel at the
-        underside. That part of the band carries no magnets and touches nothing:
-        it is there as the baffle's bottom and as the ring that holds a 200 mm
-        first layer flat, and it is the price of a mouth that is narrower than
-        the bowl behind it.
-
-        What the cap does *not* do is make the fit a clearance fit. The seat is
-        still the sphere over the band's upper half, still with nothing
-        subtracted, so the part still beds down rather than hanging in a gap.
+        that is the design -- everywhere except the bottom 5.8 mm, where
+        ``band_setback`` cuts the notch that lets the bulge in the mouth pass.
+        17 of the band's 23 mm are seat, the notch touches nothing, and the
+        surface is one continuous sphere from the ramp's top to the band's.
 
         The mating surfaces converge at 10.5 deg, so a shade printed a few tenths oversize
         does not bind, it comes to rest a couple of millimetres shallower; one
@@ -505,7 +502,7 @@ class Lamp:
         would sag 0.5 mm away from the steel at mid-height, turning a seat that
         beds down over its whole height into one that touches at two rims.
         """
-        return self._seat_sphere(z) - self.band_relief(z)
+        return self._seat_sphere(z) - self.band_setback(z)
 
     def band_inner_radius(self, z: float) -> float:
         """The band's inside face: the seat's sphere again, ``wall`` smaller.
@@ -522,13 +519,17 @@ class Lamp:
         same centre there is nothing to bulge inward, because a bulge is what a
         band of uneven thickness needs in order to swallow a pocket.
 
-        Where the bead forces the outer face off the sphere, this face steps back
-        by the *same* ``band_relief``, so the two stay ``wall`` apart there too --
-        see that method for why the alternative is a 1 mm bottom ring.
+        **This face does not follow the notch**, so the band is genuinely thinner
+        over the bottom 4.5 mm -- 1.11 mm against 2.41 mm. That is the shape the
+        notch was asked for, and it is the right way round of the two: the skirt
+        below the bulge carries no magnets and no load, while stepping the inside
+        as well would push a matching ridge into the one face a hand takes hold
+        of when the shade is lifted out. 1.11 mm is still three lines at a 0.4 mm
+        nozzle and comfortably over ``fits.MIN_WALL``; what it costs is first-
+        layer grip on a 200 mm ring, which is what the README's brim is for.
         """
         centre_offset = self.rim_inset + z + self.rim_drop
-        sphere = sqrt((self.bowl_r_in - self.seat_clear - self.wall) ** 2 - centre_offset**2)
-        return sphere - self.band_relief(z)
+        return sqrt((self.bowl_r_in - self.seat_clear - self.wall) ** 2 - centre_offset**2)
 
     def pad_face_radius(self) -> float:
         """Radius at which a magnet meets the steel: the band's face, at pad height.
@@ -538,9 +539,9 @@ class Lamp:
         5 mm. So the magnet -- not the plastic -- is what touches, which is the
         whole point of putting the pocket here rather than under a printed cap.
 
-        ``pad_depth_z`` keeps this above the bead's relief, so it reads the
-        sphere and not the cap: a pad radius taken off the relieved part of the
-        band would be a magnet held a millimetre off the steel.
+        Mid-band puts it far above the notch, so it reads the sphere and not the
+        setback: a pad radius taken off the notch would be a magnet held a
+        millimetre off the steel.
         """
         return self.band_outer_radius(self.pad_depth_z)
 
@@ -628,7 +629,7 @@ BOWL_SHAPE_PARAMS = [
     _num("bowl_d", "Bowl diameter (mm)", 60.0, 400.0, 1.0),
     _num("bowl_h", "Bowl depth (mm)", 20.0, 200.0, 1.0),
     _num("bowl_wall", "Bowl wall (mm)", 0.2, 3.0, 0.1),
-    # The bead belongs with the bowl's shape rather than with the band's, even
+    # The bulge belongs with the bowl's shape rather than with the band's, even
     # though it is the band it changes: it is measured off the bowl in front of
     # you. Take a rolled lip's height off with a caliper, or set it to 0 for a
     # bowl whose mouth is plain, and the band re-cuts itself either way.
