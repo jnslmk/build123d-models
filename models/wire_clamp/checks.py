@@ -30,10 +30,9 @@ from build123d import Compound, Part, Pos, Rot
 
 from ..lib.checks import Report, is_solid_at, is_periodic_seam, sharp_convex_edges
 from ..lib.edges import as_part
-from . import body, printable, screw, wire
+from . import body, printable, screw, thread as tp, wire
 from . import screw_turn
 from .config import (
-    BASE_T,
     COLLAR_H,
     KNOB_CHAMFER,
     RING_H,
@@ -50,12 +49,13 @@ from .config import (
     Clamp,
 )
 
-SAMPLES = (WIRE_MIN, 1.0, 2.0, 2.9, WIRE_MAX)
+SAMPLES = (WIRE_MIN, 1.0, 2.0, 2.9, 5.6, WIRE_MAX)
 """Slider positions every rule below is checked at, rather than only the
-default. Chosen to bracket the one discontinuity in the model -- the thread
-steps up from its floor at about 2.9 mm of wire -- with a position either side
-of it, because a property that holds at both ends of a range and breaks in the
-middle is exactly what a two-point check misses."""
+default. Two of them are chosen rather than spaced: **2.9** brackets the one
+discontinuity in the model, where the thread steps up off its floor, and **5.6**
+is the position whose male thread comes out 15.000000000000004 mm long -- see
+``check_thread_lengths``. A property that holds at both ends of a range and
+breaks in the middle is exactly what a two-point check misses."""
 
 NOZZLE = 0.4
 """The extrusion width every "can the printer resolve this" rule below is in
@@ -275,6 +275,63 @@ def check_thread_is_fixed(r: Report) -> None:
     )
 
 
+def check_thread_lengths(r: Report) -> None:
+    """No thread length may sit a hair above a whole number of turns.
+
+    ``bd_warehouse`` stacks whole thread loops and then adds one partial loop,
+    guarded by a bare ``thread_loops % 1 > 0.0``. An exact multiple of the pitch
+    skips the partial loop and is fine; a length a hair *over* one passes the
+    guard and asks OCC to build a helix a few femtometres tall, which raises
+    ``Standard_ConstructionError`` and takes the whole model with it.
+
+    This is the least size-related bug in the package and the easiest to
+    reintroduce: which side of the line a length falls on is float noise, so
+    moving *any* constant -- the base, the collar, the mouth -- can push a
+    length that builds today onto the wrong side tomorrow. Hence a sweep rather
+    than a sample, and hence the demonstration below that the trap is real and
+    reachable inside the shipped range rather than theoretical.
+    """
+    r.section("thread: lengths clear of the whole-turn trap")
+
+    raw = Clamp.of(5.6).male_len
+    raw_frac = ((raw - THREAD_PITCH) / THREAD_PITCH) % 1
+    r.check(
+        0.0 < raw_frac < tp.WHOLE_TURN_EPS,
+        "the trap is real and inside the range",
+        f"at 5.6 mm of wire the male thread wants to be {raw!r} mm, which is "
+        f"{raw_frac:.2e} of a turn past a whole one -- above zero, so "
+        "bd_warehouse builds that partial loop, and far enough below one that "
+        "it is degenerate. Without the snap in ``thread._whole_turn_safe`` this "
+        "position raises rather than builds",
+    )
+
+    unsafe = []
+    for i in range(int(WIRE_MIN * 100), int(WIRE_MAX * 100) + 1):
+        c = Clamp.of(i / 100)
+        for label, length in (("male", c.male_len), ("female", c.thread_engage)):
+            frac = ((tp._whole_turn_safe(length) - THREAD_PITCH) / THREAD_PITCH) % 1
+            if 0.0 < frac < tp.WHOLE_TURN_EPS or frac > 1 - tp.WHOLE_TURN_EPS:
+                unsafe.append((i / 100, label, length))
+    swept = int(WIRE_MAX * 100) - int(WIRE_MIN * 100) + 1
+    r.check(
+        not unsafe,
+        "every length across the whole slider is safe",
+        f"{swept} positions x 2 threads swept at 0.01 mm"
+        + (f" -- UNSAFE: {unsafe[:5]}" if unsafe else ""),
+    )
+    r.check(
+        all(
+            abs(tp._whole_turn_safe(L) - L) < 1e-6
+            for w in SAMPLES
+            for L in (Clamp.of(w).male_len, Clamp.of(w).thread_engage)
+        ),
+        "the snap never moves a length enough to matter",
+        "under a micron in every sampled case -- it exists to dodge a float "
+        "boundary, not to change the part, and ``body_h`` is computed from the "
+        "unsnapped number",
+    )
+
+
 def check_web_ui(r: Report) -> None:
     """Every module you can download an STL from carries the slider.
 
@@ -381,9 +438,9 @@ def check_body_solid(r: Report, part: Part, c: Clamp) -> None:
     r.section("body: geometry, point-sampled")
     mid_thread = (c.thread_z0 + c.thread_z1) / 2
     r.check(
-        is_solid_at(part, 0, 0, BASE_T / 2),
+        is_solid_at(part, 0, 0, c.base_t / 2),
         "the channel has a floor",
-        f"solid on the axis at z={BASE_T / 2}",
+        f"solid on the axis at z={c.base_t / 2}",
     )
     r.check(
         not is_solid_at(part, 0, 0, c.channel_top - 0.2),
@@ -391,7 +448,7 @@ def check_body_solid(r: Report, part: Part, c: Clamp) -> None:
         "void on the axis just under the channel's top",
     )
     r.check(
-        is_solid_at(part, 0, 0, BASE_T + c.rib_h / 2),
+        is_solid_at(part, 0, 0, c.base_t + c.rib_h / 2),
         "there is a rib on the axis",
         "the rib pattern is centred, so the middle of the floor is ribbed "
         "rather than flat",
@@ -408,8 +465,8 @@ def check_body_solid(r: Report, part: Part, c: Clamp) -> None:
         f"solid at r={c.body_r - WALL / 2:.2f} halfway up the thread",
     )
     r.check(
-        is_solid_at(part, 0, c.channel_l / 2 + 0.5, BASE_T / 2)
-        and is_solid_at(part, c.channel_w / 2 + 0.5, 0, BASE_T / 2),
+        is_solid_at(part, 0, c.channel_l / 2 + 0.5, c.base_t / 2)
+        and is_solid_at(part, c.channel_w / 2 + 0.5, 0, c.base_t / 2),
         "the slot is surrounded by material at floor level",
         "solid just outside the slot in both axes",
     )
@@ -564,15 +621,18 @@ def check_slider_stops(r: Report) -> None:
             f"{c.channel_l / 2 - c.plunger_r:.2f} mm of passage along the wire, "
             f"{c.channel_w / 2 - c.plunger_r:.2f} mm across it",
         )
-        built = body.build(c)
-        r.check(
-            built.volume > 0
-            and abs(built.bounding_box().min.Z) < 1e-6
-            and len(built.solids()) == 1,
-            f"body builds as one solid at wire_d={w}",
-            f"{built.volume:.1f} mm^3, {2 * c.body_r:.2f} x {c.body_h:.2f} mm, "
-            f"thread {c.thread_d} mm",
-        )
+        # Both parts, not just the body: the whole-turn trap above lived in the
+        # *male* thread, so a sweep that only builds bodies would have missed
+        # the one bug this section exists to catch.
+        for label, built in (("body", body.build(c)), ("screw", screw.build(c))):
+            r.check(
+                built.volume > 0
+                and abs(built.bounding_box().min.Z) < 1e-6
+                and len(built.solids()) == 1,
+                f"{label} builds as one solid, on the bed, at wire_d={w}",
+                f"{built.volume:.1f} mm^3, min.Z={built.bounding_box().min.Z:+.2e}, "
+                f"{len(built.solids())} solid(s), thread {c.thread_d} mm",
+            )
     r.check(
         Clamp.of(WIRE_MIN - 5).wire_d == WIRE_MIN
         and Clamp.of(WIRE_MAX + 5).wire_d == WIRE_MAX,
@@ -591,9 +651,9 @@ def check_assembly(r: Report, c: Clamp) -> None:
     )
     lowest = min(s.bounding_box().min.Z for s in strands)
     r.check(
-        lowest >= BASE_T + c.rib_h - 1e-6,
+        lowest >= c.base_t + c.rib_h - 1e-6,
         "the mocked-up wire rests on the ribs, not through them",
-        f"wire bottom {lowest:.2f}, rib tops {BASE_T + c.rib_h:.2f}",
+        f"wire bottom {lowest:.2f}, rib tops {c.base_t + c.rib_h:.2f}",
     )
     scene = Compound(children=[body.build(c), *strands])
     r.check(
@@ -609,6 +669,7 @@ def run() -> Report:
 
     check_thread_rules(r)
     check_thread_is_fixed(r)
+    check_thread_lengths(r)
     check_web_ui(r)
     check_kinematics(r, c)
     check_wire_path(r, c)

@@ -49,7 +49,6 @@ from build123d import (
 from ..lib.edges import as_part, chamfer_edge, fillet_edge
 from . import thread as tp
 from .config import (
-    BASE_T,
     BOTTOM_CHAMFER,
     DEFAULT,
     LIP_CHAMFER,
@@ -125,9 +124,9 @@ def channel_tool(c: Clamp) -> Part:
     happens to a frustum that tries to reach the sill from outside it.
     """
     with BuildPart() as tool:
-        with BuildSketch(Plane.XY.offset(BASE_T)):
+        with BuildSketch(Plane.XY.offset(c.base_t)):
             _slot(c)
-        extrude(amount=c.window_z0 - LIP_CHAMFER - BASE_T)
+        extrude(amount=c.window_z0 - LIP_CHAMFER - c.base_t)
 
         with BuildSketch(Plane.XY.offset(c.window_z0 - LIP_CHAMFER)):
             _slot(c)
@@ -177,7 +176,7 @@ def rib_tool(c: Clamp) -> Part:
     reach = c.channel_w + 1.0
     with BuildPart() as tool:
         for i in range(-count, count + 1):
-            with Locations((0, i * c.rib_pitch, BASE_T)):
+            with Locations((0, i * c.rib_pitch, c.base_t)):
                 Cylinder(c.rib_h, reach, rotation=(0, 90, 0))
     return tool.part
 

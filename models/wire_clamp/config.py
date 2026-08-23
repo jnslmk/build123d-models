@@ -151,9 +151,25 @@ WALL_Y = 1.0
 of the channel and another at the top, and the screw's thrust runs down the two
 pillars either side of the window, not through here."""
 
-BASE_T = 1.4
-"""Solid floor under the channel. Fixed, because what stands on it is the
-plunger and the plunger's thrust is a hand on a knob at any wire size."""
+BASE_T_MIN = 1.4
+"""Floor on the floor: the solid disc under the channel, when the ribs standing
+on it are small enough not to set it themselves. See ``Clamp.base_t``."""
+
+RIB_BED = 0.8
+"""Solid floor that must remain *under* the deepest point of a rib.
+
+A rib is a cylinder centred on the floor's top face, so its lower half is buried
+-- which is the point, because a half-round sitting *on* a flat floor would meet
+it tangentially and print as a feather edge, where a buried one meets it at 90
+degrees. The consequence is that the floor has to be thicker than the rib is
+tall, and once the ribs scale with the cord, so must the floor. ``models.lib.fits.MIN_WALL``:
+two perimeters at a 0.4 mm nozzle.
+
+Left implicit, this is a real defect rather than a cosmetic one, and it shipped:
+at 4 mm of cord the rib was exactly as tall as the 1.4 mm floor and tangent to
+the underside of the part, and any larger cord pushed it *through* -- a part
+whose bounding box started below the bed, with five half-cylinders sticking out
+of its first layer. ``checks.py``'s print-pose assertion is what caught it."""
 
 HEAD = 0.6
 """Solid ring between the top of the window and the top of the channel, so the
@@ -240,14 +256,34 @@ are half cylinders, so one number does both. 1.75 extrusions wide at the base.""
 # of.
 # ---------------------------------------------------------------------------
 
-WIRE_MIN, WIRE_MAX = 0.5, 4.0
-"""What one model covers: picture wire and trimmer line at the bottom, 4 mm
-shock cord and paracord at the top. The thread steps up on the way, at about
-2.9 mm, where two strands stop fitting under an 8 mm thread's plunger.
+WIRE_MIN, WIRE_MAX = 0.5, 6.0
+"""What one model covers: picture wire, beading wire and trimmer line at the
+bottom; 2 mm guyline, 3 mm shock cord, 4 mm paracord and 6 mm tarp cord on the
+way up. The thread steps up at about 2.9 mm, where two strands stop fitting
+under an 8 mm thread's plunger.
 
-Above 4 mm the original's own files are the better answer and they start at
-3.1 mm -- a rope that thick is compressible enough that its rim-nip works, and
-this model's wire passages would make the body wider than it needs to be."""
+**Why it stops at 6 and not higher.** Nothing breaks above it -- the geometry
+stays valid to 12 mm and beyond -- so the limit is judgement, and it is this:
+past about 6 mm the clamp stops being the right tool rather than stopping
+working.
+
+* *Size.* The wire passages cost a cord diameter at each end of the slot, so
+  the body runs about ``4 x d + 4.4`` across against the original's ``3 x d``,
+  and taller still. At 6 mm that is Ø29 x 36 mm and 23 g of filament -- a
+  chunky but reasonable tarp toggle. At 12 mm it is Ø53 x 63 mm and about 150 g
+  to hold a rope the original holds with Ø36 x 30 mm.
+* *Diminishing returns.* The body-to-cord ratio has already flattened out by
+  6 mm (4.8x, against 5.2x at 4 mm and 4.4x at 12 mm), so going bigger buys
+  almost no proportional improvement -- only absolute bulk.
+* *The mechanism stops being necessary.* Four bends through a slot are what a
+  thin, stiff, slippery line needs, because a rim-nip yields the plastic before
+  it holds the wire. Rope that thick is compressible and has surface area to
+  spare, which is exactly the case the original's nip was designed for -- and
+  its published files already cover 3 to 12 mm, five times smaller.
+
+So: below 6 mm this model is the better tool, above it the original is. That is
+a nicer place to draw the line than an arbitrary number, and it is where the two
+designs actually cross over."""
 
 WIRE_DEFAULT = 1.0
 STRANDS = 2
@@ -456,6 +492,12 @@ class Clamp:
         return self.channel_w + 2 * LIP_CHAMFER + 0.2
 
     @property
+    def base_t(self) -> float:
+        """Solid floor under the channel: whichever is thicker, the floor's own
+        minimum or what the ribs standing on it need beneath them."""
+        return max(BASE_T_MIN, self.rib_h + RIB_BED)
+
+    @property
     def rib_h(self) -> float:
         """Height of the floor ribs, and their half-round radius.
 
@@ -489,11 +531,11 @@ class Clamp:
 
     @property
     def channel_top(self) -> float:
-        return BASE_T + self.channel_h
+        return self.base_t + self.channel_h
 
     @property
     def window_z0(self) -> float:
-        return BASE_T + self.lip
+        return self.base_t + self.lip
 
     @property
     def window_z1(self) -> float:
@@ -547,7 +589,7 @@ class Clamp:
         clamping force -- and a knob that has gone flush is the tell that
         nothing is in there.
         """
-        return BASE_T + self.rib_h
+        return self.base_t + self.rib_h
 
     @property
     def clamped_z(self) -> float:

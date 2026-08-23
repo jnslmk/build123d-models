@@ -22,23 +22,35 @@ loop of wire in through one side of the window and out the other, turn the knob
 finger tight, and it holds. Back the knob off and the wire slides again -- so
 it tensions a line, or ends a loop, without a knot and without a crimp.
 
-Built for 1 mm, and **parametric from 0.5 to 4.0 mm on the website** -- one
-slider, which sizes everything:
+Built for 1 mm, and **parametric from 0.5 to 6.0 mm on the website** -- one
+control, which sizes everything:
 
-| Wire | Thread | Body | Screw | Slot |
-| --- | --- | --- | --- | --- |
-| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 16.3 | Ø11.1 × 19.6 | 6.5 × 8.3 |
-| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 17.0** | **Ø12.1 × 20.3** | **6.5 × 9.3** |
-| 2.0 mm | 8.0 × 2.5 | Ø14.1 × 19.4 | Ø14.1 × 22.4 | 6.5 × 11.3 |
-| 2.9 mm | 8.5 × 2.5 | Ø16.4 × 22.2 | Ø16.4 × 24.8 | 7.0 × 13.6 |
-| 4.0 mm | 10.5 × 2.5 | Ø20.6 × 27.0 | Ø20.6 × 29.2 | 9.0 × 17.8 |
+| Wire | Thread | Body | Screw | Slot | Filament |
+| --- | --- | --- | --- | --- | --- |
+| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 16.3 | Ø11.1 × 19.6 | 6.5 × 8.3 | 2 g |
+| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 17.0** | **Ø12.1 × 20.3** | **6.5 × 9.3** | **2 g** |
+| 2.0 mm | 8.0 × 2.5 | Ø14.1 × 19.6 | Ø14.1 × 22.4 | 6.5 × 11.3 | 3 g |
+| 3.0 mm | 8.5 × 2.5 | Ø16.6 × 22.9 | Ø16.6 × 25.0 | 7.0 × 13.8 | 5 g |
+| 4.0 mm | 10.5 × 2.5 | Ø20.6 × 27.8 | Ø20.6 × 29.1 | 9.0 × 17.8 | 9 g |
+| 5.0 mm | 12.5 × 2.5 | Ø24.6 × 32.6 | Ø24.6 × 33.3 | 11.0 × 21.8 | 16 g |
+| 6.0 mm | 14.5 × 2.5 | Ø28.6 × 37.5 | Ø28.6 × 37.5 | 13.0 × 25.8 | 24 g |
 
 The pitch column never moves. That is the point — see below.
 
-The slider is on the two printed parts and on the one-plate layout, not only on
+The control is on the two printed parts and on the one-plate layout, not only on
 the assembly, because the website reads a model's parameters off whichever model
 is on screen. Take `wire_clamp.printable` if you want a guaranteed matched pair:
 both parts come off the same setting.
+
+**Why it stops at 6 mm.** Nothing breaks above it — the geometry stays valid —
+but past there the clamp stops being the right tool. The wire passages cost a
+cord diameter at each end of the slot, so the body runs about `4 × d` across
+against the original's `3 × d`; the ratio has already flattened out by 6 mm, so
+going bigger buys bulk rather than proportion; and four bends through a slot are
+what a thin, stiff, slippery line needs, where rope that thick is compressible
+enough that the original's rim-nip works. Its own files cover 3–12 mm and are
+five times smaller there. So: below 6 mm this model is the better tool, above it
+the original is.
 
 ## Why it is bigger than the wire suggests
 

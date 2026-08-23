@@ -27,6 +27,40 @@ from build123d import Part
 
 from .config import THREAD_FLAT, THREAD_PITCH, THREAD_ROOT_W, Clamp
 
+WHOLE_TURN_EPS = 1e-6
+"""How close to a whole number of turns counts as *on* it.
+
+``bd_warehouse`` builds a thread as a stack of whole loops plus one partial
+loop, and decides whether the partial one exists with a bare
+``if self.thread_loops % 1 > 0.0`` (``bd_warehouse/thread.py``, in ``Thread``).
+An exact multiple of the pitch is therefore fine -- the partial loop is skipped
+-- and so is any honest fraction. What is not fine is a length a *hair over* a
+multiple: ``15.000000000000004 / 2.5`` leaves a remainder of 1.8e-15, the guard
+passes, and it builds a helix four femtometres tall. OCC's ``GCPnts_AbscissaPoint``
+raises ``Standard_ConstructionError`` sampling it, and the whole model fails to
+build.
+
+Which side of that line a length lands on is float noise, not design: at 5.6 mm
+of wire this model wants a 15 mm male thread and gets 15.000000000000004. So the
+lengths are snapped onto the exact multiple below, which moves them by about
+1e-15 mm -- nothing geometrically, and the difference between a part and an
+exception. ``checks.py`` sweeps the whole slider for it."""
+
+
+def _whole_turn_safe(length: float) -> float:
+    """A thread length that cannot land a hair off a whole number of turns.
+
+    Reproduces ``Thread``'s own arithmetic rather than guessing at it: with both
+    ends faded it builds ``(length - pitch) / pitch`` loops, so that is the
+    quantity whose fractional part has to stay away from zero. Lengths that are
+    not near a whole turn are returned untouched.
+    """
+    loops = (length - THREAD_PITCH) / THREAD_PITCH
+    frac = loops % 1
+    if frac < WHOLE_TURN_EPS or frac > 1 - WHOLE_TURN_EPS:
+        return round(loops) * THREAD_PITCH + THREAD_PITCH
+    return length
+
 
 def _thread(apex_r: float, root_r: float, length: float) -> Part:
     """One thread, faded at both ends, built **outside** any builder.
@@ -47,7 +81,7 @@ def _thread(apex_r: float, root_r: float, length: float) -> Part:
         root_radius=root_r,
         root_width=THREAD_ROOT_W,
         pitch=THREAD_PITCH,
-        length=length,
+        length=_whole_turn_safe(length),
         end_finishes=("fade", "fade"),
     )
 

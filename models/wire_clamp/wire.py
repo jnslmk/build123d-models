@@ -27,7 +27,7 @@ from build123d import (
 
 from ..lib.edges import as_part
 
-from .config import BASE_T, STRANDS, Clamp
+from .config import STRANDS, Clamp
 
 TAIL = 6.0
 """How far the strands stick out of the clamp, each side."""
@@ -41,7 +41,7 @@ def _path_points(c: Clamp) -> list[tuple[float, float]]:
     y_out = c.body_r + TAIL
     y_turn = (c.plunger_r + c.channel_l / 2) / 2
     z_high = c.window_z0 + c.wire_d / 2
-    z_low = BASE_T + c.rib_h + c.wire_d / 2
+    z_low = c.base_t + c.rib_h + c.wire_d / 2
     return [
         (y_out, z_high),
         (y_turn, z_high),

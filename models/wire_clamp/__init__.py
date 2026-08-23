@@ -64,10 +64,12 @@ bridge.
 cannot fall out of an open clamp: with the plunger backed up clear of the
 window, a full turn and a half of thread is still engaged.
 
-**Parametric, in one number.** ``wire_d``, 0.5 to 4.0 mm, and it sizes the whole
-clamp: window, sill, slot, floor ribs, plunger, knob lobes, thread diameter,
-body diameter and body height all follow it. A 0.5 mm clamp is 11 x 16 mm; a
-4 mm one is 21 x 27 mm.
+**Parametric, in one number.** ``wire_d``, 0.5 to 6.0 mm, and it sizes the whole
+clamp: window, sill, slot, floor ribs, floor thickness, plunger, knob lobes,
+thread diameter, body diameter and body height all follow it. A 0.5 mm clamp is
+Ø11 x 16 mm and 2 g; a 6 mm one is Ø29 x 37 mm and 24 g. That covers picture
+wire and trimmer line at the bottom and 2 mm guyline, 3 mm shock cord, 4 mm
+paracord and 6 mm tarp cord on the way up.
 
 The slider is on the assembly *and* on all three printable models, because the
 website reads ``PARAMS`` off whichever model is on screen -- a slider declared
@@ -77,9 +79,15 @@ pair: both parts come off the same setting.
 
 What the slider cannot reach is the thread's profile, which is the entire lesson
 of the model. So it is safe in a way the original's is not: **no position of it
-can produce a thread the printer cannot resolve.** Above 4 mm the original's own
-files are the better answer -- rope that thick is compressible enough that its
-rim-nip works -- and they start at 3.1 mm.
+can produce a thread the printer cannot resolve.**
+
+It stops at 6 mm by judgement rather than by anything breaking -- see
+``config.WIRE_MAX``. Past there the wire passages have made the body about
+``4 x d`` across against the original's ``3 x d``, the ratio has stopped
+improving, and the mechanism has stopped being *necessary*: four bends through a
+slot are what a thin stiff line needs, and rope that thick is compressible
+enough that the original's rim-nip works. Its own files cover 3 to 12 mm and are
+five times smaller there.
 """
 
 from __future__ import annotations
