@@ -23,6 +23,13 @@ on the valve, and hold it there -- the blower's own thrust helps, and the
 WingLock's one-way flap keeps what goes in. Nothing latches, so nothing has to
 be released afterwards either; the adapter comes off with a pull.
 
+**The duster's other end empties the pad.** A fan that blows out of one port
+is pulling in at the other, so ``wolfbox_thermarest_adapter.deflate`` is the
+same funnel with the same cup, hung off the intake instead of the outlet -- a
+cap over the tail of the baton rather than a socket into its mouth, because the
+intake is a fixed grille and not a port. Both parts share ``config.py``'s valve
+end, so a cup dialled in for one is dialled in for the other.
+
 **Nothing is the narrowest thing in the path.** The throat is 16 mm, at or
 above the bore of every stock MF100 nozzle. A duster is a high-velocity,
 low-static-pressure source, so a restriction anywhere costs volume flow, which
@@ -47,19 +54,8 @@ the same file and seals better if you have a spool.
 
 from __future__ import annotations
 
-from build123d import (
-    Axis,
-    BuildLine,
-    BuildPart,
-    BuildSketch,
-    Part,
-    Plane,
-    Polyline,
-    make_face,
-    revolve,
-)
+from build123d import Part
 
-from ..lib.edges import reseat_on_bed
 from . import config
 from .config import (
     BED_CHAMFER,
@@ -80,8 +76,7 @@ from .config import (
     VALVE_SEAT_MIN,
     Adapter,
 )
-
-Point = tuple[float, float]
+from .profile import Point, revolve_section, trim
 
 # Index of each corner in the raw section, so the chamfer table below reads as
 # a place rather than a number. The section is drawn as a closed loop: up the
@@ -93,23 +88,36 @@ RIM_OUTER = 5  # cup rim, on the outside
 MOUTH_OUTER = 9  # bed-side mouth of the socket, on the outside
 
 
-def _section(a: Adapter) -> list[Point]:
-    """The half-section as (radius, height) corners, before any edge breaks.
+def bore_profile(a: Adapter) -> list[Point]:
+    """The inside of the part, bed to rim, as ``(radius, height)`` corners.
 
-    Drawn rather than derived from primitives because every break in this part
-    is a break in *this* profile, and a revolved profile carries them for free.
-    Chasing the same edges with ``chamfer()`` afterwards is the failure mode
-    ``build123d-geometry-ops`` exists to warn about, and ``cable_spool``'s hub
-    is the worked precedent.
+    Public because it is what ``checks.py`` measures against, for this part and
+    for ``deflate`` alike: "where should the wall be at this height" is a
+    question about this list, so one set of checks covers a bore of two cones
+    and a bore of four without knowing which it has.
     """
-    sock = a.socket_wall_offset()
-    cup = a.cup_wall_offset()
     return [
         (a.mouth_r, 0.0),  # MOUTH_INNER
         (a.throat_r, a.z_throat),
         (a.throat_r, a.z_throat_top),
         (a.seat_r, a.z_seat),
         (a.rim_r, a.z_rim),  # RIM_INNER
+    ]
+
+
+def _section(a: Adapter) -> list[Point]:
+    """The half-section as (radius, height) corners, before any edge breaks.
+
+    Drawn rather than derived from primitives because every break in this part
+    is a break in *this* profile, and a revolved profile carries them for free
+    -- see ``profile.py``, which does the trimming and the revolving for both
+    adapters in this package. The outside is a chain of offsets from the bore
+    above, each sized from its own cone's slope.
+    """
+    sock = a.socket_wall_offset()
+    cup = a.cup_wall_offset()
+    return [
+        *bore_profile(a),
         (a.rim_r + cup, a.z_rim),  # RIM_OUTER
         (a.seat_r + cup, a.z_seat),
         (a.throat_r + sock, a.z_throat_top),
@@ -136,51 +144,9 @@ def _breaks() -> dict[int, float]:
     }
 
 
-def _trim(points: list[Point], sizes: dict[int, float]) -> list[Point]:
-    """Replace each named corner with a straight break across it.
-
-    Cutting the corner in the *profile* -- rather than filleting the circular
-    edge it revolves into -- is what keeps this part free of OCC edge ops, and
-    it also makes the break unconditional: there is no selector to miss and no
-    all-or-nothing call to fail. Each size is clamped to a third of the shorter
-    adjacent segment so that a slider dragged to its stop shortens a break
-    instead of inverting it.
-    """
-    n = len(points)
-    out: list[Point] = []
-    for i, corner in enumerate(points):
-        size = sizes.get(i)
-        if size is None:
-            out.append(corner)
-            continue
-        prev_pt, next_pt = points[(i - 1) % n], points[(i + 1) % n]
-        back = _step(corner, prev_pt, size)
-        fore = _step(corner, next_pt, size)
-        out.extend([back, fore])
-    return out
-
-
-def _step(corner: Point, toward: Point, size: float) -> Point:
-    """A point ``size`` away from ``corner`` along the segment to ``toward``."""
-    dr, dz = toward[0] - corner[0], toward[1] - corner[1]
-    length = (dr * dr + dz * dz) ** 0.5
-    if length <= 0:
-        return corner
-    reach = min(size, length / 3)
-    return (corner[0] + dr * reach / length, corner[1] + dz * reach / length)
-
-
 def build(a: Adapter = DEFAULT) -> Part:
     """The adapter as one revolved solid, seated on the bed."""
-    points = _trim(_section(a), _breaks())
-    with BuildPart() as builder:
-        with BuildSketch(Plane.XZ) as section:
-            with BuildLine():
-                Polyline(*points, close=True)
-            make_face()
-        _ = section
-        revolve(axis=Axis.Z)
-    return reseat_on_bed(builder.part)
+    return revolve_section(trim(_section(a), _breaks()))
 
 
 # UI schema for the parametric web app. See tessellate_models.model_params().
@@ -263,4 +229,12 @@ def create(
     )
 
 
-__all__ = ["DEFAULT", "PARAMS", "Adapter", "build", "config", "create"]
+__all__ = [
+    "DEFAULT",
+    "PARAMS",
+    "Adapter",
+    "bore_profile",
+    "build",
+    "config",
+    "create",
+]

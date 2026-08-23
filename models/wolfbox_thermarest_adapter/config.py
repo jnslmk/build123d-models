@@ -8,8 +8,8 @@ diameter below is *researched* or *assumed*, in the sense the
 which it is. The same rule that model states applies here in full: a number
 that was never measured must say so.
 
-That is also why neither end of this adapter is a copy of anything. Both ends
-are **tapered sockets**, and a taper is the answer to not knowing a diameter:
+That is also why no end of either adapter is a copy of anything. Every end
+is a **tapered socket**, and a taper is the answer to not knowing a diameter:
 it seats wherever its cone happens to meet the port, so one part covers a whole
 range instead of one number. The ``part-joints`` rule "lead-ins and compliant
 features beat tight tolerances" is the general form of that argument -- here it
@@ -35,12 +35,25 @@ unknown.
   DIY pump-sack builds cut a 25-30 mm hole for it. So: something near 24 mm to
   seal on, inside a valve body in the low thirties to clear.
 
-None of that is a measurement, which is why the whole part is parametric. Six
-numbers, all sliders on the website: change one and re-export, do not re-model.
-``README.md`` says which slider to move for which symptom.
+* *Intake end.* The deflate adapter's, and the only end that is not a port at
+  all: reviews describe the MF100's rear as a fixed grille around the fan disc,
+  so there is nothing to push into and nothing to twist onto. It is capped from
+  outside instead, over a barrel that retail listings bound at 39.9 mm -- the
+  device measures 1.57 x 1.57 x 6.3 in, so nothing on it is wider than that.
+  A cap covering 34 to 46 mm brackets it either way.
+
+None of that is a measurement, which is why both parts are parametric. Six
+numbers each, all sliders on the website: change one and re-export, do not
+re-model. ``README.md`` says which slider to move for which symptom.
+
+**One file, two parts.** Everything from the throat up is shared -- both
+adapters press the same cup onto the same valve, and only the machine end of
+the funnel differs -- so the valve-end numbers below are written once and
+consumed by both through ``_CupEnd``. Dial the cup in for one and it is dialled
+in for the other.
 
 Material is the repo default, **PETG**. Nothing latches and nothing is
-load-bearing -- the seal is hand pressure on a cone -- so the only material
+load-bearing -- the seal is hand or suction pressure on a cone -- so the only material
 argument is compliance, and that is what ``CUP_WALL`` buys. TPU 95A prints the
 same geometry and seals better; see ``README.md``.
 """
@@ -67,6 +80,14 @@ SOCKET_DEPTH_MIN, SOCKET_DEPTH_MAX = 12.0, 40.0
 VALVE_MOUTH_MIN, VALVE_MOUTH_MAX = 22.0, 48.0
 VALVE_SEAT_MIN, VALVE_SEAT_MAX = 12.0, 36.0
 CUP_DEPTH_MIN, CUP_DEPTH_MAX = 6.0, 28.0
+
+# The deflate adapter's own three. Its cap goes *over* a 40 mm baton rather
+# than *into* a port, so its stops sit a whole size class above the socket's
+# -- but they are picked the same way, wide enough to swallow a caliper
+# reading and narrow enough that every position is still a funnel.
+BODY_MOUTH_MIN, BODY_MOUTH_MAX = 30.0, 70.0
+BODY_SEAT_MIN, BODY_SEAT_MAX = 22.0, 62.0
+CAP_DEPTH_MIN, CAP_DEPTH_MAX = 10.0, 45.0
 
 # --------------------------------------------------------------------------
 # The blower end. RESEARCHED range, ASSUMED numbers -- see the docstring.
@@ -104,7 +125,57 @@ the sealing here: there is no gasket, only a band of cone touching a cylinder.
 """
 
 # --------------------------------------------------------------------------
-# The valve end. RESEARCHED range, ASSUMED numbers -- see the docstring.
+# The intake end. The whole of the deflate adapter's difference: everything
+# below the throat, where the inflate adapter has its socket. RESEARCHED
+# range, ASSUMED numbers -- see the docstring.
+# --------------------------------------------------------------------------
+
+BODY_MOUTH_DIA = 46.0
+"""Bore where the tail cap meets the bed: the widest body it can swallow.
+
+ASSUMED, off a RESEARCHED bounding box. Retail listings give the MF100 as
+1.57 x 1.57 x 6.3 in, so its widest section is at most 39.9 mm and the barrel
+is something at or under that. 46 mm is that plus 6 mm of room, so the cone
+always seats on its flank rather than stubbing on the tail's rim -- the same
+err-wide asymmetry the socket end is picked by, for the same reason.
+"""
+
+BODY_SEAT_DIA = 34.0
+"""Bore at the deep end of the tail cone: the narrowest body it can grip.
+
+ASSUMED. With the mouth above this covers every barrel from 34 to 46 mm, which
+brackets the 40 mm the listing implies by 6 mm either way, and puts the
+half-angle at about 15 degrees -- a shade steeper than the socket's 13, still
+firmly in wedge territory. A 40 mm body seats about 11 mm in, leaving the rest
+of the depth as reserve for a barrel that turns out fatter.
+"""
+
+CAP_DEPTH = 22.0
+"""Axial length of the tail cone, mouth to seat.
+
+ASSUMED, and the one number here with a job beyond fit: the cap has to cover
+the intake, not merely grip near it. Reviews describe the MF100's rear as a
+fixed grille around the fan disc -- an end face, not a port -- so a cap that
+swallows the last 22 mm of the baton covers that grille and any vent slotted
+into the barrel behind it, and still has 10 mm of cone in contact once a 40 mm
+body has seated.
+"""
+
+INTAKE_THROAT_DIA = 18.0
+"""Bore of the deflate adapter's throat, and its flow path.
+
+ASSUMED, and larger than the inflate adapter's 16 mm because nothing on this
+end argues for restraint: there is no nozzle bore to stay clear of, only the
+cup seat above, and ``IntakeAdapter.of`` shrinks this to keep the flare
+flaring whenever a slider pulls the seat down near it. Derived rather than
+exposed -- the deflate part keeps the same six sliders as the inflate one, and
+none of them is worth spending on a number with only one sensible value.
+"""
+
+# --------------------------------------------------------------------------
+# The valve end. Shared: both adapters press the same cup onto the same valve,
+# and only the machine end of the funnel differs.
+# RESEARCHED range, ASSUMED numbers -- see the docstring.
 # --------------------------------------------------------------------------
 
 VALVE_SEAT_DIA = 22.0
@@ -154,6 +225,23 @@ it, and at 1.2 mm a PETG cone of this diameter still gives a little where a
 if you have one.
 """
 
+CAP_WALL = 2.4
+"""Six perimeters around the deflate adapter's tail cap.
+
+The same argument as ``SOCKET_WALL`` and then some: this skirt is what the
+whole 366 g duster hangs from while the cup is held down on the valve, and a
+skirt that spreads under that load walks off the barrel.
+"""
+
+NECK_WALL = 2.8
+"""Seven perimeters around the deflate adapter's neck, between the two cones.
+
+Thicker than anything on the inflate part, because the neck is the only place
+this one is loaded in bending: a 160 mm baton on the end of a 46 mm cap is a
+lever, and its root is the throat. Cheap insurance -- at this diameter the
+extra 0.4 mm is well under a gram.
+"""
+
 THROAT_LEN = 6.0
 """Straight section between the two cones.
 
@@ -165,11 +253,24 @@ out.
 """
 
 FLARE_ANGLE = 45.0
-"""Angle of the step from throat bore up to cup seat, in degrees from vertical.
+"""Angle of both 45 degree steps in the bore, in degrees from vertical.
 
-45 is the steepest a downward-facing internal surface can be and still print
-without support, which is the only constraint on it: the geometry wants the
-step as short as possible so the part stays low.
+Not one constraint but two, pointing opposite ways, and only one of them is
+about printing:
+
+* The **flare**, throat bore up to cup seat, is on both parts. It *widens* as
+  it rises, so it is not an overhang at all -- every layer is set back from the
+  one under it. 45 degrees is chosen instead to keep the step short, so the
+  part stays low, and to give the flow a ramp rather than a square ledge.
+* The **shoulder**, cap seat down to throat bore, is on the deflate adapter
+  only, and is the mirror image: it *narrows* as it rises, which makes it a
+  genuine downward-facing internal surface -- 45 degrees is the steepest one of
+  those can be and still print dry. It is the one angle in either part with a
+  real limit behind it, which is why ``checks.py`` measures the bore's steepest
+  narrowing segment rather than taking this constant's word for it.
+
+Both are built by construction rather than read from here: the geometry gives
+each step a rise equal to its radial run, which is what 45 degrees means.
 """
 
 MOUTH_CHAMFER = 0.8
@@ -195,8 +296,44 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+class _CupEnd:
+    """The valve end of a funnel: the half both adapters have in common.
+
+    Inflating and deflating a pad are the same problem at the mattress -- press
+    a cone onto a moulded valve and hold it -- so the cup, its seat, its rim
+    and the wall that has to conform to the valve are identical on both parts,
+    and only the machine end of the funnel differs. Sharing them here is what
+    makes that a fact of the code rather than a claim in a README: change
+    ``CUP_DEPTH`` and both parts move.
+
+    A plain mixin rather than a dataclass base, because the two adapters do not
+    agree on field *order* -- each puts its own machine end first -- and a
+    dataclass base would impose one on both.
+    """
+
+    valve_mouth_dia: float
+    valve_seat_dia: float
+    cup_depth: float
+
+    @property
+    def seat_r(self) -> float:
+        return self.valve_seat_dia / 2
+
+    @property
+    def rim_r(self) -> float:
+        return self.valve_mouth_dia / 2
+
+    @property
+    def cup_half_angle(self) -> float:
+        """Half-angle of the cup cone, degrees from the axis."""
+        return degrees(atan2(self.rim_r - self.seat_r, self.cup_depth))
+
+    def cup_wall_offset(self) -> float:
+        return _normal_offset(CUP_WALL, self.rim_r - self.seat_r, self.cup_depth)
+
+
 @dataclass(frozen=True)
-class Adapter:
+class Adapter(_CupEnd):
     """One buildable set of the six numbers, with the geometry derived off them.
 
     Built through ``Adapter.of``, never by hand: the constructor takes whatever
@@ -259,14 +396,6 @@ class Adapter:
     def throat_r(self) -> float:
         return self.blower_throat_dia / 2
 
-    @property
-    def seat_r(self) -> float:
-        return self.valve_seat_dia / 2
-
-    @property
-    def rim_r(self) -> float:
-        return self.valve_mouth_dia / 2
-
     # --- heights --------------------------------------------------------
     @property
     def z_throat(self) -> float:
@@ -292,10 +421,6 @@ class Adapter:
         """Half-angle of the blower cone, degrees from the axis."""
         return degrees(atan2(self.mouth_r - self.throat_r, self.socket_depth))
 
-    @property
-    def cup_half_angle(self) -> float:
-        return degrees(atan2(self.rim_r - self.seat_r, self.cup_depth))
-
     def socket_wall_offset(self) -> float:
         """Horizontal offset that leaves ``SOCKET_WALL`` measured normal to the
         cone. A cone offset sideways by its wall is thinner than that wall by
@@ -303,9 +428,6 @@ class Adapter:
         stops is 20% -- enough to walk a nominal 2.4 mm wall under the floor.
         """
         return _normal_offset(SOCKET_WALL, self.mouth_r - self.throat_r, self.socket_depth)
-
-    def cup_wall_offset(self) -> float:
-        return _normal_offset(CUP_WALL, self.rim_r - self.seat_r, self.cup_depth)
 
 
 MIN_TAPER_DROP = 1.5
@@ -326,3 +448,131 @@ def _normal_offset(wall: float, dr: float, dz: float) -> float:
 
 DEFAULT = Adapter.of()
 """The numbers at the top of this file, clamped -- what ``create()`` builds."""
+
+
+@dataclass(frozen=True)
+class IntakeAdapter(_CupEnd):
+    """The deflate adapter's numbers: the same cup, on the duster's other end.
+
+    A blower has two ports, and only one of them is a port. The outlet takes a
+    nozzle on a bayonet; the intake is a fixed grille around the fan disc, with
+    nothing to push into and nothing to twist onto. So this end does not seat
+    *in* anything -- it is a cap that swallows the tail of the baton and seals
+    on the barrel's outside, which turns the whole rear of the tool into one
+    duct. Cover the grille and every cubic centimetre the fan draws has to come
+    through the cup, which is the entire trick: the pad empties through the
+    duster instead of past it.
+
+    Suction is also what makes this end *easier* than the outlet end. On the
+    inflate adapter the blower's thrust is trying to push the socket off the
+    port and the cup off the valve, and hand pressure is what resists it. Here
+    the pressure difference runs the other way: it seats the cap harder onto
+    the barrel and the cup harder onto the valve, the whole time it is working.
+    Nothing here has to hold on -- it only has to not leak.
+
+    Built through ``IntakeAdapter.of``, never by hand, for the reason
+    ``Adapter.of`` gives.
+    """
+
+    body_mouth_dia: float = BODY_MOUTH_DIA
+    body_seat_dia: float = BODY_SEAT_DIA
+    cap_depth: float = CAP_DEPTH
+    valve_mouth_dia: float = VALVE_MOUTH_DIA
+    valve_seat_dia: float = VALVE_SEAT_DIA
+    cup_depth: float = CUP_DEPTH
+    throat_dia: float = INTAKE_THROAT_DIA
+
+    @classmethod
+    def of(
+        cls,
+        body_mouth_dia: float = BODY_MOUTH_DIA,
+        body_seat_dia: float = BODY_SEAT_DIA,
+        cap_depth: float = CAP_DEPTH,
+        valve_mouth_dia: float = VALVE_MOUTH_DIA,
+        valve_seat_dia: float = VALVE_SEAT_DIA,
+        cup_depth: float = CUP_DEPTH,
+    ) -> IntakeAdapter:
+        """Clamp six slider values into a set that still builds a funnel.
+
+        Six, the same six the inflate adapter exposes, because the throat is
+        the one number here with only one sensible answer: as wide as the two
+        cones either side of it leave room for. So it is *derived* -- pulled
+        down whenever a slider drags the cup's seat or the cap's seat near it,
+        and never exposed as a seventh control nobody would know how to set.
+        """
+        mouth = _clamp(body_mouth_dia, BODY_MOUTH_MIN, BODY_MOUTH_MAX)
+        seat = _clamp(body_seat_dia, BODY_SEAT_MIN, BODY_SEAT_MAX)
+        # A cap with no taper grips one barrel and nothing else -- the same
+        # failure ``Adapter.of`` guards the socket against.
+        seat = min(seat, mouth - 2 * MIN_TAPER_DROP)
+        valve_seat = _clamp(valve_seat_dia, VALVE_SEAT_MIN, VALVE_SEAT_MAX)
+        rim = _clamp(valve_mouth_dia, VALVE_MOUTH_MIN, VALVE_MOUTH_MAX)
+        rim = max(rim, valve_seat + 2 * MIN_TAPER_DROP)
+        # Wide as it can be, and no wider: the flare above has to flare and the
+        # shoulder below has to step down.
+        throat = min(
+            INTAKE_THROAT_DIA,
+            valve_seat - 2 * MIN_SEAT_STEP,
+            seat - 2 * MIN_SEAT_STEP,
+        )
+        return cls(
+            body_mouth_dia=mouth,
+            body_seat_dia=seat,
+            cap_depth=_clamp(cap_depth, CAP_DEPTH_MIN, CAP_DEPTH_MAX),
+            valve_mouth_dia=rim,
+            valve_seat_dia=valve_seat,
+            cup_depth=_clamp(cup_depth, CUP_DEPTH_MIN, CUP_DEPTH_MAX),
+            throat_dia=throat,
+        )
+
+    # --- radii ----------------------------------------------------------
+    @property
+    def body_mouth_r(self) -> float:
+        return self.body_mouth_dia / 2
+
+    @property
+    def body_seat_r(self) -> float:
+        return self.body_seat_dia / 2
+
+    @property
+    def throat_r(self) -> float:
+        return self.throat_dia / 2
+
+    # --- heights --------------------------------------------------------
+    @property
+    def z_cap(self) -> float:
+        """Deep end of the tail cone, where the 45 degree shoulder starts."""
+        return self.cap_depth
+
+    @property
+    def z_throat(self) -> float:
+        """Bottom of the straight throat, after the shoulder."""
+        return self.z_cap + (self.body_seat_r - self.throat_r)
+
+    @property
+    def z_throat_top(self) -> float:
+        return self.z_throat + THROAT_LEN
+
+    @property
+    def z_seat(self) -> float:
+        """Bottom of the cup, after the 45 degree flare off the throat."""
+        return self.z_throat_top + (self.seat_r - self.throat_r)
+
+    @property
+    def z_rim(self) -> float:
+        return self.z_seat + self.cup_depth
+
+    # --- what the tapers actually promise -------------------------------
+    @property
+    def cap_half_angle(self) -> float:
+        """Half-angle of the tail cone, degrees from the axis."""
+        return degrees(atan2(self.body_mouth_r - self.body_seat_r, self.cap_depth))
+
+    def cap_wall_offset(self) -> float:
+        return _normal_offset(
+            CAP_WALL, self.body_mouth_r - self.body_seat_r, self.cap_depth
+        )
+
+
+INTAKE_DEFAULT = IntakeAdapter.of()
+"""The intake-end numbers above, clamped -- what ``deflate.create()`` builds."""

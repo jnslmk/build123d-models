@@ -87,11 +87,15 @@ MODELS = [
     "salad_bowl_lamp.bowl",
     "round_snap_box",
     "spiral_vase_lampshade",
-    # Funnel that lets a WOLFBOX MF100 air duster inflate a Therm-a-Rest pad:
-    # tapered socket onto the blower, tapered cup over the valve. Every port
-    # diameter is assumed rather than measured, which is why both ends are
-    # cones and why it is parametric -- see its config.py.
+    # Funnels that let a WOLFBOX MF100 air duster fill and empty a Therm-a-Rest
+    # pad. The headline part is the inflate one: tapered socket onto the
+    # blower's outlet, tapered cup over the valve. `.deflate` is the same cup on
+    # the duster's other end -- a cap over the tail, because the intake is a
+    # grille and not a port. Every diameter in both is assumed rather than
+    # measured, which is why every end is a cone and why both are parametric --
+    # see their shared config.py.
     "wolfbox_thermarest_adapter",
+    "wolfbox_thermarest_adapter.deflate",
 ]
 
 
