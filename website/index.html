@@ -126,7 +126,7 @@
     width: 74px; background: #0f1216; color: #e6e8eb; border: 1px solid #333a44;
     border-radius: 4px; padding: 3px 6px; font-size: 13px; text-align: right;
   }
-  .prow input[type=range] { width: 100%; margin: 6px 0 0; accent-color: #3b82f6; }
+  .prow .hint { font-size: 11px; color: #8b93a1; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .muted { color: #8b93a1; font-size: 12px; }
   #noparams { font-size: 12px; color: #8b93a1; font-style: italic; }
 
@@ -235,7 +235,6 @@
     select, .prow input[type=number] { font-size: 16px; padding: 8px; }
     .chip { font-size: 13px; padding: 7px 12px; }
     .prow input[type=number] { width: 92px; }
-    .prow input[type=range] { height: 28px; margin-top: 10px; }
     .prow { margin-bottom: 18px; }
 
     #side, #edit { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
@@ -489,6 +488,11 @@ addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 // Parameter form
 // ---------------------------------------------------------------------------
+function fmtNum(v) {
+  // 4.0 -> "4", 0.5 -> "0.5". Number's own stringification already drops the
+  // trailing zeros and, unlike toFixed(n), cannot round a finer step away.
+  return String(Number(v));
+}
 function buildForm(params) {
   el.params.innerHTML = '';
   el.noparams.hidden = params.length > 0;
@@ -499,12 +503,23 @@ function buildForm(params) {
     const num = document.createElement('input');
     num.type = 'number'; num.dataset.name = p.name;
     num.min = p.min; num.max = p.max; num.step = p.step; num.value = p.default;
+    num.addEventListener('input', scheduleRegen);
+    // The range input this replaced bounded the value by construction. A bare
+    // number field does not: a typed 999 builds a part the model has clamped
+    // back into range, beside a box still reading 999. So snap it on `change`
+    // -- not on `input`, or typing "1" on the way to "12" gets fought.
+    num.addEventListener('change', () => {
+      const v = parseFloat(num.value);
+      if (Number.isNaN(v)) num.value = p.default;
+      else if (v < p.min) num.value = p.min;
+      else if (v > p.max) num.value = p.max;
+      scheduleRegen();
+    });
     top.append(lab, num);
-    const rng = document.createElement('input');
-    rng.type = 'range'; rng.min = p.min; rng.max = p.max; rng.step = p.step; rng.value = p.default;
-    num.addEventListener('input', () => { rng.value = num.value; scheduleRegen(); });
-    rng.addEventListener('input', () => { num.value = rng.value; scheduleRegen(); });
-    row.append(top, rng);
+    const hint = document.createElement('div'); hint.className = 'hint';
+    // The slider used to show the limits just by existing. State them.
+    hint.textContent = `${fmtNum(p.min)} to ${fmtNum(p.max)}`;
+    row.append(top, hint);
     el.params.append(row);
   }
 }
