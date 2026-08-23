@@ -2,20 +2,26 @@
 
 ## Git
 
-**Commit and push straight to `main`.** This holds for every agent, including
-cloud sessions (Claude Code on the web, and anything else that starts with its
-own scratch branch): when a session is handed a `claude/...` branch by default,
-ignore it, work on `main`, and push there. No feature branch, no pull request
-unless one is asked for by name.
+**Work on a branch and open a pull request. Never push to `main`.** This holds
+for every agent, including cloud sessions (Claude Code on the web, and anything
+else that starts with its own scratch branch): the `claude/...` branch a session
+is handed is exactly where the work belongs, so keep it. If a session starts you
+on `main`, branch before the first commit -- `git checkout -b <name>` costs
+nothing and unwinding a push to `main` does not.
 
-Two things follow from that and are not optional:
+Three things follow from that and are not optional:
 
 - **`main` is deployed.** `.github/workflows/build.yml` builds every model in
-  `tessellate_models.MODELS` and publishes the site on each push, so a push is a
-  release. Run `uv run check <model>`, `uv run ruff check .` and `uv run ty
-  check .` *before* pushing, not after.
-- **Push what you verified.** A broken commit on `main` is a broken site, and
-  there is no review step between the two to catch it.
+  `tessellate_models.MODELS` and publishes the site on each push to `main`, so a
+  merge is a release. The pull request is the one thing standing between a bad
+  commit and a broken site, which is the whole reason the branch is not
+  optional.
+- **Push what you verified.** The same workflow runs on the pull request, but CI
+  is the second opinion and not the first: run `uv run check <model>`, `uv run
+  ruff check .` and `uv run ty check .` *before* pushing, not after. A red PR
+  costs a round trip that three local commands would have saved.
+- **Merging is not yours to do.** Open the PR, say in it what you ran and what
+  passed, and stop there. Merge only when it is asked for by name.
 
 ### Build only what changed
 
