@@ -16,7 +16,8 @@ uv run check wire_clamp
 
 ## What it is
 
-Ø12 x 17 mm body, Ø12 x 20 mm screw, 20 mm tall assembled and closed. Thread a
+Ø12 x 17 mm body, Ø12 x 20 mm screw, 22 mm tall assembled and closed on an
+empty clamp -- and a millimetre more than that per millimetre of wire in it. Thread a
 loop of wire in through one side of the window and out the other, turn the knob
 finger tight, and it holds. Back the knob off and the wire slides again -- so
 it tensions a line, or ends a loop, without a knot and without a crimp.
