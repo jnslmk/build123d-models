@@ -96,6 +96,14 @@ MODELS = [
     # see their shared config.py.
     "wolfbox_thermarest_adapter",
     "wolfbox_thermarest_adapter.deflate",
+    # Screw clamp for thin wire: a reconstruction of Printables 591325, rebuilt
+    # around a thread the printer can actually resolve. The headline name is the
+    # assembled scene (with a wire in it, to show the path); the two printed
+    # parts and the one-plate layout are the downloadable ones.
+    "wire_clamp",
+    "wire_clamp.body",
+    "wire_clamp.screw",
+    "wire_clamp.printable",
 ]
 
 
