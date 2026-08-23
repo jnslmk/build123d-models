@@ -114,14 +114,28 @@ how a model gets registered, and the places the tree still deviates — is in
 
 ## CI/CD
 
-<!-- Trigger rebuild: Pages reset attempt #3 -->
-
 Every push to `main` automatically:
 1. Builds all models
 2. Generates SVG renders (iso, top, front views)
-3. Deploys to GitHub Pages
+3. Publishes the site to the root of the `gh-pages` branch
 
 View live at: https://jnslmk.github.io/build123d-models/
+
+**Every pull request gets its own copy of that site**, published to
+`https://jnslmk.github.io/build123d-models/pr-<number>/` and linked from a
+comment on the PR. It is rebuilt on each push to the branch and deleted when
+the PR closes ([`pr-preview-cleanup.yml`](.github/workflows/pr-preview-cleanup.yml)),
+so a change to a model can be looked at on the real site before it is merged.
+Pull requests from forks get no preview: their token is read-only by design.
+
+Both the production site and the previews are directories on one branch,
+because GitHub Pages serves exactly one source per repository. That is why the
+repository's **Settings → Pages → Source** must be *Deploy from a branch →
+`gh-pages` / `(root)`*, and not "GitHub Actions" — with the Actions source,
+`main` would publish fine and every preview would be pushed to a branch nobody
+serves. [`.github/scripts/publish-pages.sh`](.github/scripts/publish-pages.sh)
+is the one thing that writes that branch, for all three of deploy, preview and
+cleanup.
 
 ## Models
 

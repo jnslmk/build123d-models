@@ -141,6 +141,16 @@ jobs:
           path: website/
           retention-days: 7
 
+  # Both publishing jobs push the `gh-pages` branch instead of uploading a Pages
+  # artifact, and that is what makes per-PR previews possible at all: Pages
+  # serves exactly one source, so previews have to live in subdirectories of the
+  # same site as production. `actions/deploy-pages` replaces the whole site on
+  # every deploy and cannot do that. (It is not missed. Its queue wait was the
+  # entire cost of the old deploy job -- anywhere from 11s to the ten-minute
+  # ceiling the action clamps its own `timeout` input to, which is why that job
+  # had to call it twice to be reliable.)
+  #
+  # The branch is a snapshot, not a history: see `.github/scripts/publish-pages.sh`.
   deploy:
     name: Deploy to GitHub Pages
     runs-on: ubuntu-latest
@@ -148,52 +158,98 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
 
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      contents: write
+
+    # Shared with the `preview` job below and with pr-preview-cleanup.yml. The
+    # branch is force-pushed as a single commit, so two of these running at once
+    # is one of them being silently thrown away. `cancel-in-progress: false`
+    # because a deploy that is already running is the one carrying the newest
+    # site.
+    concurrency:
+      group: gh-pages-publish
+      cancel-in-progress: false
 
     steps:
+      # Only the publish script -- the job needs no source, and a sparse
+      # checkout of one directory keeps it that way.
+      - name: Checkout the publish script
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
       - name: Download website
         uses: actions/download-artifact@v8
         with:
           name: website
           path: _site
 
-      - name: Upload to GitHub Pages
-        id: deployment
-        uses: actions/upload-pages-artifact@v5
+      - name: Publish to the site root
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-pages.sh publish . _site
+
+  preview:
+    name: Deploy PR preview
+    runs-on: ubuntu-latest
+    needs: build
+    # Same-repository pull requests only. A fork's `pull_request` run gets a
+    # read-only token by design, so it *cannot* push the branch -- and the fix
+    # for that is `pull_request_target`, which would run this workflow's own
+    # code against the fork's tree with a writable token. Not worth a preview.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    concurrency:
+      group: gh-pages-publish
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout the publish script
+        uses: actions/checkout@v6
         with:
+          sparse-checkout: .github/scripts
+
+      - name: Download website
+        uses: actions/download-artifact@v8
+        with:
+          name: website
           path: _site
 
-      # `deploy-pages` polls until GitHub's Pages backend picks the deployment
-      # up, and that queue is the whole cost of this job: the tar and upload
-      # above take seconds, the file sync at the far end takes seconds, and
-      # everything between is `deployment_queued`. That wait has been anywhere
-      # from 11s to the full ten minutes on consecutive pushes of the same
-      # artifact, which is long enough to fail a build with nothing wrong.
-      #
-      # **Ten minutes is not ours to raise.** The action clamps its own `timeout`
-      # input: `MAX_TIMEOUT = 600000` in src/internal/deployment.js, applied as
-      # `Math.min(timeoutInput, MAX_TIMEOUT)`. A `timeout: 1800000` used to sit
-      # here, and the run after it logged
-      #
-      #     Warning: timeout value is greater than the allowed maximum --
-      #     timeout set to the maximum of 600000 milliseconds.
-      #
-      # then failed at 10m04s, exactly as it would have with no input at all.
-      # There is no value that buys a longer wait, so do not put one back.
-      #
-      # Take the ten minutes twice instead. A timed-out attempt cancels only its
-      # own deployment and leaves the uploaded artifact alone, so a second
-      # `deploy-pages` opens a fresh deployment against the same bytes -- and a
-      # queue busy enough to swallow one attempt is usually clear by the next.
-      # Two timeouts running is Pages actually being down, and still fails the
-      # job, which is what red should mean here: `main` is the published site.
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v5
-        continue-on-error: true
+      - name: Publish the preview
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-pages.sh publish "pr-${{ github.event.number }}" _site
 
-      - name: Deploy to GitHub Pages (second attempt)
-        if: steps.deploy.outcome == 'failure'
-        uses: actions/deploy-pages@v5
+      # One comment per PR, edited in place on every push. A fresh comment each
+      # time would bury the review under a wall of identical links.
+      - name: Comment the preview link
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          owner=${GITHUB_REPOSITORY%%/*}
+          repo=${GITHUB_REPOSITORY#*/}
+          url="https://${owner,,}.github.io/${repo}/pr-${PR}/"
+          body=$(printf '%s\n' \
+            '<!-- pages-preview -->' \
+            '### Preview site' \
+            '' \
+            "$url" \
+            '' \
+            "Built from ${HEAD_SHA:0:7}. Rebuilt on every push to this PR and" \
+            'deleted when the PR closes. Pages can take a minute to serve a' \
+            'fresh deploy.')
+          marker='<!-- pages-preview -->'
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty")
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" -f body="$body"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -f body="$body"
+          fi

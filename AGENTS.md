@@ -9,7 +9,7 @@ is handed is exactly where the work belongs, so keep it. If a session starts you
 on `main`, branch before the first commit -- `git checkout -b <name>` costs
 nothing and unwinding a push to `main` does not.
 
-Three things follow from that and are not optional:
+Four things follow from that and are not optional:
 
 - **`main` is deployed.** `.github/workflows/build.yml` builds every model in
   `tessellate_models.MODELS` and publishes the site on each push to `main`, so a
@@ -22,6 +22,12 @@ Three things follow from that and are not optional:
   costs a round trip that three local commands would have saved.
 - **Merging is not yours to do.** Open the PR, say in it what you ran and what
   passed, and stop there. Merge only when it is asked for by name.
+- **The PR builds its own site.** CI publishes the whole web bundle to
+  `https://jnslmk.github.io/build123d-models/pr-<number>/` and comments the
+  link, rebuilding it on every push and deleting it when the PR closes. A model
+  change is worth *looking at* there -- the picker, the parameter sliders and
+  the download buttons are things no local check covers -- and the link is the
+  thing to point a reviewer at.
 
 ### Build only what changed
 

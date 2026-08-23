@@ -1,0 +1,58 @@
+name: PR Preview Cleanup
+
+# A preview is one directory on the `gh-pages` branch, and nothing else ever
+# deletes it: the production deploy deliberately leaves `pr-*` alone so that
+# merging one PR does not take every other PR's preview down. So the closing of
+# the PR is the only signal, and this workflow is the one that acts on it --
+# for a merge and an abandonment alike, since both end the same way.
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    name: Remove the PR preview
+    runs-on: ubuntu-latest
+    # Same-repo only, matching the `preview` job that created it: a fork's PR
+    # never got a preview, so there is nothing here to remove.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    # Shared with build.yml's `deploy` and `preview` jobs -- gh-pages is
+    # force-pushed as one snapshot, so these must not overlap.
+    concurrency:
+      group: gh-pages-publish
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout the publish script
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Remove the preview
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-pages.sh remove "pr-${{ github.event.number }}"
+
+      # Edit the link comment rather than leaving it: a live-looking URL that
+      # 404s is worse than no comment, and deleting it would erase the fact
+      # that the PR ever had a preview.
+      - name: Retire the preview comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.number }}
+        run: |
+          marker='<!-- pages-preview -->'
+          existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty")
+          [ -n "$existing" ] || exit 0
+          body=$(printf '%s\n' \
+            '<!-- pages-preview -->' \
+            '### Preview site' \
+            '' \
+            'Removed -- this pull request is closed.')
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" -f body="$body"
