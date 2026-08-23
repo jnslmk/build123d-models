@@ -65,6 +65,7 @@ packages = [
     "models.salad_bowl_lamp",
     "models.sonicare_charger_holder",
     "models.spiral_vase_lampshade",
+    "models.wolfbox_thermarest_adapter",
 ]
 py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "model_deps", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "sketch", "tessellate_models", "view_artifact", "website"]
 
