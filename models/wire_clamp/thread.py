@@ -14,6 +14,10 @@ clearance is applied on the wrong axis for the profile.
 ``bd_warehouse``'s general ``Thread`` takes exactly this shape as four numbers:
 a radius and a width at the crest, a radius and a width at the root. Everything
 else about it is the same for both halves.
+
+The four radii come from the ``Clamp`` because the thread's **diameter** follows
+the wire; the two *widths* and the pitch are module constants because the
+profile does not. That split is the whole model -- see ``config.py``.
 """
 
 from __future__ import annotations
@@ -21,15 +25,7 @@ from __future__ import annotations
 from bd_warehouse.thread import Thread
 from build123d import Part
 
-from .config import (
-    FEMALE_CREST_R,
-    FEMALE_ROOT_R,
-    MALE_CREST_R,
-    MALE_ROOT_R,
-    THREAD_FLAT,
-    THREAD_PITCH,
-    THREAD_ROOT_W,
-)
+from .config import THREAD_FLAT, THREAD_PITCH, THREAD_ROOT_W, Clamp
 
 
 def _thread(apex_r: float, root_r: float, length: float) -> Part:
@@ -56,11 +52,11 @@ def _thread(apex_r: float, root_r: float, length: float) -> Part:
     )
 
 
-def female(length: float) -> Part:
-    """Internal thread: teeth pointing in from a bore of ``FEMALE_ROOT_R``."""
-    return _thread(FEMALE_CREST_R, FEMALE_ROOT_R, length)
+def female(c: Clamp, length: float) -> Part:
+    """Internal thread: teeth pointing in from a bore of ``c.female_root_r``."""
+    return _thread(c.female_crest_r, c.female_root_r, length)
 
 
-def male(length: float) -> Part:
-    """External thread: teeth standing out from a shank of ``MALE_ROOT_R``."""
-    return _thread(MALE_CREST_R, MALE_ROOT_R, length)
+def male(c: Clamp, length: float) -> Part:
+    """External thread: teeth standing out from a shank of ``c.male_root_r``."""
+    return _thread(c.male_crest_r, c.male_root_r, length)

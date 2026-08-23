@@ -27,7 +27,7 @@ from build123d import (
 
 from ..lib.edges import as_part
 
-from .config import BASE_T, PLUNGER_R, RIB_H, STRANDS, Clamp
+from .config import BASE_T, STRANDS, Clamp
 
 TAIL = 6.0
 """How far the strands stick out of the clamp, each side."""
@@ -39,9 +39,9 @@ BEND_R = 0.5
 def _path_points(c: Clamp) -> list[tuple[float, float]]:
     """The strand's centreline in the (y, z) plane, entry to exit."""
     y_out = c.body_r + TAIL
-    y_turn = (PLUNGER_R + c.channel_l / 2) / 2
+    y_turn = (c.plunger_r + c.channel_l / 2) / 2
     z_high = c.window_z0 + c.wire_d / 2
-    z_low = BASE_T + RIB_H + c.wire_d / 2
+    z_low = BASE_T + c.rib_h + c.wire_d / 2
     return [
         (y_out, z_high),
         (y_turn, z_high),

@@ -113,5 +113,26 @@ except in the middle of the span.
 On 6 mm rope that is fine -- rope is compressible and has plenty of surface to
 hold by. On 1 mm wire it is not, which is why the channel here is a slot rather
 than a bore. `../config.py`'s `Clamp.wire_pass` carries that argument, and
-`../checks.py` asserts both halves of it: a passage wider than the wire along
-the wire's axis, and a gap narrower than the wire across it.
+`../checks.py` asserts both halves of it at every slider position: a passage
+wider than the wire along the wire's axis, and a gap narrower than the wire
+across it.
+
+## What this model scales, and what it does not
+
+The finding above is not "do not scale a clamp with its cord" -- it is "do not
+scale the four numbers a nozzle has to resolve". So this reconstruction scales
+almost everything the original does, off the same single parameter:
+
+| Follows the wire | Fixed |
+| --- | --- |
+| window, sill depth, slot width and length | thread pitch |
+| floor ribs (height and spacing) | thread tooth height |
+| plunger, and the wire passages beside it | thread crest and root flats |
+| **thread major diameter**, from an 8 mm floor | thread clearance |
+| body diameter and height, screw length | wall thicknesses, edge breaks |
+| knob lobe depth, lobe radius, tip roll | plunger ridge height, knob height |
+
+The right-hand column is the one a *printer* sets: perimeters, extrusion widths,
+layers. The left-hand column is the one the *cord* sets. The original puts the
+thread's pitch, tooth and clearance in the left column, and that is the whole
+defect -- its diameter belongs there, and does move here.

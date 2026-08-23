@@ -30,33 +30,32 @@ from build123d import Compound, Part, Pos, Rot
 
 from ..lib.checks import Report, is_solid_at, is_periodic_seam, sharp_convex_edges
 from ..lib.edges import as_part
-from . import body, screw, wire
+from . import body, printable, screw, wire
 from . import screw_turn
 from .config import (
     BASE_T,
     COLLAR_H,
     KNOB_CHAMFER,
-    KNOB_LOBE_DEPTH,
     RING_H,
-    CORE_R,
-    FEMALE_CREST_R,
-    FEMALE_ROOT_R,
-    MALE_CREST_R,
-    MALE_ROOT_R,
-    PLUNGER_R,
-    RIB_H,
     STRANDS,
     THREAD_CLEAR,
-    THREAD_D,
+    THREAD_D_MIN,
     THREAD_DEPTH,
-    THREAD_ENGAGE_MIN,
     THREAD_FLAT,
     THREAD_PITCH,
     WALL,
+    WIRE_DEFAULT,
     WIRE_MAX,
     WIRE_MIN,
     Clamp,
 )
+
+SAMPLES = (WIRE_MIN, 1.0, 2.0, 2.9, WIRE_MAX)
+"""Slider positions every rule below is checked at, rather than only the
+default. Chosen to bracket the one discontinuity in the model -- the thread
+steps up from its floor at about 2.9 mm of wire -- with a position either side
+of it, because a property that holds at both ends of a range and breaks in the
+middle is exactly what a two-point check misses."""
 
 NOZZLE = 0.4
 """The extrusion width every "can the printer resolve this" rule below is in
@@ -173,47 +172,145 @@ def check_thread_rules(r: Report) -> None:
         "flank sits at the house 45 degree limit exactly",
     )
     r.check(
-        abs((FEMALE_ROOT_R - MALE_CREST_R) - THREAD_CLEAR / 2) < 1e-9
-        and abs((FEMALE_CREST_R - MALE_ROOT_R) - THREAD_CLEAR / 2) < 1e-9,
-        "clearance is the same at crest and root",
-        f"female root {FEMALE_ROOT_R} - male crest {MALE_CREST_R} = "
-        f"{FEMALE_ROOT_R - MALE_CREST_R}; female crest {FEMALE_CREST_R} - male "
-        f"root {MALE_ROOT_R} = {FEMALE_CREST_R - MALE_ROOT_R}",
+        all(
+            abs((Clamp.of(w).female_root_r - Clamp.of(w).male_crest_r) - THREAD_CLEAR / 2)
+            < 1e-9
+            and abs(
+                (Clamp.of(w).female_crest_r - Clamp.of(w).male_root_r) - THREAD_CLEAR / 2
+            )
+            < 1e-9
+            for w in SAMPLES
+        ),
+        "clearance is the same at crest and root, at every diameter",
+        f"{THREAD_CLEAR / 2} mm radial on both, checked at {list(SAMPLES)} mm of "
+        "wire -- the property that makes a 45 degree flank need only one "
+        "clearance number survives the diameter moving",
     )
     r.check(
-        THREAD_ENGAGE_MIN >= THREAD_D,
+        Clamp().thread_engage >= Clamp().thread_d,
         "engagement is at least 1.0 x D",
-        f"{THREAD_ENGAGE_MIN} mm of female thread on a {THREAD_D} mm thread",
+        f"{Clamp().thread_engage} mm of female thread on a {Clamp().thread_d} mm "
+        "thread at the default size; asserted across the slider below",
     )
 
 
 def check_thread_is_fixed(r: Report) -> None:
-    r.section("thread: does not move with the wire")
+    """The split that is the whole model: profile pinned, diameter free.
+
+    Four numbers a nozzle has to resolve -- pitch, tooth, crest flat, clearance
+    -- must be identical at every position of the slider. The thread's
+    *diameter* may move, and has to: the plunger passes through the thread to be
+    assembled, so the thread is what caps how wide a pair of strands can be, and
+    a clamp for thicker cord genuinely needs a bigger one. Growing a diameter
+    asks nothing of the printer that a smaller one did not already ask.
+    """
+    r.section("thread: profile pinned, diameter free")
+
     lo, hi = Clamp.of(WIRE_MIN), Clamp.of(WIRE_MAX)
     r.check(
         lo.channel_l != hi.channel_l and lo.window_h != hi.window_h,
         "the wire does move the cord features",
-        f"channel {lo.channel_l:.2f} -> {hi.channel_l:.2f} mm, window "
+        f"slot {lo.channel_l:.2f} -> {hi.channel_l:.2f} mm, window "
         f"{lo.window_h:.2f} -> {hi.window_h:.2f} mm across the slider",
     )
-    # THREAD_* are module constants, so this is asserting the *structure* of the
-    # model rather than a computed value: there is no per-instance thread to
-    # differ. thread_engage is the one exception and may only grow.
     r.check(
-        hi.thread_engage >= lo.thread_engage >= THREAD_ENGAGE_MIN,
-        "thread length only ever grows with the wire",
-        f"{lo.thread_engage:.2f} -> {hi.thread_engage:.2f} mm, floor "
-        f"{THREAD_ENGAGE_MIN}",
+        lo.body_r != hi.body_r and lo.body_h != hi.body_h,
+        "the wire does size the whole clamp",
+        f"body {2 * lo.body_r:.1f} x {lo.body_h:.1f} -> {2 * hi.body_r:.1f} x "
+        f"{hi.body_h:.1f} mm across the slider",
     )
+
+    # The four resolution-critical numbers are module constants, so this asserts
+    # the *structure*: no ``Clamp`` property is allowed to be one of them.
+    profile = ("thread_pitch", "thread_depth", "thread_flat", "thread_clear")
+    leaked = [n for n in profile if hasattr(Clamp, n)]
     r.check(
-        not any(
-            thread_gate(THREAD_PITCH, THREAD_DEPTH, THREAD_FLAT, THREAD_CLEAR)
-            for _ in (lo, hi)
+        not leaked,
+        "no slider position can change the thread's profile",
+        "pitch, tooth, crest flat and clearance are module constants with no "
+        f"``Clamp`` property shadowing them{'; LEAKED: ' + str(leaked) if leaked else ''}",
+    )
+
+    broken = {
+        w: thread_gate(THREAD_PITCH, THREAD_DEPTH, THREAD_FLAT, THREAD_CLEAR)
+        for w in SAMPLES
+    }
+    r.check(
+        not any(broken.values()),
+        "the thread passes the gate at every sampled slider position",
+        f"checked at {list(SAMPLES)} mm of wire",
+    )
+
+    diameters = [Clamp.of(w).thread_d for w in SAMPLES]
+    r.check(
+        diameters == sorted(diameters) and min(diameters) >= THREAD_D_MIN,
+        "the thread diameter only ever grows, and never below its floor",
+        f"{diameters} mm against a {THREAD_D_MIN} mm floor -- so no position of "
+        "the slider can reproduce the original's small end",
+    )
+    engagements = [Clamp.of(w).thread_engage for w in SAMPLES]
+    r.check(
+        all(e >= Clamp.of(w).thread_d for w, e in zip(SAMPLES, engagements)),
+        "engagement stays at 1.0 x D as the diameter grows",
+        f"{[round(e, 2) for e in engagements]} mm against diameters "
+        f"{diameters} mm",
+    )
+    fits_strands = [
+        (w, Clamp.of(w).channel_w, Clamp.of(w).strand_room) for w in SAMPLES
+    ]
+    r.check(
+        all(slot >= room - 1e-9 for _, slot, room in fits_strands),
+        "the thread is always big enough for the strands it has to admit",
+        "; ".join(
+            f"{w} mm wire: {room:.2f} of strand in a {slot:.2f} slot"
+            for w, slot, room in fits_strands
         ),
-        "the thread passes the gate at both ends of the slider",
-        "pitch, tooth, crest and clearance are module constants and no "
-        "``Clamp`` property touches them",
     )
+    r.check(
+        all(Clamp.of(w).knob_tip_r > KNOB_CHAMFER for w in SAMPLES),
+        "the knob's tip roll stays bigger than the chamfer that offsets it",
+        f"tip radii {[round(Clamp.of(w).knob_tip_r, 2) for w in SAMPLES]} "
+        f"against a {KNOB_CHAMFER} mm offset -- below it the offset profile "
+        "comes back with a corner and the knife edge lands on the bed layer",
+    )
+
+
+def check_web_ui(r: Report) -> None:
+    """Every module you can download an STL from carries the slider.
+
+    The website reads ``PARAMS`` off whichever model is on screen, so a slider
+    declared only on the assembly is a slider on the one page with no download
+    button. This is the check that would have caught that.
+    """
+    r.section("web UI: the slider is where the downloads are")
+    for name, module in (
+        ("wire_clamp.body", body),
+        ("wire_clamp.screw", screw),
+        ("wire_clamp.printable", printable),
+    ):
+        params = getattr(module, "PARAMS", [])
+        names = [p["name"] for p in params]
+        r.check(
+            names == ["wire_d"],
+            f"{name} exposes the wire slider",
+            f"PARAMS = {names}",
+        )
+        spec = params[0] if params else {}
+        r.check(
+            spec.get("min") == WIRE_MIN
+            and spec.get("max") == WIRE_MAX
+            and spec.get("default") == WIRE_DEFAULT,
+            f"{name}'s slider covers the same range as the others",
+            f"{spec.get('min')}..{spec.get('max')} mm, default "
+            f"{spec.get('default')} -- three modules disagreeing about the "
+            "range is three parts that do not fit each other",
+        )
+        built = module.create(2.0)
+        r.check(
+            built.volume > 0,
+            f"{name}.create(2.0) builds",
+            f"{built.volume:.1f} mm^3 at a non-default slider position",
+        )
 
 
 def check_kinematics(r: Report, c: Clamp) -> None:
@@ -252,7 +349,7 @@ def check_kinematics(r: Report, c: Clamp) -> None:
 
 def check_wire_path(r: Report, c: Clamp) -> None:
     r.section("wire path")
-    passage = c.channel_l / 2 - PLUNGER_R
+    passage = c.channel_l / 2 - c.plunger_r
     r.check(
         passage >= c.wire_d,
         "the wire fits past the plunger",
@@ -260,7 +357,7 @@ def check_wire_path(r: Report, c: Clamp) -> None:
         f"{c.wire_d} mm wire -- this is the departure from the original, "
         "whose round bore leaves 0.3 mm at any size",
     )
-    side = c.channel_w / 2 - PLUNGER_R
+    side = c.channel_w / 2 - c.plunger_r
     r.check(
         side < c.wire_d,
         "the wire cannot escape sideways past the plunger",
@@ -294,7 +391,7 @@ def check_body_solid(r: Report, part: Part, c: Clamp) -> None:
         "void on the axis just under the channel's top",
     )
     r.check(
-        is_solid_at(part, 0, 0, BASE_T + RIB_H / 2),
+        is_solid_at(part, 0, 0, BASE_T + c.rib_h / 2),
         "there is a rib on the axis",
         "the rib pattern is centred, so the middle of the floor is ribbed "
         "rather than flat",
@@ -343,13 +440,13 @@ def check_screw_solid(r: Report, part: Part, c: Clamp) -> None:
     # The knob is the bed face: sample near the rim at the first layer.
     # Inside the scallops and inside the bottom chamfer, so the sample lands in
     # material at any rotation rather than depending on where lobe zero fell.
-    inner = c.body_r - KNOB_LOBE_DEPTH - KNOB_CHAMFER - 0.5
+    inner = c.body_r - c.knob_lobe_depth - KNOB_CHAMFER - 0.5
     r.check(
         is_solid_at(part, inner, 0, 0.1) and is_solid_at(part, 0, inner, 0.1),
         "the knob is the face on the bed",
         f"solid at r={inner:.2f} on the first layer, in both axes -- a "
         f"{2 * inner:.1f} mm first layer against the plunger's "
-        f"{2 * PLUNGER_R:.1f}",
+        f"{2 * c.plunger_r:.1f}",
     )
     # The topmost material on the part is the ridges, not the face they stand
     # on: sample across one of them, then off it in both directions.
@@ -359,22 +456,23 @@ def check_screw_solid(r: Report, part: Part, c: Clamp) -> None:
     r.check(
         is_solid_at(part, ring, 0, probe_z)
         and not is_solid_at(part, 0, 0, probe_z)
-        and not is_solid_at(part, PLUNGER_R + 0.5, 0, probe_z),
+        and not is_solid_at(part, c.plunger_r + 0.5, 0, probe_z),
         "the plunger's ridges stand proud of its face, and print last",
         f"at z={probe_z:.2f}: solid on the first ridge (r={ring:.2f}), void on "
         "the axis between ridges and void outside the plunger -- the ridges are "
         "top features in this pose, which is where a 0.3 mm bump is crispest",
     )
     r.check(
-        PLUNGER_R > CORE_R,
-        "the plunger is fatter than the shank it hangs off",
-        f"plunger {PLUNGER_R:.2f} vs core {CORE_R:.2f} -- the plunger is sized "
-        "off the channel, the core off the thread's root",
+        all(Clamp.of(w).plunger_r > Clamp.of(w).core_r for w in SAMPLES),
+        "the plunger is fatter than the shank it hangs off, at every size",
+        f"plunger {c.plunger_r:.2f} vs core {c.core_r:.2f} here -- the plunger "
+        "is sized off the channel, the core off the thread's root",
     )
     r.check(
-        PLUNGER_R < FEMALE_CREST_R,
+        all(Clamp.of(w).plunger_r < Clamp.of(w).female_crest_r for w in SAMPLES),
         "the plunger passes through the female thread to be assembled",
-        f"plunger {PLUNGER_R:.2f} < female crest {FEMALE_CREST_R:.2f}",
+        f"plunger {c.plunger_r:.2f} < female crest {c.female_crest_r:.2f} here, "
+        f"and at {list(SAMPLES)} mm of wire",
     )
     r.check(
         len(part.solids()) == 1,
@@ -385,7 +483,7 @@ def check_screw_solid(r: Report, part: Part, c: Clamp) -> None:
 
 
 def check_no_interference(r: Report, c: Clamp) -> None:
-    r.section("assembly: screw turns through its whole travel")
+    r.section(f"assembly: screw turns through its whole travel (wire {c.wire_d} mm)")
     b = body.build(c)
     s = screw.build_upright(c)
     steps = 5
@@ -441,19 +539,39 @@ def check_sharp_edges(r: Report, part: Part, label: str) -> None:
 
 
 def check_slider_stops(r: Report) -> None:
+    """Every rule that is about *this* clamp, re-run at every slider position.
+
+    The point of one slider driving everything is that every position has to be
+    a working clamp, not just the default -- so the kinematics and the wire path
+    are asserted across ``SAMPLES`` rather than once.
+    """
     r.section("parameter stops")
-    for w in (WIRE_MIN, WIRE_MAX):
+    for w in SAMPLES:
         c = Clamp.of(w)
-        built = body.build(c)
         r.check(
-            built.volume > 0 and abs(built.bounding_box().min.Z) < 1e-6,
-            f"body builds at wire_d={w}",
-            f"{built.volume:.1f} mm^3, {2 * c.body_r:.2f} x {c.body_h:.2f} mm",
+            abs((c.closed_z + c.plunger_len) - c.thread_z0) < 1e-9
+            and c.open_engagement >= THREAD_PITCH
+            and c.travel > c.wire_d,
+            f"kinematics hold at wire_d={w}",
+            f"travel {c.travel:.2f} mm, {c.open_engagement:.2f} mm still "
+            f"engaged when open, thread starts at {c.thread_z0:.2f}",
         )
         r.check(
-            c.open_engagement >= THREAD_PITCH,
-            f"a full turn still engaged at wire_d={w}",
-            f"{c.open_engagement:.2f} mm",
+            c.channel_l / 2 - c.plunger_r >= c.wire_d
+            and c.channel_w / 2 - c.plunger_r < c.wire_d
+            and STRANDS * c.wire_d < c.channel_w,
+            f"the wire path holds at wire_d={w}",
+            f"{c.channel_l / 2 - c.plunger_r:.2f} mm of passage along the wire, "
+            f"{c.channel_w / 2 - c.plunger_r:.2f} mm across it",
+        )
+        built = body.build(c)
+        r.check(
+            built.volume > 0
+            and abs(built.bounding_box().min.Z) < 1e-6
+            and len(built.solids()) == 1,
+            f"body builds as one solid at wire_d={w}",
+            f"{built.volume:.1f} mm^3, {2 * c.body_r:.2f} x {c.body_h:.2f} mm, "
+            f"thread {c.thread_d} mm",
         )
     r.check(
         Clamp.of(WIRE_MIN - 5).wire_d == WIRE_MIN
@@ -473,9 +591,9 @@ def check_assembly(r: Report, c: Clamp) -> None:
     )
     lowest = min(s.bounding_box().min.Z for s in strands)
     r.check(
-        lowest >= BASE_T + RIB_H - 1e-6,
+        lowest >= BASE_T + c.rib_h - 1e-6,
         "the mocked-up wire rests on the ribs, not through them",
-        f"wire bottom {lowest:.2f}, rib tops {BASE_T + RIB_H:.2f}",
+        f"wire bottom {lowest:.2f}, rib tops {BASE_T + c.rib_h:.2f}",
     )
     scene = Compound(children=[body.build(c), *strands])
     r.check(
@@ -491,6 +609,7 @@ def run() -> Report:
 
     check_thread_rules(r)
     check_thread_is_fixed(r)
+    check_web_ui(r)
     check_kinematics(r, c)
     check_wire_path(r, c)
 
@@ -502,6 +621,9 @@ def run() -> Report:
     check_sharp_edges(r, screw_part, "screw")
 
     check_no_interference(r, c)
+    # Again at the top of the slider, where the thread has stepped up: the
+    # clearance is a claim about a helix that is now a different diameter.
+    check_no_interference(r, Clamp.of(WIRE_MAX))
     check_assembly(r, c)
     check_slider_stops(r)
     return r

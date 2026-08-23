@@ -8,8 +8,8 @@ ten files that are **one shape scaled ten ways**; measuring all ten against each
 other is what this package is built on, and the measurements are in
 ``docs/reverse-engineering.md``.
 
-**The scaling is the bug.** Every feature of the original is a fixed multiple of
-the rope diameter, the thread included::
+**Uniform scaling is the bug.** Every feature of the original is a fixed
+multiple of the rope diameter, the thread included::
 
     body OD           3.00 x d          thread pitch       0.36 x d
     body height       2.50 x d          thread tooth       0.10 x d (radial)
@@ -22,25 +22,36 @@ crest narrower than one 0.4 mm extrusion, five layers to a turn at 0.2 mm, and
 0.15 mm of radial clearance for the slicer to hit. That is a thread the printer
 cannot resolve rather than a thread that came out tight, which is why the 3 mm
 version does not work, and why filament makes it worse rather than better: ABS's
-warp pulls a 9 mm cylinder out of round by more than the whole tooth is tall.
-Scaled the rest of the way down to 1 mm wire it would be a 3 mm bead with a
-0.36 mm pitch -- not a part.
+warp on a 9 mm cylinder pulls it out of round by more than the whole tooth is
+tall.
 
-**So this model has two rule sets, and they never mix.**
+**So this model splits the thread in two, and only one half may move.**
 
-*The wire sets the cord features.* Window height, lip depth, floor-rib pitch:
-each is a multiple of ``wire_d``, because each is about the thing being clamped.
-These are the ``PARAMS`` sliders.
+*The nozzle owns the profile.* ``THREAD_PITCH``, ``THREAD_DEPTH``,
+``THREAD_FLAT`` and ``THREAD_CLEAR`` are absolute millimetres and are **the same
+at every position of the slider**. They come from the printable-thread table in
+the ``fasteners-and-inserts`` skill (``references/threads.md``), which is the one
+place in this repo that owns thread numbers: a 45 degree flank (a 45 degree
+overhang, the house limit exactly), crest and root flats at or above one
+extrusion width, at least six layers to a pitch, and 0.50 mm of diametral
+clearance for a printed male in a printed female. These four are what a nozzle
+has to resolve, and every one of them has a floor.
 
-*The nozzle sets the thread.* ``THREAD_D``, ``THREAD_PITCH``, ``THREAD_DEPTH``
-and ``THREAD_CLEAR`` are absolute millimetres and do not move when ``wire_d``
-does. They come from the printable-thread table in the ``fasteners-and-inserts``
-skill (``references/threads.md``), which is the one place in this repo that owns
-thread numbers -- a 45 degree flank (a 45 degree overhang, the house limit
-exactly), crest and root flats at or above one extrusion width, at least six
-layers to a pitch, and 0.50 mm of diametral clearance for a printed male in a
-printed female. A 1 mm wire clamp is therefore **Ø11 x 17 mm**, and it is that
-size because the thread is, not because the wire is.
+*The wire owns the diameter.* ``Clamp.thread_d`` is whatever the strands need to
+lie side by side under the plunger, and never less than ``THREAD_D_MIN``. A
+diameter has no resolution floor -- a bigger thread is strictly easier to print
+than a smaller one -- so letting it grow costs nothing and is the only way one
+slider can size the whole clamp. It never shrinks below the floor, so no slider
+position can reproduce the original's defect.
+
+That is the difference in one line: the original scales the numbers a printer
+has to hit, and this scales the numbers a printer does not care about.
+
+**Everything else follows the wire too.** Window, sill, slot, floor ribs, body
+diameter, body height, plunger, knob lobes -- all of them are properties of
+``Clamp`` below and all of them move with ``wire_d``. What stays put is the
+short list a *printer* sets rather than the part: the thread profile above, wall
+thicknesses, edge breaks, and the height of the ridges on the plunger's face.
 
 **Material: ABS**, unusually for this repo -- the failure being fixed was an ABS
 one, and the sizes below are the ones that survive it. It prints in PETG or PLA
@@ -58,18 +69,17 @@ cancel is warp, and warp wants *more* room, not less.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import ceil
 
 from ..lib import fits
 
 MATERIAL = "abs"
 
 # ---------------------------------------------------------------------------
-# The thread. Absolute millimetres, set by the nozzle. Nothing here is allowed
-# to depend on the wire -- that dependency is the defect being fixed.
+# The thread profile. Absolute millimetres, set by the nozzle, identical at
+# every position of the slider. Nothing here is allowed to depend on the wire --
+# that dependency is the defect being fixed.
 # ---------------------------------------------------------------------------
-
-THREAD_D = 8.0
-"""Basic major diameter: the female thread's root and the male's basic crest."""
 
 THREAD_PITCH = 2.5
 """Coarse on purpose. ``references/threads.md``: standard pitch scales with
@@ -97,12 +107,25 @@ along their normal, so this one number is simultaneously the radial gap at crest
 and root and the axial gap on the flanks. That is the reason for the 45 degree
 profile beyond its overhang: there is no second clearance to get wrong."""
 
-THREAD_ENGAGE_MIN = 8.0
-"""Floor on the female thread's length: 1.0 x D, from ``references/threads.md``.
-Printed threads share load across turns much worse than cut ones. The thread is
-lengthened past this when the plunger's travel demands it -- see
-``Clamp.thread_engage``, which is the only number in the thread that the wire is
-allowed to move, and it can only make it longer."""
+THREAD_ROOT_W = THREAD_FLAT + 2 * THREAD_DEPTH
+"""Tooth width at the root. With ``THREAD_FLAT`` at the crest this is the whole
+45 degree trapezoid, and it is the same trapezoid for both halves and at every
+diameter."""
+
+THREAD_D_MIN = 8.0
+"""Floor on the thread's major diameter, and the value it holds at for any wire
+up to about 2.9 mm.
+
+Not a printability floor -- a bigger thread prints more easily, not less -- but
+a *strength* one: the screw's core is this less two tooth heights, and below
+8 mm that core starts to twist before the clamp bites. It is also what keeps the
+part sensibly proportioned when the wire is very thin, which is the case this
+model was written for."""
+
+THREAD_D_STEP = 0.5
+"""The diameter is rounded up to a multiple of this. Nothing depends on a round
+number, but a clamp whose thread is 10.5 mm is easier to talk about than one
+whose thread is 10.2803 mm, and rounding *up* can only add clearance."""
 
 MOUTH_COLLAR = 2.5
 """Plain bore above the thread, one full pitch. Two rules land on the same
@@ -110,36 +133,10 @@ millimetre here: a thread must not start at a lead-in, and a lead-in cone cut
 into a bd_warehouse thread makes OCC's fuse return the thread alone and drop the
 rest of the part (``build123d-geometry-ops``, gotchas 7)."""
 
-# Derived thread radii. The male is shifted in by half the diametral clearance
-# and the female is left on basic size, which is where ``references/threads.md``
-# says to put it for a V profile ("shrink the major diameter of the male").
-FEMALE_ROOT_R = THREAD_D / 2
-FEMALE_CREST_R = FEMALE_ROOT_R - THREAD_DEPTH
-MALE_CREST_R = FEMALE_ROOT_R - THREAD_CLEAR / 2
-MALE_ROOT_R = MALE_CREST_R - THREAD_DEPTH
-THREAD_ROOT_W = THREAD_FLAT + 2 * THREAD_DEPTH
-"""Tooth width at the root. With ``THREAD_FLAT`` at the crest this is the whole
-45 degree trapezoid, and it is the same trapezoid for both halves."""
-
-CORE_R = MALE_ROOT_R
-"""The screw's shank under the thread: the thread's own root radius, so the
-shank and the thread are one cylinder with teeth on it rather than two."""
-
-PLUNGER_R = FEMALE_CREST_R - fits.SLIDING / 2
-"""The disc on the end of the shank, fatter than the shank itself.
-
-Sized off the channel bore -- which is the female crest, because the plunger has
-to pass through the thread to be assembled -- at ``fits.SLIDING``, the class for
-something that moves along its axis while staying located. It is not run through
-``fits.for_material``: ABS's -0.15 mm would take a 0.22 mm clearance to 0.07 mm,
-which is a press fit for a printed bore, and the same shrink-cancels-between-two-
-ABS-parts argument the thread clearance makes applies here. The gap that matters
-is the one a strand could escape up, and 0.11 mm a side is well under any wire
-this clamp is for."""
-
 # ---------------------------------------------------------------------------
-# The body shell. Wall and base are absolute; everything about the cord channel
-# is derived from the wire in ``Clamp`` below.
+# Walls and edge breaks. Also absolute, and for the same kind of reason: a wall
+# is a number of perimeters and a break is a fraction of a layer, so both are
+# set by the machine rather than by what is being clamped.
 # ---------------------------------------------------------------------------
 
 WALL = 1.5
@@ -150,16 +147,13 @@ at 6 mm rope and 0.6 mm at 3 mm, i.e. 1.5 perimeters."""
 
 WALL_Y = 1.0
 """Beside the wire passages, at the two ends of the channel. Thinner than
-``WALL`` on purpose and allowed to be: it is a 1.2 mm tall band of shell at the
-bottom of the channel and a 0.6 mm one at the top, and the screw's thrust runs
-down the two pillars either side of the window, not through here."""
+``WALL`` on purpose and allowed to be: it is a short band of shell at the bottom
+of the channel and another at the top, and the screw's thrust runs down the two
+pillars either side of the window, not through here."""
 
 BASE_T = 1.4
-"""Solid floor under the channel."""
-
-RIB_H = 0.35
-"""Height of the floor ribs, and their half-round radius: they are half
-cylinders, so one number does both. 1.75 extrusions wide at the base."""
+"""Solid floor under the channel. Fixed, because what stands on it is the
+plunger and the plunger's thrust is a hand on a knob at any wire size."""
 
 HEAD = 0.6
 """Solid ring between the top of the window and the top of the channel, so the
@@ -181,16 +175,6 @@ frustum sized to break the sill instead cuts a V-groove ring into the channel
 wall: an undercut, in a bore, facing the wrong way for the printer. Profiled
 into the channel it cannot miss, because there is nothing above it to miss."""
 
-WINDOW_FLARE = 0.5
-"""How much wider the window is where it breaks the outside than in the middle
-of the wall. Cut as a loft, which breaks both mouths without asking OCC to
-fillet a stadium hole in a cylinder."""
-
-# The step from the channel slot up to the round thread bore is a 45 degree
-# loft, sized in ``Clamp.step_cone``: it has to open out across the wire and
-# neck *in* along it, and 45 degrees in both is what keeps every face of it
-# printable and doubles it as the plunger's lead-in.
-
 BOTTOM_CHAMFER = 0.5
 TOP_CHAMFER = 0.6
 MOUTH_LEAD_IN = 0.8
@@ -203,28 +187,32 @@ COLLAR_H = 1.0
 """Plain shank between the last thread turn and the knob's underside."""
 
 KNOB_H = 5.0
-# The knob is flush with the body, as the original is: the knob is the largest
-# thing on the part and the body is the second, so making them equal means one
-# diameter to clear rather than two. It is therefore ``Clamp.body_r``, not a
-# constant -- the body grows with the wire, because the wire's passages do.
+"""Fixed: a knob is turned with fingertips on its rim, so what a bigger clamp
+needs is a bigger *diameter*, which it gets -- the knob is always flush with the
+body. Height only has to be enough to get two fingers on."""
 
 KNOB_LOBES = 10
-KNOB_LOBE_DEPTH = 0.9
-KNOB_LOBE_R = 1.2
-"""Radius of the ten circles cut out of the knob's rim. Big enough that the
-scallops are a grip and not a knurl -- a knurl needs a tool, and a printed one
-under about 1 mm just prints as a rough cylinder."""
+KNOB_LOBE_DEPTH_RATIO = 0.15
+"""Scallop depth as a fraction of the knob's radius, so the grip stays the same
+*shape* as the clamp grows rather than turning into a fine knurl on a big
+knob. At the 1 mm wire size this is 0.91 mm."""
 
-KNOB_TIP_R = 0.8
+KNOB_LOBE_R_RATIO = 0.20
+"""Radius of each of the ten circles cut out of the rim, likewise as a fraction.
+Big enough that the scallops are a grip and not a knurl -- a knurl needs a tool,
+and a printed one under about 1 mm just prints as a rough cylinder."""
+
+KNOB_TIP_R_RATIO = 0.13
 """Roll on the ten tips, where the rim circle meets each scallop. Without it
 those are knife edges -- a cut circle crosses the rim at an angle, so the tooth
 between two scallops comes to a point. Filleted in **2D**, on the profile,
 before it is lofted: the house rule wants vertical edges rounded, and rounding
 the sketch is the version of that which cannot fail.
 
-Bigger than ``KNOB_CHAMFER`` on purpose. The chamfer is a 2D offset of this same
-profile, and an offset inward eats a convex radius: at 0.5 mm of offset a 0.4 mm
-tip would come back as a corner and put the knife edge on the bed layer."""
+Kept above ``KNOB_CHAMFER`` at every size, which ``checks.py`` asserts. The
+chamfer is a 2D offset of this same profile, and an offset inward eats a convex
+radius: a tip smaller than the offset comes back as a corner and puts the knife
+edge on the bed layer."""
 
 KNOB_CHAMFER = 0.5
 """Break on both horizontal edges of the knob, cut as a 2D offset lofted into
@@ -237,32 +225,45 @@ PLUNGER_CHAMFER = 0.5
 
 RING_H = 0.3
 """Half-round ridges on the plunger's face, concentric so they bite at any
-rotation. The floor's ribs are straight and cross them; that pairing is the
-original's, and it is what stops a strand rolling out sideways."""
+rotation. Fixed rather than scaled: this is a surface texture, and 0.3 mm of
+relief digs into anything this clamp holds. Scaling it up on a big clamp would
+only crowd the rings into each other."""
 
 RING_COUNT = 3
 
+RIB_H_MIN = 0.35
+"""Floor on the floor ribs' height, which is also their half-round radius: they
+are half cylinders, so one number does both. 1.75 extrusions wide at the base."""
+
 # ---------------------------------------------------------------------------
-# Wire. The one slider, and the only thing below that moves.
+# Wire. The one slider, and the thing every property below is written in terms
+# of.
 # ---------------------------------------------------------------------------
 
-WIRE_MIN, WIRE_MAX = 0.5, 2.5
-"""Two strands of ``WIRE_MAX`` are 5 mm across, in a 6 mm window. Above that the
-window, not the thread, becomes the limit -- and a cord that big deserves the
-original's proportional scaling, which works from about 4 mm up."""
+WIRE_MIN, WIRE_MAX = 0.5, 4.0
+"""What one model covers: picture wire and trimmer line at the bottom, 4 mm
+shock cord and paracord at the top. The thread steps up on the way, at about
+2.9 mm, where two strands stop fitting under an 8 mm thread's plunger.
+
+Above 4 mm the original's own files are the better answer and they start at
+3.1 mm -- a rope that thick is compressible enough that its rim-nip works, and
+this model's wire passages would make the body wider than it needs to be."""
 
 WIRE_DEFAULT = 1.0
 STRANDS = 2
 """What the clamp is *for*: a loop, both legs through the same window, the way
-every photo of the original shows it used."""
+every photo of the original shows it used. It is also what sizes the thread --
+see ``Clamp.strand_room``."""
 
 
 @dataclass(frozen=True)
 class Clamp:
-    """One clamp's worth of numbers, wire-driven half only.
+    """One clamp's worth of numbers, all of them derived from the wire.
 
-    Everything the thread cares about is a module constant above, because it is
-    the same in every instance. Everything here moves with the wire.
+    The module constants above are the ones a *printer* sets. Everything here is
+    set by what is being clamped, including -- unlike the original -- the
+    thread's diameter, which is the one thread dimension that can move without
+    asking the nozzle for something it cannot do.
     """
 
     wire_d: float = WIRE_DEFAULT
@@ -272,7 +273,145 @@ class Clamp:
         """Build one with the slider clamped back into a buildable range."""
         return cls(wire_d=min(max(float(wire_d), WIRE_MIN), WIRE_MAX))
 
+    # -- the thread ---------------------------------------------------------
+
+    @property
+    def strand_room(self) -> float:
+        """How wide the slot has to be for the strands to lie side by side.
+
+        ``fits.FREE`` at each side: the strands are dropped in through a window
+        by hand, so nothing here is a fit -- it wants room to spare.
+        """
+        return STRANDS * self.wire_d + 2 * fits.FREE
+
+    @property
+    def thread_d(self) -> float:
+        """Thread major diameter: the one thread dimension the wire may move.
+
+        The plunger has to pass *through* the female thread to be assembled, so
+        the thread's minor diameter is the widest the plunger can ever be, and
+        the plunger is what the strands lie under. Run that backwards and the
+        thread's diameter is set by the wire: minor >= ``strand_room``, and
+        major is minor plus a tooth at each side.
+
+        Held at ``THREAD_D_MIN`` until the strands overtake it, which happens at
+        about 2.9 mm of wire. Rounded up to ``THREAD_D_STEP``.
+
+        Growing a diameter is safe in a way that shrinking a pitch is not: every
+        number a nozzle has to resolve -- pitch, tooth, crest flat, clearance --
+        is a module constant and is untouched by this.
+        """
+        needed = self.strand_room + 2 * THREAD_DEPTH
+        return max(THREAD_D_MIN, ceil(needed / THREAD_D_STEP) * THREAD_D_STEP)
+
+    @property
+    def female_root_r(self) -> float:
+        return self.thread_d / 2
+
+    @property
+    def female_crest_r(self) -> float:
+        return self.female_root_r - THREAD_DEPTH
+
+    @property
+    def male_crest_r(self) -> float:
+        """The male is shifted in by half the diametral clearance and the female
+        is left on basic size, which is where ``references/threads.md`` says to
+        put it for a V profile: "shrink the major diameter of the male"."""
+        return self.female_root_r - THREAD_CLEAR / 2
+
+    @property
+    def male_root_r(self) -> float:
+        return self.male_crest_r - THREAD_DEPTH
+
+    @property
+    def core_r(self) -> float:
+        """The screw's shank under the thread: the thread's own root radius, so
+        the shank and the thread are one cylinder with teeth on it rather than
+        two."""
+        return self.male_root_r
+
+    @property
+    def plunger_r(self) -> float:
+        """The disc on the end of the shank, fatter than the shank itself.
+
+        Sized off the channel bore -- which is the female crest, because the
+        plunger has to pass through the thread to be assembled -- at
+        ``fits.SLIDING``, the class for something that moves along its axis
+        while staying located. It is not run through ``fits.for_material``:
+        ABS's -0.15 mm would take a 0.22 mm clearance to 0.07 mm, which is a
+        press fit for a printed bore, and the same shrink-cancels-between-two-
+        ABS-parts argument the thread clearance makes applies here. The gap that
+        matters is the one a strand could escape up, and 0.11 mm a side is well
+        under any wire this clamp is for.
+        """
+        return self.female_crest_r - fits.SLIDING / 2
+
+    @property
+    def plunger_slack(self) -> float:
+        """Diametral slack of the plunger in the channel bore -- ``fits.SLIDING``
+        by construction of ``plunger_r``, restated here so a check can measure
+        the built geometry against the class it claims rather than against the
+        expression it was cut from."""
+        return 2 * (self.female_crest_r - self.plunger_r)
+
     # -- the cord channel ---------------------------------------------------
+
+    @property
+    def wire_pass(self) -> float:
+        """Width of the gap the wire drops through, at each end of the channel.
+
+        **This is the one place this model departs from the original's shape,
+        and it is the second fix.** In the original the plunger is a disc 0.3 mm
+        smaller than a round bore, so nothing thicker than 0.3 mm can pass it: a
+        rope is not clamped against the floor at all, it is nipped between the
+        plunger's rim and the window sill and squashed. That works on 6 mm rope,
+        which is compressible and has enough surface to hold by friction alone.
+        A 1 mm wire is neither -- it is stiff, it is slippery, and a rim nip on a
+        plastic part yields the plastic long before it holds the wire.
+
+        So the channel here is a **slot**, not a bore: the plunger's width is the
+        slot's width, and the slot is longer than the plunger in the wire's own
+        axis by exactly this much at each end. The wire's two legs run down those
+        gaps, so tightening pulls the wire *through* -- down over one sill, flat
+        along the ribbed floor under the plunger, up over the other -- and clamps
+        it against the floor with four bends in it. Four bends hold a wire; a nip
+        does not.
+
+        ``fits.FREE``, because nothing here is a fit: the wire has to fall
+        through the gap without being threaded into it.
+        """
+        return self.wire_d + fits.FREE
+
+    @property
+    def channel_w(self) -> float:
+        """Slot width, across the wire: the female thread's minor diameter.
+
+        One number doing two jobs -- the plunger passes through the thread to be
+        assembled, and is then guided by these two flats at ``fits.SLIDING``.
+        Guided in the axis that matters: it is what stops a strand escaping
+        sideways from under the plunger. ``thread_d`` is chosen so that this is
+        always at least ``strand_room``.
+        """
+        return 2 * self.female_crest_r
+
+    @property
+    def channel_l(self) -> float:
+        """Slot length, along the wire: the plunger plus a passage at each end."""
+        return self.channel_w + 2 * self.wire_pass
+
+    @property
+    def body_r(self) -> float:
+        """Whichever of the two things inside is bigger, plus its own wall.
+
+        The thread at the thin end of the slider, the wire passages from about
+        1 mm up. Both grow with the wire, so the body does too -- which is the
+        honest answer rather than a defect: a thicker wire needs a wider slot,
+        and a wider slot needs a wider shell.
+        """
+        return max(
+            self.female_root_r + WALL,
+            self.channel_l / 2 + LIP_CHAMFER + WALL_Y,
+        )
 
     @property
     def window_h(self) -> float:
@@ -288,66 +427,19 @@ class Clamp:
         a pinch: the wire enters level, and the plunger pushes it down past two
         sills into the channel, so it leaves bent rather than merely squeezed.
         A pinch holds by friction alone and a thin wire has very little of it.
+
+        Half the wire, so its underside clears the sill, plus 0.7 mm of actual
+        bend. Deliberately *not* a straight multiple: the bend that turns a
+        sliding wire into a held one is a fixed thing, so a rope four times as
+        thick does not need four times as much of it -- and paying for it in
+        height four times over is how the body ends up twice as tall as it needs
+        to be at the top of the slider.
         """
-        return max(0.8, 1.2 * self.wire_d)
+        return self.wire_d / 2 + 0.7
 
     @property
     def channel_h(self) -> float:
         return self.lip + self.window_h + HEAD
-
-    @property
-    def wire_pass(self) -> float:
-        """Width of the gap the wire drops through, at each end of the channel.
-
-        **This is the one place this model departs from the original, and it is
-        the second fix.** In the original the plunger is a disc 0.3 mm smaller
-        than a round bore, so nothing thicker than 0.3 mm can pass it: a rope is
-        not clamped against the floor at all, it is nipped between the plunger's
-        rim and the window sill and squashed. That works on 6 mm rope, which is
-        compressible and has enough surface to hold by friction alone. A 1 mm
-        wire is neither -- it is stiff, it is slippery, and a rim nip on a
-        plastic part yields the plastic long before it holds the wire.
-
-        So the channel here is a **slot**, not a bore: the plunger's width is
-        the slot's width, and the slot is longer than the plunger in the wire's
-        own axis by exactly this much at each end. The wire's two legs run down
-        those gaps, so tightening pulls the wire *through* -- down over one
-        sill, flat along the ribbed floor under the plunger, up over the other
-        -- and clamps it against the floor with four bends in it. Four bends
-        hold a wire; a nip does not.
-
-        ``fits.FREE``, because nothing here is a fit: the wire has to fall
-        through the gap without being threaded into it.
-        """
-        return self.wire_d + fits.FREE
-
-    @property
-    def channel_w(self) -> float:
-        """Slot width, across the wire. The female thread's minor diameter, so
-        that one number does two jobs: the plunger passes through the thread to
-        be assembled, and is then guided by these two flats at ``fits.SLIDING``.
-        Guided in the axis that matters -- it is what stops a strand escaping
-        sideways from under the plunger."""
-        return 2 * FEMALE_CREST_R
-
-    @property
-    def channel_l(self) -> float:
-        """Slot length, along the wire: the plunger plus a passage at each end."""
-        return self.channel_w + 2 * self.wire_pass
-
-    @property
-    def body_r(self) -> float:
-        """Whichever of the two things inside is bigger, plus its own wall.
-
-        Usually the thread. The wire passages overtake it a little above 1 mm
-        wire, and from there the body grows with the wire -- which is the honest
-        answer rather than a defect: a thicker wire needs a wider slot and a
-        wider slot needs a wider shell. What does *not* grow is the thread.
-        """
-        return max(
-            FEMALE_ROOT_R + WALL,
-            self.channel_l / 2 + LIP_CHAMFER + WALL_Y,
-        )
 
     @property
     def window_w(self) -> float:
@@ -364,8 +456,34 @@ class Clamp:
         return self.channel_w + 2 * LIP_CHAMFER + 0.2
 
     @property
+    def rib_h(self) -> float:
+        """Height of the floor ribs, and their half-round radius.
+
+        Scaled with the wire above 1 mm and floored below it: a rib has to dent
+        what it grips, and 0.35 mm of relief that bites a 1 mm wire only polishes
+        a 4 mm cord.
+        """
+        return max(RIB_H_MIN, 0.35 * self.wire_d)
+
+    @property
     def rib_pitch(self) -> float:
+        """Spacing of the floor ribs along the wire. Ribs finer than the thing
+        they grip only polish it."""
         return max(1.0, 1.2 * self.wire_d)
+
+    # -- the knob -----------------------------------------------------------
+
+    @property
+    def knob_lobe_depth(self) -> float:
+        return KNOB_LOBE_DEPTH_RATIO * self.body_r
+
+    @property
+    def knob_lobe_r(self) -> float:
+        return KNOB_LOBE_R_RATIO * self.body_r
+
+    @property
+    def knob_tip_r(self) -> float:
+        return KNOB_TIP_R_RATIO * self.body_r
 
     # -- heights, bed upward ------------------------------------------------
 
@@ -385,25 +503,25 @@ class Clamp:
     def step_cone(self) -> float:
         """Height of the 45 degree transition from the channel slot to the
         thread bore. Whichever of the two directions has further to go: out by
-        ``FEMALE_ROOT_R - channel_w / 2`` across the wire, in by
-        ``channel_l / 2 - FEMALE_ROOT_R`` along it. The second one is the one
-        that grows, and it is the reason this is not a constant."""
+        ``female_root_r - channel_w / 2`` across the wire, in by
+        ``channel_l / 2 - female_root_r`` along it. The second one is the one
+        that grows."""
         return max(
-            FEMALE_ROOT_R - self.channel_w / 2,
-            self.channel_l / 2 - FEMALE_ROOT_R,
+            self.female_root_r - self.channel_w / 2,
+            self.channel_l / 2 - self.female_root_r,
         )
 
     @property
     def thread_engage(self) -> float:
         """Female thread length.
 
-        ``THREAD_ENGAGE_MIN`` normally, but never less than the plunger's travel
-        plus a full pitch -- so that a screw backed right out to where the wire
-        runs free still has a whole turn holding it, and cannot be dropped and
-        lost. Travel is wire-driven; this is the one way the wire is allowed to
-        touch the thread, and it can only ask for more of it.
+        1.0 x D, the floor in ``references/threads.md`` -- printed threads share
+        load across turns much worse than cut ones -- but never less than the
+        plunger's travel plus a full pitch, so that a screw backed right out to
+        where the wire runs free still has a whole turn holding it and cannot be
+        dropped and lost.
         """
-        return max(THREAD_ENGAGE_MIN, self.travel + THREAD_PITCH)
+        return max(self.thread_d, self.travel + THREAD_PITCH)
 
     @property
     def thread_z0(self) -> float:
@@ -429,17 +547,15 @@ class Clamp:
         clamping force -- and a knob that has gone flush is the tell that
         nothing is in there.
         """
-        return BASE_T + RIB_H
+        return BASE_T + self.rib_h
 
     @property
     def clamped_z(self) -> float:
         """Where the plunger stops on a wire of this size.
 
-        One wire diameter above ``closed_z``, which is the empty-clamp stop --
-        so a wire is what holds the knob proud of the body, and how proud says
-        how much is in there. Nothing depends on this but the assembly view and
-        the checks that read it; the part has no stop at this height and does
-        not need one.
+        One wire diameter above ``closed_z``. Nothing depends on this but the
+        assembly view and the checks that read it; the part has no stop at this
+        height and does not need one.
         """
         return self.closed_z + self.wire_d
 
@@ -481,16 +597,6 @@ class Clamp:
         so this wants to stay above a full turn.
         """
         return self.thread_z1 - (self.open_z + self.plunger_len)
-
-    # -- fits ---------------------------------------------------------------
-
-    @property
-    def plunger_slack(self) -> float:
-        """Diametral slack of the plunger in the channel bore -- ``fits.SLIDING``
-        by construction of ``PLUNGER_R``, restated here so a check can measure
-        the built geometry against the class it claims rather than against the
-        constant it was cut from."""
-        return 2 * (FEMALE_CREST_R - PLUNGER_R)
 
 
 DEFAULT = Clamp()

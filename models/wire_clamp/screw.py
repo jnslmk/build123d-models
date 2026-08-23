@@ -44,15 +44,13 @@ from .config import (
     DEFAULT,
     KNOB_CHAMFER,
     KNOB_H,
-    KNOB_LOBE_DEPTH,
-    KNOB_LOBE_R,
     KNOB_LOBES,
-    KNOB_TIP_R,
-    MALE_ROOT_R,
     PLUNGER_CHAMFER,
-    PLUNGER_R,
     RING_COUNT,
     RING_H,
+    WIRE_DEFAULT,
+    WIRE_MAX,
+    WIRE_MIN,
     Clamp,
 )
 
@@ -67,7 +65,7 @@ def ring_radii(c: Clamp) -> list[float]:
     whatever rotation the thread stops it at, and a feature that only grips at
     one angle grips at none.
     """
-    outer = PLUNGER_R - PLUNGER_CHAMFER - RING_H
+    outer = c.plunger_r - PLUNGER_CHAMFER - RING_H
     step = outer / RING_COUNT
     return [step * (i + 1) for i in range(RING_COUNT)]
 
@@ -81,9 +79,11 @@ def knob_profile(c: Clamp, shrink: float = 0.0):
     """
     with BuildSketch() as sk:
         Circle(c.body_r)
-        with PolarLocations(c.body_r - KNOB_LOBE_DEPTH + KNOB_LOBE_R, KNOB_LOBES):
-            Circle(KNOB_LOBE_R, mode=Mode.SUBTRACT)
-        fillet(sk.vertices(), KNOB_TIP_R)
+        with PolarLocations(
+            c.body_r - c.knob_lobe_depth + c.knob_lobe_r, KNOB_LOBES
+        ):
+            Circle(c.knob_lobe_r, mode=Mode.SUBTRACT)
+        fillet(sk.vertices(), c.knob_tip_r)
         if shrink:
             offset(amount=-shrink, kind=Kind.INTERSECTION, mode=Mode.REPLACE)
     return sk.sketch
@@ -98,7 +98,7 @@ def build_upright(c: Clamp = DEFAULT) -> Part:
     it over for the bed.
     """
     # Outside the builder, once -- see ``body.build`` and gotchas 6.
-    thread = tp.male(c.male_len)
+    thread = tp.male(c, c.male_len)
 
     z_thread = c.plunger_len
     z_collar = z_thread + c.male_len
@@ -113,15 +113,15 @@ def build_upright(c: Clamp = DEFAULT) -> Part:
         # where every height in ``config`` is measured from.
         with Locations((0, 0, RING_H)):
             Cone(
-                PLUNGER_R - PLUNGER_CHAMFER,
-                PLUNGER_R,
+                c.plunger_r - PLUNGER_CHAMFER,
+                c.plunger_r,
                 PLUNGER_CHAMFER,
                 align=_BASE,
             )
-        neck = PLUNGER_R - MALE_ROOT_R
+        neck = c.plunger_r - c.male_root_r
         with Locations((0, 0, RING_H + PLUNGER_CHAMFER)):
             Cylinder(
-                PLUNGER_R,
+                c.plunger_r,
                 z_thread - PLUNGER_CHAMFER - RING_H - neck,
                 align=_BASE,
             )
@@ -129,9 +129,9 @@ def build_upright(c: Clamp = DEFAULT) -> Part:
         # step: the step would be 0.14 mm of raw ledge, which is both a sharp
         # edge and an overhang once the part is turned over to print.
         with Locations((0, 0, z_thread - neck)):
-            Cone(PLUNGER_R, MALE_ROOT_R, neck, align=_BASE)
+            Cone(c.plunger_r, c.male_root_r, neck, align=_BASE)
         with Locations((0, 0, z_thread)):
-            Cylinder(MALE_ROOT_R, c.male_len + COLLAR_H, align=_BASE)
+            Cylinder(c.male_root_r, c.male_len + COLLAR_H, align=_BASE)
 
         add(as_part(Pos(0, 0, z_thread) * thread))
 
@@ -163,6 +163,23 @@ def build(c: Clamp = DEFAULT) -> Part:
     return reseat_on_bed(build_upright(c), flip=True)
 
 
-def create() -> Part:
+PARAMS = [
+    {
+        "name": "wire_d",
+        "label": "Wire diameter (mm)",
+        "type": "number",
+        "min": WIRE_MIN,
+        "max": WIRE_MAX,
+        "step": 0.1,
+        "default": WIRE_DEFAULT,
+    },
+]
+"""The same one slider the assembly carries. It has to be repeated per module:
+the website reads ``PARAMS`` off whichever model is on screen, and this is one
+of the two you download an STL from -- so a screw built at one setting can never
+be handed out beside a body built at another."""
+
+
+def create(wire_d: float = WIRE_DEFAULT) -> Part:
     """The thumbscrew, print pose, knob on the bed."""
-    return build()
+    return build(Clamp.of(wire_d))

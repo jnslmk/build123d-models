@@ -19,16 +19,24 @@ all ten against each other is where this package's numbers come from --
 
 **Two things had to change to get to 1 mm wire, and they are the whole point.**
 
-*The thread does not scale.* At 6 mm rope the original's thread has a 2.16 mm
-pitch and a 0.60 mm tooth and prints beautifully. At 3 mm rope the same ratios
-give a 1.08 mm pitch and a **0.30 mm tooth** -- a crest narrower than one 0.4 mm
-extrusion and five layers to a turn -- so it does not come out tight, it does
-not come out at all, and in ABS the warp on a 9 mm cylinder is larger than the
-whole tooth. Scaled the rest of the way to 1 mm it would be a 3 mm bead with a
-0.36 mm pitch. So here the thread is **fixed at 8 mm x 2.5 mm with a 0.75 mm
-tooth, 45 degree flanks and 0.5 mm of diametral clearance**, and it stays that
-whatever the wire does. That is why a 1 mm wire clamp is 12 mm across: the
-thread sets the size, the wire does not.
+*The thread's profile does not scale.* At 6 mm rope the original's thread has a
+2.16 mm pitch and a 0.60 mm tooth and prints beautifully. At 3 mm rope the same
+ratios give a 1.08 mm pitch and a **0.30 mm tooth** -- a crest narrower than one
+0.4 mm extrusion and five layers to a turn -- so it does not come out tight, it
+does not come out at all, and in ABS the warp on a 9 mm cylinder is larger than
+the whole tooth. Scaled the rest of the way to 1 mm it would be a 3 mm bead with
+a 0.36 mm pitch.
+
+So the thread here is split in two. **Pitch, tooth height, crest flat and
+clearance are absolute** -- 2.5 mm, 0.75 mm, 0.5 mm, 0.5 mm, at 45 degrees --
+and are the same at every position of the slider, because those four are what a
+nozzle has to resolve and each of them has a floor. The thread's **diameter**
+does follow the wire, from an 8 mm floor upward, because that is the one thread
+dimension with no floor to fall through: the plunger has to pass through the
+thread to be assembled, so the thread caps how wide a pair of strands can be,
+and a bigger thread is strictly easier to print than a smaller one. The original
+scales the numbers a printer has to hit; this scales the number a printer does
+not care about.
 
 *The plunger lets the wire past.* The original's plunger is a disc 0.3 mm
 smaller than a round bore, so nothing thicker than 0.3 mm gets under it -- a
@@ -56,12 +64,22 @@ bridge.
 cannot fall out of an open clamp: with the plunger backed up clear of the
 window, a full turn and a half of thread is still engaged.
 
-**Parametric, in one number.** ``wire_d``, 0.5 to 2.5 mm. It moves the window,
-the sill, the slot, the floor ribs and -- through the slot -- the body diameter.
-It does not move the thread, which is the entire lesson of the model, so the
-slider is safe in a way the original's is not: no position of it can produce a
-thread the printer cannot resolve. Above 2.5 mm the original's own files are the
-better answer, and they start at 3 mm.
+**Parametric, in one number.** ``wire_d``, 0.5 to 4.0 mm, and it sizes the whole
+clamp: window, sill, slot, floor ribs, plunger, knob lobes, thread diameter,
+body diameter and body height all follow it. A 0.5 mm clamp is 11 x 16 mm; a
+4 mm one is 21 x 27 mm.
+
+The slider is on the assembly *and* on all three printable models, because the
+website reads ``PARAMS`` off whichever model is on screen -- a slider declared
+only on the scene would be a slider on the one page with no download button.
+``wire_clamp.printable`` is the one to take if you want a guaranteed matched
+pair: both parts come off the same setting.
+
+What the slider cannot reach is the thread's profile, which is the entire lesson
+of the model. So it is safe in a way the original's is not: **no position of it
+can produce a thread the printer cannot resolve.** Above 4 mm the original's own
+files are the better answer -- rope that thick is compressible enough that its
+rim-nip works -- and they start at 3.1 mm.
 """
 
 from __future__ import annotations
@@ -72,7 +90,7 @@ from ..lib.edges import as_part
 from . import body, config, screw
 from .config import (
     STRANDS,
-    THREAD_D,
+    THREAD_D_MIN,
     THREAD_PITCH,
     WIRE_DEFAULT,
     WIRE_MAX,
@@ -140,7 +158,7 @@ __all__ = [
     "IS_ASSEMBLY",
     "PARAMS",
     "STRANDS",
-    "THREAD_D",
+    "THREAD_D_MIN",
     "Clamp",
     "body",
     "build",

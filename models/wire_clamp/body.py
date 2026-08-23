@@ -52,11 +52,12 @@ from .config import (
     BASE_T,
     BOTTOM_CHAMFER,
     DEFAULT,
-    FEMALE_ROOT_R,
     LIP_CHAMFER,
     MOUTH_LEAD_IN,
-    RIB_H,
     TOP_CHAMFER,
+    WIRE_DEFAULT,
+    WIRE_MAX,
+    WIRE_MIN,
     Clamp,
 )
 
@@ -151,11 +152,11 @@ def channel_tool(c: Clamp) -> Part:
         with BuildSketch(Plane.XY.offset(c.channel_top)):
             _slot(c)
         with BuildSketch(Plane.XY.offset(c.thread_z0)):
-            Circle(FEMALE_ROOT_R)
+            Circle(c.female_root_r)
         loft(ruled=True)
 
         with BuildSketch(Plane.XY.offset(c.thread_z0)):
-            Circle(FEMALE_ROOT_R)
+            Circle(c.female_root_r)
         extrude(amount=c.body_h - c.thread_z0)
     return tool.part
 
@@ -171,13 +172,13 @@ def rib_tool(c: Clamp) -> Part:
     Spaced ``rib_pitch`` apart, which is the one grip dimension that scales with
     the wire -- ribs finer than the thing they grip only polish it.
     """
-    span = c.channel_l / 2 - RIB_H
+    span = c.channel_l / 2 - c.rib_h
     count = int(span // c.rib_pitch)
     reach = c.channel_w + 1.0
     with BuildPart() as tool:
         for i in range(-count, count + 1):
             with Locations((0, i * c.rib_pitch, BASE_T)):
-                Cylinder(RIB_H, reach, rotation=(0, 90, 0))
+                Cylinder(c.rib_h, reach, rotation=(0, 90, 0))
     return tool.part
 
 
@@ -187,7 +188,7 @@ def build(c: Clamp = DEFAULT) -> Part:
     # otherwise add itself at the origin as well as where it is placed --
     # ``build123d-geometry-ops``, gotchas 6. The origin here is the middle of
     # the channel floor, so a stray copy would sit right under the plunger.
-    thread = tp.female(c.thread_engage)
+    thread = tp.female(c, c.thread_engage)
     channel = channel_tool(c)
     window = window_tool(c)
     ribs = rib_tool(c)
@@ -209,8 +210,8 @@ def build(c: Clamp = DEFAULT) -> Part:
         # OCC's fuse hand back the thread and drop the body.
         with Locations((0, 0, c.body_h - MOUTH_LEAD_IN)):
             Cone(
-                FEMALE_ROOT_R,
-                FEMALE_ROOT_R + MOUTH_LEAD_IN,
+                c.female_root_r,
+                c.female_root_r + MOUTH_LEAD_IN,
                 MOUTH_LEAD_IN,
                 align=_BASE,
                 mode=Mode.SUBTRACT,
@@ -235,6 +236,22 @@ def build(c: Clamp = DEFAULT) -> Part:
     return bp.part
 
 
-def create() -> Part:
+PARAMS = [
+    {
+        "name": "wire_d",
+        "label": "Wire diameter (mm)",
+        "type": "number",
+        "min": WIRE_MIN,
+        "max": WIRE_MAX,
+        "step": 0.1,
+        "default": WIRE_DEFAULT,
+    },
+]
+"""The same one slider the assembly carries, repeated here because the website
+reads ``PARAMS`` per module and this is the module you download an STL from. A
+slider on a scene nobody can print is a slider nobody can use."""
+
+
+def create(wire_d: float = WIRE_DEFAULT) -> Part:
     """The clamp body, print pose, base on the bed."""
-    return build()
+    return build(Clamp.of(wire_d))
