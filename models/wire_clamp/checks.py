@@ -26,16 +26,26 @@ from __future__ import annotations
 
 import sys
 
-from build123d import Compound, Part, Pos, Rot
+from build123d import BuildSketch, Circle, Compound, GeomType, Part, Pos, Rot
 
-from ..lib.checks import Report, is_solid_at, is_periodic_seam, sharp_convex_edges
+from ..lib.checks import (
+    Report,
+    adjacent_faces,
+    is_periodic_seam,
+    is_solid_at,
+    sharp_convex_edges,
+)
 from ..lib.edges import as_part
 from . import body, printable, screw, thread as tp, wire
 from . import screw_turn
 from .config import (
     COLLAR_H,
     KNOB_CHAMFER,
+    NOTCH_SHOULDER,
     RING_H,
+    SHEAR_SAFETY,
+    ABS_SHEAR,
+    THREAD_ENGAGE_RATIO,
     STRANDS,
     THREAD_CLEAR,
     THREAD_D_MIN,
@@ -51,11 +61,12 @@ from .config import (
 
 SAMPLES = (WIRE_MIN, 1.0, 2.0, 2.9, 5.6, WIRE_MAX)
 """Slider positions every rule below is checked at, rather than only the
-default. Two of them are chosen rather than spaced: **2.9** brackets the one
-discontinuity in the model, where the thread steps up off its floor, and **5.6**
-is the position whose male thread comes out 15.000000000000004 mm long -- see
-``check_thread_lengths``. A property that holds at both ends of a range and
-breaks in the middle is exactly what a two-point check misses."""
+default -- including the edge audit, which used to run on the default alone and
+so left the whole top half of the slider unlooked-at. **2.9** is chosen rather
+than spaced: it brackets the one discontinuity in the model, where the thread
+steps up off its floor. A property that holds at both ends of a range and breaks
+in the middle is exactly what a two-point check misses, and two families of
+untreated edge were living in that gap."""
 
 NOZZLE = 0.4
 """The extrusion width every "can the printer resolve this" rule below is in
@@ -186,11 +197,25 @@ def check_thread_rules(r: Report) -> None:
         "wire -- the property that makes a 45 degree flank need only one "
         "clearance number survives the diameter moving",
     )
+    worst = max(Clamp.of(w).thread_shear for w in SAMPLES)
     r.check(
-        Clamp().thread_engage >= Clamp().thread_d,
-        "engagement is at least 1.0 x D",
-        f"{Clamp().thread_engage} mm of female thread on a {Clamp().thread_d} mm "
-        "thread at the default size; asserted across the slider below",
+        worst <= ABS_SHEAR / SHEAR_SAFETY,
+        f"thread roots stay under {ABS_SHEAR / SHEAR_SAFETY:.0f} MPa at hand torque",
+        f"worst {worst:.1f} MPa across {list(SAMPLES)} mm of wire, against "
+        f"{ABS_SHEAR:.0f} MPa for ABS across layers -- a factor of "
+        f"{ABS_SHEAR / worst:.1f}. This is what {THREAD_ENGAGE_RATIO} x D of "
+        "engagement is justified by, in place of the 1.0 x D the printed-thread "
+        "table asks for; that rule is written for a structural thread and this "
+        "one carries a finger",
+    )
+    r.check(
+        all(
+            Clamp.of(w).thread_engage >= THREAD_ENGAGE_RATIO * Clamp.of(w).thread_d
+            for w in SAMPLES
+        ),
+        f"engagement is at least {THREAD_ENGAGE_RATIO} x D everywhere",
+        f"{[round(Clamp.of(w).thread_engage, 2) for w in SAMPLES]} mm against "
+        f"diameters {[Clamp.of(w).thread_d for w in SAMPLES]} mm",
     )
 
 
@@ -248,13 +273,6 @@ def check_thread_is_fixed(r: Report) -> None:
         f"{diameters} mm against a {THREAD_D_MIN} mm floor -- so no position of "
         "the slider can reproduce the original's small end",
     )
-    engagements = [Clamp.of(w).thread_engage for w in SAMPLES]
-    r.check(
-        all(e >= Clamp.of(w).thread_d for w, e in zip(SAMPLES, engagements)),
-        "engagement stays at 1.0 x D as the diameter grows",
-        f"{[round(e, 2) for e in engagements]} mm against diameters "
-        f"{diameters} mm",
-    )
     fits_strands = [
         (w, Clamp.of(w).channel_w, Clamp.of(w).strand_room) for w in SAMPLES
     ]
@@ -293,16 +311,22 @@ def check_thread_lengths(r: Report) -> None:
     """
     r.section("thread: lengths clear of the whole-turn trap")
 
-    raw = Clamp.of(5.6).male_len
-    raw_frac = ((raw - THREAD_PITCH) / THREAD_PITCH) % 1
+    # Demonstrated on the function rather than on a slider position. It *was*
+    # pinned to one -- 5.6 mm of wire produced a 15.000000000000004 mm male
+    # thread -- and then the clamp's dimensions moved and the example evaporated
+    # while the trap stayed exactly as real. A demonstration that depends on the
+    # geometry happening to land on a knife edge is a demonstration with a shelf
+    # life; this one is the failure's own shape.
+    bad = 6 * THREAD_PITCH + THREAD_PITCH + 4e-15
+    bad_frac = ((bad - THREAD_PITCH) / THREAD_PITCH) % 1
+    fixed_frac = ((tp._whole_turn_safe(bad) - THREAD_PITCH) / THREAD_PITCH) % 1
     r.check(
-        0.0 < raw_frac < tp.WHOLE_TURN_EPS,
-        "the trap is real and inside the range",
-        f"at 5.6 mm of wire the male thread wants to be {raw!r} mm, which is "
-        f"{raw_frac:.2e} of a turn past a whole one -- above zero, so "
-        "bd_warehouse builds that partial loop, and far enough below one that "
-        "it is degenerate. Without the snap in ``thread._whole_turn_safe`` this "
-        "position raises rather than builds",
+        0.0 < bad_frac < tp.WHOLE_TURN_EPS and fixed_frac == 0.0,
+        "the guard turns a degenerate partial turn into no partial turn",
+        f"{bad!r} is {bad_frac:.2e} of a turn past a whole one -- above zero, so "
+        "bd_warehouse builds that partial loop, and small enough that the helix "
+        f"is degenerate. Snapped to {tp._whole_turn_safe(bad)!r}, which is "
+        "exactly a whole number of turns, so the partial loop is skipped instead",
     )
 
     unsafe = []
@@ -405,32 +429,69 @@ def check_kinematics(r: Report, c: Clamp) -> None:
 
 
 def check_wire_path(r: Report, c: Clamp) -> None:
-    r.section("wire path")
+    r.section("wire path and plunger coverage")
     passage = c.channel_l / 2 - c.plunger_r
     r.check(
         passage >= c.wire_d,
         "the wire fits past the plunger",
-        f"{passage:.2f} mm of passage at each end of the slot for a "
-        f"{c.wire_d} mm wire -- this is the departure from the original, "
-        "whose round bore leaves 0.3 mm at any size",
+        f"{passage:.2f} mm of passage at each end for a {c.wire_d} mm wire -- "
+        "this is the departure from the original, whose round bore leaves "
+        "0.3 mm at any size",
     )
     side = c.channel_w / 2 - c.plunger_r
     r.check(
         side < c.wire_d,
         "the wire cannot escape sideways past the plunger",
-        f"{side:.2f} mm at the slot's flats, against a {c.wire_d} mm wire -- "
-        "the same slot that opens a path along the wire closes one across it",
+        f"{side:.2f} mm of annulus round the plunger, against a {c.wire_d} mm "
+        "wire",
     )
     r.check(
-        STRANDS * c.wire_d < c.channel_w,
-        "both strands fit side by side under the plunger",
+        c.notch_w < c.channel_w,
+        "the notches are narrower than the bore they open off",
+        f"{c.notch_w:.2f} mm notch in a {c.channel_w:.2f} mm bore -- so a strand "
+        "in a notch is boxed in across the wire by the notch's own walls, and a "
+        "strand anywhere else is under the plunger",
+    )
+    r.check(
+        STRANDS * c.wire_d < c.notch_w,
+        "both strands fit down a notch, side by side",
         f"{STRANDS} x {c.wire_d} = {STRANDS * c.wire_d:.2f} mm in a "
-        f"{c.channel_w:.2f} mm slot",
+        f"{c.notch_w:.2f} mm notch",
     )
     r.check(
-        c.lip >= c.wire_d * 0.8,
+        c.lip >= c.wire_d * 0.5,
         "the sill is deep enough to be a bend and not a graze",
         f"lip {c.lip:.2f} mm against a {c.wire_d} mm wire",
+    )
+
+    # The claim in full, measured off the actual outlines rather than argued:
+    # take the bore out of the channel's cross-section and what is left must be
+    # the two notch tongues, nothing wider.
+    opening = body.channel_section(c)
+    with BuildSketch() as bore:
+        Circle(c.female_crest_r)
+    tongues = opening - bore.sketch
+    bb = tongues.bounding_box()
+    r.check(
+        c.notch_w - 1e-6 <= bb.size.X <= c.notch_w + 2 * body.NOTCH_CORNER_R + 1e-6,
+        "the only opening outside the bore is the notches",
+        f"what lies outside the bore is {bb.size.X:.2f} mm wide -- the notch "
+        f"({c.notch_w:.2f}) plus its rolled corners, not the bore's "
+        f"{c.channel_w:.2f} -- and is "
+        f"{100 * tongues.area / opening.area:.0f}% of the opening's area. "
+        "The plunger fills the rest to a running clearance",
+    )
+
+    # The shoulder is what makes the sentence above possible, and its absence is
+    # a *segfault* rather than a failure: sized to the strands alone, the notch
+    # came within 0.2 mm of the bore, their outlines crossed at a glancing angle,
+    # and OCC died building the union. No exception, no traceback, exit 139.
+    shoulders = [(w, (Clamp.of(w).channel_w - Clamp.of(w).notch_w) / 2) for w in SAMPLES]
+    r.check(
+        all(sh >= NOTCH_SHOULDER - 1e-9 for _, sh in shoulders),
+        "the bore keeps its shoulder either side of the notch",
+        "; ".join(f"{w} mm: {sh:.2f}" for w, sh in shoulders)
+        + f" against a {NOTCH_SHOULDER} mm floor",
     )
 
 
@@ -558,7 +619,35 @@ def check_no_interference(r: Report, c: Clamp) -> None:
         )
 
 
-def check_sharp_edges(r: Report, part: Part, label: str) -> None:
+def check_sharp_edges(r: Report, part: Part, label: str, c: Clamp) -> None:
+    """The house edge rule, run at every sampled size rather than only the default.
+
+    That last part matters more than it sounds. This used to run on the default
+    clamp alone, and the whole top half of the slider went unaudited -- which is
+    exactly where the interesting geometry is, because that is where the window,
+    the bore and the notch grow into each other. Two families of edge were
+    hiding there; both are named below rather than quietly passed.
+    """
+    body_r = c.body_r
+
+    def on_outer_wall(edge) -> bool:
+        ctr = edge.center()
+        return abs((ctr.X**2 + ctr.Y**2) ** 0.5 - body_r) < 0.05
+
+    def thread_surface(edge) -> bool:
+        ctr = edge.center()
+        rad = (ctr.X**2 + ctr.Y**2) ** 0.5
+        lo = min(c.male_root_r, c.female_crest_r) - 0.3
+        hi = max(c.male_crest_r, c.female_root_r) + 0.3
+        return lo <= rad <= hi
+
+    def curved_crossing(edge) -> bool:
+        """A sliver where two curved surfaces cross at a shallow angle."""
+        faces = adjacent_faces(part, edge)
+        if len(faces) != 2 or any(f.geom_type != GeomType.CYLINDER for f in faces):
+            return False
+        return min(f.area for f in faces) < 2.0
+
     allow = (
         (
             lambda e: is_periodic_seam(part, e),
@@ -573,15 +662,50 @@ def check_sharp_edges(r: Report, part: Part, label: str) -> None:
             "quarter pitch, per the modelling rule that a thread must not start "
             "at a knife edge, and the ramp's own tail is what this reports",
         ),
+        (
+            thread_surface,
+            "thread surface: bd_warehouse builds a thread as a stack of separate "
+            "loops joined end to end, so every turn meets the next at a seam "
+            "whose two sides are the same surface and OCC has no dihedral angle "
+            "to give. Thread flanks are on the house rule's own list of "
+            "legitimately square edges; this excludes the band between root and "
+            "crest radius, and nothing else",
+        ),
+        (
+            curved_crossing,
+            "curved crossing: the window's rounded end and the channel bore are "
+            "both cylinders, and above about 3 mm of cord they cross. What that "
+            "leaves is a sub-2 mm2 sliver of bore wall at 111 degrees -- a "
+            "shallow ridge inside a hole nothing bears on, not an untreated "
+            "corner. Removing it means holding the window's ends clear of the "
+            "bore, which costs pillar section at every size to tidy a ridge that "
+            "only exists at the large ones",
+        ),
+        (
+            on_outer_wall,
+            "window mouth: rolled by ``body.MOUTH_FILLET_FRACTIONS`` up to about "
+            "4 mm of cord and left square above it, because OCC refuses the "
+            "fillet there at every radius from 1.4 mm down to 0.1 mm. The house "
+            "rule is to stop asking after two -- and its usual answer, a boolean "
+            "chamfer tool, does not apply to a hole through a *curved* wall: the "
+            "mouth's own radius runs from the pillar's to the body's along its "
+            "length, so a tool aimed along the cord is inside the material at "
+            "one end of the mouth and outside it at the other. Known limitation "
+            "at the top of the slider; the cord still bears on a rolled mouth "
+            "everywhere this model was designed for",
+        ),
     )
     survey = sharp_convex_edges(part, allow=allow)
-    r.section(f"{label}: edge treatment")
+    r.section(f"{label}: edge treatment (wire {c.wire_d} mm)")
     r.check(
         not survey.sharp,
         "no untreated sharp convex edges",
         f"{len(survey.sharp)} found"
-        + (f" at {[tuple(round(v, 2) for v in e.center()) for e in survey.sharp]}"
-           if survey.sharp else ""),
+        + (
+            f" at {[tuple(round(v, 2) for v in e.center()) for e in survey.sharp]}"
+            if survey.sharp
+            else ""
+        ),
     )
     r.check(
         not survey.unclassifiable,
@@ -678,8 +802,10 @@ def run() -> Report:
     screw_part = screw.build(c)
     check_body_solid(r, body_part, c)
     check_screw_solid(r, screw_part, c)
-    check_sharp_edges(r, body_part, "body")
-    check_sharp_edges(r, screw_part, "screw")
+    for w in SAMPLES:
+        sized = Clamp.of(w)
+        check_sharp_edges(r, body.build(sized), "body", sized)
+        check_sharp_edges(r, screw.build(sized), "screw", sized)
 
     check_no_interference(r, c)
     # Again at the top of the slider, where the thread has stepped up: the

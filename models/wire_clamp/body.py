@@ -40,20 +40,21 @@ from build123d import (
     Part,
     Plane,
     Pos,
+    Rectangle,
+    Sketch,
     SlotOverall,
     add,
     extrude,
+    fillet,
     loft,
 )
 
 from ..lib.edges import as_part, chamfer_edge, fillet_edge
 from . import thread as tp
 from .config import (
-    BOTTOM_CHAMFER,
     DEFAULT,
     LIP_CHAMFER,
     MOUTH_LEAD_IN,
-    TOP_CHAMFER,
     WIRE_DEFAULT,
     WIRE_MAX,
     WIRE_MIN,
@@ -62,8 +63,13 @@ from .config import (
 
 _BASE = (Align.CENTER, Align.CENTER, Align.MIN)
 
-MOUTH_FILLET_LADDER = (0.5, 0.4, 0.3, 0.2)
-"""Radii tried on the two window mouths, largest first.
+MOUTH_FILLET_FRACTIONS = (0.20, 0.14, 0.10, 0.07)
+"""Radii tried on the two window mouths, as fractions of the window's height.
+
+Proportional rather than absolute because the mouth's own end radius is half the
+window height, and a fillet is refused once it approaches that -- so a ladder in
+millimetres is either too coarse at the small end of the slider or pointlessly
+timid at the large one.
 
 A rolled mouth rather than a chamfered one because a wire bears on it: this is
 the edge the strand crosses on its way in, every time the clamp is opened, and
@@ -74,14 +80,49 @@ a curved wall, which is a shape OCC is entitled to refuse.
 """
 
 
-def _slot(c: Clamp, grow: float = 0.0):
-    """The channel's cross-section, optionally grown by ``grow`` all round.
+NOTCH_CORNER_R = 0.4
+"""2D fillet where each notch's outline crosses the bore's.
 
-    Long axis along Y, which is the wire's axis: ``SlotOverall`` lays its length
-    along X, so it is turned a quarter turn rather than given a height larger
-    than its width, which is not a slot.
+A rectangle laid across a circle meets it at four glancing corners, and a corner
+in the *void* is a sharp edge in the *material* -- four vertical ones running the
+height of the channel, right where the wire turns into the notch. Rolled in the
+sketch rather than on the solid: a 2D fillet is a curve operation on a closed
+wire and does not have OCC's edge-op failure modes, and this is exactly the
+"fillet vertical edges" half of the house rule.
+"""
+
+
+def channel_section(c: Clamp, grow: float = 0.0) -> Sketch:
+    """The channel's cross-section: a bore the plunger fills, plus two notches.
+
+    **The bore is the point.** The plunger is round, because it has to pass down
+    through the female thread to be assembled, and a circle is the largest thing
+    that fits through a circle -- so if the plunger is to cover the opening, the
+    opening has to be that circle. Everything the plunger does not cover is then
+    deliberate: one notch at each end, ``notch_w`` wide, which is the wire's way
+    past it. A strand cannot wander sideways out of a notch that is only as wide
+    as the strands, and it cannot wander anywhere else because the plunger is
+    sitting on it.
+
+    This replaces a slot as wide as the plunger for its whole length, which left
+    a strand free to sit anywhere across it -- and left the plunger's round edge
+    free to push it further out on the way down.
+
+    ``grow`` widens **only the notch**, for the 45 degree breaks at the sill and
+    the lintel. Not the bore: the wire crosses the notch's rim and never the
+    bore's, and a bore that steps in and out again over the window's height
+    collides with the window's own rounded ends and leaves four sharp edges
+    there. Left alone it is one cylinder from floor to channel top, with no rim
+    to break in the first place.
+
+    Built in its own sketch so the corners can be rolled before any caller
+    extrudes it.
     """
-    return SlotOverall(c.channel_l + 2 * grow, c.channel_w + 2 * grow, rotation=90)
+    with BuildSketch() as section:
+        Circle(c.female_crest_r)
+        Rectangle(c.notch_w + 2 * grow, c.channel_l + 2 * grow)
+        fillet(section.vertices(), NOTCH_CORNER_R)
+    return section.sketch
 
 
 def window_tool(c: Clamp) -> Part:
@@ -125,31 +166,31 @@ def channel_tool(c: Clamp) -> Part:
     """
     with BuildPart() as tool:
         with BuildSketch(Plane.XY.offset(c.base_t)):
-            _slot(c)
+            add(channel_section(c))
         extrude(amount=c.window_z0 - LIP_CHAMFER - c.base_t)
 
         with BuildSketch(Plane.XY.offset(c.window_z0 - LIP_CHAMFER)):
-            _slot(c)
+            add(channel_section(c))
         with BuildSketch(Plane.XY.offset(c.window_z0)):
-            _slot(c, LIP_CHAMFER)
+            add(channel_section(c, LIP_CHAMFER))
         loft(ruled=True)
 
         with BuildSketch(Plane.XY.offset(c.window_z0)):
-            _slot(c, LIP_CHAMFER)
+            add(channel_section(c, LIP_CHAMFER))
         extrude(amount=c.window_h)
 
         with BuildSketch(Plane.XY.offset(c.window_z1)):
-            _slot(c, LIP_CHAMFER)
+            add(channel_section(c, LIP_CHAMFER))
         with BuildSketch(Plane.XY.offset(c.window_z1 + LIP_CHAMFER)):
-            _slot(c)
+            add(channel_section(c))
         loft(ruled=True)
 
         with BuildSketch(Plane.XY.offset(c.window_z1 + LIP_CHAMFER)):
-            _slot(c)
+            add(channel_section(c))
         extrude(amount=c.channel_top - c.window_z1 - LIP_CHAMFER)
 
         with BuildSketch(Plane.XY.offset(c.channel_top)):
-            _slot(c)
+            add(channel_section(c))
         with BuildSketch(Plane.XY.offset(c.thread_z0)):
             Circle(c.female_root_r)
         loft(ruled=True)
@@ -198,8 +239,8 @@ def build(c: Clamp = DEFAULT) -> Part:
         # Both outer chamfers now, while the shell is a bare cylinder and every
         # face they select from is clean. An edge op OCC refuses on a bare
         # cylinder was never going to work later.
-        chamfer_edge(bp, bp.faces().sort_by(Axis.Z)[0].edges(), BOTTOM_CHAMFER)
-        chamfer_edge(bp, bp.faces().sort_by(Axis.Z)[-1].edges(), TOP_CHAMFER)
+        chamfer_edge(bp, bp.faces().sort_by(Axis.Z)[0].edges(), c.bottom_chamfer)
+        chamfer_edge(bp, bp.faces().sort_by(Axis.Z)[-1].edges(), c.top_chamfer)
 
         add(channel, mode=Mode.SUBTRACT)
         add(as_part(Pos(0, 0, c.thread_z0) * thread))
@@ -226,8 +267,8 @@ def build(c: Clamp = DEFAULT) -> Part:
             key=lambda f: f.area,
         )
         mouths = [e for w in outer.inner_wires() for e in w.edges()]
-        for radius in MOUTH_FILLET_LADDER:
-            if fillet_edge(bp, mouths, radius):
+        for fraction in MOUTH_FILLET_FRACTIONS:
+            if fillet_edge(bp, mouths, fraction * c.window_h):
                 break
 
         add(ribs)

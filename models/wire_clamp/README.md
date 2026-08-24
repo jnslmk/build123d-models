@@ -16,7 +16,7 @@ uv run check wire_clamp
 
 ## What it is
 
-Ø12 x 17 mm body, Ø12 x 20 mm screw, 22 mm tall assembled and closed on an
+Ø12 x 15 mm body, Ø12 x 18 mm screw, 19 mm tall assembled and closed on an
 empty clamp -- and a millimetre more than that per millimetre of wire in it. Thread a
 loop of wire in through one side of the window and out the other, turn the knob
 finger tight, and it holds. Back the knob off and the wire slides again -- so
@@ -25,15 +25,15 @@ it tensions a line, or ends a loop, without a knot and without a crimp.
 Built for 1 mm, and **parametric from 0.5 to 6.0 mm on the website** -- one
 control, which sizes everything:
 
-| Wire | Thread | Body | Screw | Slot | Filament |
+| Wire | Thread | Body | Screw | Bore × channel | Filament |
 | --- | --- | --- | --- | --- | --- |
-| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 16.3 | Ø11.1 × 19.6 | 6.5 × 8.3 | 2 g |
-| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 17.0** | **Ø12.1 × 20.3** | **6.5 × 9.3** | **2 g** |
-| 2.0 mm | 8.0 × 2.5 | Ø14.1 × 19.6 | Ø14.1 × 22.4 | 6.5 × 11.3 | 3 g |
-| 3.0 mm | 8.5 × 2.5 | Ø16.6 × 22.9 | Ø16.6 × 25.0 | 7.0 × 13.8 | 5 g |
-| 4.0 mm | 10.5 × 2.5 | Ø20.6 × 27.8 | Ø20.6 × 29.1 | 9.0 × 17.8 | 9 g |
-| 5.0 mm | 12.5 × 2.5 | Ø24.6 × 32.6 | Ø24.6 × 33.3 | 11.0 × 21.8 | 16 g |
-| 6.0 mm | 14.5 × 2.5 | Ø28.6 × 37.5 | Ø28.6 × 37.5 | 13.0 × 25.8 | 24 g |
+| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 14.5 | Ø11.1 × 17.0 | 6.5 × 8.3 | 2 g |
+| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 15.2** | **Ø12.1 × 17.7** | **6.5 × 9.3** | **2 g** |
+| 2.0 mm | 9.0 × 2.5 | Ø15.1 × 18.8 | Ø15.1 × 20.6 | 7.5 × 12.3 | 3 g |
+| 3.0 mm | 11.0 × 2.5 | Ø19.1 × 23.1 | Ø19.1 × 24.2 | 9.5 × 16.3 | 7 g |
+| 4.0 mm | 13.0 × 2.5 | Ø23.1 × 27.4 | Ø23.1 × 27.8 | 11.5 × 20.3 | 11 g |
+| 5.0 mm | 15.0 × 2.5 | Ø27.1 × 31.8 | Ø27.1 × 31.5 | 13.5 × 24.3 | 17 g |
+| 6.0 mm | 17.0 × 2.5 | Ø31.1 × 36.1 | Ø31.1 × 35.1 | 15.5 × 28.3 | 26 g |
 
 The pitch column never moves. That is the point — see below.
 
@@ -130,6 +130,10 @@ ten-lobed knob flush with the body.
 **ABS**, because the reported failure was an ABS one and these sizes are the
 ones that survive it. PETG and PLA print the same files and are more forgiving.
 
+- Both parts carry a 0.8 mm bevel on **both** rims, bottom as well as top, which
+  scales up on the larger sizes. The bed-facing one is also elephant's-foot
+  relief; the top one yields where the bore's lead-in is already eating into the
+  same face, so the two never meet in a knife edge.
 - Both parts are already in print pose. The body stands on its base; the screw
   lies **knob down**, which puts a 12 mm disc on the bed and leaves nothing
   unsupported.

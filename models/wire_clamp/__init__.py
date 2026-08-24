@@ -38,15 +38,20 @@ and a bigger thread is strictly easier to print than a smaller one. The original
 scales the numbers a printer has to hit; this scales the number a printer does
 not care about.
 
-*The plunger lets the wire past.* The original's plunger is a disc 0.3 mm
-smaller than a round bore, so nothing thicker than 0.3 mm gets under it -- a
-rope is nipped between the plunger's rim and the window sill and squashed, which
-works fine on something compressible with a lot of surface. A 1 mm wire is stiff
-and slippery and a rim nip on plastic yields the plastic first. So the channel
-here is a **slot**: as wide as the plunger, which guides it and stops a strand
-escaping sideways, and longer than the plunger by a wire's width at each end, so
-the wire's two legs run down past it and get clamped against the ribbed floor
-with four bends in them.
+*The plunger lets the wire past, and covers everything else.* The original's
+plunger is a disc 0.3 mm smaller than a round bore, so nothing thicker than
+0.3 mm gets under it -- a rope is nipped between the plunger's rim and the window
+sill and squashed, which works fine on something compressible with a lot of
+surface. A 1 mm wire is stiff and slippery and a rim nip on plastic yields the
+plastic first.
+
+So the channel here is a **bore with two notches**. The bore is the plunger's own
+circle, filled to a running clearance, so across almost the whole opening the
+wire is pinned between the plunger's face and the ribbed floor with nowhere to
+drift. The notches -- one at each end, no wider than the strands -- are the
+wire's way past the plunger, and their walls hold the strands where the plunger
+cannot. Tightening therefore pulls the wire *through*: down over one sill, flat
+along the floor, up over the other, with four bends in it when it comes out.
 
 Everything else is the original's: the proportions of the window, the ribbed
 floor, the concentric ridges on the plunger's face that cross those ribs, the
@@ -67,7 +72,7 @@ window, a full turn and a half of thread is still engaged.
 **Parametric, in one number.** ``wire_d``, 0.5 to 6.0 mm, and it sizes the whole
 clamp: window, sill, slot, floor ribs, floor thickness, plunger, knob lobes,
 thread diameter, body diameter and body height all follow it. A 0.5 mm clamp is
-Ø11 x 16 mm and 2 g; a 6 mm one is Ø29 x 37 mm and 24 g. That covers picture
+Ø11 x 15 mm and 2 g; a 6 mm one is Ø31 x 36 mm and 26 g. That covers picture
 wire and trimmer line at the bottom and 2 mm guyline, 3 mm shock cord, 4 mm
 paracord and 6 mm tarp cord on the way up.
 

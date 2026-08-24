@@ -112,6 +112,48 @@ THREAD_ROOT_W = THREAD_FLAT + 2 * THREAD_DEPTH
 45 degree trapezoid, and it is the same trapezoid for both halves and at every
 diameter."""
 
+THREAD_ENGAGE_RATIO = 0.75
+"""Female thread length as a fraction of its diameter.
+
+``fasteners-and-inserts``/``references/threads.md`` says 1.0 x D and prefers
+1.5-2.0, and this is a deliberate departure from it, so here is the arithmetic
+rather than a shrug. That rule is written for a thread carrying a *structural*
+load, where printed threads share it across turns far worse than cut ones. This
+one carries finger torque on a knurled knob:
+
+* ``HAND_TORQUE`` 0.4 Nm, generous for finger and thumb on a 12 mm rim;
+* into axial force through a high-friction printed thread,
+  ``F = T / (K x d)`` with ``K`` 0.30 -- 167 N at the default size;
+* shearing the female teeth off at their root, over ``pi x minor x root-flat``
+  per turn, which at 0.75 x D is 2.4 turns and 24.5 mm2;
+* 6.8 MPa, against roughly 20 MPa for ABS *across* layers, which is the plane
+  that actually fails here.
+
+Call it a factor of three. ``checks.py`` computes that number at every slider
+position and fails under a factor of two, so this is a measured departure with a
+gate on it rather than a rounded-down rule -- and 0.75 x D is still more than
+twice the 0.32 x D the model this reconstructs uses at every size."""
+
+HAND_TORQUE = 0.4
+"""Nm, finger-tight on a knurled knob. Upper end of what a finger and thumb
+manage on a rim this size."""
+
+TORQUE_COEFF = 0.30
+"""``F = T / (K x d)``. 0.30 rather than the ~0.16 quoted for lubricated steel:
+a printed thread against a printed thread has a high friction coefficient, so
+most of the torque is spent on friction rather than on axial force. Using the
+steel figure here would over-state the load by nearly 2x -- in the safe
+direction for the thread, but it is the wrong number."""
+
+ABS_SHEAR = 20.0
+"""MPa, ABS in shear *across* printed layers. The female thread's failure
+surface is the cylinder at its minor diameter, which is a stack of layer
+boundaries loaded along Z -- so the interlayer figure is the one that applies,
+not the bulk one."""
+
+SHEAR_SAFETY = 2.0
+"""What ``checks.py`` demands of the margin above."""
+
 THREAD_D_MIN = 8.0
 """Floor on the thread's major diameter, and the value it holds at for any wire
 up to about 2.9 mm.
@@ -122,16 +164,41 @@ a *strength* one: the screw's core is this less two tooth heights, and below
 part sensibly proportioned when the wire is very thin, which is the case this
 model was written for."""
 
+NOTCH_SHOULDER = 1.2
+"""Bore either side of a notch, and the reason the thread is not sized to the
+strands alone.
+
+The plunger can only cover the opening if there is opening either side of the
+notch for it to cover, so the bore has to be wider than the notch by this much
+at each side. Sized as three perimeters: enough to hold a strand down where it
+turns into the notch, and enough that the notch's corners are not *nearly*
+tangent to the bore.
+
+That second one is not fastidiousness. Sized to the strands exactly -- which is
+what ``thread_d`` did before this constant existed -- the notch came out 12.8 mm
+wide in a 13.0 mm bore at 6 mm of cord, so the two outlines crossed at a glancing
+angle and their union had four near-zero-width slivers in it. OCC does not raise
+on that, it **segfaults**, and it did: every build above about 2.9 mm of wire
+died with exit 139."""
+
 THREAD_D_STEP = 0.5
 """The diameter is rounded up to a multiple of this. Nothing depends on a round
 number, but a clamp whose thread is 10.5 mm is easier to talk about than one
 whose thread is 10.2803 mm, and rounding *up* can only add clearance."""
 
-MOUTH_COLLAR = 2.5
-"""Plain bore above the thread, one full pitch. Two rules land on the same
-millimetre here: a thread must not start at a lead-in, and a lead-in cone cut
-into a bd_warehouse thread makes OCC's fuse return the thread alone and drop the
-rest of the part (``build123d-geometry-ops``, gotchas 7)."""
+MOUTH_LEAD_IN = 0.8
+"""Depth of the cone that breaks the bore's mouth, so a screw starts square."""
+
+MOUTH_COLLAR = MOUTH_LEAD_IN + THREAD_PITCH
+"""Plain bore above the thread: the lead-in, **plus** a full pitch beneath it.
+
+``build123d-geometry-ops``, gotchas 7, is specific -- one full pitch of plain
+bore between the lead-in and the thread's first turn, because a cone cut into a
+bd_warehouse thread makes OCC's fuse return the thread alone and silently drop
+the rest of the part. Written as ``2.5`` this was 2.5 mm *total*, which left only
+1.7 mm under the cone: two thirds of the rule, working but on the wrong side of
+it, and the failure it guards against is silent. Written as a sum it cannot drift
+again."""
 
 # ---------------------------------------------------------------------------
 # Walls and edge breaks. Also absolute, and for the same kind of reason: a wall
@@ -151,7 +218,7 @@ WALL_Y = 1.0
 of the channel and another at the top, and the screw's thrust runs down the two
 pillars either side of the window, not through here."""
 
-BASE_T_MIN = 1.4
+BASE_T_MIN = 1.2
 """Floor on the floor: the solid disc under the channel, when the ribs standing
 on it are small enough not to set it themselves. See ``Clamp.base_t``."""
 
@@ -171,7 +238,7 @@ the underside of the part, and any larger cord pushed it *through* -- a part
 whose bounding box started below the bed, with five half-cylinders sticking out
 of its first layer. ``checks.py``'s print-pose assertion is what caught it."""
 
-HEAD = 0.6
+HEAD = 0.5
 """Solid ring between the top of the window and the top of the channel, so the
 window is a hole with material all round it rather than a slot open at the
 top."""
@@ -191,9 +258,17 @@ frustum sized to break the sill instead cuts a V-groove ring into the channel
 wall: an undercut, in a bore, facing the wrong way for the printer. Profiled
 into the channel it cannot miss, because there is nothing above it to miss."""
 
-BOTTOM_CHAMFER = 0.5
-TOP_CHAMFER = 0.6
-MOUTH_LEAD_IN = 0.8
+EDGE_CHAMFER_MIN = 0.8
+EDGE_CHAMFER_RATIO = 0.08
+"""Break on the body's top and bottom rims -- ``Clamp.edge_chamfer``.
+
+One number for both ends, and bigger than the 0.5/0.6 it replaces. Two reasons.
+Functionally the bottom one is elephant's-foot relief and wants to clear the
+squish of the first layer, which is a fixed thing; visually 0.5 mm on a 12 mm
+cylinder is 4% of the diameter and reads as a sharp edge next to the knob's
+lobed, lofted chamfer sitting right above it. Scaled off the body with a floor,
+so the two ends of a big clamp do not go back to looking square."""
+
 
 # ---------------------------------------------------------------------------
 # The screw.
@@ -202,10 +277,12 @@ MOUTH_LEAD_IN = 0.8
 COLLAR_H = 1.0
 """Plain shank between the last thread turn and the knob's underside."""
 
-KNOB_H = 5.0
+KNOB_H = 4.0
 """Fixed: a knob is turned with fingertips on its rim, so what a bigger clamp
 needs is a bigger *diameter*, which it gets -- the knob is always flush with the
-body. Height only has to be enough to get two fingers on."""
+body. Height only has to be enough to get a finger and thumb on, and 4 mm of a
+ten-lobed rim is plenty; it was 5, and that millimetre was the cheapest one in
+the whole stack to give back."""
 
 KNOB_LOBES = 10
 KNOB_LOBE_DEPTH_RATIO = 0.15
@@ -313,12 +390,13 @@ class Clamp:
 
     @property
     def strand_room(self) -> float:
-        """How wide the slot has to be for the strands to lie side by side.
+        """How wide the bore has to be: the notch, plus a shoulder either side.
 
-        ``fits.FREE`` at each side: the strands are dropped in through a window
-        by hand, so nothing here is a fit -- it wants room to spare.
+        The notch is what the strands need (``notch_w``); the shoulders are what
+        the plunger needs in order to be covering anything. Together they are
+        what sizes the thread.
         """
-        return STRANDS * self.wire_d + 2 * fits.FREE
+        return self.notch_w + 2 * NOTCH_SHOULDER
 
     @property
     def thread_d(self) -> float:
@@ -431,6 +509,23 @@ class Clamp:
         return 2 * self.female_crest_r
 
     @property
+    def notch_w(self) -> float:
+        """Width of the two notches the wire runs down, across the wire.
+
+        **This is what stops a strand wandering off sideways.** The channel used
+        to be a slot as wide as the plunger all the way along, which let the
+        wire sit anywhere across it and let the plunger's round edge push it
+        further out as it came down. Now the channel is a *bore* the plunger
+        fills, and the only way past the plunger is a notch at each end that is
+        no wider than the strands need. Everywhere else the plunger covers the
+        opening completely, and where it does not, the notch walls do the job
+        instead.
+
+        ``fits.FREE`` at each side, because the strands are dropped in by hand.
+        """
+        return STRANDS * self.wire_d + 2 * fits.FREE
+
+    @property
     def channel_l(self) -> float:
         """Slot length, along the wire: the plunger plus a passage at each end."""
         return self.channel_w + 2 * self.wire_pass
@@ -453,7 +548,7 @@ class Clamp:
     def window_h(self) -> float:
         """Window opening height. One strand plus room to thread it by hand;
         the two strands lie side by side across the width, not stacked."""
-        return self.wire_d + 1.6
+        return self.wire_d + 1.3
 
     @property
     def lip(self) -> float:
@@ -481,15 +576,23 @@ class Clamp:
     def window_w(self) -> float:
         """Chord across the window, in the axis the plunger does not use.
 
-        Wider than the channel slot *and* its sill break, and that is load
-        bearing on the modelling rather than on the part: it means everything
-        the window opens into is already gone above the sill, so the sill and
-        lintel breaks can be plain lofted frusta around the slot. Cut them
-        narrower than the window and the same frustum grooves the channel wall
-        instead of breaking an edge -- an undercut, in a bore, facing the wrong
-        way for the printer, which is what the first draft of this model did.
+        Two things set it, and both are about the breaks rather than about the
+        cord.
+
+        *Wider than the bore*, so the window opens the channel rather than
+        pinching it.
+
+        *Wider than the notch, its break and the window's own rounded end.* The
+        window is a stadium, so its ends curve back in; where the notch's widened
+        wall runs into that curve it leaves a sharp vertical edge on the inside
+        of the window, four of them, right where a strand turns into the notch.
+        Keeping the notch inside the window's straight portion is what removes
+        them, and it is why this is a ``max`` of two terms rather than one.
         """
-        return self.channel_w + 2 * LIP_CHAMFER + 0.2
+        return max(
+            self.channel_w + 0.2,
+            self.notch_w + 2 * LIP_CHAMFER + self.window_h,
+        )
 
     @property
     def base_t(self) -> float:
@@ -514,6 +617,42 @@ class Clamp:
         return max(1.0, 1.2 * self.wire_d)
 
     # -- the knob -----------------------------------------------------------
+
+    @property
+    def bottom_chamfer(self) -> float:
+        """Break on the body's bed-facing rim. See ``EDGE_CHAMFER_MIN``.
+
+        The generous one, because nothing else is competing for that face: it is
+        a solid disc.
+        """
+        return max(EDGE_CHAMFER_MIN, EDGE_CHAMFER_RATIO * self.body_r)
+
+    @property
+    def top_chamfer(self) -> float:
+        """Break on the body's mouth-facing rim.
+
+        The same, unless the top face cannot afford it. That face is an annulus
+        only ``WALL`` wide, and the bore's lead-in cone is already eating at it
+        from the inside -- run both at full size on a small clamp and they meet
+        in the middle, leaving a knife-edge ring instead of two chamfers and a
+        land between them. So this one yields, keeping 0.4 mm of flat.
+        """
+        land = self.body_r - self.female_root_r - MOUTH_LEAD_IN - 0.4
+        return min(self.bottom_chamfer, max(0.3, land))
+
+    @property
+    def thread_shear(self) -> float:
+        """MPa in the female thread's roots at ``HAND_TORQUE``.
+
+        The number ``THREAD_ENGAGE_RATIO`` is justified by, computed rather than
+        asserted so a check can fail on it. Conservative twice over: only the
+        root flat is counted as carrying, and the interlayer shear figure is
+        used rather than the bulk one.
+        """
+        force = HAND_TORQUE * 1000.0 / (TORQUE_COEFF * self.thread_d)
+        turns = self.thread_engage / THREAD_PITCH
+        area = 3.141592653589793 * (2 * self.female_crest_r) * THREAD_FLAT * turns
+        return force / area
 
     @property
     def knob_lobe_depth(self) -> float:
@@ -563,7 +702,7 @@ class Clamp:
         where the wire runs free still has a whole turn holding it and cannot be
         dropped and lost.
         """
-        return max(self.thread_d, self.travel + THREAD_PITCH)
+        return max(THREAD_ENGAGE_RATIO * self.thread_d, self.travel + THREAD_PITCH)
 
     @property
     def thread_z0(self) -> float:
