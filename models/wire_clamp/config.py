@@ -97,10 +97,16 @@ extrusion width; a crest narrower than the nozzle is dropped or fattened
 unpredictably by the slicer. With a 45 degree flank the profile closes as
 ``FLAT + 2 x DEPTH + FLAT = PITCH``, which is what fixes the pitch above."""
 
-THREAD_CLEAR = 0.50
-"""Total diametral, printed male in printed female, V profile. The "first
-attempt, or PETG" row of the clearance table, kept rather than tightened: see
-the module docstring on why ABS does not get the ``fits`` material discount.
+THREAD_CLEAR = 0.40
+"""Total diametral, printed male in printed female, V profile: the table's own
+row for exactly that case in ``references/threads.md``.
+
+It was 0.50 -- the "first attempt, or PETG" row -- which is where a printed
+thread starts when nobody has turned one yet. One has now, and it ran loose, so
+this is one rung down the same table rather than a guess. The rung below is 0.30,
+"well-calibrated printer, M10 and below", and it is there if this is still not
+snug; going straight to it from 0.50 would risk landing back on the seizing side
+of a thread this model exists to un-seize.
 
 On a 45 degree flank a purely radial offset opens the flanks by the same amount
 along their normal, so this one number is simultaneously the radial gap at crest
@@ -186,19 +192,25 @@ THREAD_D_STEP = 0.5
 number, but a clamp whose thread is 10.5 mm is easier to talk about than one
 whose thread is 10.2803 mm, and rounding *up* can only add clearance."""
 
-MOUTH_LEAD_IN = 0.8
-"""Depth of the cone that breaks the bore's mouth, so a screw starts square."""
+MOUTH_COLLAR = 0.4
+"""Plain bore above the thread: one extrusion, and not one millimetre more.
 
-MOUTH_COLLAR = MOUTH_LEAD_IN + THREAD_PITCH
-"""Plain bore above the thread: the lead-in, **plus** a full pitch beneath it.
+It used to be 3.3 mm -- a 0.8 mm lead-in cone plus the full pitch of plain bore
+``build123d-geometry-ops`` (gotchas 7) requires between that cone and the
+thread's first turn, since a cone cut into a bd_warehouse thread makes OCC's fuse
+return the thread alone and silently drop the rest of the part. Then the male
+thread had to be 3.3 mm longer to cross it, so the collar cost height twice.
 
-``build123d-geometry-ops``, gotchas 7, is specific -- one full pitch of plain
-bore between the lead-in and the thread's first turn, because a cone cut into a
-bd_warehouse thread makes OCC's fuse return the thread alone and silently drop
-the rest of the part. Written as ``2.5`` this was 2.5 mm *total*, which left only
-1.7 mm under the cone: two thirds of the rule, working but on the wrong side of
-it, and the failure it guards against is silent. Written as a sum it cannot drift
-again."""
+``thread.female`` now finishes the thread's top turn with a conical clip instead
+of a fade, which is the same lead-in cut from the inside -- no cone, no gotcha to
+stand clear of.
+
+What is left is not the old rule in miniature, it is a different requirement:
+with the collar at *zero* the thread's last turn ends exactly on the body's top
+face, and a fuse between two solids with coplanar faces is where OCC stops
+returning a sensible answer. It returned three solids and 4% of the volume, at
+one slider position in six, silently. 0.4 mm is enough that the two faces are
+not the same plane, and it reads as a small land at the mouth."""
 
 # ---------------------------------------------------------------------------
 # Walls and edge breaks. Also absolute, and for the same kind of reason: a wall
@@ -637,7 +649,7 @@ class Clamp:
         in the middle, leaving a knife-edge ring instead of two chamfers and a
         land between them. So this one yields, keeping 0.4 mm of flat.
         """
-        land = self.body_r - self.female_root_r - MOUTH_LEAD_IN - 0.4
+        land = self.body_r - self.female_root_r - 0.4
         return min(self.bottom_chamfer, max(0.3, land))
 
     @property
@@ -650,9 +662,20 @@ class Clamp:
         used rather than the bulk one.
         """
         force = HAND_TORQUE * 1000.0 / (TORQUE_COEFF * self.thread_d)
-        turns = self.thread_engage / THREAD_PITCH
+        turns = self.engaged / THREAD_PITCH
         area = 3.141592653589793 * (2 * self.female_crest_r) * THREAD_FLAT * turns
         return force / area
+
+    @property
+    def engaged(self) -> float:
+        """Thread actually in mesh with the clamp closed.
+
+        The *shorter* of the two threads, which is the male one: the female is
+        as long as the bore that holds it, and the male only as long as the
+        distance from its first turn to the knob. Using the female's length here
+        would over-state the joint by a fifth.
+        """
+        return min(self.male_len, self.thread_engage)
 
     @property
     def knob_lobe_depth(self) -> float:

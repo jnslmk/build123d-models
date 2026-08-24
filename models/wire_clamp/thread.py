@@ -22,6 +22,8 @@ profile does not. That split is the whole model -- see ``config.py``.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from bd_warehouse.thread import Thread
 from build123d import Part
 
@@ -62,7 +64,12 @@ def _whole_turn_safe(length: float) -> float:
     return length
 
 
-def _thread(apex_r: float, root_r: float, length: float) -> Part:
+EndFinish = Literal["raw", "square", "fade", "chamfer"]
+
+
+def _thread(
+    apex_r: float, root_r: float, length: float, top: EndFinish = "fade"
+) -> Part:
     """One thread, faded at both ends, built **outside** any builder.
 
     ``Thread`` is a ``BasePartObject``: constructing one inside a ``BuildPart``
@@ -71,9 +78,11 @@ def _thread(apex_r: float, root_r: float, length: float) -> Part:
     ``build123d-geometry-ops``, gotchas 6, and ``models/led_profiles/endcap.py``
     for the version of this that cost a session.
 
-    ``end_finishes=("fade", "fade")`` is the modelling rule from
-    ``references/threads.md``: a thread that starts at a knife edge curls off
-    whatever it was printed on and then gets dragged around by the nozzle.
+    The bottom end always fades: that is the modelling rule from
+    ``references/threads.md``, because a thread starting at a knife edge curls
+    off whatever it was printed on and then gets dragged around by the nozzle.
+    ``top`` is ``"fade"`` for the male thread and ``"chamfer"`` for the female
+    one -- see ``female``.
     """
     return Thread(
         apex_radius=apex_r,
@@ -82,13 +91,27 @@ def _thread(apex_r: float, root_r: float, length: float) -> Part:
         root_width=THREAD_ROOT_W,
         pitch=THREAD_PITCH,
         length=_whole_turn_safe(length),
-        end_finishes=("fade", "fade"),
+        end_finishes=("fade", top),
     )
 
 
 def female(c: Clamp, length: float) -> Part:
-    """Internal thread: teeth pointing in from a bore of ``c.female_root_r``."""
-    return _thread(c.female_crest_r, c.female_root_r, length)
+    """Internal thread: teeth pointing in from a bore of ``c.female_root_r``.
+
+    **Chamfered at the top rather than faded, and that is worth 3.3 mm of body.**
+    A bore's mouth needs a lead-in so the screw starts square, and the house way
+    to cut one is a boolean cone -- which then has to be kept a full pitch clear
+    of the thread's first turn, because a cone cut *into* a bd_warehouse thread
+    makes OCC's fuse hand back the thread and drop the rest of the part. Cone
+    plus pitch is 3.3 mm of plain bore above the thread, and the male thread has
+    to be that much longer to cross it.
+
+    ``end_finishes``' own ``"chamfer"`` does the same job from the inside: it
+    clips the last turn conically instead of tapering it to nothing, so the
+    thread *is* the lead-in and the bore can end where the thread does. No cone,
+    no collar, no gotcha to keep clear of.
+    """
+    return _thread(c.female_crest_r, c.female_root_r, length, top="chamfer")
 
 
 def male(c: Clamp, length: float) -> Part:

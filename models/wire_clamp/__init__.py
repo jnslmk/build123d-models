@@ -72,7 +72,7 @@ window, a full turn and a half of thread is still engaged.
 **Parametric, in one number.** ``wire_d``, 0.5 to 6.0 mm, and it sizes the whole
 clamp: window, sill, slot, floor ribs, floor thickness, plunger, knob lobes,
 thread diameter, body diameter and body height all follow it. A 0.5 mm clamp is
-Ø11 x 15 mm and 2 g; a 6 mm one is Ø31 x 36 mm and 26 g. That covers picture
+Ø11 x 12 mm and 1 g; a 6 mm one is Ø31 x 33 mm and 24 g. That covers picture
 wire and trimmer line at the bottom and 2 mm guyline, 3 mm shock cord, 4 mm
 paracord and 6 mm tarp cord on the way up.
 

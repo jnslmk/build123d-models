@@ -40,6 +40,7 @@ from . import body, printable, screw, thread as tp, wire
 from . import screw_turn
 from .config import (
     COLLAR_H,
+    MOUTH_COLLAR,
     KNOB_CHAMFER,
     NOTCH_SHOULDER,
     RING_H,
@@ -327,6 +328,18 @@ def check_thread_lengths(r: Report) -> None:
         "bd_warehouse builds that partial loop, and small enough that the helix "
         f"is degenerate. Snapped to {tp._whole_turn_safe(bad)!r}, which is "
         "exactly a whole number of turns, so the partial loop is skipped instead",
+    )
+
+    r.check(
+        MOUTH_COLLAR >= NOZZLE,
+        "the thread's last turn is not coplanar with the body's top face",
+        f"{MOUTH_COLLAR} mm of plain bore above it. The thread carries its own "
+        "lead-in now, so nothing needs the full pitch of collar the lead-in cone "
+        "used to -- but at exactly zero the thread ends *on* the top face, and a "
+        "fuse between two solids sharing a plane is where OCC stops answering "
+        "sensibly: three solids and 4% of the volume, silently, at one slider "
+        "position in six. One extrusion of land is enough that they are not the "
+        "same plane",
     )
 
     unsafe = []

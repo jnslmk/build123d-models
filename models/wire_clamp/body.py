@@ -32,9 +32,7 @@ from build123d import (
     BuildPart,
     BuildSketch,
     Circle,
-    Cone,
     Cylinder,
-    GeomType,
     Locations,
     Mode,
     Part,
@@ -54,7 +52,6 @@ from . import thread as tp
 from .config import (
     DEFAULT,
     LIP_CHAMFER,
-    MOUTH_LEAD_IN,
     WIRE_DEFAULT,
     WIRE_MAX,
     WIRE_MIN,
@@ -245,31 +242,33 @@ def build(c: Clamp = DEFAULT) -> Part:
         add(channel, mode=Mode.SUBTRACT)
         add(as_part(Pos(0, 0, c.thread_z0) * thread))
 
-        # Lead-in at the mouth. A full pitch of plain bore separates it from the
-        # thread's last turn; cutting the two into each other is what makes
-        # OCC's fuse hand back the thread and drop the body.
-        with Locations((0, 0, c.body_h - MOUTH_LEAD_IN)):
-            Cone(
-                c.female_root_r,
-                c.female_root_r + MOUTH_LEAD_IN,
-                MOUTH_LEAD_IN,
-                align=_BASE,
-                mode=Mode.SUBTRACT,
-            )
+        # No lead-in cone here: the female thread's top turn is clipped
+        # conically by its own end finish, which is the same lead-in without a
+        # boolean that has to be kept a pitch clear of the thread. See
+        # ``thread.female`` -- that is where the body's 3.3 mm of plain collar
+        # went.
 
         add(window, mode=Mode.SUBTRACT)
 
-        # Roll the two window mouths. Selected as the inner wires of the outer
-        # wall -- by *predicate*, never by index into a sorted list, because the
-        # two mouths tie on every axis a sort could use (gotchas 9).
-        outer = max(
-            (f for f in bp.faces() if f.geom_type == GeomType.CYLINDER),
-            key=lambda f: f.area,
-        )
-        mouths = [e for w in outer.inner_wires() for e in w.edges()]
-        for fraction in MOUTH_FILLET_FRACTIONS:
-            if fillet_edge(bp, mouths, fraction * c.window_h):
-                break
+        # Roll the two window mouths. Selected by *predicate*, never by index
+        # into a sorted list, because the two mouths tie on every axis a sort
+        # could use (gotchas 9): the wall they pierce is the largest face that
+        # has holes in it.
+        #
+        # Not "the largest cylindrical face", which is what this asked for
+        # first. That reads as a safe description of a round body's outside
+        # wall, and at one slider position in six OCC hands back a wall that is
+        # not a cylinder at all and the selection raises on an empty sequence --
+        # taking the whole build with it, for the sake of an edge treatment that
+        # is optional by construction. So: no geom_type in the predicate, and a
+        # miss skips the fillet rather than ending the part.
+        pierced = [f for f in bp.faces() if f.inner_wires()]
+        if pierced:
+            outer = max(pierced, key=lambda f: f.area)
+            mouths = [e for w in outer.inner_wires() for e in w.edges()]
+            for fraction in MOUTH_FILLET_FRACTIONS:
+                if fillet_edge(bp, mouths, fraction * c.window_h):
+                    break
 
         add(ribs)
 

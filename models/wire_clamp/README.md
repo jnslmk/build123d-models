@@ -16,7 +16,7 @@ uv run check wire_clamp
 
 ## What it is
 
-Ø12 x 15 mm body, Ø12 x 18 mm screw, 19 mm tall assembled and closed on an
+Ø12 x 12 mm body, Ø12 x 15 mm screw, 16 mm tall assembled and closed on an
 empty clamp -- and a millimetre more than that per millimetre of wire in it. Thread a
 loop of wire in through one side of the window and out the other, turn the knob
 finger tight, and it holds. Back the knob off and the wire slides again -- so
@@ -27,13 +27,13 @@ control, which sizes everything:
 
 | Wire | Thread | Body | Screw | Bore × channel | Filament |
 | --- | --- | --- | --- | --- | --- |
-| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 14.5 | Ø11.1 × 17.0 | 6.5 × 8.3 | 2 g |
-| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 15.2** | **Ø12.1 × 17.7** | **6.5 × 9.3** | **2 g** |
-| 2.0 mm | 9.0 × 2.5 | Ø15.1 × 18.8 | Ø15.1 × 20.6 | 7.5 × 12.3 | 3 g |
-| 3.0 mm | 11.0 × 2.5 | Ø19.1 × 23.1 | Ø19.1 × 24.2 | 9.5 × 16.3 | 7 g |
-| 4.0 mm | 13.0 × 2.5 | Ø23.1 × 27.4 | Ø23.1 × 27.8 | 11.5 × 20.3 | 11 g |
-| 5.0 mm | 15.0 × 2.5 | Ø27.1 × 31.8 | Ø27.1 × 31.5 | 13.5 × 24.3 | 17 g |
-| 6.0 mm | 17.0 × 2.5 | Ø31.1 × 36.1 | Ø31.1 × 35.1 | 15.5 × 28.3 | 26 g |
+| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 11.6 | Ø11.1 × 14.1 | 6.5 × 8.3 | 1 g |
+| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 12.3** | **Ø12.1 × 14.8** | **6.5 × 9.3** | **2 g** |
+| 2.0 mm | 9.0 × 2.5 | Ø15.1 × 15.8 | Ø15.1 × 17.6 | 7.5 × 12.3 | 3 g |
+| 3.0 mm | 11.0 × 2.5 | Ø19.1 × 20.1 | Ø19.1 × 21.2 | 9.5 × 16.3 | 6 g |
+| 4.0 mm | 13.0 × 2.5 | Ø23.1 × 24.5 | Ø23.1 × 24.9 | 11.5 × 20.3 | 10 g |
+| 5.0 mm | 15.0 × 2.5 | Ø27.1 × 28.9 | Ø27.1 × 28.6 | 13.5 × 24.3 | 16 g |
+| 6.0 mm | 17.0 × 2.5 | Ø31.1 × 33.2 | Ø31.1 × 32.2 | 15.5 × 28.3 | 24 g |
 
 The pitch column never moves. That is the point — see below.
 
@@ -85,15 +85,25 @@ printer does not care about:
 | Tooth, radial | **0.75 mm** | 0.31 mm | 0.60 mm |
 | Crest flat | **0.50 mm** | 0.30 mm | 0.58 mm |
 | Layers per turn @ 0.2 mm | **12.5** | 5.6 | 10.8 |
-| Clearance, diametral | **0.50 mm** | 0.31 mm | 0.60 mm |
+| Clearance, diametral | **0.40 mm** | 0.31 mm | 0.60 mm |
 | Flank angle | 45° | 45° | 45° |
-| Engagement | **1.0 × D** | 2.5 mm (0.32 × D) | 4.8 mm (0.32 × D) |
+| Engagement | **0.75 × D** | 2.5 mm (0.32 × D) | 4.8 mm (0.32 × D) |
 
 Every bold figure is above the floor the `fasteners-and-inserts` skill's
 printable-thread table sets, and `checks.py` runs that table over this thread
 *and* over the original's at both ends of its range -- the original passes at
 12 mm and fails three of four rules at 3.1 mm. The clamp is 12 mm across because
 the thread is 8 mm across; the wire has nothing to do with it.
+
+**Only as much thread as the joint needs.** 2.4 turns of female thread and 2.2 of
+male at the default size, at 0.75 × D of engagement rather than the 1.0 × D the
+printed-thread table asks for — that rule is written for a structural thread, and
+this one carries a finger. `config.THREAD_ENGAGE_RATIO` shows the arithmetic
+(0.4 Nm of finger torque, K=0.30 through a printed thread, sheared over the root
+flats) and `checks.py` computes 7.6 MPa against ABS's ~20 MPa across layers at
+every slider position, failing under a factor of two. The bore's lead-in is the
+thread's own chamfered last turn rather than a cone with a pitch of plain collar
+under it, which took 3.3 mm off the body and the same off the screw.
 
 `checks.py` re-runs the gate, the kinematics and the wire path at five slider
 positions — including one either side of the point where the thread steps up —
