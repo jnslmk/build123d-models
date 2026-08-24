@@ -479,10 +479,12 @@ def check_gland(cap: Part, r: Report) -> None:
     wall = (c.WIDTH / 2 + e.CAP_PROUD) - reach
     r.check(wall > 1.6, "wall outboard of the bore", f"{wall:.2f} mm")
 
-    # Nothing is left standing in the bore: the plug is a solid half-disc and
-    # the bore goes straight through it, so the axis is open over the *whole*
-    # part, not just the flange. This is the instruction "don't put any material
-    # in the way of the M12 hole", read back off the solid.
+    # Nothing is left standing in the bore, over the *whole* part rather than
+    # just the flange. The bore is driven through the flange and the plug's
+    # hollow carries the axis on from there -- so this stays true for a reason
+    # it did not used to have, and would go on passing if the hollow closed up
+    # behind it, which is what check_plug_shell is for. This is the instruction
+    # "don't put any material in the way of the M12 hole", read off the solid.
     total = e.CAP_T + e.PLUG_DEPTH
     # Derived rather than a hand-written list of tenths: the flange doubled when
     # the strap slot arrived, and a fixed list would have quietly stopped
@@ -775,25 +777,84 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
         f"{min(hypot(p.X, p.Y) for p in pts) - e.GLAND_MAJOR_D / 2:.2f} mm out",
     )
 
-    # The pocket is what breaks the plug's flat top now, so the seams it gets
-    # filleted at are its own flats and not the bore's crescent. Stated as a
-    # probe as well as an inequality: a pocket that never reached the plug
-    # would leave the old seams standing and the fillet would still "take".
-    r.check(
-        e.plug_bore_half_width() < e.POCKET_X,
-        "pocket reaches past the bore's crescent through the plug",
-        f"seams at {e.POCKET_X:.2f} mm, where the bore alone left them at "
-        f"{e.plug_bore_half_width():.2f}",
-    )
+
+def check_plug_shell(cap: Part, r: Report) -> None:
+    """The plug is a wall of ``PLUG_WALL``, and everything inboard of it is air.
+
+    Read off the solid throughout, and in more than one place, because this is
+    exactly the claim an outline cannot make: the hollow's sketch being right
+    says nothing about whether the cut reached the plug, and the part stays a
+    valid single solid either way. The bottom of the arc is the probe that
+    matters -- it is where the old solid plug was thickest, and where a hollow
+    that quietly stopped at the relief pocket's own floor would leave it.
+    """
+    r.section("Endcap plug shell")
+
+    y_chord = _loc(e.plug_top_z())
+    x_seam = e.plug_void_half_width()
     z_plug = e.CAP_T + e.PLUG_DEPTH / 2
-    y_plug = y_chord - 0.3
-    x_mid = (e.plug_bore_half_width() + e.POCKET_X) / 2
+    # The plug's outer surface, bottom of the arc: cavity less the running fit.
+    plug_bot = -(c.HEIGHT - 2 * c.WALL - e.PLUG_FIT) / 2
+
     r.check(
-        not is_solid_at(cap, x_mid, y_plug, z_plug)
-        and is_solid_at(cap, e.POCKET_X + 0.5, y_plug, z_plug),
-        "...and it really is cut through the plug, not only the flange",
-        f"open at x={x_mid:.2f} and solid at x={e.POCKET_X + 0.5:.2f}, "
-        f"mid-plug at z={z_plug:.2f}",
+        e.plug_bore_half_width() < x_seam,
+        "the hollow is wider than the bore's crescent through the plug",
+        f"seams at {x_seam:.2f} mm, where the bore alone would leave them at "
+        f"{e.plug_bore_half_width():.2f} -- so the bore never reaches the "
+        f"plug's wall and the crescent is a clean {e.PLUG_WALL} mm all round",
+    )
+    y_plug = y_chord - 0.3
+    r.check(
+        not is_solid_at(cap, 0.0, y_plug, z_plug)
+        and not is_solid_at(cap, x_seam - 0.5, y_plug, z_plug)
+        and is_solid_at(cap, x_seam + e.PLUG_WALL / 2, y_plug, z_plug),
+        "plug is hollow, and the wall starts where the seams are",
+        f"open on the axis and at x={x_seam - 0.5:.2f}, solid at "
+        f"x={x_seam + e.PLUG_WALL / 2:.2f}, mid-plug at z={z_plug:.2f}",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, plug_bot + e.PLUG_WALL / 2, z_plug)
+        and not is_solid_at(cap, 0.0, plug_bot + e.PLUG_WALL + 0.5, z_plug),
+        f"...and it is {e.PLUG_WALL} mm at the bottom of the arc",
+        f"solid at y={plug_bot + e.PLUG_WALL / 2:.2f}, open at "
+        f"y={plug_bot + e.PLUG_WALL + 0.5:.2f}. This column was solid from "
+        f"y={plug_bot:.2f} up to the pocket's floor at y={e.POCKET_Y_LOW}, "
+        f"{e.POCKET_Y_LOW - plug_bot:.2f} mm of it, before the plug was a shell",
+    )
+    # The hollow stops at CAP_T on purpose -- that face is the seat the screws
+    # clamp against the aluminium, and it is not the relief pocket's to take.
+    r.check(
+        is_solid_at(cap, 0.0, plug_bot + e.PLUG_WALL + 0.5, e.CAP_T - 0.3),
+        "...and it stops at the flange's seat face, which stays solid",
+        f"material at z={e.CAP_T - 0.3:.2f} directly under the hollow, where "
+        f"the flange beds against the extrusion's {c.WALL} mm wall",
+    )
+    # The tip keeps a land: PLUG_LEAD_IN comes out of PLUG_WALL, so the two are
+    # one number split, and a lead-in typed independently would eat the wall.
+    r.check(
+        abs((e.PLUG_LEAD_IN + e.PLUG_TIP_LAND) - e.PLUG_WALL) < 1e-9
+        and e.PLUG_TIP_LAND >= 1.2,
+        "tip's lead-in is taken out of the wall, not out of thin air",
+        f"{e.PLUG_LEAD_IN} mm of chamfer leaves {e.PLUG_TIP_LAND} mm of land "
+        f"on a {e.PLUG_WALL} mm wall -- 3 perimeters at 0.4 mm",
+    )
+    # ...and the land is really there. The chamfer is taken on the *outer*
+    # wire, so it eats the wall from the outside in: at ``d`` below the tip the
+    # outer surface has already come in by PLUG_LEAD_IN - d, and the land is
+    # what is left between that facet and the hollow's inside. Probing at the
+    # outer surface's nominal position would land in the chamfer's own air,
+    # which is the mistake this comment exists to stop being made again.
+    tip = e.CAP_T + e.PLUG_DEPTH
+    d = 0.15
+    plug_in = plug_bot + e.PLUG_WALL
+    facet = plug_bot + (e.PLUG_LEAD_IN - d)
+    r.check(
+        is_solid_at(cap, 0.0, (facet + plug_in) / 2, tip - d)
+        and not is_solid_at(cap, 0.0, facet - 0.2, tip - d),
+        "...and the land is really there at the tip",
+        f"solid at y={(facet + plug_in) / 2:.2f} and air at y={facet - 0.2:.2f}, "
+        f"{d} mm below the tip -- the lead-in's facet has come in to "
+        f"y={facet:.2f} by there, leaving {plug_in - facet:.2f} mm standing",
     )
 
 
@@ -1165,19 +1226,30 @@ def check_cap_on_profile(r: Report) -> None:
         overlap < 0.01, "cap does not clash with the profile", f"{overlap:.4f} mm^3"
     )
 
-    # The plug is a solid half-disc, not a ring: sample the middle of the
-    # cavity, where the old lip was air. The bore is the one thing taken out
-    # of it, so probe well below the bore's underside.
+    # The plug is a shell, and this is that claim made from the *tube's* side:
+    # what the extrusion actually gets back is the bottom PLUG_WALL of its own
+    # cavity, not a half-disc filling it. Probed in the profile's frame, where
+    # the plug's outer surface stands WALL + PLUG_FIT/2 off the tube's inside.
     x_plug = 1.0  # 1 mm into the tube, well inside the plug's PLUG_DEPTH
-    z_solid = (e.GLAND_Z - e.GLAND_MAJOR_D / 2) / 2
+    z_outer = c.WALL + e.PLUG_FIT / 2
+    z_wall = z_outer + e.PLUG_WALL / 2
+    z_air = z_outer + e.PLUG_WALL + 0.5
     r.check(
-        is_solid_at(near, x_plug, 0, z_solid),
-        "plug is solid, not a ring",
-        f"material on the axis at z={z_solid:.2f}, below the bore",
+        is_solid_at(near, x_plug, 0, z_wall),
+        "plug's wall is on the floor of the cavity",
+        f"material on the axis at z={z_wall:.2f}, mid-wall -- the plug's outer "
+        f"surface stands {z_outer:.2f} mm off the tube's inside",
+    )
+    r.check(
+        not is_solid_at(near, x_plug, 0, z_air),
+        "...and it is a wall, not a fill: the cavity is open above it",
+        f"air on the axis at z={z_air:.2f}, over {e.PLUG_WALL} mm of wall. This "
+        f"column was solid to z={e.GLAND_Z + e.POCKET_Y_LOW:.2f} when the plug "
+        f"was a half-disc -- that is the room the wiring gets back",
     )
     r.check(
         not is_solid_at(near, x_plug, 0, e.GLAND_Z),
-        "...but the gland bore is driven straight through it",
+        "...and the gland's axis is clear through the plug",
     )
     r.check(
         not is_solid_at(near, x_plug, 0, e.plug_top_z() + 0.2),
@@ -3346,6 +3418,7 @@ def run() -> Report:
     check_screw_pockets(cap, r)
     check_gland(cap, r)
     check_gland_pocket(cap, r)
+    check_plug_shell(cap, r)
     check_strap_slot(cap, r)
     check_endcap_edges(cap, r)
     check_cap_on_profile(r)

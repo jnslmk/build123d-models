@@ -32,11 +32,17 @@ print pose, a ring of ceiling printed out over the pocket's own void. A taper
 head needs a cone, and a 45 deg cone is self-supporting the whole way down, so
 the seat *is* the lead-in and there is no flat floor left in the part at all.
 
-**The plug is solid, not a ring.** It fills the cavity's lower half-disc for
-``PLUG_DEPTH``, with the gland bore driven straight through it -- nothing is
-left standing in the bore's way. A ring would have to dodge the bore; a
-half-disc simply has the bore taken out of it, and the same material takes the
-rocking moment off the two screws that a much longer ring used to.
+**The plug is a shell, not a solid.** It follows the cavity's lower arc for
+``PLUG_DEPTH`` at a constant ``PLUG_WALL``, open along the top, so what goes
+into the tube is a channel rather than a plug. It used to be the solid
+half-disc that name suggests, and the price of that was 6.99 mm of plastic
+across the bottom of a cavity whose whole job is to carry wiring -- the relief
+pocket only ever reached down to ``POCKET_Y_LOW``, which is a clearance off
+the strap slot in the *flange* and has nothing to say about the plug. The bore
+still runs straight through the flange, but it no longer meets the plug at
+all: the hollow is wider than the bore everywhere the two are at the same
+height, so the crescent is untouched by it and the two seams down the plug's
+top are the hollow's own (``plug_void_half_width``).
 
 **And the flange behind the thread is hollow, because nothing there has a job.**
 The gland reaches ``GLAND_MALE_L`` = 8 mm into a flange the strap slot has made
@@ -274,10 +280,8 @@ STRAP_SLOT_Y = -(GLAND_MAJOR_D / 2 + STRAP_ROOF + STRAP_SLOT_H / 2)  # -9.90
 
 # ----------------------------------------------------------------- the plug
 
-# The part that goes into the aluminium. A solid half-disc following the
-# cavity's lower arc, not a ring: the gland bore is driven straight through it,
-# and a ring would have had to dodge the bore rather than simply lose the
-# material to it.
+# The part that goes into the aluminium. A constant-thickness shell following
+# the cavity's lower arc, open along the top -- a channel, not a plug.
 #
 # How far the cap inserts into the extrusion. 16, and it is the one number
 # here that is simply specified rather than derived -- there is nothing in the
@@ -296,16 +300,34 @@ PLUG_DEPTH = 16.0
 PLUG_FIT = fits.SLIDING
 PLUG_TOP_GAP = 0.4  # clears the screw bosses bulging out of the cavity ceiling
 
-# Lead-in on the plug's leading edge, so it starts into the cavity instead of
-# catching on it. 2.0 mm, which is far more than the 0.11 mm of radial
-# clearance needs -- it is a hand aid rather than an alignment feature: the cap
-# goes into 1.5 m of extrusion that is only straight to the tolerance the
-# extruder felt like, and a long taper finds the cavity from further out.
+# The shell's thickness, and the number this part is really about. The plug
+# used to be solid, which put 6.99 mm of plastic across the bottom of the
+# cavity at x=0 -- inside a tube whose only job is to carry wiring. It is a
+# wall now, and everything inboard of it is the tube's cavity again.
 #
-# It costs the engagement 2 mm of its 16, and it is taken off the *outer* wire
-# only, so the rib either side of the pocket loses 2 mm of its 4.77 mm width
-# at the tip and none of it further in.
-PLUG_LEAD_IN = 2.0
+# **Not a fit.** Nothing mates against the inside of this wall, so it does not
+# come off the ``fits`` ladder; the plug's *outside* still does, through
+# ``PLUG_FIT``. What sizes it is that the plug is the only thing holding the
+# cap square (``check_endcap``), and a deep curved channel is a good section
+# for that -- it carries the bending moment in the layer plane rather than
+# across it, with the material where the moment is. 2.4 is six perimeters at
+# 0.4 mm, so it is solid wall the whole way through and never infill.
+PLUG_WALL = 2.4
+
+# Lead-in on the plug's leading edge, so it starts into the cavity instead of
+# catching on it -- a hand aid rather than an alignment feature, and far more
+# than the 0.11 mm of radial clearance needs: the cap goes into 1.5 m of
+# extrusion that is only straight to the tolerance the extruder felt like, and
+# a taper finds the cavity from further out.
+#
+# Derived rather than chosen, now that there is a wall for it to come out of.
+# The chamfer is taken on the *outer* wire only, so whatever it takes it takes
+# from ``PLUG_WALL``: at the 2.0 it used to be it would leave 0.4 mm of land at
+# the tip, a knife edge one perimeter wide on the leading face of the part that
+# has to find a cavity by hand. ``PLUG_TIP_LAND`` is what the tip keeps
+# instead, and the lead-in is the rest of the wall.
+PLUG_TIP_LAND = 1.2  # not a fit: 3 perimeters at 0.4 mm, left flat at the tip
+PLUG_LEAD_IN = PLUG_WALL - PLUG_TIP_LAND  # 1.2
 
 # The corners the tip's lead-in leaves where its own facets meet, and where
 # they cross the relief pocket. 0.3 rather than ``PLUG_SEAM_FILLET``'s 0.5,
@@ -487,8 +509,58 @@ def _cavity_outline(inset: float, top_gap: float) -> Sketch:
 
 
 def plug_section() -> Sketch:
-    """The plug: the cavity's half-disc, solid, less its running clearance."""
+    """The plug's outer surface: the cavity's half-disc, less its running fit."""
     return _cavity_outline(PLUG_FIT / 2, PLUG_TOP_GAP)
+
+
+def plug_void_section() -> Sketch:
+    """What comes back out of the plug: the same outline, less ``PLUG_WALL``.
+
+    The wall is uniform without an offset operation anywhere: shrinking a
+    stadium is exact (see ``_cavity_outline``), so the arc comes in by
+    ``PLUG_WALL`` all round. What is *not* offset with it is the flat top --
+    the chord stays where the plug's is, so the top chord leaves two tabs of
+    exactly ``PLUG_WALL`` rather than being pushed down into the hollow. The
+    plug is a channel, not a closed ring: the open top is the cavity's own
+    ceiling, which the plug clears by ``PLUG_TOP_GAP`` and has no business
+    walling off.
+
+    The one place it is deliberately *not* the plug's own outline is that top
+    clip, which is taken at the cavity ceiling (``top_gap=0``) rather than at
+    ``PLUG_TOP_GAP`` under it. That puts the cutter's top face ``PLUG_TOP_GAP``
+    above the face it has to open, in a z range where the flange has already
+    ended, so it overshoots into air and cuts nothing extra -- where clipping
+    the two at the same height would hand OCC a subtraction whose face is
+    exactly coplanar with the target's, which is the case this family has
+    already been bitten by once (see ``SCREW_SEAM_FILLET``, where a coplanar
+    cutting face made the boolean a silent no-op).
+    """
+    return _cavity_outline(PLUG_FIT / 2 + PLUG_WALL, 0.0)
+
+
+def _stadium_half_width(y: float, half_w: float, half_h: float) -> float:
+    """Half-width at height ``y`` of a stadium with these half-dimensions.
+
+    ``cap_half_width`` is the same arithmetic for the flange, spelled against
+    ``config``'s own arc constants; this one takes its stadium as arguments
+    because the plug's hollow has no constants of its own to name.
+    """
+    flat = half_h - half_w  # |y| inside this is the straight band
+    if abs(y) <= flat:
+        return half_w
+    return sqrt(max(half_w**2 - (abs(y) - flat) ** 2, 0.0))
+
+
+def plug_void_half_width() -> float:
+    """Half-width of the hollow where it breaks through the plug's flat top.
+
+    Which is where the two lengthwise seams are, so it is what
+    ``_plug_top_seams`` selects on -- and ``PLUG_WALL`` outboard of it is the
+    tab the top chord leaves.
+    """
+    half_w = (c.WIDTH - 2 * c.WALL - PLUG_FIT) / 2 - PLUG_WALL
+    half_h = (c.HEIGHT - 2 * c.WALL - PLUG_FIT) / 2 - PLUG_WALL
+    return _stadium_half_width(_loc(plug_top_z()), half_w, half_h)
 
 
 def pocket_section() -> Sketch:
@@ -800,6 +872,25 @@ def create_endcap() -> Part:
         # between it and the thread.
         add(rim_chamfer, mode=Mode.SUBTRACT)
 
+        # The plug's own hollow, run from the flange's inner face to the tip.
+        # This is what makes the plug a shell rather than a solid half-disc,
+        # and it is the whole point of the part: everything inboard of
+        # PLUG_WALL is the extrusion's wiring cavity, which the plug used to
+        # be sitting in.
+        #
+        # It stops *at* CAP_T rather than carrying on down to join the relief
+        # pocket, and both halves of that matter. Below CAP_T the flange is
+        # the seat the two screws clamp against the aluminium, so it is not
+        # yielded to a pocket; and the pocket's own floor is held up at
+        # POCKET_Y_LOW by the strap slot's web, which is a flange constraint
+        # with no jurisdiction out here. The floor this leaves is flat,
+        # upward-facing in print pose and contiguous with the pocket's mouth,
+        # so it prints on solid material without support and still drains
+        # through the bore.
+        with BuildSketch(Plane.XY.offset(CAP_T)):
+            add(plug_void_section())
+        extrude(amount=PLUG_DEPTH, mode=Mode.SUBTRACT)
+
         # Screw seats: a 90 deg taper head's own cone, taken straight out of the
         # outer face, with the clearance hole carrying on through the rest of the
         # flange. Through the flange only -- the plug is a half-disc and the
@@ -903,14 +994,15 @@ def _plug_top_seams(bp: BuildPart) -> ShapeList:
     exit), and only these two run the plug's length at the void's ends.
 
     They used to sit at ``plug_bore_half_width()``, the ends of the crescent the
-    bore alone took out of the plug. The relief pocket is wider than that
-    crescent everywhere it is in the plug, so the seams have moved out to its
-    flats -- ``check_gland_pocket`` asserts that they really did, since a pocket
-    that failed to reach the plug would leave the old seams where they were and
-    nothing else here would notice.
+    bore alone took out of a solid plug, and then at ``POCKET_X`` when the
+    relief pocket reached further out than the bore did. The plug is a shell
+    now, so they are the hollow's own flanks and sit further out again --
+    ``check_gland_pocket`` asserts that they really did move, since a hollow
+    that failed to cut would leave the old seams standing and the fillet would
+    still "take" on them.
     """
     y_top = _loc(plug_top_z())
-    x_seam = POCKET_X
+    x_seam = plug_void_half_width()
 
     def is_seam(edge) -> bool:
         bb = edge.bounding_box()
@@ -1073,7 +1165,10 @@ def create() -> Part:
 __all__ = [
     "create",
     "create_endcap",
+    "plug_section",
     "plug_tip_corner_edges",
+    "plug_void_half_width",
+    "plug_void_section",
     "pocket_depth",
     "pocket_section",
     "seated",

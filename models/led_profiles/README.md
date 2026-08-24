@@ -95,12 +95,14 @@ wiring cavity behind it, and a **strap slot** through the flange under the bore.
   stock M12 gland carries ~8 mm of male thread and then seals on its flange
   against the cap's *face* — which has not moved, so the gland still seats. The
   thread is cut over the outer 8 mm only and the rest is plain bore.
-- **The plug is solid, not a ring.** A half-disc following the cavity's lower
-  arc, with the gland bore driven straight through it: nothing is left standing
-  in the bore's way, and the same material takes the rocking moment off the two
-  screws that a much longer ring used to. 20 mm now rather than 15: the flange
-  nearly doubled, so its lever arm did, and the strap is a load on that lever
-  the cap never used to carry.
+- **The plug is a shell, not a solid.** A 2.4 mm wall following the cavity's
+  lower arc, open along the top — a channel rather than a plug. It used to be a
+  solid half-disc, which put 6.99 mm of plastic across the bottom of a cavity
+  whose whole job is to carry wiring; the relief pocket never reached down
+  there, because its floor is a clearance off the strap slot in the *flange*.
+  The section still takes the rocking moment off the two screws — a deep curved
+  channel carries it in the layer plane, with the material where the moment is —
+  and the gland's axis now runs through the hollow rather than through metal.
 - **The gland is on the cap's own centre.** Symmetric, and it costs something —
   the cavity ceiling is below the bore, so a cable cannot be fed from this gland
   into the tube's wiring cavity. `check_gland` measures the opening rather than
@@ -116,7 +118,7 @@ wiring cavity behind it, and a **strap slot** through the flange under the bore.
 | Flange thickness | 15.85 mm, derived from the strap slot |
 | Strap slot | 12.25 × 1.5 mm obround, through the flanks, 0.5 fillet at each mouth |
 | Strap | 12 × 1 mm velcro, perpendicular to the profile |
-| Plug | 20 mm deep, solid half-disc, SLIDING fit in the cavity |
+| Plug | 16 mm deep, 2.4 mm shell on the cavity's arc, SLIDING fit |
 | Gland | M12 × 1.5 printed female, 6.5 mm of thread on a 1.5 mm collar |
 | Screws | 2 × M2 pan-head, 22 mm apart, Ø4.4 heads sunk to a 1.2 mm floor |
 
