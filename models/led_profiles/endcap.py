@@ -393,11 +393,11 @@ POCKET_CLEAR = 2.0
 # The wall the pocket leaves to the outside of the flange, and the only one of
 # the three that is a *wall* rather than a gap to another feature: it is what
 # is left of the shell once the pocket is taken out of it, and it beds against
-# the extrusion all the way round. 3.0 rather than ``POCKET_CLEAR`` because
-# 2 mm of shell is thin for the one face the screws clamp against, and because
-# nothing is gained by the last millimetre -- the pocket runs out to 10.25 from
-# the axis at the top either way.
-POCKET_WALL = 3.0
+# the extrusion all the way round. 2.0, matching ``POCKET_CLEAR``, opens the
+# pocket further than 3.0 did -- more of the flange comes out where the pocket
+# is not otherwise bounded by the screw holes or the strap slot's roof -- and
+# still leaves a shell rated for the one face the screws clamp against.
+POCKET_WALL = 2.0
 
 # More than ``POCKET_CLEAR``, because this neighbour is the one member here
 # under load -- the strap pulls on the web between the slot and the bore, and
