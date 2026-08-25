@@ -43,6 +43,7 @@ from . import assemblies
 from . import config as c
 from . import corner as corner_mod
 from . import endcap as e
+from . import endcap_wired as ew
 from . import feet as feet_mod
 from . import gland as gl
 from . import gland as gland_mod
@@ -1215,6 +1216,512 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
                 "the seam's two 'adjacent' faces being IsSame() in OCC's own "
                 "topology map, so there is no second surface for "
                 "interior_angle to measure a dihedral angle against",
+            ),
+        ),
+    )
+
+
+def check_endcap_wired(cap: Part, r: Report) -> None:
+    """The wired cap's envelope, and the claims its constants make about it.
+
+    The variant's contract in one sentence: the same cap, 10 mm longer, all of
+    it protrusion, screws unchanged, and a cable route through the bottom half
+    where the standard cap has none. Each clause of that is an assertion here
+    rather than a docstring's word.
+    """
+    r.section("Wired endcap")
+    bb = cap.bounding_box()
+    r.check(
+        abs(bb.size.X - ew.CAP_W) < 0.01 and abs(bb.size.Y - ew.CAP_H) < 0.01,
+        "flange size -- flush with the tube, like the standard cap",
+        f"{bb.size.X:.2f} x {bb.size.Y:.2f} mm against a "
+        f"{c.WIDTH} x {c.HEIGHT} tube",
+    )
+    r.check(
+        abs(bb.min.Z) < 0.01, "outer face on z=0 (print pose)", f"min z {bb.min.Z:.3f}"
+    )
+    r.check(
+        abs(bb.size.Z - (ew.CAP_T + e.PLUG_DEPTH)) < 0.01,
+        "overall depth",
+        f"{bb.size.Z:.2f} mm = {ew.CAP_T} flange + {e.PLUG_DEPTH} plug",
+    )
+    r.check(len(cap.solids()) == 1, "one solid", f"{len(cap.solids())}")
+
+    # The variant's headline numbers, derived rather than typed: the flange is
+    # the standard cap's plus EXTRA_T and the plug did not move, so the whole
+    # 10 mm is protrusion past the aluminium.
+    r.check(
+        abs(ew.CAP_T - (e.CAP_T + ew.EXTRA_T)) < 1e-9,
+        "flange is the standard cap's plus EXTRA_T -- one number couples them",
+        f"{e.CAP_T} + {ew.EXTRA_T} = {ew.CAP_T} mm",
+    )
+    r.check(
+        abs((ew.CAP_T + e.PLUG_DEPTH) - (e.CAP_T + e.PLUG_DEPTH) - ew.EXTRA_T) < 1e-9,
+        "exactly EXTRA_T longer than the standard cap, all of it protrusion",
+        f"{ew.CAP_T + e.PLUG_DEPTH:.2f} vs {e.CAP_T + e.PLUG_DEPTH:.2f} mm "
+        f"overall; the plug is unchanged, so the flange stands "
+        f"{ew.EXTRA_T:.0f} mm further out of the tube",
+    )
+    r.check(
+        ew.CAP_T >= e.GLAND_MALE_L,
+        "gland unchanged: the flange still swallows all of its male thread",
+        f"{ew.CAP_T} mm of flange for {e.GLAND_MALE_L} mm of thread; the "
+        f"gland seals on its flange against the outer face, which is where "
+        f"it always was",
+    )
+
+
+def check_wired_screws(cap: Part, r: Report) -> None:
+    """The access stage: same screws, same reach, sunk EXTRA_T deeper.
+
+    The variant exists under one hard constraint -- the M2 x 20 screws keep
+    their length -- so the one number that must not move is ``screw_reach()``,
+    and it is asserted as an *identity* against the standard cap rather than
+    re-derived. Everything else here reads the two-stage hole off the solid:
+    a plain access bore, then the standard cap's 45 deg seat, then the
+    clearance hole, with no ledge and no flat floor anywhere in the stack.
+    """
+    r.section("Wired endcap screws")
+    u = c.SCREW_SPACING / 2
+    v = _loc(c.SCREW_BOSS_Z)
+
+    r.check(
+        abs(ew.screw_reach() - e.screw_reach()) < 1e-9,
+        "screw reach is IDENTICAL to the standard cap's",
+        f"{ew.screw_reach():.2f} mm into the port from an M2 x "
+        f"{e.SCREW_LEN:.0f} -- the access stage is exactly EXTRA_T deep, so "
+        f"the head sinks by what the flange grew",
+    )
+    r.check(
+        abs(ew.SCREW_ACCESS_DEPTH - ew.EXTRA_T) < 1e-9,
+        "...because the access stage is the flange growth, no more, no less",
+        f"{ew.SCREW_ACCESS_DEPTH} mm of plain bore before the seat",
+    )
+    r.check(
+        abs(ew.SCREW_ACCESS_D - e.SCREW_SEAT_D) < 1e-9,
+        "access bore is the seat cone's own rim -- bore hands over to cone "
+        "with no ledge",
+        f"{ew.SCREW_ACCESS_D:.2f} mm, swallowing a {e.SCREW_HEAD_D} mm head "
+        f"with the seat's own FREE fit and sink",
+    )
+    r.check(
+        not is_solid_at(cap, u, v, 0.05),
+        "bore is open at the outer face",
+    )
+    # The access stage is a plain cylinder: open just inside its wall and
+    # closed just outside, at two depths a cone could not pass both of.
+    for depth in (ew.SCREW_ACCESS_DEPTH * 0.25, ew.SCREW_ACCESS_DEPTH * 0.9):
+        r.check(
+            not is_solid_at(cap, u - (ew.SCREW_ACCESS_D / 2 - 0.15), v, depth),
+            f"access bore is full width {depth:.1f} mm down",
+        )
+        r.check(
+            is_solid_at(cap, u - (ew.SCREW_ACCESS_D / 2 + 0.3), v, depth),
+            "...and closed just outside it -- a bore, not a pocket",
+        )
+    # The seat: the standard cap's 45 deg cone, one access stage down. Same
+    # two-depth probe pair as check_screw_pockets, shifted by EXTRA_T.
+    for depth in (0.25, 0.75):
+        radius = e.SCREW_SEAT_D / 2 - depth
+        z = ew.SCREW_ACCESS_DEPTH + depth
+        r.check(
+            not is_solid_at(cap, u - (radius - 0.15), v, z),
+            f"seat is open {depth} mm below the access stage, to r={radius:.2f}",
+        )
+        r.check(
+            is_solid_at(cap, u - (radius + 0.15), v, z),
+            "...and closed just outside it -- 45 deg, not a counterbore",
+        )
+    z_seat_end = ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH
+    r.check(
+        not is_solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, z_seat_end - 0.05),
+        "seat arrives at the clearance hole",
+    )
+    r.check(
+        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, z_seat_end - 0.05),
+        "...with no flat annular floor around it",
+    )
+    r.check(
+        not is_solid_at(cap, u, v, ew.CAP_T - 0.2),
+        "clearance hole carries on through to the aluminium",
+    )
+    r.check(
+        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, ew.CAP_T - 0.3),
+        "screw column alongside the hole is solid at the seat face",
+        "the chamber keeps a POCKET_CLEAR column round each hole, and its "
+        "top is what the port's boss beds against",
+    )
+
+    # The breakout: same diameter as the standard cap's seat, so the same
+    # bounded bite -- just standing the access stage tall instead of 1.1 mm.
+    breakout = ew.screw_breakout()
+    r.check(
+        0.2 < breakout < 0.5 and abs(breakout - e.screw_breakout()) < 1e-9,
+        "flank breakout is the standard cap's, by construction",
+        f"{breakout:.2f} mm past the flank, from bed to the seat's bottom",
+    )
+    half = e.cap_half_width(c.SCREW_BOSS_Z)
+    r.check(
+        not is_solid_at(cap, half - 0.1, v, ew.SCREW_ACCESS_DEPTH / 2),
+        "...and the scallop is really cut down the access stage",
+    )
+    r.check(
+        is_solid_at(cap, half - 0.1, v, ew.CAP_T - 0.2),
+        "...but the flank below the seat is whole",
+    )
+
+    # What stays sharp at the seats after the fillet ladder: the cone tails no
+    # probe can measure, and the sub-millimetre stubs where the mouth's
+    # breakout crosses the bed chamfer -- held out of the roll on purpose,
+    # because terminating a fillet on the bed plane drags the part below z=0
+    # (endcap.SCREW_SEAM_FILLET's own history). Bounded here so neither kind
+    # can quietly grow into a real raw edge.
+    still_sharp = ew.screw_seam_edges(cap)
+    r.check(
+        len(still_sharp) <= 6 and all(x.length < 1.0 for x in still_sharp),
+        "raw screw seams are only the named slivers and bed stubs",
+        f"{len(still_sharp)} edges, {[round(x.length, 3) for x in still_sharp]} "
+        f"mm -- all under a millimetre, none reportable by the audit's 2 mm "
+        f"floor, every one either a cone tail (unmeasurable) or a bed stub",
+    )
+    stub_angles = [
+        angle
+        for x in still_sharp
+        if x.bounding_box().min.Z < 0.05
+        and (angle := interior_angle(cap, x)) is not None
+    ]
+    r.check(
+        all(angle > 95.0 for angle in stub_angles),
+        "...and the bed stubs are blunter than a square corner",
+        f"{len(stub_angles)} stubs, sharpest "
+        + (f"{min(stub_angles):.1f} deg" if stub_angles else "none"),
+    )
+
+
+def check_wired_chamber(cap: Part, r: Report) -> None:
+    """The chamber: the cable route the standard cap explicitly does not have.
+
+    ``check_gland`` asserts of the standard cap that its bore does *not* open
+    a cable route into the wiring cavity -- a 5.5 mm slot against a 6.7 mm
+    cable. This is the counterpart: past the floor, the whole bore opens into
+    a chamber whose bottom half is the plug channel's own section, walls
+    flush, so the cable's path is bore -> chamber -> channel -> tube with
+    nothing narrower than the bore itself anywhere on it.
+    """
+    r.section("Wired endcap chamber")
+
+    # --- the floor, and what fixes it -----------------------------------
+    r.check(
+        abs(ew.CHAMBER_FLOOR_Z - max(e.POCKET_FLOOR_Z, ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH))
+        < 1e-9,
+        "floor sits above both of its tenants",
+        f"z={ew.CHAMBER_FLOOR_Z}: the gland wants {e.POCKET_FLOOR_Z} (thread "
+        f"+ collar + lead, the same rule the relief pocket follows), the "
+        f"screw seats bottom out at "
+        f"{ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH} -- one plane, three "
+        f"holes, no cones poking through",
+    )
+    r.check(
+        ew.CHAMBER_FLOOR_Z - e.POCKET_LEAD - (e.GLAND_COLLAR + e.GLAND_THREAD_L)
+        >= e.GLAND_PITCH,
+        "...and keeps a full pitch of plain bore above the thread",
+        f"{ew.CHAMBER_FLOOR_Z - e.POCKET_LEAD - e.GLAND_MALE_L + e.GLAND_COLLAR:.2f}"
+        f" mm of collar -- nothing may cut into the thread's own geometry",
+    )
+
+    # --- the outline, off the real wire ----------------------------------
+    wire = ew.chamber_section().wires()[0]  # ty: ignore[invalid-argument-type]
+    pts = [wire @ (i / 720) for i in range(720)]
+    rim = e.GLAND_MAJOR_D / 2 + e.POCKET_LEAD
+    landing = min(hypot(p.X, p.Y) for p in pts) - rim
+    r.check(
+        landing >= 0.5,
+        "the WHOLE bore opens into the chamber -- floor keeps a landing "
+        "outboard of its rim chamfer everywhere",
+        f"{landing:.2f} mm at the tightest point (a screw column), past a rim "
+        f"at r={rim:.2f} -- against the standard cap, where only a "
+        f"{e.cavity_slot_h():.1f} mm slot of the bore looks into the cavity",
+    )
+    outside = min(_stadium_clearance(p.X, p.Y, ew.CAP_W / 2, ew.CAP_H / 2) for p in pts)
+    r.check(
+        outside >= ew.CHAMBER_WALL - 0.01,
+        "...and CHAMBER_WALL of shell to the outside",
+        f"{outside:.2f} mm at the tightest point, against {ew.CHAMBER_WALL} "
+        f"asked for -- the shell the screws clamp against the extrusion",
+    )
+    v = _loc(c.SCREW_BOSS_Z)
+    screw = (
+        min(hypot(abs(p.X) - c.SCREW_SPACING / 2, p.Y - v) for p in pts)
+        - e.SCREW_CLEAR_D / 2
+    )
+    r.check(
+        screw >= e.POCKET_CLEAR - 1e-6,
+        "...and POCKET_CLEAR of column round each screw hole",
+        f"{screw:.2f} mm of wall to a {e.SCREW_CLEAR_D} mm clearance hole",
+    )
+
+    # --- the route, read off the solid -----------------------------------
+    z_mid = (ew.CHAMBER_FLOOR_Z + ew.CAP_T) / 2
+    stations = [ew.CHAMBER_FLOOR_Z + 0.2, z_mid, ew.CAP_T - 0.2]
+    blocked = [z for z in stations if is_solid_at(cap, 0.0, 0.0, z)]
+    r.check(
+        not blocked,
+        "chamber is open on the bore's axis, floor to the inner face",
+        f"blocked at z={blocked}" if blocked else f"{len(stations)} stations open",
+    )
+    r.check(
+        not is_solid_at(cap, 0.0, e.GLAND_MAJOR_D / 2 + 1.0, z_mid)
+        and not is_solid_at(cap, 0.0, -(e.GLAND_MAJOR_D / 2 + 1.0), z_mid),
+        "...and open above AND below the bore -- a chamber, not a slot",
+        "the standard cap is solid at both of these probes mid-flange",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, e.GLAND_MAJOR_D / 2 + 0.5, ew.CHAMBER_FLOOR_Z - 0.3),
+        "floor under the chamber is solid",
+    )
+    r.check(
+        ew.chamber_run() >= 2 * mc.CABLE_OD,
+        "turning room: the run is at least two cable diameters",
+        f"{ew.chamber_run():.2f} mm from floor to inner face for a "
+        f"{mc.CABLE_OD} mm cable to bow down into the channel",
+    )
+
+    # The bottom half IS the channel: the chamber's wall and the plug
+    # hollow's are the same offset of the same stadium, so the surface at the
+    # bottom of the arc is one flush wall from the floor to the plug's tip.
+    y_wall = -(c.HEIGHT - 2 * c.WALL - e.PLUG_FIT) / 2 + e.PLUG_WALL  # -13.02
+    run = [ew.CHAMBER_FLOOR_Z + 1, z_mid, ew.CAP_T - 0.5, ew.CAP_T + 1,
+           ew.CAP_T + e.PLUG_DEPTH / 2]
+    inside_blocked = [z for z in run if is_solid_at(cap, 0.0, y_wall + 0.3, z)]
+    wall_missing = [z for z in run if not is_solid_at(cap, 0.0, y_wall - 0.3, z)]
+    r.check(
+        not inside_blocked and not wall_missing,
+        "chamber wall is flush with the plug channel's, floor to tip",
+        f"probed either side of y={y_wall:.2f} at {len(run)} stations; "
+        + (
+            f"blocked inside at {inside_blocked}, wall missing at {wall_missing}"
+            if inside_blocked or wall_missing
+            else "open inboard, solid outboard at every one"
+        ),
+    )
+
+    # The screw columns stand in the flange and ONLY in the flange. The probe
+    # point is inside the scallop's bite *and* inside the plug's channel --
+    # below the chord, inboard of the channel wall -- which is exactly the
+    # sliver a chamber cut carried through the plug in one stroke leaves
+    # standing as a rib down the channel. That bug shipped once during this
+    # cap's own development, and the second probe here is the one that goes
+    # red against it (demonstrated on the pre-fix solid, not assumed).
+    col = (c.SCREW_SPACING / 2 - 1.2, v - 2.45)
+    r.check(
+        is_solid_at(cap, col[0], col[1], z_mid),
+        "screw columns are really there in the flange",
+        f"solid at ({col[0]:.2f}, {col[1]:.2f}), inside the scallop's bite "
+        f"and clear of the clearance hole",
+    )
+    r.check(
+        not is_solid_at(cap, col[0], col[1], ew.CAP_T + 1.0),
+        "...and end at the inner face -- no ribs down the plug's channel",
+        "the plug keeps the standard cap's own hollow, cut separately from "
+        "the scalloped chamber",
+    )
+
+    # No strap slot, stated as geometry rather than an absence in the code:
+    # the flange is solid where the standard cap threads its strap. The
+    # strapped mounts take the standard cap; this one is for the cable ends.
+    r.check(
+        is_solid_at(cap, 0.0, e.STRAP_SLOT_Y, sum(e.strap_slot_z()) / 2),
+        "no strap slot -- the flange is solid where the standard cap's is cut",
+        f"probed at y={e.STRAP_SLOT_Y}, z={sum(e.strap_slot_z()) / 2:.2f}, "
+        f"inside the gland block below the chamber floor",
+    )
+
+    # --- the gland is still a gland --------------------------------------
+    r_crest = e.GLAND_MAJOR_D / 2 - 1.0825 * e.GLAND_PITCH / 2 + 0.25
+    thread_top = e.GLAND_COLLAR + e.GLAND_THREAD_L
+    turns = [
+        z
+        for z in [
+            e.GLAND_COLLAR + 0.25 + 0.25 * i for i in range(int(4 * e.GLAND_MALE_L))
+        ]
+        if z < thread_top and is_solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
+    ]
+    r.check(
+        len(turns) >= 3 * int(e.GLAND_THREAD_L / e.GLAND_PITCH),
+        "gland thread is actually in the bore",
+        f"{len(turns)} sampled stations carry material at r={r_crest:.2f}",
+    )
+    r.check(
+        not is_solid_at(
+            cap, r_crest, _loc(e.GLAND_Z), (thread_top + ew.CHAMBER_FLOOR_Z) / 2
+        ),
+        "...and the bore between thread and floor is plain",
+        f"probed at z={(thread_top + ew.CHAMBER_FLOOR_Z) / 2:.2f}, inside "
+        f"the collar under the floor's chamfer",
+    )
+    # The floor's rim chamfer, both sides of its cone and on the bore's low
+    # side, exactly as check_gland_pocket probes the pocket's.
+    z_cone = ew.CHAMBER_FLOOR_Z - e.POCKET_LEAD / 2
+    r_cone = e.GLAND_MAJOR_D / 2 + e.POCKET_LEAD / 2
+    r.check(
+        not is_solid_at(cap, r_cone - 0.15, 0.0, z_cone)
+        and is_solid_at(cap, r_cone + 0.15, 0.0, z_cone)
+        and not is_solid_at(cap, 0.0, -(r_cone - 0.15), z_cone)
+        and is_solid_at(cap, 0.0, -(r_cone + 0.15), z_cone),
+        "floor's rim into the bore is chamfered, all the way round",
+        f"{e.POCKET_LEAD} mm cone at r={r_cone:.2f}, z={z_cone:.2f}",
+    )
+
+
+def check_wired_edges(cap: Part, r: Report) -> None:
+    """The wired cap's edge treatments, read back off the solid.
+
+    Same discipline as ``check_endcap_edges``: every chamfer probed inside
+    the material it removed and just beyond it, every selector-driven fillet
+    re-run to prove an empty answer, and the raw-edge rule closed out by the
+    audit with named exceptions only.
+    """
+    r.section("Wired endcap edges")
+    half_h = ew.CAP_H / 2
+    ch, li = e.EDGE_CHAMFER, e.PLUG_LEAD_IN
+
+    r.check(
+        not is_solid_at(cap, 0.0, -(half_h - 0.25 * ch), 0.25 * ch),
+        "bed face chamfered -- no elephant's foot",
+        f"{ch} mm",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, -(half_h - 2 * ch), 0.25 * ch),
+        "...and no more than that",
+    )
+    r.check(
+        is_solid_at(cap, ew.CAP_W / 2 - 0.1, 0.0, ew.CAP_T - 0.05),
+        "cap face is square at the flank -- the tube's wall seat",
+    )
+
+    tip = ew.CAP_T + e.PLUG_DEPTH
+    arc_cy = _loc(c.BOT_ARC_Z)
+    plug_r = c.RADIUS - c.WALL - e.PLUG_FIT / 2
+    r.check(
+        not is_solid_at(cap, 0.0, arc_cy - (plug_r - 0.25 * li), tip - 0.25 * li),
+        "plug's leading edge has a lead-in",
+        f"{li} mm",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
+        "...and the plug's tip is still there",
+    )
+    void_r = plug_r - e.PLUG_WALL
+    r.check(
+        not is_solid_at(cap, 0.0, arc_cy - (void_r + 0.25 * li), tip - 0.25 * li),
+        "...and the hollow's own rim has a matching lead-in",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, arc_cy - (void_r + 2 * li), tip - 0.25 * li),
+        "...and the wall between the two chamfers is still there",
+    )
+    corners = ew.plug_tip_corner_edges(cap)
+    r.check(
+        not corners,
+        "...and the corners its facets leave are rolled, not raw",
+        "nothing sharp left in the chamfer's own band"
+        if not corners
+        else f"{len(corners)} left",
+    )
+
+    # The access bores' mouths on the bed face: the one lead-in this cap has
+    # that the standard one does not need (its seat cone opened at the face
+    # and was its own). Probed inboard of the hole, clear of the breakout.
+    u = c.SCREW_SPACING / 2
+    v = _loc(c.SCREW_BOSS_Z)
+    z_probe = ew.SCREW_MOUTH_LEAD * 0.4
+    r_cone = ew.SCREW_ACCESS_D / 2 + ew.SCREW_MOUTH_LEAD * 0.6
+    r.check(
+        not is_solid_at(cap, u - (r_cone - 0.1), v, z_probe),
+        "access mouth has a lead-in cone at the bed face",
+        f"{ew.SCREW_MOUTH_LEAD} mm -- where the screw goes in by hand",
+    )
+    r.check(
+        is_solid_at(cap, u - (r_cone + 0.25), v, z_probe),
+        "...and no more than that",
+    )
+
+    # The plug-top seams and corners, measured as angles where they stand.
+    y_top = _loc(e.plug_top_z())
+    x_seam = e.plug_void_half_width()
+    seam_zone = [
+        edge
+        for edge in cap.edges()  # ty: ignore[invalid-argument-type]
+        if edge.bounding_box().min.Z > ew.CAP_T - 0.01
+        and abs(edge.bounding_box().max.Y - y_top) < 0.01
+        and abs(abs(edge.bounding_box().center().X) - x_seam) < 0.05
+        and edge.length > 5.0
+    ]
+    r.check(
+        not [
+            edge
+            for edge in seam_zone
+            if (a := interior_angle(cap, edge)) is not None and a <= 120.0
+        ],
+        "plug-top seams are filleted, not raw",
+        f"{len(seam_zone)} long edges at the seam station, none sharp "
+        f"({e.PLUG_SEAM_FILLET} mm fillet)",
+    )
+
+    # The raw-edge rule, closed out with named exceptions only.
+    def _is_isothread_helix(edge) -> bool:
+        return edge.geom_type == GeomType.BSPLINE
+
+    def _is_cap_t_face_edge(edge) -> bool:
+        bb = edge.bounding_box()
+        return abs(bb.min.Z - ew.CAP_T) < 0.02 and abs(bb.max.Z - ew.CAP_T) < 0.02
+
+    def _is_periodic_bore_seam(edge) -> bool:
+        # The same non-edges check_endcap_edges names on the standard cap,
+        # at this cap's own two flat ceilings: the clearance holes' walls run
+        # the screw columns' full height and open through the CAP_T face, and
+        # the gland collar's wall opens through the chamber floor's chamfer.
+        if edge.geom_type != GeomType.LINE:
+            return False
+        bb = edge.bounding_box()
+        tops = (ew.CAP_T, ew.CHAMBER_FLOOR_Z - e.POCKET_LEAD)
+        if not (
+            any(abs(bb.max.Z - top) < 0.02 for top in tops)
+            and (bb.max.Z - bb.min.Z) > 1.0
+        ):
+            return False
+        return is_periodic_seam(cap, edge)
+
+    _check_sharp_edges(
+        cap,
+        "endcap_wired",
+        r,
+        (
+            (
+                "IsoThread helix",
+                _is_isothread_helix,
+                "the gland thread's flanks are a swept helix -- nothing to "
+                "break on a printed thread",
+            ),
+            (
+                "CAP_T face left raw",
+                _is_cap_t_face_edge,
+                "the whole of the CAP_T face beds against the extrusion -- "
+                "the shell ring against its 0.5 mm wall, the screw columns' "
+                "tops against its port bosses -- and the chamber's mouth and "
+                "the channel's outward step sit on it (endcap_wired.py's "
+                "module docstring). Breaking any of it opens a gap that seat "
+                "has to span",
+            ),
+            (
+                "periodic bore seam opening through a flat ceiling",
+                _is_periodic_bore_seam,
+                "the closing seam of a cylinder's own periodic "
+                "parametrisation (both clearance holes' walls up the screw "
+                "columns, the gland collar's wall), opening through the flat "
+                "CAP_T face or the chamber floor's chamfer -- IsSame() "
+                "adjacent faces in OCC's topology map, no second surface to "
+                "measure a dihedral against",
             ),
         ),
     )
@@ -3426,6 +3933,13 @@ def run() -> Report:
     check_plug_shell(cap, r)
     check_strap_slot(cap, r)
     check_endcap_edges(cap, r)
+
+    capw = ew.create_endcap_wired()
+    check_endcap_wired(capw, r)
+    check_wired_screws(capw, r)
+    check_wired_chamber(capw, r)
+    check_wired_edges(capw, r)
+
     check_cap_on_profile(r)
     check_assembly(r)
 
