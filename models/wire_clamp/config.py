@@ -118,7 +118,7 @@ THREAD_ROOT_W = THREAD_FLAT + 2 * THREAD_DEPTH
 45 degree trapezoid, and it is the same trapezoid for both halves and at every
 diameter."""
 
-THREAD_ENGAGE_RATIO = 0.75
+THREAD_ENGAGE_RATIO = 0.65
 """Female thread length as a fraction of its diameter.
 
 ``fasteners-and-inserts``/``references/threads.md`` says 1.0 x D and prefers
@@ -131,14 +131,18 @@ one carries finger torque on a knurled knob:
 * into axial force through a high-friction printed thread,
   ``F = T / (K x d)`` with ``K`` 0.30 -- 167 N at the default size;
 * shearing the female teeth off at their root, over ``pi x minor x root-flat``
-  per turn, which at 0.75 x D is 2.4 turns and 24.5 mm2;
-* 6.8 MPa, against roughly 20 MPa for ABS *across* layers, which is the plane
+  per turn -- 1.9 turns of male thread in mesh at the default size, 19.4 mm2;
+* 8.6 MPa, against roughly 20 MPa for ABS *across* layers, which is the plane
   that actually fails here.
 
-Call it a factor of three. ``checks.py`` computes that number at every slider
-position and fails under a factor of two, so this is a measured departure with a
-gate on it rather than a rounded-down rule -- and 0.75 x D is still more than
-twice the 0.32 x D the model this reconstructs uses at every size."""
+A factor of 2.3, and never under 2.25 anywhere on the slider. ``checks.py``
+computes that number at every slider position and fails under a factor of two,
+so this is a measured departure with a gate on it rather than a rounded-down
+rule -- and 0.65 x D is still twice the 0.32 x D the model this reconstructs
+uses at every size. It was 0.75, which bought a factor of 2.65; the tenth of a
+diameter given back here is nearly a millimetre of body height at the small end
+of the slider, where the thread's 8 mm floor makes engagement the tallest thing
+in the stack."""
 
 HAND_TORQUE = 0.4
 """Nm, finger-tight on a knurled knob. Upper end of what a finger and thumb
@@ -358,9 +362,9 @@ working.
 
 * *Size.* The wire passages cost a cord diameter at each end of the slot, so
   the body runs about ``4 x d + 4.4`` across against the original's ``3 x d``,
-  and taller still. At 6 mm that is Ø29 x 36 mm and 23 g of filament -- a
-  chunky but reasonable tarp toggle. At 12 mm it is Ø53 x 63 mm and about 150 g
-  to hold a rope the original holds with Ø36 x 30 mm.
+  and taller still. At 6 mm that is Ø31 x 31 mm and over 20 g of filament -- a
+  chunky but reasonable tarp toggle. At 12 mm it is Ø55 x 56 mm and well over
+  100 g to hold a rope the original holds with Ø36 x 30 mm.
 * *Diminishing returns.* The body-to-cord ratio has already flattened out by
   6 mm (4.8x, against 5.2x at 4 mm and 4.4x at 12 mm), so going bigger buys
   almost no proportional improvement -- only absolute bulk.
@@ -559,8 +563,14 @@ class Clamp:
     @property
     def window_h(self) -> float:
         """Window opening height. One strand plus room to thread it by hand;
-        the two strands lie side by side across the width, not stacked."""
-        return self.wire_d + 1.3
+        the two strands lie side by side across the width, not stacked.
+
+        A millimetre of headroom, not more: this is threading room, and every
+        tenth of it is paid for three times over -- once in the body's own
+        stack, and again in the female thread whenever the travel it lengthens
+        is what sets ``thread_engage``. It was 1.3, and the 0.3 mm shaved here
+        is 0.6 mm off the closed assembly at the default size."""
+        return self.wire_d + 1.0
 
     @property
     def lip(self) -> float:
@@ -588,23 +598,37 @@ class Clamp:
     def window_w(self) -> float:
         """Chord across the window, in the axis the plunger does not use.
 
-        Two things set it, and both are about the breaks rather than about the
-        cord.
+        As narrow as the notch allows, and **no wider than the notch needs** --
+        which at the small end of the slider means narrower than the plunger.
+        That is the point: the window is the one through-cut in the body, so
+        whatever of it the plunger does not stand behind is daylight straight
+        through the clamp. Sized to the notch alone, a 1 mm clamp's window is
+        5.6 mm across against a 6.28 mm plunger, and the plunger covers the
+        opening completely -- the only way past it is the notch it is
+        deliberately leaving open. ``checks.py`` asserts that coverage at the
+        headline size.
 
-        *Wider than the bore*, so the window opens the channel rather than
-        pinching it.
+        It used to carry a second term, ``channel_w + 0.2`` -- "wider than the
+        bore, so the window opens the channel rather than pinching it" -- and
+        that term was exactly the daylight: 0.2 mm of window past a bore the
+        plunger already sits 0.11 mm inside left a see-through sliver either
+        side of the plunger, the full height of the window. Nothing needed the
+        window to clear the bore. The wire lives in the notch, and a window
+        narrower than the bore just leaves bore wall standing behind its ends,
+        which is material doing the covering the plunger cannot.
 
-        *Wider than the notch, its break and the window's own rounded end.* The
-        window is a stadium, so its ends curve back in; where the notch's widened
-        wall runs into that curve it leaves a sharp vertical edge on the inside
-        of the window, four of them, right where a strand turns into the notch.
-        Keeping the notch inside the window's straight portion is what removes
-        them, and it is why this is a ``max`` of two terms rather than one.
+        What does bound it from below: *the notch, its break and the window's
+        own rounded end*. The window is a stadium, so its ends curve back in;
+        where the notch's widened wall runs into that curve it leaves a sharp
+        vertical edge on the inside of the window, four of them, right where a
+        strand turns into the notch. Keeping the notch inside the window's
+        straight portion is what removes them. Above about 1.4 mm of wire this
+        term outgrows the plunger -- the notch wants more width than the thread
+        floor's bore can cover -- so the slivers return at the sizes the
+        original's own files already serve; below it, where this model lives,
+        the plunger is the window's backstop.
         """
-        return max(
-            self.channel_w + 0.2,
-            self.notch_w + 2 * LIP_CHAMFER + self.window_h,
-        )
+        return self.notch_w + 2 * LIP_CHAMFER + self.window_h
 
     @property
     def base_t(self) -> float:
@@ -719,11 +743,12 @@ class Clamp:
     def thread_engage(self) -> float:
         """Female thread length.
 
-        1.0 x D, the floor in ``references/threads.md`` -- printed threads share
-        load across turns much worse than cut ones -- but never less than the
-        plunger's travel plus a full pitch, so that a screw backed right out to
-        where the wire runs free still has a whole turn holding it and cannot be
-        dropped and lost.
+        ``THREAD_ENGAGE_RATIO`` x D -- see that constant for why it sits under
+        the 1.0 x D ``references/threads.md`` asks of a structural thread --
+        but never less than the plunger's travel plus a full pitch, so that a
+        screw backed right out to where the wire runs free still has a whole
+        turn holding it and cannot be dropped and lost. At the small end of the
+        slider the travel term is the one that governs.
         """
         return max(THREAD_ENGAGE_RATIO * self.thread_d, self.travel + THREAD_PITCH)
 

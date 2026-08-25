@@ -28,7 +28,7 @@ the whole tooth. Scaled the rest of the way to 1 mm it would be a 3 mm bead with
 a 0.36 mm pitch.
 
 So the thread here is split in two. **Pitch, tooth height, crest flat and
-clearance are absolute** -- 2.5 mm, 0.75 mm, 0.5 mm, 0.5 mm, at 45 degrees --
+clearance are absolute** -- 2.5 mm, 0.75 mm, 0.5 mm, 0.4 mm, at 45 degrees --
 and are the same at every position of the slider, because those four are what a
 nozzle has to resolve and each of them has a floor. The thread's **diameter**
 does follow the wire, from an 8 mm floor upward, because that is the one thread
@@ -50,7 +50,11 @@ circle, filled to a running clearance, so across almost the whole opening the
 wire is pinned between the plunger's face and the ribbed floor with nowhere to
 drift. The notches -- one at each end, no wider than the strands -- are the
 wire's way past the plunger, and their walls hold the strands where the plunger
-cannot. Tightening therefore pulls the wire *through*: down over one sill, flat
+cannot. The window is cut to the same rule, only as wide as the notch and its
+edge breaks need -- which at the sizes this model is built for is *narrower
+than the plunger*, so the plunger stands behind the whole opening and there is
+no line of sight through a closed clamp except the notches themselves.
+Tightening therefore pulls the wire *through*: down over one sill, flat
 along the floor, up over the other, with four bends in it when it comes out.
 
 Everything else is the original's: the proportions of the window, the ribbed
@@ -62,17 +66,17 @@ and PLA print the same files and are both more forgiving. Both parts are in
 print pose already: the body stands on its base, the screw lies **knob down**,
 and neither needs support. 4 perimeters, 0.2 mm layers or finer -- the thread
 wants at least six layers to a turn and 2.5 mm of pitch gives twelve. Nothing
-overhangs past 45 degrees except the top of the window, which is a 4.9 mm
+overhangs past 45 degrees except the top of the window, which is a 3.6 mm
 bridge.
 
 **Assembling it.** Screw the knob in from the top. It cannot be put in wrong and
 cannot fall out of an open clamp: with the plunger backed up clear of the
-window, a full turn and a half of thread is still engaged.
+window, a full turn of thread is still engaged.
 
 **Parametric, in one number.** ``wire_d``, 0.5 to 6.0 mm, and it sizes the whole
 clamp: window, sill, slot, floor ribs, floor thickness, plunger, knob lobes,
 thread diameter, body diameter and body height all follow it. A 0.5 mm clamp is
-Ø11 x 12 mm and 1 g; a 6 mm one is Ø31 x 33 mm and 24 g. That covers picture
+Ø11 x 10.5 mm and 1 g; a 6 mm one is Ø31 x 31 mm and 23 g. That covers picture
 wire and trimmer line at the bottom and 2 mm guyline, 3 mm shock cord, 4 mm
 paracord and 6 mm tarp cord on the way up.
 

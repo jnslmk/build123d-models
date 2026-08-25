@@ -16,7 +16,7 @@ uv run check wire_clamp
 
 ## What it is
 
-Ø12 x 12 mm body, Ø12 x 15 mm screw, 16 mm tall assembled and closed on an
+Ø12 x 11 mm body, Ø12 x 14 mm screw, 15 mm tall assembled and closed on an
 empty clamp -- and a millimetre more than that per millimetre of wire in it. Thread a
 loop of wire in through one side of the window and out the other, turn the knob
 finger tight, and it holds. Back the knob off and the wire slides again -- so
@@ -27,13 +27,13 @@ control, which sizes everything:
 
 | Wire | Thread | Body | Screw | Bore × channel | Filament |
 | --- | --- | --- | --- | --- | --- |
-| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 11.6 | Ø11.1 × 14.1 | 6.5 × 8.3 | 1 g |
-| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 12.3** | **Ø12.1 × 14.8** | **6.5 × 9.3** | **2 g** |
-| 2.0 mm | 9.0 × 2.5 | Ø15.1 × 15.8 | Ø15.1 × 17.6 | 7.5 × 12.3 | 3 g |
-| 3.0 mm | 11.0 × 2.5 | Ø19.1 × 20.1 | Ø19.1 × 21.2 | 9.5 × 16.3 | 6 g |
-| 4.0 mm | 13.0 × 2.5 | Ø23.1 × 24.5 | Ø23.1 × 24.9 | 11.5 × 20.3 | 10 g |
-| 5.0 mm | 15.0 × 2.5 | Ø27.1 × 28.9 | Ø27.1 × 28.6 | 13.5 × 24.3 | 16 g |
-| 6.0 mm | 17.0 × 2.5 | Ø31.1 × 33.2 | Ø31.1 × 32.2 | 15.5 × 28.3 | 24 g |
+| 0.5 mm | 8.0 × 2.5 | Ø11.1 × 10.5 | Ø11.1 × 13.0 | 6.5 × 8.3 | 1 g |
+| **1.0 mm** | **8.0 × 2.5** | **Ø12.1 × 11.4** | **Ø12.1 × 13.9** | **6.5 × 9.3** | **2 g** |
+| 2.0 mm | 9.0 × 2.5 | Ø15.1 × 15.3 | Ø15.1 × 17.1 | 7.5 × 12.3 | 3 g |
+| 3.0 mm | 11.0 × 2.5 | Ø19.1 × 19.2 | Ø19.1 × 20.4 | 9.5 × 16.3 | 6 g |
+| 4.0 mm | 13.0 × 2.5 | Ø23.1 × 23.2 | Ø23.1 × 23.6 | 11.5 × 20.3 | 10 g |
+| 5.0 mm | 15.0 × 2.5 | Ø27.1 × 27.2 | Ø27.1 × 26.9 | 13.5 × 24.3 | 15 g |
+| 6.0 mm | 17.0 × 2.5 | Ø31.1 × 31.2 | Ø31.1 × 30.2 | 15.5 × 28.3 | 23 g |
 
 The pitch column never moves. That is the point — see below.
 
@@ -87,7 +87,7 @@ printer does not care about:
 | Layers per turn @ 0.2 mm | **12.5** | 5.6 | 10.8 |
 | Clearance, diametral | **0.40 mm** | 0.31 mm | 0.60 mm |
 | Flank angle | 45° | 45° | 45° |
-| Engagement | **0.75 × D** | 2.5 mm (0.32 × D) | 4.8 mm (0.32 × D) |
+| Engagement | **0.65 × D** | 2.5 mm (0.32 × D) | 4.8 mm (0.32 × D) |
 
 Every bold figure is above the floor the `fasteners-and-inserts` skill's
 printable-thread table sets, and `checks.py` runs that table over this thread
@@ -95,12 +95,12 @@ printable-thread table sets, and `checks.py` runs that table over this thread
 12 mm and fails three of four rules at 3.1 mm. The clamp is 12 mm across because
 the thread is 8 mm across; the wire has nothing to do with it.
 
-**Only as much thread as the joint needs.** 2.4 turns of female thread and 2.2 of
-male at the default size, at 0.75 × D of engagement rather than the 1.0 × D the
+**Only as much thread as the joint needs.** 2.1 turns of female thread and 1.9 of
+male at the default size, at 0.65 × D of engagement rather than the 1.0 × D the
 printed-thread table asks for — that rule is written for a structural thread, and
 this one carries a finger. `config.THREAD_ENGAGE_RATIO` shows the arithmetic
 (0.4 Nm of finger torque, K=0.30 through a printed thread, sheared over the root
-flats) and `checks.py` computes 7.6 MPa against ABS's ~20 MPa across layers at
+flats) and `checks.py` computes 8.6 MPa against ABS's ~20 MPa across layers at
 every slider position, failing under a factor of two. The bore's lead-in is the
 thread's own chamfered last turn rather than a cone with a pitch of plain collar
 under it, which took 3.3 mm off the body and the same off the screw.
@@ -119,17 +119,25 @@ floor -- it is nipped between the plunger's rim and the window sill and
 squashed, which works well on something compressible with a lot of surface.
 
 A 1 mm wire is neither compressible nor grippy, and a rim nip on a plastic part
-yields the plastic before it holds the wire. So the channel here is a **slot**:
+yields the plastic before it holds the wire. So the channel here is a **bore
+with two notches**:
 
-- **as wide as the plunger** (0.11 mm a side), which guides it and means a
-  strand cannot escape sideways from under it;
-- **longer than the plunger by a wire's width at each end**, so the wire's two
-  legs run down past it.
+- **the bore is the plunger's own circle** (0.11 mm a side), which guides it
+  and means a strand cannot escape sideways from under it;
+- **a notch at each end, no wider than the strands**, is the wire's way past
+  the plunger; its walls box a strand in where the plunger cannot.
 
 Tightening therefore pulls the wire *through*: down over one sill, flat along
 the ribbed floor under the plunger, up over the other sill and out. Four bends
 and a squeeze, instead of a squeeze. Both halves are asserted in `checks.py` --
 a passage wider than the wire along it, a gap narrower than the wire across it.
+
+The window follows the same rule: it is cut only as wide as the notch and its
+edge breaks need, which at the sizes this model is built for leaves it
+*narrower than the plunger* -- so with the screw in, the plunger stands behind
+the whole opening and the only way to see (or lose a strand) through the clamp
+is the notch that is deliberately open. `checks.py` asserts that coverage at
+the headline size.
 
 Everything else is the original's: the window's proportions, the ribbed floor,
 the concentric ridges on the plunger's face that cross those ribs, the
@@ -148,7 +156,7 @@ ones that survive it. PETG and PLA print the same files and are more forgiving.
   lies **knob down**, which puts a 12 mm disc on the bed and leaves nothing
   unsupported.
 - **No supports.** The only downward-facing thing that is not a 45° cone is the
-  top of the window, a 4.9 mm bridge.
+  top of the window, a 3.6 mm bridge.
 - **4 perimeters**, so the thread is perimeter all the way through and never
   infill. 0.2 mm layers or finer: the rule is at least six layers to a turn and
   2.5 mm of pitch gives twelve.
@@ -159,7 +167,7 @@ ones that survive it. PETG and PLA print the same files and are more forgiving.
 ## Using it
 
 1. Back the knob out until the plunger clears the top of the window. It will not
-   come out -- a turn and a half of thread is still engaged there.
+   come out -- a full turn of thread is still engaged there.
 2. Push the wire in through one side of the window and out the other. Both legs
    of a loop go through the same window, side by side.
 3. Turn the knob finger tight. The wire is pulled down into the slot as you go.

@@ -417,10 +417,13 @@ def check_kinematics(r: Report, c: Clamp) -> None:
         "a whole tooth narrower",
     )
     r.check(
-        c.open_engagement >= THREAD_PITCH,
+        c.open_engagement >= THREAD_PITCH - 1e-9,
         "a full turn is still engaged with the clamp open",
         f"{c.open_engagement:.2f} mm at the open position, pitch "
-        f"{THREAD_PITCH} -- so the screw cannot be dropped out of an open clamp",
+        f"{THREAD_PITCH} -- so the screw cannot be dropped out of an open "
+        "clamp. Tolerance, not slack: ``thread_engage``'s floor is travel plus "
+        "exactly one pitch, so where that floor governs this is an equality "
+        "reached by float arithmetic",
     )
     r.check(
         c.travel > c.wire_d,
@@ -475,6 +478,16 @@ def check_wire_path(r: Report, c: Clamp) -> None:
         c.lip >= c.wire_d * 0.5,
         "the sill is deep enough to be a bend and not a graze",
         f"lip {c.lip:.2f} mm against a {c.wire_d} mm wire",
+    )
+    r.check(
+        c.window_w <= 2 * c.plunger_r,
+        "the plunger covers the window at the headline size",
+        f"window {c.window_w:.2f} mm across against a {2 * c.plunger_r:.2f} mm "
+        "plunger -- the window is the body's one through-cut, so any of it the "
+        "plunger does not stand behind is daylight straight through the clamp. "
+        "Holds while the thread sits on its 8 mm floor (up to about 1.4 mm of "
+        "wire); above that the notch needs more window than the bore can "
+        "cover, which is the regime the original's own files serve",
     )
 
     # The claim in full, measured off the actual outlines rather than argued:
@@ -687,12 +700,14 @@ def check_sharp_edges(r: Report, part: Part, label: str, c: Clamp) -> None:
         (
             curved_crossing,
             "curved crossing: the window's rounded end and the channel bore are "
-            "both cylinders, and above about 3 mm of cord they cross. What that "
-            "leaves is a sub-2 mm2 sliver of bore wall at 111 degrees -- a "
-            "shallow ridge inside a hole nothing bears on, not an untreated "
-            "corner. Removing it means holding the window's ends clear of the "
-            "bore, which costs pillar section at every size to tidy a ridge that "
-            "only exists at the large ones",
+            "both cylinders, and at most sizes they cross -- at the small end "
+            "because the window is deliberately narrower than the bore so the "
+            "plunger can cover it, at the large end because the notch pushes the "
+            "window's ends out through the bore wall. What that leaves is a "
+            "sub-2 mm2 sliver of bore wall at an obtuse angle -- a shallow ridge "
+            "inside a hole nothing bears on, not an untreated corner. Removing "
+            "it means holding the window's ends clear of the bore, which costs "
+            "pillar section at every size to tidy a ridge nothing touches",
         ),
         (
             on_outer_wall,
@@ -744,7 +759,7 @@ def check_slider_stops(r: Report) -> None:
         c = Clamp.of(w)
         r.check(
             abs((c.closed_z + c.plunger_len) - c.thread_z0) < 1e-9
-            and c.open_engagement >= THREAD_PITCH
+            and c.open_engagement >= THREAD_PITCH - 1e-9
             and c.travel > c.wire_d,
             f"kinematics hold at wire_d={w}",
             f"travel {c.travel:.2f} mm, {c.open_engagement:.2f} mm still "

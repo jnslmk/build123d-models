@@ -12,12 +12,14 @@ follow, and they are most of the file:
   wire's two legs can run *past* the plunger and be clamped underneath it rather
   than nipped at its rim. ``config.Clamp.wire_pass`` argues that at length; it
   is the one place this model departs from the shape it reconstructs.
-* **The window is wider than the channel and its edge breaks.** That is what
-  lets the sill and lintel breaks be plain lofted frusta: everything above the
-  sill is already gone across the whole width, so a frustum there breaks an edge
-  instead of grooving a wall.
+* **The window is as narrow as the notch allows** -- wider than the notch and
+  its edge breaks, so the sill and lintel breaks can be plain lofted steps in
+  the channel's own profile, but no wider: at the small sizes that leaves it
+  narrower than the plunger, so the plunger standing in the bore covers the
+  opening completely and the only daylight through the clamp is the notch.
+  ``config.Clamp.window_w`` has the argument.
 * **The window's top is a bridge**, over the flat of its stadium, which is
-  ``window_w - window_h`` wide -- 4.9 mm at 1 mm wire. Every other downward
+  ``window_w - window_h`` wide -- 3.6 mm at 1 mm wire. Every other downward
   facing surface inside the part is at 45 degrees: the step from the channel up
   to the thread bore, the lintel break, and the thread's own lower flanks.
 * **The floor ribs are added last**, after every cut, because they are the only
@@ -127,10 +129,10 @@ def window_tool(c: Clamp) -> Part:
 
     Deliberately a plain prism. A lofted flare would break the mouths for free
     on a *flat* wall, but this wall is a cylinder: the mouth's own radius runs
-    from 4.2 mm at the window's ends out to 5.65 mm at its centre, so a flare
-    cut along the wire's axis is inside the material at one end of the mouth and
-    outside it at the other, and chamfers neither. The mouths get a real fillet
-    instead, above.
+    from the pillar's at the window's ends out to the body's at its centre, so a
+    flare cut along the wire's axis is inside the material at one end of the
+    mouth and outside it at the other, and chamfers neither. The mouths get a
+    real fillet instead, above.
     """
     zc = (c.window_z0 + c.window_z1) / 2
     reach = c.body_r + 1.0
