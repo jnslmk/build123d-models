@@ -1190,10 +1190,14 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
                 "CAP_T face left raw",
                 _is_cap_t_face_edge,
                 "the whole of the CAP_T face beds against the extrusion's "
-                "0.5 mm wall, and both the gland bore's own faded thread exit "
-                "and the relief pocket's mouth sit on it (endcap.py's module "
-                "docstring). Breaking either would only open a gap that wall "
-                "has to span",
+                "0.5 mm wall -- the true outer perimeter, the gland bore's own "
+                "faded thread exit, the screw clearance holes, and the shelf "
+                "where the flange's terrace steps down to the plug's own "
+                "narrower continuation, all sit on it. Breaking any of them "
+                "would only open a gap that wall has to span. The relief "
+                "pocket's own mouth used to be on this list too -- it is "
+                "chamfered now (endcap.py's module docstring), since it is "
+                "well inboard of where the aluminium's wall actually rests",
             ),
             (
                 "screw seat's tail sliver left raw",

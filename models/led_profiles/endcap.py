@@ -56,19 +56,25 @@ effect: a pocket that stopped at ``CAP_T`` under the plug's footprint would be
 a sealed void with the whole ``PLUG_DEPTH`` printed over it.
 
 The one neighbour that gets more than the clearance is the strap slot, which
-is the only member here under load. ``POCKET_WEB`` = 3 mm of full-depth flange
-is left over its roof -- and rather than pay for that out of the pocket, the
-slot moved down to make room: ``STRAP_ROOF`` went from 3.0 to 4.5, which is
-the far side of the same trade, since the web the strap pulls on grows by
-exactly what ``strap_floor()`` gives up.
+is the only member here under load. ``POCKET_WEB`` = 2.0 mm of full-depth
+flange is left over its roof -- held there not by the load (the
+fdm-fits-and-clearances skill's own load-bearing floor is 1.2 mm and this
+clears it with room to spare) but by ``cavity_slot_h()``, the other thing
+this web's position decides: shrink it further and the gland bore's own
+crescent into the tube's wiring cavity opens past the 6.7 mm cable
+``check_gland`` asserts it stays under. Rather than pay the 2.0 out of the
+pocket, the slot moved down to make room: ``STRAP_ROOF`` went from 3.0 to
+4.5, which is the far side of the same trade, since the web the strap pulls
+on grows by exactly what ``strap_floor()`` gives up.
 
 **The gland is on the cap's own centre.** ``GLAND_Z`` is ``c.HEIGHT / 2``, so
 the bore, the flange and the plug are all one axis and the part is symmetric
 about it. Worth stating plainly, because it costs something: the wiring cavity's
 ceiling is at ``c.CAVITY_TOP_Z``, well below that axis, so a bore centred on the
 cap opens into the cavity through a slot only ``cavity_slot_h()`` mm tall --
-the relief pocket's floor plane sets that now, being the lower of the two, but
-it only takes it from 4.0 mm to 5.5. That is still narrower
+the relief pocket's floor plane sets that now, being the lower of the two, and
+it takes it from 4.0 mm to 6.5, ``POCKET_WEB`` having shrunk to the tightest
+margin it can and still leave the gland bore's own crescent narrower
 than the 6.7 mm cable the gland seals on, so **a cable cannot be fed from this
 gland into the tube's wiring cavity**; the gland is a fitting on a centred axis,
 not a route into the cavity. ``check_gland`` measures that slot rather than
@@ -128,14 +134,27 @@ own facets meet turn out not to need a selector of their own:
 the corner, so the same ladder that rolls the outer wire's four rolls these
 too.
 
-Edges left square on purpose, and which should stay that way: the whole of the
-``CAP_T`` face, which is what beds against the extrusion's 0.5 mm wall, and so
-the relief pocket's mouth on it too; the gland bore's mouth there, which is the
-thread's own faded exit and the one place a lead-in would hand OCC a degenerate
-fuse (see ``GLAND_COLLAR``); and one short line at the tail of each screw
-seat's breakout, where the seat's cone leaves the flank all but tangentially.
-That last one is a genuine sliver -- no probe can even measure its angle --
-and it is the one edge here OCC will not roll. It is named in
+The pocket's own mouth gets a lead-in too, right where it crosses ``CAP_T`` --
+the boundary this file calls "inside" and "outside" the aluminium. Below it
+the wiring cavity is exactly ``pocket_section()``; above it, the void has
+joined in and is wider than the pocket everywhere it reaches (``PLUG_WALL`` =
+1.6 leaves more room than ``POCKET_CLEAR`` = 2.0 held back), so
+``pocket_section()``'s own wire is a real step in the solid now, not just a
+construction line. Selected by matching the finished part's edges at
+``z = CAP_T`` against ``pocket_section()``'s own edge lengths, since the wire
+crosses both the screw notches and the ``POCKET_Y_LOW`` flat and no single box
+would hold all of it.
+
+Edges left square on purpose, and which should stay that way: the true outer
+perimeter of the ``CAP_T`` face, which is what beds against the extrusion's
+0.5 mm wall; the gland bore's mouth there, which is the thread's own faded
+exit and the one place a lead-in would hand OCC a degenerate fuse (see
+``GLAND_COLLAR``); the screw clearance holes' own mouths; the shelf where the
+flange's terrace steps down to the plug's own narrower continuation (a
+solid-to-solid step, not a cavity wall); and one short line at the tail of
+each screw seat's breakout, where the seat's cone leaves the flank all but
+tangentially. That last one is a genuine sliver -- no probe can even measure
+its angle -- and it is the one edge here OCC will not roll. It is named in
 ``check_screw_pockets``'s allow list rather than ignored.
 
 The screw seams themselves are *not* on that list any more. They used to be,
@@ -448,24 +467,25 @@ POCKET_CLEAR = 2.0
 # still leaves a shell rated for the one face the screws clamp against.
 POCKET_WALL = 2.0
 
-# More than ``POCKET_CLEAR``, because this neighbour is the one member here
-# under load -- the strap pulls on the web between the slot and the bore, and
-# what is left of that web at full flange depth is exactly this number. 3.0 is
-# the web the design has always asked for (it is what ``STRAP_ROOF`` used to
-# be), so the pocket may hollow the *rest* of the roof and not that.
-#
-# It also has to keep the pocket's floor plane clear of the bore's own lead-in.
-# Between -6.65 and -6.15 the floor runs tangent to the bore and leaves a
-# feather edge, and this lands it at -7.65 -- a millimetre under the chamfer's
-# rim, which is the whole of the plain bore's wall gone above the floor and a
-# 1 mm landing left on the floor itself.
-POCKET_WEB = 3.0
+# 2.0, down from 3.0 -- not all the way to the fdm-fits-and-clearances
+# skill's 1.2 mm "load-bearing" floor (the same number ``PLUG_TIP_LAND``
+# already uses elsewhere in this file), because a *different*, tighter
+# constraint binds first here: ``POCKET_Y_LOW`` is ``slot_roof + POCKET_WEB``,
+# and shrinking it moves the pocket's floor down with it, which is also the
+# floor ``cavity_slot_h()`` reads off to say how much of the gland bore looks
+# into the tube's own wiring cavity -- see the module docstring and
+# ``check_gland``'s "does NOT open a cable route" assertion. Below 1.8 that
+# slot reaches the 6.7 mm cable it is asserted to stay under; 2.0 keeps
+# 0.2 mm of margin below that rather than sitting on the line. The
+# load-bearing floor is satisfied with room to spare either way -- this is
+# the tighter of the two constraints, not the only one.
+POCKET_WEB = 2.0
 
 # Where a screw's clearance circle is tangent to the flank at the screw's own
 # y -- not drawn any more (the pocket cuts a local circle there instead), but
 # kept as the number ``check_gland_pocket`` probes the wall against.
 POCKET_X = c.SCREW_SPACING / 2 - SCREW_CLEAR_D / 2 - POCKET_CLEAR  # 7.675
-POCKET_Y_LOW = STRAP_SLOT_Y + STRAP_SLOT_H / 2 + POCKET_WEB  # -7.65
+POCKET_Y_LOW = STRAP_SLOT_Y + STRAP_SLOT_H / 2 + POCKET_WEB  # -8.65
 
 # The outline's own corners, where the circle runs into a flat. They are
 # concave in the material, so no house rule reaches them -- they are rounded
@@ -633,8 +653,9 @@ def pocket_section() -> Sketch:
     the two overlap, which is the point -- the plain bore above the thread is
     exactly the material being removed. What the bottom edge must never do is
     graze it: anywhere between -6.65 and -6.15 it runs tangent to the bore or
-    its lead-in and leaves a feather edge, so ``POCKET_Y_LOW`` is held a
-    millimetre clear at -7.65.
+    its lead-in and leaves a feather edge, and ``POCKET_Y_LOW`` sits well past
+    it at -8.65 -- ``POCKET_WEB`` is bounded by ``cavity_slot_h()`` now, not by
+    this tangency, and that bound only pushes the floor further away.
 
     There is a fourth neighbour below ``plug_top_z()``, where the pocket's
     outer wire would otherwise run through the plug's own wall rather than
@@ -856,11 +877,15 @@ def cavity_slot_h() -> float:
     docstring, which is explicit that it cannot.
 
     Measured from whichever floor is lower, the bore's underside or the relief
-    pocket's -- as it stands the pocket's, at -7.65 against the bore's -6.15,
-    so this reads 5.5 mm where it read 4.0 before the pocket existed. Stated as
-    a ``min`` rather than as the pocket's own number because the pocket's floor
-    is a *clearance* off the strap slot and free to move back up, at which
-    point the bore would be the thing looking into the cavity again.
+    pocket's -- as it stands the pocket's, at -8.65 against the bore's -6.15,
+    so this reads 6.5 mm where it read 4.0 before the pocket existed. That is
+    ``POCKET_WEB``'s other job now: it is what keeps this under the 6.7 mm
+    cable (``check_gland``), with 0.2 mm to spare rather than the 1.2 mm this
+    used to leave -- shrink ``POCKET_WEB`` any further and this is the first
+    thing that breaks. Stated as a ``min`` rather than as the pocket's own
+    number because the pocket's floor is a *clearance* off the strap slot and
+    free to move back up, at which point the bore would be the thing looking
+    into the cavity again.
     """
     floor = min(GLAND_Z - GLAND_MAJOR_D / 2, GLAND_Z + POCKET_Y_LOW)
     return c.CAVITY_TOP_Z - floor
@@ -963,6 +988,34 @@ def create_endcap() -> Part:
         with BuildSketch(Plane.XY.offset(CAP_T)):
             add(plug_void_section())
         extrude(amount=PLUG_DEPTH, mode=Mode.SUBTRACT)
+
+        # The pocket's own mouth, right where it crosses CAP_T -- the boundary
+        # this file has been calling "inside" and "outside" the aluminium ever
+        # since the plug docstring drew that line. Below CAP_T the wiring
+        # cavity is exactly ``pocket_section()``; above it, the void has
+        # joined in, and the void is wider than the pocket everywhere it
+        # reaches (``PLUG_WALL`` = 1.6 leaves more room than ``POCKET_CLEAR``
+        # = 2.0 held back) -- so pocket_section()'s own wire is a real step in
+        # the solid now, not just a construction line, and it is horizontal
+        # and convex the same way every other hole mouth here is. Selected by
+        # matching against pocket_section()'s own edge lengths rather than
+        # position, because the wire crosses both the screw notches and the
+        # POCKET_Y_LOW flat and no single box would hold all of it.
+        pocket_wire = pocket_section().wires()[0]  # ty: ignore[invalid-argument-type]
+        pocket_lengths = [ed.length for ed in pocket_wire.edges()]
+
+        def _is_pocket_mouth(edge) -> bool:
+            bb = edge.bounding_box()
+            return (
+                abs(bb.center().Z - CAP_T) < 0.02
+                and abs(bb.max.Z - bb.min.Z) < 0.02
+                and any(abs(edge.length - length) < 0.01 for length in pocket_lengths)
+            )
+
+        for size in (0.3, 0.2, 0.1):
+            mouth = [ed for ed in bp.edges() if _is_pocket_mouth(ed)]  # ty: ignore[invalid-argument-type]
+            if chamfer_edge(bp, mouth, size):
+                break
 
         # The hollow's own lead-in at the tip, mirroring the outer wire's.
         # Horizontal and convex by the same house rule, and left raw for as
