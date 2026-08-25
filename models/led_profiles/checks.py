@@ -1075,14 +1075,32 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
         + "; ".join(f"{ed.geom_type} len={ed.length:.2f}" for ed in corners),
     )
 
+    # The hollow's own rim gets a matching lead-in now (endcap.py's module
+    # docstring): the void's boundary grows outward toward the tip the same
+    # way the outer wire's shrinks, so a cable finds a wider mouth rather than
+    # a square lip. Same probe shape as the outer pair, mirrored across the
+    # wall: not solid where the chamfer has widened the hollow, solid where
+    # it clearly has not reached.
+    void_r = plug_r - e.PLUG_WALL
+    r.check(
+        not is_solid_at(cap, 0.0, arc_cy - (void_r + 0.25 * li), tip - 0.25 * li),
+        "...and the hollow's own rim has a matching lead-in",
+        f"{li} mm on the inside too, widening toward the tip",
+    )
+    r.check(
+        is_solid_at(cap, 0.0, arc_cy - (void_r + 2 * li), tip - 0.25 * li),
+        "...and the wall between the two chamfers is still there",
+    )
+
     # The raw-edge rule (AGENTS.md), made falsifiable: every convex edge left
     # without a chamfer or fillet has to be a *stated* exception, not merely
     # unnoticed. The endcap's own module docstring names them: the thread's
     # helix (not a straight or circular edge to begin with), the whole of the
     # CAP_T face (the tube's wall seat, with the bore's faded thread exit on
-    # it), the plug's flat top where the bore's crescent is taken out of it,
-    # and the two seams where a screw pocket cuts out through the flank.
-    plug_tip_z = e.CAP_T + e.PLUG_DEPTH
+    # it), and the two seams where a screw pocket cuts out through the flank.
+    # The plug tip's inner wire used to be on this list too, back when
+    # PLUG_LEAD_IN only treated the outer one -- it is chamfered now
+    # (_plug_void_tip_edges), so there is nothing left here to name.
     screw_u = c.SCREW_SPACING / 2
 
     def _is_isothread_helix(edge) -> bool:
@@ -1091,10 +1109,6 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
     def _is_cap_t_face_edge(edge) -> bool:
         bb = edge.bounding_box()
         return abs(bb.min.Z - e.CAP_T) < 0.02 and abs(bb.max.Z - e.CAP_T) < 0.02
-
-    def _is_plug_tip_inner_wire(edge) -> bool:
-        bb = edge.bounding_box()
-        return abs(bb.min.Z - plug_tip_z) < 0.02 and abs(bb.max.Z - plug_tip_z) < 0.02
 
     def _is_screw_seat_sliver(edge) -> bool:
         # The tail of a seat's breakout: out near a flank, level with the ports,
@@ -1179,15 +1193,6 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
                 "and the relief pocket's mouth sit on it (endcap.py's module "
                 "docstring). Breaking either would only open a gap that wall "
                 "has to span",
-            ),
-            (
-                "plug tip's inner wire left raw",
-                _is_plug_tip_inner_wire,
-                "the plug's lead-in chamfer (PLUG_LEAD_IN) only treats the "
-                "outer wire at z=CAP_T+PLUG_DEPTH; the bore's crescent through "
-                "that face, and the relief pocket's mouth around it, are "
-                "untouched by design (endcap.py's docstring) -- they face into "
-                "the tube's cavity and nothing mates against them",
             ),
             (
                 "screw seat's tail sliver left raw",

@@ -115,16 +115,28 @@ fillet rather than a chamfer: the strap drags over them every time it is threade
 what fabric wants. It is an OCC edge op on a closed mixed wire, so it goes
 through ``fillet_edge`` down a shrinking ladder -- see ``create_endcap``.
 
+The hollow gets the same lead-in the outer wire does, now that a cable is what
+finds this mouth. It cannot be taken with the two early chamfers -- that wire
+does not exist until the void is cut -- so it is done right after, on
+``_plug_void_tip_edges``: at ``z = tip`` the material is one simply-connected
+face (the shell is open at the top, see ``plug_void_section``), so there is no
+inner wire to ask a face for, and the void's own rim is picked out as the
+shorter of the two closed curves that reach all the way round at that height,
+the outer one having already been chamfered. The corners it leaves where its
+own facets meet turn out not to need a selector of their own:
+``plug_tip_corner_edges``'s box-and-angle test does not care which chamfer cut
+the corner, so the same ladder that rolls the outer wire's four rolls these
+too.
+
 Edges left square on purpose, and which should stay that way: the whole of the
 ``CAP_T`` face, which is what beds against the extrusion's 0.5 mm wall, and so
 the relief pocket's mouth on it too; the gland bore's mouth there, which is the
 thread's own faded exit and the one place a lead-in would hand OCC a degenerate
-fuse (see ``GLAND_COLLAR``); the void through the plug's tip, where only the
-outer wire got the lead-in and everything inside it faces the cavity; and
-one short line at the tail of each screw seat's breakout, where the seat's cone
-leaves the flank all but tangentially. That last one is a genuine sliver -- no
-probe can even measure its angle -- and it is the one edge here OCC will not
-roll. It is named in ``check_screw_pockets``'s allow list rather than ignored.
+fuse (see ``GLAND_COLLAR``); and one short line at the tail of each screw
+seat's breakout, where the seat's cone leaves the flank all but tangentially.
+That last one is a genuine sliver -- no probe can even measure its angle --
+and it is the one edge here OCC will not roll. It is named in
+``check_screw_pockets``'s allow list rather than ignored.
 
 The screw seams themselves are *not* on that list any more. They used to be,
 with the argument that breaking them would only widen the bite; they get
@@ -144,6 +156,7 @@ from build123d import (
     Circle,
     Color,
     Cone,
+    GeomType,
     Locations,
     Mode,
     Part,
@@ -951,6 +964,19 @@ def create_endcap() -> Part:
             add(plug_void_section())
         extrude(amount=PLUG_DEPTH, mode=Mode.SUBTRACT)
 
+        # The hollow's own lead-in at the tip, mirroring the outer wire's.
+        # Horizontal and convex by the same house rule, and left raw for as
+        # long as the plug was 2.4 mm -- once the wall thinned to 1.6 for more
+        # cabling room, the inside of that wall is exactly the edge a cable
+        # slides past to get in, so it gets the same taper the outside does.
+        # Taken here, right after the cut that makes the wire, rather than
+        # bundled with the outer one earlier: that one runs before the bore,
+        # the pocket and the void exist, and this wire does not exist yet at
+        # that point in the build.
+        for size in (PLUG_LEAD_IN, 0.3, 0.2):
+            if chamfer_edge(bp, _plug_void_tip_edges(bp), size):
+                break
+
         # Screw seats: a 90 deg taper head's own cone, taken straight out of the
         # outer face, with the clearance hole carrying on through the rest of the
         # flange. Through the flange only -- the plug is a half-disc and the
@@ -1073,6 +1099,46 @@ def _plug_top_seams(bp: BuildPart) -> ShapeList:
         )
 
     return ShapeList([edge for edge in bp.edges().filter_by(Axis.Z) if is_seam(edge)])
+
+
+def _plug_void_tip_edges(shape: BuildPart | Part) -> ShapeList:
+    """The void's own rim, where it opens through the plug's tip.
+
+    The shell is open at the top (``plug_void_section``'s own docstring), so
+    the two wires do not enclose separate faces the way an outer/inner pair
+    normally would -- at z=tip the material is one simply-connected face whose
+    single wire dips from the outer boundary to the void's and back, through
+    the two short tabs where the two are exactly ``PLUG_WALL`` apart. There is
+    no face to ask for an inner wire, which is why this is not written as one.
+
+    Selected by elimination instead: two closed curves reach all the way round
+    at that height, the (already chamfered) outer one and the void's, and the
+    void's is always the shorter of the two -- it is nested ``PLUG_WALL``
+    inside the outer wire by construction, not by how the numbers happen to
+    fall. The two tab lines are excluded by geometry (``GeomType.LINE``) --
+    they already went through the outer wire's own chamfer, back when the two
+    were still one wire.
+
+    Not reusable as a "did it take" probe the way ``plug_tip_corner_edges``
+    is: this finds the wire to chamfer, and a wire answering that description
+    still exists (just at a larger radius) once it has been -- so
+    ``check_endcap_edges`` verifies the cut with a solid/air probe instead,
+    the same way it verifies the outer wire's.
+    """
+    part = shape.part if isinstance(shape, BuildPart) else shape
+    if part is None:
+        return ShapeList([])
+    tip = CAP_T + PLUG_DEPTH
+    curves = [
+        edge
+        for edge in part.edges()  # ty: ignore[invalid-argument-type]
+        if abs(edge.bounding_box().center().Z - tip) < 0.02
+        and edge.geom_type != GeomType.LINE
+    ]
+    if not curves:
+        return ShapeList([])
+    outer_len = max(edge.length for edge in curves)
+    return ShapeList([edge for edge in curves if edge.length < outer_len - 1.0])
 
 
 def plug_tip_corner_edges(shape: BuildPart | Part) -> ShapeList:
