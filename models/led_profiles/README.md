@@ -107,10 +107,10 @@ wiring cavity behind it, and a **strap slot** through the flange under the bore.
   the cavity ceiling is below the bore, so a cable cannot be fed from this gland
   into the tube's wiring cavity. `check_gland` measures the opening rather than
   asserting a route that is not there.
-- **The screw heads are sunk, and they break out.** Each 4.4 mm head gets a
-  Ø4.8 pocket down to a 1.2 mm floor. A flush cap has less room outboard of the
-  port than half a head, so the pocket cuts ~0.35 mm out through each flank —
-  deliberate, and bounded by `check_screw_pockets`.
+- **The screw heads are sunk, and they break out.** Each 3.8 mm head rides
+  down a Ø4.85 access bore and seats 4 mm below the face. A flush cap has less
+  room outboard of the port than half a head, so the hole cuts ~0.35 mm out
+  through each flank — deliberate, and bounded by `check_screw_pockets`.
 
 | | |
 |---|---|
@@ -120,15 +120,19 @@ wiring cavity behind it, and a **strap slot** through the flange under the bore.
 | Strap | 12 × 1 mm velcro, perpendicular to the profile |
 | Plug | 16 mm deep, 2.4 mm shell on the cavity's arc, SLIDING fit |
 | Gland | M12 × 1.5 printed female, 6.5 mm of thread on a 1.5 mm collar |
-| Screws | 2 × M2 pan-head, 22 mm apart, Ø4.4 heads sunk to a 1.2 mm floor |
+| Screws | 2 × M2 × 16 countersunk, 22 mm apart, heads sunk 4 mm down a Ø4.85 access bore |
 
-The screws are M2 × 20 countersunk (DIN 965). A 90° taper head is 45° per side,
-so the seat is a cone that is self-supporting the whole way down and *is* its own
-lead-in — there is no flat pocket floor left to print out over, which is what the
-old pan-head counterbore left as a 1.075 mm ring of unsupported ceiling. The seat
-is 1.10 mm deep and the remaining 14.75 mm of flange sits between it and the
-aluminium; the profile's port is a continuous channel down the whole extrusion,
-not a blind hole, so nothing constrains that split.
+The screws are M2 × 16 countersunk (DIN 965). A 90° taper head is 45° per side,
+so the seat is a cone that is self-supporting the whole way down — there is no
+flat pocket floor to print out over, which is what the old pan-head counterbore
+left as a 1.075 mm ring of unsupported ceiling. A 16 seated flush would leave
+0.68 mm of thread in the port, so each hole opens as a Ø4.85 access bore — the
+seat cone's own rim, no ledge — sunk 4 mm, exactly what the screw lost against
+the old M2 × 20: the head lands 4 mm below the face and `screw_reach()` stays
+at 4.7 mm of thread in the aluminium, 2.3 × the thread diameter and past the
+2 × d floor a self-tapper wants there for a firm hold. The profile's port is a
+continuous channel down the whole extrusion, not a blind hole, so the reach is
+bounded by the screw, never by the aluminium.
 
 Prints outer-face-down: largest possible first layer, thread axis vertical, no
 overhangs. The strap slot suits that pose — a tall letterbox through a vertical
@@ -147,11 +151,11 @@ all the way to the tip. A cable through the gland exits the thread into 10 mm
 of turning room — exactly what the cap grew — and runs into the tube with
 nothing narrower than the bore anywhere on the way.
 
-- **Same screws, same reach.** The M2 × 20 screws keep their length, so each
-  hole gains a first stage: a Ø4.85 access bore — the seat cone's own rim, so
-  bore hands over to cone with no ledge — sunk exactly the 10 mm the flange
-  grew. The head lands 10 mm below the face, riding in on the driver's tip,
-  and `screw_reach()` is asserted *identical* to the standard cap's.
+- **Same screws, same reach.** The M2 × 16 screws keep their length, so the
+  access bore gains exactly the 10 mm the flange grew, on top of the standard
+  cap's own 4 mm: the head lands 14 mm below the face, riding in on the
+  driver's tip, and `screw_reach()` is asserted *identical* to the standard
+  cap's.
 - **Same strap slot.** The cap's outer 15.85 mm is the standard cap's flange
   verbatim — same slot, same mouths, same fillets — so it straps to a rigging
   bar like every other end. The slot cannot cross the chamber (it would dump
@@ -164,7 +168,7 @@ nothing narrower than the bore anywhere on the way.
 | Strap slot | the standard cap's, verbatim, in the outer 15.85 mm |
 | Chamber | plug-channel section carried through the flange, floor at z = 15.85 |
 | Chamber shell | 2.225 mm, plus a `POCKET_CLEAR` column round each screw hole |
-| Screws | same M2 × 20 DIN 965, down a Ø4.85 × 10 mm access bore |
+| Screws | same M2 × 16 DIN 965, down a Ø4.85 × 14 mm access bore |
 
 ### Mounting, standing and corners
 

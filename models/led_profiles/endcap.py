@@ -25,12 +25,27 @@ off ``CAP_T``. The thread is cut over the outer ``GLAND_MALE_L`` only --
 everything behind it is plain bore the gland was never going to reach. That is
 not a compromise; it is what a thicker cap has always meant.
 
-**The screws are taper heads, and that is what shapes their seat.** M2 x 20
+**The screws are taper heads, and that is what shapes their seat.** M2 x 16
 countersunk, DIN 965: a 90 deg head, which is 45 deg per side. A pan head needed
 a cylindrical pocket, and the bottom of that pocket was a flat annulus -- in this
 print pose, a ring of ceiling printed out over the pocket's own void. A taper
 head needs a cone, and a 45 deg cone is self-supporting the whole way down, so
-the seat *is* the lead-in and there is no flat floor left in the part at all.
+the seat is a cone and there is no flat floor left in the part at all.
+
+**And the head is sunk down an access bore, so a shorter screw keeps its
+reach.** The screws used to be M2 x 20; the box holds 16s now, and a 16 seated
+flush would leave 0.68 mm of thread in the port -- not a joint. So each hole
+opens as a plain bore at the seat cone's own rim diameter
+(``SCREW_ACCESS_D``), sunk ``SCREW_ACCESS_DEPTH`` = 4 mm -- exactly the length
+the screw gave up -- before the seat and clearance hole carry on unchanged.
+The head lands 4 mm below the outer face, the screw rides in on the driver's
+tip (how a sunk countersunk head is driven anyway), and ``screw_reach()``
+stays at the 4.7 mm the M2 x 20 design proved out: 2.3 x the thread diameter
+in the aluminium, past the 2 x d floor a self-tapper wants for a firm hold.
+This is the wired cap's own mechanism (``endcap_wired.SCREW_ACCESS_*``),
+adopted at the depth the shorter screw needs rather than the depth a longer
+flange did; the bore's mouth gets ``SCREW_MOUTH_LEAD``, since the seat cone no
+longer opens at the face to be its own lead-in.
 
 **The plug is a shell, not a solid.** It follows the cavity's lower arc for
 ``PLUG_DEPTH`` at a constant ``PLUG_WALL``, open along the top, so what goes
@@ -90,7 +105,7 @@ decisively past the flank instead, and the seam that leaves is filleted rather
 than left raw. ``check_screw_pockets`` bounds the bite so it cannot quietly
 grow, and ``SCREW_FLOOR_T`` is no longer a minimum anybody has to defend: the
 profile's port is a continuous channel down the whole extrusion, not a blind
-hole, so nothing constrains how much of a 20 mm screw is spent in plastic.
+hole, so nothing below caps how deep the screw feature sits in the flange.
 
 Print pose: outer face down on the bed, plug up. That puts the gland thread on a
 vertical axis (the only axis worth printing a thread on), gives the largest
@@ -151,11 +166,14 @@ perimeter of the ``CAP_T`` face, which is what beds against the extrusion's
 exit and the one place a lead-in would hand OCC a degenerate fuse (see
 ``GLAND_COLLAR``); the screw clearance holes' own mouths; the shelf where the
 flange's terrace steps down to the plug's own narrower continuation (a
-solid-to-solid step, not a cavity wall); and one short line at the tail of
+solid-to-solid step, not a cavity wall); one short line at the tail of
 each screw seat's breakout, where the seat's cone leaves the flank all but
-tangentially. That last one is a genuine sliver -- no probe can even measure
-its angle -- and it is the one edge here OCC will not roll. It is named in
-``check_screw_pockets``'s allow list rather than ignored.
+tangentially -- a genuine sliver no probe can even measure the angle of, and
+the one edge here OCC will not roll; and the sub-millimetre stubs where the
+screw mouths' breakout crosses the bed chamfer, held out of the seam fillet
+because rolling an edge that terminates on the bed plane drags the part
+below z=0 (``screw_seam_fillet_edges``). All of them are named in
+``check_screw_pockets``'s bounds rather than ignored.
 
 The screw seams themselves are *not* on that list any more. They used to be,
 with the argument that breaking them would only widen the bite; they get
@@ -386,20 +404,24 @@ PLUG_SEAM_FILLET = 0.5
 
 SCREW_CLEAR_D = 2.65  # M2 normal clearance + the FDM adder
 
-# M2 x 20 countersunk, DIN 965: a 90 deg taper head 3.8 mm across. The head angle
+# M2 x 16 countersunk, DIN 965: a 90 deg taper head 3.8 mm across. The head angle
 # is the whole change here. A pan head needs a cylindrical pocket to swallow it,
 # and the bottom of that pocket is a flat annulus -- which, in this print pose,
 # is a ring of ceiling printed out over the pocket's own void, 1.075 mm of
 # unsupported overhang at every layer of it. A taper head needs a cone instead,
 # and a 90 deg head is 45 deg per side, so the seat is self-supporting the whole
 # way down and the lead-in into the clearance hole *is* the seat. There is no
-# flat floor left in the part to print over, and no separate lead-in cone.
+# flat floor left in the part to print over.
 SCREW_HEAD_D = 3.8
 SCREW_HEAD_ANGLE = 90.0  # included angle; 45 deg per side, hence the taper
 # Overall, head included -- that is how a countersunk screw's length is
 # specified (DIN 965), unlike a pan head where it is measured under the head.
 # Getting that backwards would overstate the reach by a head height.
-SCREW_LEN = 20.0
+#
+# 16, down from 20: the 20s ran out, and 16 is what the box holds. The 4 mm
+# the screw gave up does not come out of the port -- it comes out of the
+# flange, through SCREW_ACCESS_DEPTH below.
+SCREW_LEN = 16.0
 
 # How far the head's rim is sunk below the outer face, and not a styling choice.
 # The ports sit c.SCREW_SPACING / 2 = 11.0 out and a flush cap's flank is at
@@ -415,14 +437,37 @@ SCREW_SEAT_D = SCREW_HEAD_D + fits.for_material(fits.FREE, "asa") + 2 * SCREW_HE
 # 45 deg per side means the depth and the radial drop are the same number.
 SCREW_SEAT_DEPTH = (SCREW_SEAT_D - SCREW_CLEAR_D) / 2
 
+# The access stage: a plain bore ahead of the seat, exactly the wired cap's
+# mechanism (endcap_wired.py grew it first, for a flange 10 mm deeper). Its
+# diameter is the seat cone's own rim, so bore hands over to cone with no
+# ledge; the head lands SCREW_ACCESS_DEPTH below the outer face and the screw
+# rides in on the driver's tip, which is how a sunk countersunk head is driven
+# anyway.
+#
+# 4.0 is the length the screws lost going from M2 x 20 to M2 x 16, taken back
+# out of the flange so the *port* never feels it: a flush-seated 16 leaves
+# 0.68 mm of thread in the aluminium, which is not a joint, and sinking the
+# head 4 mm restores the 4.68 mm the M2 x 20 design proved out. That is
+# 2.3 x the 2 mm thread -- past the 2 x d floor a self-tapper wants in
+# aluminium for a full-strength hold -- and ``check_screw_pockets`` asserts
+# the reach against that floor rather than trusting this comment.
+SCREW_ACCESS_D = SCREW_SEAT_D
+SCREW_ACCESS_DEPTH = 4.0
+
+# The bore's mouth on the bed face. The seat cone used to open at the face and
+# be its own lead-in; the access bore ahead of it is square-mouthed without
+# one, and this is also where a hand starts a screw. Sized like the other
+# small hole-mouth breaks in this family (POCKET_LEAD's order), cut as a cone.
+SCREW_MOUTH_LEAD = 0.4
+
 # What is left between the head's seat and the aluminium. It used to be 1.2 mm --
 # six layers, all the clamp needed and nothing more -- because the screw was
-# short and every millimetre of it was wanted in the port. Two things removed
-# that constraint at once: the screws are 20 mm now, and the profile's port is a
+# short and every millimetre of it was wanted in the port. The port is a
 # continuous channel running the whole extrusion rather than a blind hole, so
-# there is no depth the screw has to reach and no minimum the aluminium demands.
-# The floor is therefore simply the rest of the flange, which is most of it.
-SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
+# there is no depth the screw has to reach and no minimum the aluminium
+# demands. The floor is therefore simply the rest of the flange -- less, now,
+# the access stage that keeps a shorter screw's reach out of it.
+SCREW_FLOOR_T = CAP_T - SCREW_ACCESS_DEPTH - SCREW_SEAT_DEPTH
 
 # --------------------------------------------------------- the relief pocket
 
@@ -808,12 +853,13 @@ def screw_seam_edges(shape: BuildPart | Part) -> ShapeList:
         return ShapeList([])  # nothing built yet
     v = _loc(c.SCREW_BOSS_Z)
     inboard = cap_half_width(c.SCREW_BOSS_Z) - SCREW_SEAT_DEPTH - 0.1
+    z_top = SCREW_ACCESS_DEPTH + SCREW_SEAT_DEPTH
 
     def near_a_seat(edge) -> bool:
         bb = edge.bounding_box()
         return (
             abs(bb.center().X) > inboard
-            and bb.max.Z < SCREW_SEAT_DEPTH + 0.05
+            and bb.max.Z < z_top + 0.05
             and abs(bb.center().Y - v) < SCREW_SEAT_D / 2 + 0.25
         )
 
@@ -824,6 +870,28 @@ def screw_seam_edges(shape: BuildPart | Part) -> ShapeList:
             edge
             for edge in near
             if (angle := interior_angle(part, edge)) is None or angle <= 120.0
+        ]
+    )
+
+
+def screw_seam_fillet_edges(shape: BuildPart | Part) -> ShapeList:
+    """The screw seams the fillet is allowed to roll: everything clear of the
+    bed face.
+
+    The seams that terminate on z=0 -- the sub-millimetre stubs where the
+    access mouth's cone crosses the bed chamfer -- are held out, because OCC
+    extrapolates a fillet slightly past the edge it terminates on and that
+    edge ends on the bed: ``SCREW_SEAM_FILLET``'s own sizing history records
+    the part measuring below z=0 for exactly that reason, and the wired cap
+    (which grew the access stage first) records the same at its own mouths.
+    They are all far below the audit's 2 mm floor, and ``check_screw_pockets``
+    bounds what stays raw here rather than letting it drift.
+    """
+    return ShapeList(
+        [
+            edge
+            for edge in screw_seam_edges(shape)
+            if edge.bounding_box().min.Z > 0.05
         ]
     )
 
@@ -1030,14 +1098,24 @@ def create_endcap() -> Part:
             if chamfer_edge(bp, _plug_void_tip_edges(bp), size):
                 break
 
-        # Screw seats: a 90 deg taper head's own cone, taken straight out of the
-        # outer face, with the clearance hole carrying on through the rest of the
-        # flange. Through the flange only -- the plug is a half-disc and the
-        # ports sit above it. One cone and one cylinder is the whole feature now;
-        # the counterbore, its flat floor and its separate lead-in cone are all
-        # gone, and with them the only unsupported overhang the screws had.
+        # Screws: mouth lead-in, then the access bore, then the 90 deg taper
+        # head's own seat cone, with the clearance hole carrying on through the
+        # rest of the flange. Through the flange only -- the plug is a
+        # half-disc and the ports sit above it. The access stage is the wired
+        # cap's mechanism (see SCREW_ACCESS_DEPTH): a plain bore at the seat
+        # cone's own rim diameter, so the two meet with no ledge and no flat
+        # floor -- the bore's wall is vertical in print pose and the cone
+        # below it is 45 deg, so nothing here needs support.
         for u, v in _screw_centres():
             with Locations((u, v, 0)):
+                Cone(
+                    bottom_radius=SCREW_ACCESS_D / 2 + SCREW_MOUTH_LEAD,
+                    top_radius=SCREW_ACCESS_D / 2,
+                    height=SCREW_MOUTH_LEAD,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    mode=Mode.SUBTRACT,
+                )
+            with Locations((u, v, SCREW_ACCESS_DEPTH)):
                 Cone(
                     bottom_radius=SCREW_SEAT_D / 2,
                     top_radius=SCREW_CLEAR_D / 2,
@@ -1047,12 +1125,16 @@ def create_endcap() -> Part:
                 )
         with BuildSketch():
             with Locations(*_screw_centres()):
+                Circle(SCREW_ACCESS_D / 2)
+        extrude(amount=SCREW_ACCESS_DEPTH, mode=Mode.SUBTRACT)
+        with BuildSketch():
+            with Locations(*_screw_centres()):
                 Circle(SCREW_CLEAR_D / 2)
         extrude(amount=CAP_T, mode=Mode.SUBTRACT)
 
-        # The gland's lead-in. The screws no longer have one: their seat is a
-        # 45 deg cone opening at the bed face, so it is its own lead-in and there
-        # is no blind floor left for a screw to find its hole from.
+        # The gland's lead-in, mirrored at the screw mouths above -- the seat
+        # cone used to open at the bed face and be its own; the access bore
+        # that now starts the hole is square-mouthed without the cone.
         Cone(
             bottom_radius=GLAND_MAJOR_D / 2 + GLAND_LEAD_IN,
             top_radius=GLAND_MAJOR_D / 2,
@@ -1096,12 +1178,14 @@ def create_endcap() -> Part:
             if fillet_edge(bp, plug_tip_corner_edges(bp), radius):
                 break
 
-        # The seams where the two screw seats open through the flank. Taken
+        # The seams where the two screw holes open through the flank. Taken
         # last of the edge work and before the thread, so the selection is
         # made against a part that is otherwise finished. Same ladder
-        # discipline as the strap mouths.
+        # discipline as the strap mouths. The bed-terminating stubs at the
+        # access mouths are held out of the roll -- see
+        # ``screw_seam_fillet_edges``.
         for radius in (SCREW_SEAM_FILLET, 0.15, 0.1):
-            if fillet_edge(bp, screw_seam_edges(bp), radius):
+            if fillet_edge(bp, screw_seam_fillet_edges(bp), radius):
                 break
 
         # Sits on top of the plain collar, so it never meets the lead-in above.
@@ -1294,9 +1378,13 @@ def screw_reach() -> float:
     millimetre of floor is a millimetre the screw spends in plastic instead of
     in the port. The floor is free to grow -- the port is a continuous channel
     down the extrusion, so nothing caps it from that end -- but the screw is
-    still only ``SCREW_LEN`` long, and that is what runs out.
+    only ``SCREW_LEN`` long, and that is what runs out: when the 20s became
+    16s, ``SCREW_ACCESS_DEPTH`` is what kept this number where it was.
+
+    The head's rim sits an access stage down, plus however far into the seat
+    cone a ``SCREW_HEAD_D`` head slides before the 45 deg walls stop it.
     """
-    head_top = (SCREW_SEAT_D - SCREW_HEAD_D) / 2
+    head_top = SCREW_ACCESS_DEPTH + (SCREW_SEAT_D - SCREW_HEAD_D) / 2
     return head_top + SCREW_LEN - CAP_T
 
 
@@ -1354,6 +1442,7 @@ __all__ = [
     "strap_floor",
     "screw_reach",
     "screw_seam_edges",
+    "screw_seam_fillet_edges",
     "strap_mouth_edges",
     "strap_mouth_half_width",
     "strap_roof",

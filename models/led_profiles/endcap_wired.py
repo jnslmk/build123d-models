@@ -29,24 +29,26 @@ local circle at ``endcap.POCKET_CLEAR`` off its clearance hole exactly as the
 pocket drew them. The floor sits at ``CHAMBER_FLOOR_Z``, which clears all
 three tenants below it: the gland's ``GLAND_MALE_L`` of reach plus the same
 collar-and-lead the pocket keeps above the thread (10.0), the screw seats,
-whose cones bottom out at ``SCREW_ACCESS_DEPTH + SCREW_SEAT_DEPTH`` (11.1),
+whose cones bottom out at ``SCREW_ACCESS_DEPTH + SCREW_SEAT_DEPTH`` (15.1),
 and the strap block, slot plus both walls (15.85) -- the tallest of the
 three, so the floor is one clean plane with three holes in it, sitting above
 every cone and a full ``STRAP_WALL`` above the slot's roof.
 
-**The screws keep their length, so their holes gain a first stage.** The same
-M2 x 20 countersunk screws have to reach the same ports through a flange
-10 mm deeper, and every millimetre of flange is a millimetre of screw spent in
-plastic. So each hole starts as an access bore of ``SCREW_ACCESS_D`` -- the
-seat cone's own rim diameter, so the bore hands over to the cone with no ledge
--- sunk exactly ``EXTRA_T`` deep, and the seat and clearance hole carry on
-from there unchanged. The head therefore lands 10 mm below the outer face and
-``screw_reach()`` is *identical* to the standard cap's, asserted in checks
-rather than assumed. The bore is 0.5 mm a side over the head; the screw rides
-in on the driver's tip, which is how a sunk countersunk head is driven anyway.
-Like the seat it extends, the bore breaks out through the flank -- same
-diameter, same deliberate ``screw_breakout()``, just running the depth of the
-access stage -- and the seams it leaves are filleted down the same ladder.
+**The screws keep their length, so their access bore gains what the flange
+did.** The same M2 x 16 countersunk screws have to reach the same ports
+through a flange 10 mm deeper, and every millimetre of flange is a millimetre
+of screw spent in plastic. The standard cap already starts each hole as an
+access bore of ``SCREW_ACCESS_D`` -- the seat cone's own rim diameter, so the
+bore hands over to the cone with no ledge -- sunk ``e.SCREW_ACCESS_DEPTH``
+deep; here the bore is simply ``EXTRA_T`` deeper, and the seat and clearance
+hole carry on from there unchanged. The head therefore lands 14 mm below the
+outer face and ``screw_reach()`` is *identical* to the standard cap's,
+asserted in checks rather than assumed. The bore is 0.5 mm a side over the
+head; the screw rides in on the driver's tip, which is how a sunk countersunk
+head is driven anyway. Like the seat it extends, the bore breaks out through
+the flank -- same diameter, same deliberate ``screw_breakout()``, just running
+the depth of the access stage -- and the seams it leaves are filleted down the
+same ladder.
 
 **The strap slot is kept, and it is what pins the floor.** The standard cap's
 slot spans 1.8 to 14.05 along the axis -- ``STRAP_WALL`` each side of the
@@ -136,16 +138,18 @@ PLUG_DEPTH = e.PLUG_DEPTH
 # The access stage: a plain bore the screw and driver travel down before the
 # seat begins. Its diameter is the seat cone's own rim -- head + FREE + the
 # deliberate sink, all inherited from the standard cap -- so bore and cone
-# meet at the same radius and there is no ledge between the two. Its depth is
-# exactly the flange growth, which is what keeps screw_reach() identical.
-SCREW_ACCESS_D = e.SCREW_SEAT_D  # 4.85
-SCREW_ACCESS_DEPTH = EXTRA_T
+# meet at the same radius and there is no ledge between the two. The standard
+# cap grew an access stage of its own when the M2 x 20s became 16s, so its
+# depth is that stage plus the flange growth, which is what keeps
+# screw_reach() identical: the head sinks by what the flange grew, from where
+# the standard cap already sinks it.
+SCREW_ACCESS_D = e.SCREW_ACCESS_D  # 4.85
+SCREW_ACCESS_DEPTH = EXTRA_T + e.SCREW_ACCESS_DEPTH  # 14.0
 
-# The bore's mouth on the bed face. The standard cap's seat cone opened at the
-# face and was its own lead-in; the access bore is square-mouthed without one,
-# and this is also where a hand starts a screw. Sized like the other small
-# hole-mouth breaks in this family (POCKET_LEAD's order), cut as a cone.
-SCREW_MOUTH_LEAD = 0.4
+# The bore's mouth on the bed face, the standard cap's own (the two mouths are
+# the same feature at the same face; only the bore behind them differs in
+# depth).
+SCREW_MOUTH_LEAD = e.SCREW_MOUTH_LEAD
 
 # ------------------------------------------------------------ the strap slot
 
@@ -180,7 +184,7 @@ CHAMBER_CORNER_R = e.POCKET_CORNER_R
 # The floor: the highest of what the three features under it need. The gland
 # wants GLAND_MALE_L + POCKET_COLLAR + POCKET_LEAD = 10.0 (the same
 # thread-collar rule the pocket follows -- nothing may cut into the thread's
-# own geometry); the screw seats bottom out at 11.1; and the strap block runs
+# own geometry); the screw seats bottom out at 15.1; and the strap block runs
 # to 15.85, which is the one that binds. Taking the max keeps the floor a
 # single plane above every cone and the slot alike, three holes through it
 # and nothing else -- and it means the chamber's run is exactly EXTRA_T, so
@@ -335,11 +339,11 @@ def plug_tip_corner_edges(shape: BuildPart | Part) -> ShapeList:
 def screw_seam_edges(shape: BuildPart | Part) -> ShapeList:
     """Edges still sharp where a screw hole opens out through the cap's flank.
 
-    ``endcap.screw_seam_edges`` with the z band grown from the seat's own
-    depth to the whole screw feature -- mouth lead, access bore and seat cone
-    all break out at the same ``screw_breakout()``, so the seams now run from
-    the bed to the cone's bottom at 11.1 rather than stopping at 1.1. Same
-    two-pass selection: a box finds the neighbourhood, the angle decides.
+    ``endcap.screw_seam_edges`` with the z band grown to this cap's own screw
+    feature -- mouth lead, access bore and seat cone all break out at the same
+    ``screw_breakout()``, so the seams run from the bed to the cone's bottom
+    at 15.1 rather than the standard cap's 5.1. Same two-pass selection: a box
+    finds the neighbourhood, the angle decides.
     """
     part = shape.part if isinstance(shape, BuildPart) else shape
     if part is None:
@@ -394,9 +398,10 @@ def screw_seam_fillet_edges(shape: BuildPart | Part) -> ShapeList:
 
 def screw_reach() -> float:
     """How far the screw goes into the aluminium -- same law as the standard
-    cap's, with the head's rim sunk an access stage deeper. The whole point of
-    ``SCREW_ACCESS_DEPTH = EXTRA_T`` is that this equals ``e.screw_reach()``,
-    and checks asserts the equality rather than trusting the arithmetic."""
+    cap's, with the head's rim sunk ``EXTRA_T`` deeper again. The whole point
+    of ``SCREW_ACCESS_DEPTH = EXTRA_T + e.SCREW_ACCESS_DEPTH`` is that this
+    equals ``e.screw_reach()``, and checks asserts the equality rather than
+    trusting the arithmetic."""
     head_top = SCREW_ACCESS_DEPTH + (e.SCREW_SEAT_D - e.SCREW_HEAD_D) / 2
     return head_top + e.SCREW_LEN - CAP_T
 
@@ -404,7 +409,7 @@ def screw_reach() -> float:
 def screw_breakout() -> float:
     """How far the screw feature reaches past the flank -- the access bore is
     the seat's own diameter, so this is ``e.screw_breakout()`` by construction,
-    just standing 11.1 mm tall instead of 1.1."""
+    just standing 15.1 mm tall instead of the standard cap's 5.1."""
     return c.SCREW_SPACING / 2 + SCREW_ACCESS_D / 2 - e.cap_half_width(c.SCREW_BOSS_Z)
 
 

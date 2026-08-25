@@ -328,11 +328,13 @@ def check_endcap(cap: Part, r: Report) -> None:
 def check_screw_pockets(cap: Part, r: Report) -> None:
     """The sunk screw heads, and the scallop sinking them costs.
 
-    The screws are short, so each head is counterbored down to ``SCREW_FLOOR_T``
-    of the aluminium and the whole of the screw's length goes into the port. A
-    4.4 mm head needs more room outboard of the port than a flush cap has, so
-    the pocket cuts out through the flank -- deliberate, and bounded here so it
-    cannot quietly grow into something that weakens the flank.
+    The screws are short, so each hole is a two-stage stack: a plain access
+    bore that sinks the head ``SCREW_ACCESS_DEPTH`` below the face, then the
+    45 deg seat, then the clearance hole -- no ledge and no flat floor
+    anywhere in it. A 4.85 mm rim needs more room outboard of the port than a
+    flush cap has, so the whole stack cuts out through the flank --
+    deliberate, and bounded here so it cannot quietly grow into something
+    that weakens the flank.
     """
     r.section("Endcap screw pockets")
     u = c.SCREW_SPACING / 2
@@ -346,9 +348,27 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
         f"2 x {e.SCREW_HEAD_SINK} of deliberate sink)",
     )
     r.check(
-        not is_solid_at(cap, u, v, 0.05),
-        "seat is open at the outer face",
+        abs(e.SCREW_ACCESS_D - e.SCREW_SEAT_D) < 1e-9,
+        "access bore is the seat cone's own rim -- bore hands over to cone "
+        "with no ledge",
+        f"{e.SCREW_ACCESS_D:.2f} mm, the wired cap's mechanism at the depth "
+        f"a 16 mm screw needs",
     )
+    r.check(
+        not is_solid_at(cap, u, v, 0.05),
+        "bore is open at the outer face",
+    )
+    # The access stage is a plain cylinder: open just inside its wall and
+    # closed just outside, at two depths a cone could not pass both of.
+    for depth in (e.SCREW_ACCESS_DEPTH * 0.25, e.SCREW_ACCESS_DEPTH * 0.9):
+        r.check(
+            not is_solid_at(cap, u - (e.SCREW_ACCESS_D / 2 - 0.15), v, depth),
+            f"access bore is full width {depth:.1f} mm down",
+        )
+        r.check(
+            is_solid_at(cap, u - (e.SCREW_ACCESS_D / 2 + 0.3), v, depth),
+            "...and closed just outside it -- a bore, not a pocket",
+        )
     # The taper: a 90 deg head is 45 deg per side, so at any depth into the seat
     # the cone's radius has dropped by exactly that depth. Sampled either side of
     # the cone's own wall at two depths -- a cylindrical pocket would be solid
@@ -356,12 +376,13 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     # fail one of them.
     for depth in (0.25, 0.75):
         radius = e.SCREW_SEAT_D / 2 - depth
+        z = e.SCREW_ACCESS_DEPTH + depth
         r.check(
-            not is_solid_at(cap, u - (radius - 0.15), v, depth),
-            f"seat is still open {depth} mm down, out to r={radius:.2f}",
+            not is_solid_at(cap, u - (radius - 0.15), v, z),
+            f"seat is open {depth} mm below the access stage, to r={radius:.2f}",
         )
         r.check(
-            is_solid_at(cap, u - (radius + 0.15), v, depth),
+            is_solid_at(cap, u - (radius + 0.15), v, z),
             "...and closed again just outside it -- 45 deg, not a counterbore",
         )
     r.check(
@@ -379,12 +400,13 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     # all the way out to its own radius at the same depth. (The first version of
     # this probed *below* the seat and outside the hole and asserted "not solid"
     # there, which is wrong -- that is the floor, and it is meant to be solid.)
+    z_seat_end = e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH
     r.check(
-        not is_solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, e.SCREW_SEAT_DEPTH - 0.05),
+        not is_solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, z_seat_end - 0.05),
         "seat arrives at the clearance hole",
     )
     r.check(
-        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, e.SCREW_SEAT_DEPTH - 0.05),
+        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, z_seat_end - 0.05),
         "...with no flat annular floor around it",
         "a pan-head counterbore left a 1.075 mm ring of unsupported ceiling here",
     )
@@ -395,23 +417,30 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
         f"1.2, and the port is a continuous channel so nothing caps it",
     )
     r.check(
-        abs(e.SCREW_SEAT_DEPTH + e.SCREW_FLOOR_T - e.CAP_T) < 0.001,
-        "seat plus floor is the whole flange",
-        f"{e.SCREW_SEAT_DEPTH:.3f} + {e.SCREW_FLOOR_T:.3f} = {e.CAP_T}",
+        abs(
+            e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH + e.SCREW_FLOOR_T - e.CAP_T
+        )
+        < 0.001,
+        "access stage plus seat plus floor is the whole flange",
+        f"{e.SCREW_ACCESS_DEPTH} + {e.SCREW_SEAT_DEPTH:.3f} + "
+        f"{e.SCREW_FLOOR_T:.3f} = {e.CAP_T}",
     )
     r.check(
         not is_solid_at(cap, u, v, e.CAP_T - 0.2),
         "clearance hole carries on through to the aluminium",
     )
-    # ...and the screw actually gets there. Nothing checked this before, and the
-    # floor grew twelvefold in this design, so it is precisely the thing that
-    # could have quietly stopped being true.
+    # ...and the screw actually gets there, far enough to hold. 2 x the thread
+    # diameter is the engagement floor for a self-tapper forming its thread in
+    # aluminium; the access stage exists precisely to keep this true against a
+    # 16 mm screw, so it is asserted against that floor rather than against
+    # zero.
     r.check(
-        e.screw_reach() > 3.0,
-        "screw still reaches the aluminium",
-        f"{e.screw_reach():.2f} mm into the port -- an M2 x {e.SCREW_LEN:.0f} "
-        f"countersunk (length measured overall, head included) spending "
-        f"{e.SCREW_FLOOR_T:.2f} mm of itself in plastic first",
+        e.screw_reach() >= 2 * c.SCREW_D,
+        "screw reaches a firm hold in the aluminium",
+        f"{e.screw_reach():.2f} mm of thread in the port -- an M2 x "
+        f"{e.SCREW_LEN:.0f} countersunk (length measured overall, head "
+        f"included), head sunk {e.SCREW_ACCESS_DEPTH} mm, against a "
+        f"2 x d = {2 * c.SCREW_D:.0f} mm floor for self-tapping in aluminium",
     )
 
     # The breakout. Asserted as a bounded range, not merely allowed: below zero
@@ -426,34 +455,41 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     )
     half = e.cap_half_width(c.SCREW_BOSS_Z)
     r.check(
-        not is_solid_at(cap, half - 0.1, v, e.SCREW_SEAT_DEPTH / 2),
-        "...and the scallop is really cut, not just arithmetic",
+        not is_solid_at(cap, half - 0.1, v, e.SCREW_ACCESS_DEPTH / 2),
+        "...and the scallop is really cut down the access stage",
     )
     r.check(
         is_solid_at(cap, half - 0.1, v, e.CAP_T - 0.2),
         "...but the flank below it is whole",
-        "the bite stops where the seat does, 1.10 mm in, so the 14.75 mm of "
-        "flank under it is unbroken -- it used to stop 14.65 mm in",
+        f"the bite stops where the seat does, "
+        f"{e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH:.2f} mm in, so the "
+        f"{e.SCREW_FLOOR_T:.2f} mm of flank under it is unbroken",
     )
-    # The seams the breakout leaves are filleted now. They used to be a stated
-    # exception ("breaking those would only widen the bite"); that argument is
-    # retired. screw_seam_edges returns what is still sharp in the seat's
-    # neighbourhood, so an empty result IS the assertion that the fillet took --
-    # and it went red at 0.25, where the roll ran below the bed plane.
+    # The seams the breakout leaves are filleted. What stays sharp is bounded
+    # the way the wired cap's is: the cone tails no probe can measure, and the
+    # sub-millimetre stubs where the mouth's breakout crosses the bed chamfer
+    # -- held out of the roll on purpose, because terminating a fillet on the
+    # bed plane drags the part below z=0 (SCREW_SEAM_FILLET's own history).
     still_sharp = e.screw_seam_edges(cap)
-    slivers = [x for x in still_sharp if interior_angle(cap, x) is None]
     r.check(
-        len(still_sharp) == len(slivers),
-        "every measurable seam at the seats is broken",
-        f"{len(still_sharp)} sharp edges left, {len(slivers)} of them slivers "
-        f"no probe can measure; {e.SCREW_SEAM_FILLET} mm fillet",
+        len(still_sharp) <= 6 and all(x.length < 1.0 for x in still_sharp),
+        "raw screw seams are only the named slivers and bed stubs",
+        f"{len(still_sharp)} edges, {[round(x.length, 3) for x in still_sharp]} "
+        f"mm -- all under a millimetre, none reportable by the audit's 2 mm "
+        f"floor, every one either a cone tail (unmeasurable) or a bed stub; "
+        f"{e.SCREW_SEAM_FILLET} mm fillet on the rest",
     )
+    stub_angles = [
+        angle
+        for x in still_sharp
+        if x.bounding_box().min.Z < 0.05
+        and (angle := interior_angle(cap, x)) is not None
+    ]
     r.check(
-        len(slivers) <= 2 and all(x.length < 1.0 for x in slivers),
-        "...and the slivers are the tail of the breakout, nothing more",
-        f"{[round(x.length, 3) for x in slivers]} mm long -- where the seat's "
-        f"cone leaves the flank all but tangentially, one per side. OCC will "
-        f"not roll these; they are named here rather than left unexplained",
+        all(angle > 95.0 for angle in stub_angles),
+        "...and the bed stubs are blunter than a square corner",
+        f"{len(stub_angles)} stubs, sharpest "
+        + (f"{min(stub_angles):.1f} deg" if stub_angles else "none"),
     )
 
 
@@ -1118,15 +1154,16 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
 
     def _is_screw_seat_sliver(edge) -> bool:
         # The tail of a seat's breakout: out near a flank, level with the ports,
-        # inside the seat's own 1.10 mm depth. Nothing else in the part is
-        # there. This is a much smaller claim than the entry it replaces, which
-        # excused the whole scallop -- the scallop is filleted now, and what is
-        # left is one short line per side, under a millimetre.
+        # inside the screw stack's own depth (access bore plus seat, 5.10 mm).
+        # Nothing else in the part is there. This is a much smaller claim than
+        # the entry it replaces, which excused the whole scallop -- the scallop
+        # is filleted now, and what is left is a few short lines per side,
+        # under a millimetre: the cone tails and the mouth's bed stubs.
         bb = edge.bounding_box()
         centre = bb.center()
         return (
             abs(centre.X) > screw_u - e.SCREW_SEAT_D / 2
-            and bb.max.Z < e.SCREW_SEAT_DEPTH + 0.02
+            and bb.max.Z < e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH + 0.02
             and abs(centre.Y - _loc(c.SCREW_BOSS_Z)) < e.SCREW_SEAT_D
             and edge.length < 1.0
         )
@@ -1283,7 +1320,7 @@ def check_endcap_wired(cap: Part, r: Report) -> None:
 def check_wired_screws(cap: Part, r: Report) -> None:
     """The access stage: same screws, same reach, sunk EXTRA_T deeper.
 
-    The variant exists under one hard constraint -- the M2 x 20 screws keep
+    The variant exists under one hard constraint -- the M2 x 16 screws keep
     their length -- so the one number that must not move is ``screw_reach()``,
     and it is asserted as an *identity* against the standard cap rather than
     re-derived. Everything else here reads the two-stage hole off the solid:
@@ -1298,13 +1335,15 @@ def check_wired_screws(cap: Part, r: Report) -> None:
         abs(ew.screw_reach() - e.screw_reach()) < 1e-9,
         "screw reach is IDENTICAL to the standard cap's",
         f"{ew.screw_reach():.2f} mm into the port from an M2 x "
-        f"{e.SCREW_LEN:.0f} -- the access stage is exactly EXTRA_T deep, so "
-        f"the head sinks by what the flange grew",
+        f"{e.SCREW_LEN:.0f} -- the access stage is EXTRA_T deeper than the "
+        f"standard cap's own, so the head sinks by what the flange grew",
     )
     r.check(
-        abs(ew.SCREW_ACCESS_DEPTH - ew.EXTRA_T) < 1e-9,
-        "...because the access stage is the flange growth, no more, no less",
-        f"{ew.SCREW_ACCESS_DEPTH} mm of plain bore before the seat",
+        abs(ew.SCREW_ACCESS_DEPTH - (ew.EXTRA_T + e.SCREW_ACCESS_DEPTH)) < 1e-9,
+        "...because the access stage is the standard cap's plus the flange "
+        "growth, no more, no less",
+        f"{ew.SCREW_ACCESS_DEPTH} mm of plain bore before the seat = "
+        f"{e.SCREW_ACCESS_DEPTH} + {ew.EXTRA_T}",
     )
     r.check(
         abs(ew.SCREW_ACCESS_D - e.SCREW_SEAT_D) < 1e-9,
