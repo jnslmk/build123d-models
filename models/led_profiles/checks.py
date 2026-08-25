@@ -859,8 +859,13 @@ def check_plug_shell(cap: Part, r: Report) -> None:
     )
 
 
-def check_strap_slot(cap: Part, r: Report) -> None:
+def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -> None:
     """The 12 mm velcro strap goes through, and takes nothing with it.
+
+    Runs against the wired cap too (``section`` keeps the two report blocks
+    apart): its outer 15.85 mm is the standard cap's flange verbatim, so the
+    slot sits at the same coordinates and every probe here transfers -- the
+    "closed toward the seat" wall is simply deeper there.
 
     Read off the solid rather than off the constants, because the slot is cut on
     ``Plane.YZ`` and a section built on that plane instead of returned local
@@ -869,7 +874,7 @@ def check_strap_slot(cap: Part, r: Report) -> None:
     shipped once during this feature's own development, so the first thing here
     is a probe that a plain envelope check cannot pass by accident.
     """
-    r.section("Endcap strap slot")
+    r.section(section)
     z_lo, z_hi = e.strap_slot_z()
     z_mid = (z_lo + z_hi) / 2
     y = e.STRAP_SLOT_Y
@@ -1416,14 +1421,29 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
 
     # --- the floor, and what fixes it -----------------------------------
     r.check(
-        abs(ew.CHAMBER_FLOOR_Z - max(e.POCKET_FLOOR_Z, ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH))
+        abs(
+            ew.CHAMBER_FLOOR_Z
+            - max(
+                e.POCKET_FLOOR_Z,
+                ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH,
+                ew.STRAP_BLOCK_T,
+            )
+        )
         < 1e-9,
-        "floor sits above both of its tenants",
+        "floor sits above all three of its tenants",
         f"z={ew.CHAMBER_FLOOR_Z}: the gland wants {e.POCKET_FLOOR_Z} (thread "
         f"+ collar + lead, the same rule the relief pocket follows), the "
         f"screw seats bottom out at "
-        f"{ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH} -- one plane, three "
+        f"{ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH}, and the strap block "
+        f"runs to {ew.STRAP_BLOCK_T} -- the one that binds. One plane, three "
         f"holes, no cones poking through",
+    )
+    r.check(
+        ew.CHAMBER_FLOOR_Z - e.strap_slot_z()[1] >= e.STRAP_WALL - 1e-9,
+        "...leaving the standard cap's own wall between slot and chamber",
+        f"{ew.CHAMBER_FLOOR_Z - e.strap_slot_z()[1]:.2f} mm of web over a "
+        f"slot roof at z={e.strap_slot_z()[1]:.2f}, against STRAP_WALL = "
+        f"{e.STRAP_WALL} -- the slot must not open into the cable run",
     )
     r.check(
         ew.CHAMBER_FLOOR_Z - e.POCKET_LEAD - (e.GLAND_COLLAR + e.GLAND_THREAD_L)
@@ -1484,10 +1504,12 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
         "floor under the chamber is solid",
     )
     r.check(
-        ew.chamber_run() >= 2 * mc.CABLE_OD,
-        "turning room: the run is at least two cable diameters",
-        f"{ew.chamber_run():.2f} mm from floor to inner face for a "
-        f"{mc.CABLE_OD} mm cable to bow down into the channel",
+        abs(ew.chamber_run() - ew.EXTRA_T) < 1e-9 and ew.chamber_run() > mc.CABLE_OD,
+        "turning room: every millimetre the cap grew, and more than a cable",
+        f"{ew.chamber_run():.2f} mm from floor to inner face -- exactly "
+        f"EXTRA_T, since the strap block pins the floor at the standard "
+        f"cap's flange height -- for a {mc.CABLE_OD} mm cable to bow down "
+        f"into the channel",
     )
 
     # The bottom half IS the channel: the chamber's wall and the plug
@@ -1530,14 +1552,23 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
         "the scalloped chamber",
     )
 
-    # No strap slot, stated as geometry rather than an absence in the code:
-    # the flange is solid where the standard cap threads its strap. The
-    # strapped mounts take the standard cap; this one is for the cable ends.
+    # The strap slot and the chamber stay separate solids' worth of air: the
+    # web over the slot's roof is really there, and directly above it the
+    # chamber is open -- slot below the floor, cable run above, wall between.
+    # (check_strap_slot runs on this cap too, for the slot's own geometry.)
+    z_web = (e.strap_slot_z()[1] + ew.CHAMBER_FLOOR_Z) / 2
     r.check(
-        is_solid_at(cap, 0.0, e.STRAP_SLOT_Y, sum(e.strap_slot_z()) / 2),
-        "no strap slot -- the flange is solid where the standard cap's is cut",
-        f"probed at y={e.STRAP_SLOT_Y}, z={sum(e.strap_slot_z()) / 2:.2f}, "
-        f"inside the gland block below the chamber floor",
+        is_solid_at(cap, 0.0, e.STRAP_SLOT_Y, z_web),
+        "web between the slot's roof and the chamber floor is really there",
+        f"solid at y={e.STRAP_SLOT_Y}, z={z_web:.2f}, between a slot roof at "
+        f"{e.strap_slot_z()[1]:.2f} and a floor at {ew.CHAMBER_FLOOR_Z}",
+    )
+    r.check(
+        not is_solid_at(cap, 0.0, e.STRAP_SLOT_Y, ew.CHAMBER_FLOOR_Z + 0.3),
+        "...and the chamber is open directly above it",
+        "the slot's y sits inside the chamber's section, so a floor that "
+        "crept below the slot's roof would merge the two -- strap in the "
+        "cable run",
     )
 
     # --- the gland is still a gland --------------------------------------
@@ -3942,6 +3973,7 @@ def run() -> Report:
     check_endcap_wired(capw, r)
     check_wired_screws(capw, r)
     check_wired_chamber(capw, r)
+    check_strap_slot(capw, r, section="Wired endcap strap slot")
     check_wired_edges(capw, r)
 
     check_cap_on_profile(r)

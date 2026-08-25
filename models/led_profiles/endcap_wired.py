@@ -10,7 +10,7 @@ the plug is unchanged, so all of it is protrusion past the aluminium -- and
 everything above the gland's own reach is opened into one chamber whose lower
 half is the wiring cavity's own cross-section, carried straight through the
 cap. A cable threaded through the gland exits the thread into that chamber,
-has ``CAP_T - CHAMBER_FLOOR_Z`` = 14.75 mm of run to bow down in, and enters
+has ``CAP_T - CHAMBER_FLOOR_Z`` = 10 mm of run to bow down in, and enters
 the tube through the plug's channel with no lip, step or slot anywhere on the
 way down: the chamber's stadium is the plug hollow's own (``CHAMBER_INSET``
 is that hollow's inset), so below the cavity's chord the walls are flush from
@@ -26,12 +26,13 @@ the outline stops being "the flange less clearances" and becomes the full
 stadium at the plug hollow's inset -- as big as the section gets without
 stepping past the channel it feeds -- less only the two screw columns, each a
 local circle at ``endcap.POCKET_CLEAR`` off its clearance hole exactly as the
-pocket drew them. The floor sits at ``CHAMBER_FLOOR_Z``, which clears both
-tenants below it: the gland's ``GLAND_MALE_L`` of reach plus the same
-collar-and-lead the pocket keeps above the thread (10.0), and the screw seats,
-whose cones bottom out at ``SCREW_ACCESS_DEPTH + SCREW_SEAT_DEPTH`` = 11.1 --
-the larger of the two, so the floor is one clean plane with three holes in it
-rather than a plane with cones poking through.
+pocket drew them. The floor sits at ``CHAMBER_FLOOR_Z``, which clears all
+three tenants below it: the gland's ``GLAND_MALE_L`` of reach plus the same
+collar-and-lead the pocket keeps above the thread (10.0), the screw seats,
+whose cones bottom out at ``SCREW_ACCESS_DEPTH + SCREW_SEAT_DEPTH`` (11.1),
+and the strap block, slot plus both walls (15.85) -- the tallest of the
+three, so the floor is one clean plane with three holes in it, sitting above
+every cone and a full ``STRAP_WALL`` above the slot's roof.
 
 **The screws keep their length, so their holes gain a first stage.** The same
 M2 x 20 countersunk screws have to reach the same ports through a flange
@@ -47,19 +48,28 @@ Like the seat it extends, the bore breaks out through the flank -- same
 diameter, same deliberate ``screw_breakout()``, just running the depth of the
 access stage -- and the seams it leaves are filleted down the same ladder.
 
-**No strap slot, and that is the trade.** The slot runs through exactly the
-flange the chamber opens up -- its span (1.8 to 14.05 along the axis, at
-y = -9.9) is inside the chamber both ways, so a slot here would dump the strap
-into the cable run. A lamp that hangs from velcro straps takes the standard
-cap; this one is for the ends where the cable leaves. ``CAP_T`` is therefore
-no longer derived from the slot -- it is the standard cap's flange plus
-``EXTRA_T``, so the two caps' proportions stay coupled through one number.
+**The strap slot is kept, and it is what pins the floor.** The standard cap's
+slot spans 1.8 to 14.05 along the axis -- ``STRAP_WALL`` each side of the
+strap's 12.25 -- which is the whole of that cap's 15.85 mm flange, and the
+wired cap's outer 15.85 mm is that flange *verbatim*: same slot, same
+``strap_slot_section``, same mouths, so the strap threads exactly where it
+does on every other end. What the slot cannot do is cross the chamber -- at
+y = -11.4 its span lies inside the chamber's section both ways, and a slot
+through the shell there would dump the strap into the cable run. So the slot
+stays below the floor, and the floor moves up to make that true:
+``STRAP_BLOCK_T`` = ``e.CAP_T`` is the tallest of the floor's three tenants,
+leaving the slot embedded in solid with the standard cap's own
+``STRAP_WALL`` of web between its roof and the chamber. The chamber's run is
+then exactly ``EXTRA_T``: every millimetre the cap grew is turning room, and
+the slot spends nothing that the standard cap had not already spent.
 
 Print pose: outer face down, plug up, same as the standard cap and for the
 same reasons -- thread on a vertical axis, biggest first layer. The chamber
 suits it: a cup open toward the nozzle, vertical walls, floor printed on the
 solid gland block below it, no ceiling anywhere. The seat cones are 45 deg and
-self-supporting, and the access bore above each is a plain vertical wall.
+self-supporting, and the access bore above each is a plain vertical wall. The
+strap slot keeps the standard cap's own story in this pose: a tall letterbox
+through a vertical wall whose only unsupported run is its 1.5 mm ceiling.
 
 Edge treatments, house rule: chamfer horizontal, fillet vertical. The bed
 wire's chamfer and the plug's lead-in are taken while the part is a plain
@@ -68,8 +78,10 @@ is a clipped boolean cone (``endcap.POCKET_LEAD``), each access bore's mouth
 on the bed face gets a ``SCREW_MOUTH_LEAD`` cone (the seat cone used to open
 at the face and be its own lead-in; the bore that replaced it is square-
 mouthed without one), and the hollow's rim at the plug's tip, the plug-top
-seams and corners, and the screw seams ride the same selectors and ladders as
-the standard cap, re-anchored to this cap's own depth. Edges left square on
+seams and corners, the strap slot's two mouths (``endcap.strap_mouth_edges``
+works unchanged -- the slot sits at the standard cap's own coordinates) and
+the screw seams ride the same selectors and ladders as the standard cap,
+re-anchored to this cap's own depth where a depth is read. Edges left square on
 purpose: the whole ``CAP_T`` face (the tube's wall seat), the screw seats'
 breakout tail slivers, and the sub-millimetre stubs where the access mouth's
 breakout crosses the bed chamfer -- rolling those drags the fillet below z=0
@@ -135,6 +147,17 @@ SCREW_ACCESS_DEPTH = EXTRA_T
 # hole-mouth breaks in this family (POCKET_LEAD's order), cut as a cone.
 SCREW_MOUTH_LEAD = 0.4
 
+# ------------------------------------------------------------ the strap slot
+
+# The standard cap's strap block, verbatim: its whole flange is STRAP_WALL +
+# STRAP_SLOT_W + STRAP_WALL, and the wired cap's outer 15.85 mm reuses it
+# unchanged -- ``e.strap_slot_section()`` is cut at the same coordinates, so
+# the slot, its mouths and their fillets are the standard cap's own. What it
+# buys here is stated as the *block's* height because that is the constraint
+# it puts on the chamber: the slot must stay out of the cable run, so the
+# chamber floor cannot come below the top of this block.
+STRAP_BLOCK_T = e.CAP_T  # 15.85 = e.STRAP_WALL + e.STRAP_SLOT_W + e.STRAP_WALL
+
 # --------------------------------------------------------------- the chamber
 
 # One inset for the whole run, and it is the plug hollow's own: the chamber is
@@ -154,14 +177,17 @@ CHAMBER_SCREW_R = e.SCREW_CLEAR_D / 2 + e.POCKET_CLEAR  # 3.325
 # for the same stress-riser and infill reasons as the pocket's corners.
 CHAMBER_CORNER_R = e.POCKET_CORNER_R
 
-# The floor: the higher of what the two features under it need. The gland
+# The floor: the highest of what the three features under it need. The gland
 # wants GLAND_MALE_L + POCKET_COLLAR + POCKET_LEAD = 10.0 (the same
 # thread-collar rule the pocket follows -- nothing may cut into the thread's
-# own geometry); the screw seats bottom out at 11.1. Taking the max keeps the
-# floor a single plane above both, three holes and no cones through it.
+# own geometry); the screw seats bottom out at 11.1; and the strap block runs
+# to 15.85, which is the one that binds. Taking the max keeps the floor a
+# single plane above every cone and the slot alike, three holes through it
+# and nothing else -- and it means the chamber's run is exactly EXTRA_T, so
+# the slot costs the cable nothing the standard cap had not already spent.
 CHAMBER_FLOOR_Z = max(
-    e.POCKET_FLOOR_Z, SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH
-)  # 11.10
+    e.POCKET_FLOOR_Z, SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH, STRAP_BLOCK_T
+)  # 15.85
 
 
 def chamber_section() -> Sketch:
@@ -497,6 +523,20 @@ def create_endcap_wired() -> Part:
         fillet_edge(bp, _plug_top_seams(bp), e.PLUG_SEAM_FILLET)
         fillet_edge(bp, _plug_top_corners(bp), e.PLUG_SEAM_FILLET)
 
+        # The strap slot, the standard cap's own cut at the standard cap's own
+        # coordinates -- the wired cap's outer 15.85 mm IS that cap's flange.
+        # Both ways from Plane.YZ, one cut for both mouths, as there.
+        with BuildSketch(Plane.YZ):
+            add(e.strap_slot_section())
+        extrude(amount=CAP_W, both=True, mode=Mode.SUBTRACT)
+
+        # The mouths' fillets, the same ladder for the same fabric reasons --
+        # endcap.strap_mouth_edges selects on the slot's own y/z envelope, so
+        # it works unchanged on this cap.
+        for radius in (e.STRAP_MOUTH_R, 0.4, 0.3, 0.2):
+            if fillet_edge(bp, e.strap_mouth_edges(bp), radius):
+                break
+
         # One rung deeper than the standard cap's ladder: this cap's tip
         # corners measure max_fillet ~= 0.17, so 0.3 and 0.2 are known
         # refusals and 0.15 is the rung that takes.
@@ -527,6 +567,7 @@ __all__ = [
     "CAP_T",
     "CHAMBER_FLOOR_Z",
     "EXTRA_T",
+    "STRAP_BLOCK_T",
     "chamber_run",
     "chamber_section",
     "create",

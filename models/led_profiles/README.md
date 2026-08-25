@@ -141,25 +141,28 @@ wall, whose only unsupported run is a 1.5 mm ceiling. Layer height ≤ 0.25 mm
 only a 5.5 mm slot of its bore looks into the wiring cavity, against a 6.7 mm
 cable. This variant buys the route with length: the flange grows by 10 mm (the
 plug is unchanged, so all of it is protrusion past the aluminium), and
-everything above the gland's 10 mm of working depth is opened into one chamber
-whose bottom half is the wiring cavity's own cross-section, walls flush with
-the plug's channel all the way to the tip. A cable through the gland exits the
-thread into 14.75 mm of turning room and runs into the tube with nothing
-narrower than the bore anywhere on the way.
+everything above the strap block is opened into one chamber whose bottom half
+is the wiring cavity's own cross-section, walls flush with the plug's channel
+all the way to the tip. A cable through the gland exits the thread into 10 mm
+of turning room — exactly what the cap grew — and runs into the tube with
+nothing narrower than the bore anywhere on the way.
 
 - **Same screws, same reach.** The M2 × 20 screws keep their length, so each
   hole gains a first stage: a Ø4.85 access bore — the seat cone's own rim, so
   bore hands over to cone with no ledge — sunk exactly the 10 mm the flange
   grew. The head lands 10 mm below the face, riding in on the driver's tip,
   and `screw_reach()` is asserted *identical* to the standard cap's.
-- **No strap slot.** The slot's span is inside the chamber both ways; a lamp
-  that hangs from straps takes the standard cap, this one is for the ends
-  where the cable leaves.
+- **Same strap slot.** The cap's outer 15.85 mm is the standard cap's flange
+  verbatim — same slot, same mouths, same fillets — so it straps to a rigging
+  bar like every other end. The slot cannot cross the chamber (it would dump
+  the strap into the cable run), so the chamber floor sits a `STRAP_WALL`
+  above its roof, which is what pins the floor at z = 15.85.
 
 | | |
 |---|---|
 | Flange thickness | 25.85 mm — the standard cap's 15.85 + 10 |
-| Chamber | plug-channel section carried through the flange, floor at z = 11.1 |
+| Strap slot | the standard cap's, verbatim, in the outer 15.85 mm |
+| Chamber | plug-channel section carried through the flange, floor at z = 15.85 |
 | Chamber shell | 2.225 mm, plus a `POCKET_CLEAR` column round each screw hole |
 | Screws | same M2 × 20 DIN 965, down a Ø4.85 × 10 mm access bore |
 
