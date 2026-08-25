@@ -310,9 +310,17 @@ PLUG_TOP_GAP = 0.4  # clears the screw bosses bulging out of the cavity ceiling
 # ``PLUG_FIT``. What sizes it is that the plug is the only thing holding the
 # cap square (``check_endcap``), and a deep curved channel is a good section
 # for that -- it carries the bending moment in the layer plane rather than
-# across it, with the material where the moment is. 2.4 is six perimeters at
-# 0.4 mm, so it is solid wall the whole way through and never infill.
-PLUG_WALL = 2.4
+# across it, with the material where the moment is.
+#
+# 1.6, down from 2.4, for the cabling this whole channel exists to carry: at
+# six perimeters the wall was thicker than the section needed and thinner than
+# the cavity wanted, and a hollow channel's bending strength comes from its
+# perimeter and depth more than from wall thickness -- ``PLUG_DEPTH`` = 16 mm
+# of section depth did not change. Four perimeters is still solid the whole
+# way through and never infill, and it is still bounded below by
+# ``PLUG_TIP_LAND``, the 1.2 mm ``check_plug_shell`` holds the tip to: that is
+# what stops this going further, not a number picked for its own sake.
+PLUG_WALL = 1.6
 
 # Lead-in on the plug's leading edge, so it starts into the cavity instead of
 # catching on it -- a hand aid rather than an alignment feature, and far more
@@ -327,7 +335,7 @@ PLUG_WALL = 2.4
 # has to find a cavity by hand. ``PLUG_TIP_LAND`` is what the tip keeps
 # instead, and the lead-in is the rest of the wall.
 PLUG_TIP_LAND = 1.2  # not a fit: 3 perimeters at 0.4 mm, left flat at the tip
-PLUG_LEAD_IN = PLUG_WALL - PLUG_TIP_LAND  # 1.2
+PLUG_LEAD_IN = PLUG_WALL - PLUG_TIP_LAND  # 0.4
 
 # The corners the tip's lead-in leaves where its own facets meet, and where
 # they cross the relief pocket. 0.3 rather than ``PLUG_SEAM_FILLET``'s 0.5,
@@ -398,9 +406,15 @@ SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
 # Everything about its outline is a clearance rather than a shape. One number,
 # ``POCKET_CLEAR``, is held to every neighbour the pocket could reach:
 #
-# * the two screw clearance holes, hence ``POCKET_X``;
+# * the two screw clearance holes, hence a circle of ``SCREW_CLEAR_D / 2 +
+#   POCKET_CLEAR`` at each -- local to the screw rather than a flat run the
+#   pocket's full height, so the curvature stands everywhere else. ``POCKET_X``
+#   is what that circle is tangent to at the screw's own y (``c.SCREW_BOSS_Z``),
+#   kept as the one number the two agree on;
 # * the strap slot's roof, hence ``POCKET_Y_LOW`` -- and that one gets
-#   ``POCKET_WEB``, more than the clearance, for the reason below;
+#   ``POCKET_WEB``, more than the clearance, for the reason below. This one
+#   *is* a flat, and rightly so: the slot runs the flange's full width, so
+#   there is no curvature being given up by cutting it as one;
 # * the outside, hence ``POCKET_WALL``: the outline's own outer boundary *is*
 #   the flange's stadium shrunk by it, and shrinking a stadium is exact, so
 #   every point of it is that far in by construction rather than by a radius
@@ -408,7 +422,7 @@ SCREW_FLOOR_T = CAP_T - SCREW_SEAT_DEPTH
 #
 # The plug's own outline never binds -- it is 12.44 wide against the flange's
 # 13.05 but it only exists below ``plug_top_z()``, where the pocket has already
-# been pulled in to ``POCKET_X`` by the screws -- and ``check_gland_pocket``
+# been pulled in by the screw circles' own reach -- and ``check_gland_pocket``
 # measures all four margins off the outline itself rather than trusting that.
 POCKET_CLEAR = 2.0
 
@@ -434,6 +448,9 @@ POCKET_WALL = 2.0
 # 1 mm landing left on the floor itself.
 POCKET_WEB = 3.0
 
+# Where a screw's clearance circle is tangent to the flank at the screw's own
+# y -- not drawn any more (the pocket cuts a local circle there instead), but
+# kept as the number ``check_gland_pocket`` probes the wall against.
 POCKET_X = c.SCREW_SPACING / 2 - SCREW_CLEAR_D / 2 - POCKET_CLEAR  # 7.675
 POCKET_Y_LOW = STRAP_SLOT_Y + STRAP_SLOT_H / 2 + POCKET_WEB  # -7.65
 
@@ -566,12 +583,30 @@ def plug_void_half_width() -> float:
 def pocket_section() -> Sketch:
     """The relief pocket's outline: the flange, less what it has to clear.
 
-    Every boundary here is one of the three neighbours, and nothing else: the
-    outer wire is the flange's own stadium shrunk by ``POCKET_WALL``, the two
-    flats at ``POCKET_X`` are the screw holes, and the bottom at
-    ``POCKET_Y_LOW`` is the strap slot's roof. That is why it is drawn as an
-    intersection rather than as a shape -- move a screw or the slot and the
-    pocket follows, instead of quietly closing on it.
+    The outer wire is the flange's own stadium shrunk by ``POCKET_WALL`` --
+    the profile's own curvature, held ``POCKET_WALL`` off it -- and it stands
+    everywhere except the two places something else is closer: a local circle
+    at each screw hole, and a flat at ``POCKET_Y_LOW`` under the strap slot's
+    roof. That is why it is drawn as a boolean of the three rather than as a
+    shape -- move a screw or the slot and the pocket follows, instead of
+    quietly closing on it.
+
+    The screw clearance used to be a single straight cut at ``POCKET_X``, both
+    flats run the pocket's full height. That was the *tangent* case -- exactly
+    right at the screw's own y, ``c.SCREW_BOSS_Z`` -- and a needless cut
+    everywhere else on the flange, most of it a straight-band region where the
+    stadium is at its full half-width and had nothing to do with either screw.
+    A circle of ``SCREW_CLEAR_D / 2 + POCKET_CLEAR`` centred on the screw is
+    tangent to the same line at that one y and falls away from it above and
+    below, so the pocket keeps the same clearance to the screw it always did
+    and gets the rest of the curvature back everywhere else. ``POCKET_X`` is
+    kept as the tangent point the two agree on -- ``check_gland_pocket`` still
+    probes the wall there -- it just no longer draws a rectangle.
+
+    The strap slot's flat is not converted the same way: the slot runs the
+    flange's *full width* (``strap_slot_section`` extrudes ``both=True`` out to
+    ``CAP_W``), so a flat is the true shape of that clearance, not an
+    approximation standing in for a smaller one.
 
     Starting from the flange rather than from a disc on the bore's axis is what
     makes "``POCKET_WALL`` of shell left all round" a construction instead
@@ -587,14 +622,39 @@ def pocket_section() -> Sketch:
     graze it: anywhere between -6.65 and -6.15 it runs tangent to the bore or
     its lead-in and leaves a feather edge, so ``POCKET_Y_LOW`` is held a
     millimetre clear at -7.65.
+
+    There is a fourth neighbour below ``plug_top_z()``, where the pocket's
+    outer wire would otherwise run through the plug's own wall rather than
+    outside it. Both the flange's curve and the plug's are exact offsets of
+    the *same* base stadium (``POCKET_WALL`` and ``c.WALL + PLUG_FIT / 2``
+    respectively), so the gap between them is the constant difference of the
+    two, everywhere: 2.0 - 0.6 = 1.4 mm, short of ``POCKET_CLEAR`` by 0.6 --
+    following the flange's curve alone would plane 0.6 mm off the plug's wall
+    the entire length of the crescent, not just near a screw. So below
+    ``plug_top_z()`` the outer wire is bounded a second time, by the plug's
+    own stadium held off by ``POCKET_CLEAR`` -- a smaller radius than the
+    flange's offset gives, and the one that actually binds there. Above it,
+    where the plug does not exist, this bound is lifted rather than applied
+    uniformly, or it would plane the same 0.6 mm off pocket the flange alone
+    was already entitled to give up.
     """
+    with BuildSketch() as bound:
+        with Locations((0, _loc(plug_top_z()))):
+            Rectangle(_big(), _big(), align=(Align.CENTER, Align.MIN))
+        SlotOverall(
+            c.HEIGHT - 2 * c.WALL - PLUG_FIT - 2 * POCKET_CLEAR,
+            c.WIDTH - 2 * c.WALL - PLUG_FIT - 2 * POCKET_CLEAR,
+            rotation=90,
+        )
     with BuildSketch() as s:
         SlotOverall(CAP_H - 2 * POCKET_WALL, CAP_W - 2 * POCKET_WALL, rotation=90)
-        Rectangle(2 * POCKET_X, _big(), mode=Mode.INTERSECT)
+        with Locations(*_screw_centres()):
+            Circle(SCREW_CLEAR_D / 2 + POCKET_CLEAR, mode=Mode.SUBTRACT)
         with Locations((0, POCKET_Y_LOW)):
             Rectangle(
                 _big(), _big(), align=(Align.CENTER, Align.MIN), mode=Mode.INTERSECT
             )
+        add(bound.sketch, mode=Mode.INTERSECT)
         fillet(s.vertices(), POCKET_CORNER_R)
     return s.sketch
 
