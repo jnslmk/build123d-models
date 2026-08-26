@@ -139,13 +139,20 @@ overhangs. The strap slot suits that pose — a tall letterbox through a vertica
 wall, whose only unsupported run is a 1.5 mm ceiling. Layer height ≤ 0.25 mm
 (pitch / 6) or the thread staircases.
 
-**Parametric on the website**, over the four numbers that are choices rather
-than measurements of the extrusion: the printed thread's clearance on the gland
-(the thing to tune when a real gland binds or wobbles), the strap's width and
-thickness, and the plug's depth. The derivations above run for the sliders
-exactly as for the defaults — the flange follows the strap, and the screw heads
-sink deeper as it grows so `screw_reach()` holds. See `endcap.PARAMS` and the
-`Endcap` spec for the ranges and why they end where they do.
+**Parametric on the website**, over the numbers that are choices or bought
+hardware rather than measurements of the extrusion: the printed thread's
+clearance on the gland (the thing to tune when a real gland binds or wobbles),
+the gland's size (M12 or M16 × 1.5 — M20's bore would reach the screw holes)
+and male thread length, the strap's width and thickness, the screw's length
+(DIN 965 stock, 10–25), and the plug's depth, wall and fit clearance. The
+derivations above run for the sliders exactly as for the defaults — the flange
+follows the strap, the access bore absorbs flange growth and screw shortfall
+alike so `screw_reach()` holds, and the slot and pocket track the bore.
+`Endcap.of` clamps every combination back into a buildable cap, crossing two
+of them: strap thickness gives way to the 1.2 mm shell floor a bigger bore
+squeezes, and gland thread length to the relief pocket that must survive above
+it. See `endcap.PARAMS` and the `Endcap` spec for the ranges and why they end
+where they do.
 
 ### Wired endcap
 

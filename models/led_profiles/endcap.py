@@ -179,14 +179,18 @@ The screw seams themselves are *not* on that list any more. They used to be,
 with the argument that breaking them would only widen the bite; they get
 ``SCREW_SEAM_FILLET`` now.
 
-**Parametric on the website** (see ``PARAMS``), over the four numbers this
-docstring already calls choices rather than measurements: the printed thread's
-clearance on the metal gland, the strap's width and thickness, and the plug's
-depth. Everything else is the extrusion's own hardware. The derivations above
-run for the sliders exactly as they run for the defaults -- the flange follows
-the strap, the screw heads sink deeper as the flange grows so ``screw_reach()``
-holds, the relief pocket's floor tracks the slot -- and ``Endcap.of`` clamps
-every input to the range those derivations stay valid over.
+**Parametric on the website** (see ``PARAMS``), over the numbers that are
+choices or bought hardware rather than measurements of the extrusion: the
+printed thread's clearance on the metal gland, the gland's size (M12 or M16 x
+1.5) and male thread length, the strap's width and thickness, the screw's
+length, and the plug's depth, wall and fit. Everything else is the extrusion's
+own hardware. The derivations above run for the sliders exactly as they run
+for the defaults -- the flange follows the strap, the screw heads sink deeper
+as the flange grows or the screw shortens so ``screw_reach()`` holds, the
+strap slot and the relief pocket's floor track the bore -- and ``Endcap.of``
+clamps every input (crossing two of them: strap thickness against the shell
+left under the slot, gland thread length against the pocket that must survive
+above it) to the range those derivations stay valid over.
 """
 
 from __future__ import annotations
@@ -607,16 +611,52 @@ SCREW_SEAM_FILLET = 0.2
 #   stage 2.0), and the ceiling keeps ``cap_t`` = 23.85 short of a
 #   ``PLUG_DEPTH_MAX`` plug. The pocket needs ``cap_t`` above
 #   ``POCKET_FLOOR_Z`` = 10.0, which the floor clears by construction.
-# * ``strap_thickness`` 0.5..2.5 -- at 2.5 with the fattest bore,
-#   ``strap_floor()`` still leaves 1.45 mm of shell under the slot.
+# * ``strap_thickness`` 0.5..2.5 -- at 2.5 with the fattest M12 bore,
+#   ``strap_floor()`` still leaves 1.45 mm of shell under the slot. A bigger
+#   gland pushes the slot further down, so the *effective* ceiling is the
+#   ``STRAP_FLOOR_MIN`` cross-clamp in ``Endcap.of``, not this constant.
 # * ``plug_depth`` 8..30 -- the docstring's own judgement call, freed. Below
 #   ``cap_t`` the plug stops being what keeps the cap square (``check_endcap``
 #   argues it must not); the slider permits it because a shallow plug is a
 #   usable cap, just a worse one.
+# * ``gland_thread_d`` 12 or 16 (step 4): M12 x 1.5 and M16 x 1.5 are the two
+#   stock cable-gland sizes this cap can carry. M20 is ruled out by hardware,
+#   not taste -- its bore reaches past the screw clearance holes at
+#   ``c.SCREW_SPACING / 2``. An M16 bore drops the strap slot far enough that
+#   the floor clamp bites (max ~0.9 mm strap), and its crescent into the
+#   wiring cavity opens past the 6.7 mm cable -- the default cap's "no cable
+#   route" claim (``check_gland``) is an M12 fact, not an invariant of the
+#   design.
+# * ``gland_thread_len`` 6..12 -- the bought gland's male thread. More thread
+#   moves the relief pocket's floor up with it (``pocket_floor_z`` is derived),
+#   so ``Endcap.of`` caps it where the pocket still keeps ``POCKET_DEPTH_MIN``.
+# * ``screw_length`` 10..25 -- DIN 965 stock lengths. The access stage absorbs
+#   the difference the same way it absorbs flange growth, so ``screw_reach()``
+#   holds at the proven 4.7 mm until the stage bottoms out at zero (long screw:
+#   more reach, harmless in a continuous port) or at a 1 mm floor over the
+#   seat (short screw in a shallow flange).
+# * ``plug_wall`` 1.2..3.0 -- the shell's thickness. The tip's lead-in is
+#   derived (``plug_wall`` less ``PLUG_TIP_LAND``), so at 1.2 the lead-in
+#   vanishes and the chamfer is skipped rather than cut at zero.
+# * ``plug_fit`` 0.1..0.8 -- the plug's diametral clearance in the extrusion,
+#   ``fits.SLIDING`` by default; the tune for a cap that rocks or won't seat
+#   in a real tube, same job ``thread_clearance`` does for the gland.
 THREAD_CLEARANCE_MIN, THREAD_CLEARANCE_MAX = 0.0, 0.6
 STRAP_W_MIN, STRAP_W_MAX = 10.0, 20.0
 STRAP_T_MIN, STRAP_T_MAX = 0.5, 2.5
 PLUG_DEPTH_MIN, PLUG_DEPTH_MAX = 8.0, 30.0
+GLAND_D_MIN, GLAND_D_MAX = 12.0, 16.0
+GLAND_LEN_MIN, GLAND_LEN_MAX = 6.0, 12.0
+SCREW_LEN_MIN, SCREW_LEN_MAX = 10.0, 25.0
+PLUG_WALL_MIN, PLUG_WALL_MAX = 1.2, 3.0
+PLUG_FIT_MIN, PLUG_FIT_MAX = 0.1, 0.8
+
+# The two floors the cross-clamps in ``Endcap.of`` defend: the shell left
+# under the strap slot (the load-bearing 1.2 mm this file already holds
+# ``PLUG_TIP_LAND`` to), and how much relief pocket must survive above a
+# longer gland thread for the cut to still be a pocket.
+STRAP_FLOOR_MIN = 1.2
+POCKET_DEPTH_MIN = 1.0
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -638,6 +678,11 @@ class Endcap:
     strap_width: float = STRAP_W
     strap_thickness: float = STRAP_T
     plug_depth: float = PLUG_DEPTH
+    gland_thread_d: float = GLAND_THREAD_D
+    gland_thread_len: float = GLAND_MALE_L
+    screw_length: float = SCREW_LEN
+    plug_wall: float = PLUG_WALL
+    plug_fit: float = PLUG_FIT
 
     @classmethod
     def of(
@@ -646,20 +691,60 @@ class Endcap:
         strap_width: float = STRAP_W,
         strap_thickness: float = STRAP_T,
         plug_depth: float = PLUG_DEPTH,
+        gland_thread_d: float = GLAND_THREAD_D,
+        gland_thread_len: float = GLAND_MALE_L,
+        screw_length: float = SCREW_LEN,
+        plug_wall: float = PLUG_WALL,
+        plug_fit: float = PLUG_FIT,
     ) -> Endcap:
-        """Clamp every input into the range the geometry stays valid over."""
+        """Clamp every input into the range the geometry stays valid over.
+
+        Two clamps are crossed rather than per-slider, because the sliders
+        share a resource. The strap slot hangs under the gland bore, so a
+        bigger bore spends the shell the slot's thickness would -- the
+        thickness ceiling is whatever keeps ``STRAP_FLOOR_MIN`` under the
+        slot. And a longer gland thread raises the relief pocket's floor, so
+        its ceiling is whatever leaves ``POCKET_DEPTH_MIN`` of pocket in this
+        strap's flange.
+        """
+        tc = _clamp(thread_clearance, THREAD_CLEARANCE_MIN, THREAD_CLEARANCE_MAX)
+        gd = _clamp(gland_thread_d, GLAND_D_MIN, GLAND_D_MAX)
+        sw = _clamp(strap_width, STRAP_W_MIN, STRAP_W_MAX)
+        free = fits.for_material(fits.FREE, "asa")
+        t_max = CAP_H / 2 - STRAP_ROOF - STRAP_FLOOR_MIN - (gd + tc) / 2 - 2 * free
+        cap_t = (sw + free) + 2 * STRAP_WALL
+        len_max = cap_t - (POCKET_COLLAR + POCKET_LEAD) - POCKET_DEPTH_MIN
         return cls(
-            thread_clearance=_clamp(
-                thread_clearance, THREAD_CLEARANCE_MIN, THREAD_CLEARANCE_MAX
+            thread_clearance=tc,
+            strap_width=sw,
+            strap_thickness=_clamp(
+                strap_thickness, STRAP_T_MIN, min(STRAP_T_MAX, t_max)
             ),
-            strap_width=_clamp(strap_width, STRAP_W_MIN, STRAP_W_MAX),
-            strap_thickness=_clamp(strap_thickness, STRAP_T_MIN, STRAP_T_MAX),
             plug_depth=_clamp(plug_depth, PLUG_DEPTH_MIN, PLUG_DEPTH_MAX),
+            gland_thread_d=gd,
+            gland_thread_len=_clamp(
+                gland_thread_len, GLAND_LEN_MIN, min(GLAND_LEN_MAX, len_max)
+            ),
+            screw_length=_clamp(screw_length, SCREW_LEN_MIN, SCREW_LEN_MAX),
+            plug_wall=_clamp(plug_wall, PLUG_WALL_MIN, PLUG_WALL_MAX),
+            plug_fit=_clamp(plug_fit, PLUG_FIT_MIN, PLUG_FIT_MAX),
         )
 
     @property
     def gland_major_d(self) -> float:
-        return GLAND_THREAD_D + self.thread_clearance
+        return self.gland_thread_d + self.thread_clearance
+
+    @property
+    def gland_thread_l(self) -> float:
+        return self.gland_thread_len - GLAND_COLLAR
+
+    @property
+    def pocket_floor_z(self) -> float:
+        return self.gland_thread_len + POCKET_COLLAR + POCKET_LEAD
+
+    @property
+    def plug_lead_in(self) -> float:
+        return max(0.0, self.plug_wall - PLUG_TIP_LAND)
 
     @property
     def strap_slot_w(self) -> float:
@@ -683,19 +768,27 @@ class Endcap:
 
     @property
     def screw_access_depth(self) -> float:
-        """The access stage, deepened by exactly the flange's growth.
+        """The access stage, deepened by exactly what the reach would lose.
 
         The stage exists to keep ``screw_reach()`` at the number the M2 x 20
-        design proved out (see ``SCREW_ACCESS_DEPTH``), and a strap-resized
-        flange moves that target by exactly what it grows or shrinks by -- so
-        the head sinks with it, and the reach never moves. Clamped at zero for
-        a flange shallower than the stage has room for, where the seat cone
-        simply opens at the face again, as it did before the stage existed.
+        design proved out (see ``SCREW_ACCESS_DEPTH``), and both a
+        strap-resized flange and a re-chosen screw move that target by
+        exactly their own difference -- so the head sinks by the flange's
+        growth plus the screw's shortfall, and the reach never moves. Clamped
+        at zero when the reach has room to spare (a long screw simply reaches
+        further into a port that is a continuous channel), and at a 1 mm
+        floor over the seat when it does not -- a short screw in a shallow
+        flange gives up reach rather than the seat's footing.
         """
-        # The growth term is parenthesised so the default is *exactly*
-        # SCREW_ACCESS_DEPTH: identical cap_t values cancel to 0.0 before the
-        # add, where left-to-right evaluation would leave float dust on it.
-        return max(0.0, SCREW_ACCESS_DEPTH + (self.cap_t - DEFAULT.cap_t))
+        # Each correction is parenthesised so the default is *exactly*
+        # SCREW_ACCESS_DEPTH: identical values cancel to 0.0 before the add,
+        # where left-to-right evaluation would leave float dust on it.
+        depth = (
+            SCREW_ACCESS_DEPTH
+            + (self.cap_t - DEFAULT.cap_t)
+            + (SCREW_LEN - self.screw_length)
+        )
+        return _clamp(depth, 0.0, self.cap_t - SCREW_SEAT_DEPTH - 1.0)
 
 
 DEFAULT = Endcap()
@@ -705,12 +798,15 @@ DEFAULT = Endcap()
 # and this is what stops the two drifting apart.
 for _name, _constant in (
     ("gland_major_d", GLAND_MAJOR_D),
+    ("gland_thread_l", GLAND_THREAD_L),
+    ("pocket_floor_z", POCKET_FLOOR_Z),
     ("strap_slot_w", STRAP_SLOT_W),
     ("strap_slot_h", STRAP_SLOT_H),
     ("cap_t", CAP_T),
     ("strap_slot_y", STRAP_SLOT_Y),
     ("pocket_y_low", POCKET_Y_LOW),
     ("screw_access_depth", SCREW_ACCESS_DEPTH),
+    ("plug_lead_in", PLUG_LEAD_IN),
 ):
     _derived = getattr(DEFAULT, _name)
     assert _derived == _constant, (
@@ -748,12 +844,12 @@ def _cavity_outline(inset: float, top_gap: float) -> Sketch:
     return s.sketch
 
 
-def plug_section() -> Sketch:
+def plug_section(spec: Endcap = DEFAULT) -> Sketch:
     """The plug's outer surface: the cavity's half-disc, less its running fit."""
-    return _cavity_outline(PLUG_FIT / 2, PLUG_TOP_GAP)
+    return _cavity_outline(spec.plug_fit / 2, PLUG_TOP_GAP)
 
 
-def plug_void_section() -> Sketch:
+def plug_void_section(spec: Endcap = DEFAULT) -> Sketch:
     """What comes back out of the plug: the same outline, less ``PLUG_WALL``.
 
     The wall is uniform without an offset operation anywhere: shrinking a
@@ -775,7 +871,7 @@ def plug_void_section() -> Sketch:
     already been bitten by once (see ``SCREW_SEAM_FILLET``, where a coplanar
     cutting face made the boolean a silent no-op).
     """
-    return _cavity_outline(PLUG_FIT / 2 + PLUG_WALL, 0.0)
+    return _cavity_outline(spec.plug_fit / 2 + spec.plug_wall, 0.0)
 
 
 def _stadium_half_width(y: float, half_w: float, half_h: float) -> float:
@@ -791,15 +887,15 @@ def _stadium_half_width(y: float, half_w: float, half_h: float) -> float:
     return sqrt(max(half_w**2 - (abs(y) - flat) ** 2, 0.0))
 
 
-def plug_void_half_width() -> float:
+def plug_void_half_width(spec: Endcap = DEFAULT) -> float:
     """Half-width of the hollow where it breaks through the plug's flat top.
 
     Which is where the two lengthwise seams are, so it is what
     ``_plug_top_seams`` selects on -- and ``PLUG_WALL`` outboard of it is the
     tab the top chord leaves.
     """
-    half_w = (c.WIDTH - 2 * c.WALL - PLUG_FIT) / 2 - PLUG_WALL
-    half_h = (c.HEIGHT - 2 * c.WALL - PLUG_FIT) / 2 - PLUG_WALL
+    half_w = (c.WIDTH - 2 * c.WALL - spec.plug_fit) / 2 - spec.plug_wall
+    half_h = (c.HEIGHT - 2 * c.WALL - spec.plug_fit) / 2 - spec.plug_wall
     return _stadium_half_width(_loc(plug_top_z()), half_w, half_h)
 
 
@@ -866,8 +962,8 @@ def pocket_section(spec: Endcap = DEFAULT) -> Sketch:
         with Locations((0, _loc(plug_top_z()))):
             Rectangle(_big(), _big(), align=(Align.CENTER, Align.MIN))
         SlotOverall(
-            c.HEIGHT - 2 * c.WALL - PLUG_FIT - 2 * POCKET_CLEAR,
-            c.WIDTH - 2 * c.WALL - PLUG_FIT - 2 * POCKET_CLEAR,
+            c.HEIGHT - 2 * c.WALL - spec.plug_fit - 2 * POCKET_CLEAR,
+            c.WIDTH - 2 * c.WALL - spec.plug_fit - 2 * POCKET_CLEAR,
             rotation=90,
         )
     with BuildSketch() as s:
@@ -885,7 +981,7 @@ def pocket_section(spec: Endcap = DEFAULT) -> Sketch:
 
 def pocket_depth(spec: Endcap = DEFAULT) -> float:
     """How much of the flange the pocket takes back, on the bore's axis."""
-    return spec.cap_t - POCKET_FLOOR_Z
+    return spec.cap_t - spec.pocket_floor_z
 
 
 def _pocket_rim_chamfer(spec: Endcap = DEFAULT) -> Part:
@@ -909,14 +1005,14 @@ def _pocket_rim_chamfer(spec: Endcap = DEFAULT) -> Part:
     constructed in place would be fused into the cap instead of cut out of it.
     """
     with BuildPart() as tool:
-        with Locations((0, 0, POCKET_FLOOR_Z - POCKET_LEAD)):
+        with Locations((0, 0, spec.pocket_floor_z - POCKET_LEAD)):
             Cone(
                 bottom_radius=spec.gland_major_d / 2,
                 top_radius=spec.gland_major_d / 2 + POCKET_LEAD,
                 height=POCKET_LEAD,
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
             )
-        with BuildSketch(Plane.XY.offset(POCKET_FLOOR_Z - POCKET_LEAD)):
+        with BuildSketch(Plane.XY.offset(spec.pocket_floor_z - POCKET_LEAD)):
             add(pocket_section(spec))
         extrude(amount=POCKET_LEAD, mode=Mode.INTERSECT)
     return tool.part
@@ -1124,7 +1220,7 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
     thread = IsoThread(
         major_diameter=spec.gland_major_d,
         pitch=GLAND_PITCH,
-        length=GLAND_THREAD_L,
+        length=spec.gland_thread_l,
         external=False,
         end_finishes=("fade", "fade"),
     )
@@ -1138,7 +1234,7 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         extrude(amount=spec.cap_t)
 
         with BuildSketch(Plane.XY.offset(spec.cap_t)):
-            add(plug_section())
+            add(plug_section(spec))
         extrude(amount=spec.plug_depth)
 
         # Edge treatments, house rule: chamfer horizontal, fillet vertical.
@@ -1156,9 +1252,12 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         chamfer_edge(  # elephant's foot on the bed-facing perimeter
             bp, bp.faces().sort_by(Axis.Z)[0].outer_wire().edges(), EDGE_CHAMFER
         )
-        chamfer_edge(  # the plug's lead-in, on the way into the cavity
-            bp, bp.faces().sort_by(Axis.Z)[-1].outer_wire().edges(), PLUG_LEAD_IN
-        )
+        if spec.plug_lead_in > 0:  # zero when plug_wall is all land -- no edge to cut
+            chamfer_edge(  # the plug's lead-in, on the way into the cavity
+                bp,
+                bp.faces().sort_by(Axis.Z)[-1].outer_wire().edges(),
+                spec.plug_lead_in,
+            )
 
         # Gland bore, then the thread fused into it. Through the plug as well as
         # the flange: nothing is left standing in the bore's way.
@@ -1176,9 +1275,12 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         # decides where those seams are: it opens the plug's flat top out past
         # the bore's own crescent, so the edges to roll are its flats rather
         # than ``plug_bore_half_width()``.
-        with BuildSketch(Plane.XY.offset(POCKET_FLOOR_Z)):
+        with BuildSketch(Plane.XY.offset(spec.pocket_floor_z)):
             add(pocket_section(spec))
-        extrude(amount=spec.cap_t + spec.plug_depth - POCKET_FLOOR_Z, mode=Mode.SUBTRACT)
+        extrude(
+            amount=spec.cap_t + spec.plug_depth - spec.pocket_floor_z,
+            mode=Mode.SUBTRACT,
+        )
 
         # The rim where the floor drops into the bore: horizontal and convex, so
         # a chamfer, cut as a cone for the same reason the gland's own lead-in
@@ -1203,7 +1305,7 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         # so it prints on solid material without support and still drains
         # through the bore.
         with BuildSketch(Plane.XY.offset(spec.cap_t)):
-            add(plug_void_section())
+            add(plug_void_section(spec))
         extrude(amount=spec.plug_depth, mode=Mode.SUBTRACT)
 
         # The pocket's own mouth, right where it crosses CAP_T -- the boundary
@@ -1243,8 +1345,8 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         # bundled with the outer one earlier: that one runs before the bore,
         # the pocket and the void exist, and this wire does not exist yet at
         # that point in the build.
-        for size in (PLUG_LEAD_IN, 0.3, 0.2):
-            if chamfer_edge(bp, _plug_void_tip_edges(bp, spec), size):
+        for size in (spec.plug_lead_in, 0.3, 0.2):
+            if size > 0 and chamfer_edge(bp, _plug_void_tip_edges(bp, spec), size):
                 break
 
         # Screws: mouth lead-in, then the access bore, then the 90 deg taper
@@ -1375,7 +1477,7 @@ def _plug_top_seams(bp: BuildPart, spec: Endcap = DEFAULT) -> ShapeList:
     still "take" on them.
     """
     y_top = _loc(plug_top_z())
-    x_seam = plug_void_half_width()
+    x_seam = plug_void_half_width(spec)
 
     def is_seam(edge) -> bool:
         bb = edge.bounding_box()
@@ -1457,7 +1559,7 @@ def plug_tip_corner_edges(
     def in_chamfer_band(edge) -> bool:
         bb = edge.bounding_box()
         return (
-            bb.min.Z > tip - PLUG_LEAD_IN - 0.05
+            bb.min.Z > tip - spec.plug_lead_in - 0.05
             and bb.max.Z < tip + 0.05
             and (bb.max.Z - bb.min.Z) > 0.05
         )
@@ -1488,7 +1590,7 @@ def _plug_top_corners(bp: BuildPart, spec: Endcap = DEFAULT) -> ShapeList:
     those sit at ``plug_bore_half_width()``, these out at the plug's own flank.
     """
     y_top = _loc(plug_top_z())
-    half = (c.WIDTH - 2 * c.WALL - PLUG_FIT) / 2
+    half = (c.WIDTH - 2 * c.WALL - spec.plug_fit) / 2
 
     def is_corner(edge) -> bool:
         bb = edge.bounding_box()
@@ -1537,7 +1639,7 @@ def screw_reach(spec: Endcap = DEFAULT) -> float:
     cone a ``SCREW_HEAD_D`` head slides before the 45 deg walls stop it.
     """
     head_top = spec.screw_access_depth + (SCREW_SEAT_D - SCREW_HEAD_D) / 2
-    return head_top + SCREW_LEN - spec.cap_t
+    return head_top + spec.screw_length - spec.cap_t
 
 
 def screw_breakout() -> float:
@@ -1615,6 +1717,51 @@ PARAMS = [
         "step": 1.0,
         "default": PLUG_DEPTH,
     },
+    {
+        "name": "gland_thread_d",
+        "label": "Gland thread size (mm, M12/M16 x 1.5)",
+        "type": "number",
+        "min": GLAND_D_MIN,
+        "max": GLAND_D_MAX,
+        "step": 4.0,
+        "default": GLAND_THREAD_D,
+    },
+    {
+        "name": "gland_thread_len",
+        "label": "Gland thread length (mm)",
+        "type": "number",
+        "min": GLAND_LEN_MIN,
+        "max": GLAND_LEN_MAX,
+        "step": 0.5,
+        "default": GLAND_MALE_L,
+    },
+    {
+        "name": "screw_length",
+        "label": "Screw length (mm, M2 DIN 965)",
+        "type": "number",
+        "min": SCREW_LEN_MIN,
+        "max": SCREW_LEN_MAX,
+        "step": 1.0,
+        "default": SCREW_LEN,
+    },
+    {
+        "name": "plug_wall",
+        "label": "Plug wall (mm)",
+        "type": "number",
+        "min": PLUG_WALL_MIN,
+        "max": PLUG_WALL_MAX,
+        "step": 0.1,
+        "default": PLUG_WALL,
+    },
+    {
+        "name": "plug_fit",
+        "label": "Plug fit clearance (mm)",
+        "type": "number",
+        "min": PLUG_FIT_MIN,
+        "max": PLUG_FIT_MAX,
+        "step": 0.02,
+        "default": PLUG_FIT,
+    },
 ]
 
 
@@ -1623,6 +1770,11 @@ def create(
     strap_width: float = STRAP_W,
     strap_thickness: float = STRAP_T,
     plug_depth: float = PLUG_DEPTH,
+    gland_thread_d: float = GLAND_THREAD_D,
+    gland_thread_len: float = GLAND_MALE_L,
+    screw_length: float = SCREW_LEN,
+    plug_wall: float = PLUG_WALL,
+    plug_fit: float = PLUG_FIT,
 ) -> Part:
     """Entry point for ``uv run show led_profiles.endcap`` and the website."""
     return create_endcap(
@@ -1631,6 +1783,11 @@ def create(
             strap_width=strap_width,
             strap_thickness=strap_thickness,
             plug_depth=plug_depth,
+            gland_thread_d=gland_thread_d,
+            gland_thread_len=gland_thread_len,
+            screw_length=screw_length,
+            plug_wall=plug_wall,
+            plug_fit=plug_fit,
         )
     )
 
