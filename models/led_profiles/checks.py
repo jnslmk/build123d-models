@@ -52,6 +52,7 @@ from . import stand as stand_mod
 from .stand import config as sc
 from .stand import keeper as keeper_mod
 from .stand import leg as leg_mod
+from . import strain_relief as srm
 from . import strap as strap_mod
 from .assembly import create_bare
 from .assembly import parts as lamp_parts
@@ -3985,6 +3986,253 @@ def _check_sharp_edges(
     )
 
 
+def check_strain_relief(part: Part, r: Report) -> None:
+    """The gland-replacing insert: thread fit, seat, bore, and collet.
+
+    Everything that matters here is a fit against the caps' own printed
+    thread or interior geometry the tie has to work against -- none of it
+    visible in a projection, so it is all identities on the module's derived
+    constants plus point samples off the solid.
+    """
+    r.section("Strain relief insert")
+    bb = part.bounding_box()
+
+    r.check(abs(bb.min.Z) < 1e-6, "print pose: tip ring on z=0", f"{bb.min.Z:.4f}")
+    r.check(
+        abs(bb.max.Z - srm.TIP_Z) < 0.01,
+        "...and the collet tip is where the constants say",
+        f"{bb.max.Z:.2f} vs {srm.TIP_Z:.2f}",
+    )
+
+    # The thread fit, held as one total rather than two halves that could
+    # drift: female major minus male major is the whole printed-on-printed
+    # clearance, however the cap's own share of it is retuned.
+    r.check(
+        abs((e.GLAND_MAJOR_D - srm.MALE_MAJOR_D) - srm.MALE_CLEARANCE) < 1e-9,
+        "male + female clearances total the printed-on-printed 0.50",
+        f"{e.GLAND_MAJOR_D} - {srm.MALE_MAJOR_D} = {srm.MALE_CLEARANCE}",
+    )
+
+    # The crest never reaches the female bore's wall: sampled around the
+    # thread band, since a helix puts its crest at one azimuth per height.
+    crest_r = srm.MALE_MAJOR_D / 2
+    azimuths = [radians(a) for a in range(0, 360, 15)]
+    proud = [
+        (z, a)
+        for z in (3.0, 5.0, 7.0)
+        for a in azimuths
+        if is_solid_at(part, (crest_r + 0.05) * cos(a), (crest_r + 0.05) * sin(a), z)
+    ]
+    r.check(
+        not proud,
+        "thread crest stays inside the female bore",
+        f"nothing beyond r={crest_r + 0.05:.2f}"
+        if not proud
+        else f"solid at {proud[:3]}",
+    )
+    r.check(
+        any(
+            is_solid_at(part, (crest_r - 0.15) * cos(a), (crest_r - 0.15) * sin(a), 5.0)
+            for a in azimuths
+        ),
+        "...and the crest is actually there",
+        f"sampled at r={crest_r - 0.15:.2f}, mid-thread",
+    )
+
+    # The tip collar has to pass the female thread's own crests on the way in.
+    collar_hits = [
+        a
+        for a in azimuths
+        if is_solid_at(
+            part,
+            (srm.FEMALE_MINOR_D / 2 - 0.05) * cos(a),
+            (srm.FEMALE_MINOR_D / 2 - 0.05) * sin(a),
+            1.0,
+        )
+    ]
+    r.check(
+        not collar_hits,
+        "tip collar clears the female thread's crests",
+        f"collar r {srm.MALE_ROOT_D / 2:.2f} vs female minor r "
+        f"{srm.FEMALE_MINOR_D / 2:.2f}",
+    )
+
+    # Axial stack: seated on its cone, the tip lands on the relief pocket's
+    # floor plane -- the deepest the bore is guaranteed open in both caps.
+    r.check(
+        srm.STEM_L + srm.SEAT_SINK <= e.POCKET_FLOOR_Z + 1e-9,
+        "seated tip stops at the pocket floor",
+        f"{srm.STEM_L} + {srm.SEAT_SINK} vs {e.POCKET_FLOOR_Z}",
+    )
+
+    # The seat: a 45 deg cone (by construction, asserted) that spans past the
+    # cap's mouth chamfer, so the two cones mate face-on-face.
+    r.check(
+        abs((srm.SEAT_TOP_Z - srm.STEM_L) - (srm.SEAT_TOP_R - srm.MALE_MAJOR_D / 2))
+        < 1e-9,
+        "seat cone is 45 deg",
+    )
+    r.check(
+        srm.SEAT_TOP_R >= e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN,
+        "...and spans the whole mouth chamfer",
+        f"r {srm.SEAT_TOP_R:.2f} vs chamfer rim "
+        f"{e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN:.2f}",
+    )
+    cone_r = srm.MALE_MAJOR_D / 2 + 1.0
+    r.check(
+        is_solid_at(part, cone_r - 0.15, 0, srm.STEM_L + 1.0)
+        and not is_solid_at(part, cone_r + 0.15, 0, srm.STEM_L + 1.0),
+        "...and the cone is on the solid where the arithmetic puts it",
+        f"probed either side of r={cone_r:.2f} at z={srm.STEM_L + 1.0:.2f}",
+    )
+
+    # The head stays inside the envelope every mount reserves for the bought
+    # gland, so the insert fits wherever the gland does.
+    r.check(
+        max(bb.size.X, bb.size.Y) <= mc.GLAND_ENV_D,
+        "head fits the gland envelope",
+        f"{max(bb.size.X, bb.size.Y):.2f} vs {mc.GLAND_ENV_D:.2f}",
+    )
+
+    # The bore, open end to end -- the one thing this part exists to provide.
+    groove_mid = (srm.RAMP_Z0 + srm.GROOVE_DEPTH + srm.WAIST_TOP) / 2
+    stations = [
+        0.2,
+        1.0,
+        srm.THREAD_Z0 + srm.THREAD_L / 2,
+        srm.STEM_L,
+        srm.HEX_Z0 + 2.0,
+        srm.HEAD_TOP - 0.2,
+        srm.SLOT_Z0 + 1.0,
+        groove_mid,
+        srm.TIP_Z - 0.2,
+    ]
+    blocked = [z for z in stations if is_solid_at(part, 0, 0, z)]
+    off_r = 0.8 * srm.BORE_D / 2
+    blocked += [
+        z
+        for z in stations
+        if is_solid_at(part, off_r, 0, z) or is_solid_at(part, 0, off_r, z)
+    ]
+    r.check(
+        not blocked,
+        "cable bore is clear end to end",
+        f"blocked at z={blocked}"
+        if blocked
+        else f"{len(stations)} stations, on-axis and at 80% radius",
+    )
+    wall_r = (srm.BORE_D / 2 + srm.MALE_ROOT_D / 2) / 2
+    r.check(
+        is_solid_at(part, wall_r, 0, 5.0) and is_solid_at(part, 0, wall_r, 5.0),
+        "...through a solid stem wall",
+        f"solid at r={wall_r:.2f}, mid-thread",
+    )
+
+    # The collet: four fingers on the diagonals, slots on the axes, the tie
+    # groove cut into the fingers and full diameter left above and below it.
+    fin_r = (srm.WAIST_R + srm.BORE_D / 2) / 2
+    diag = cos(radians(45))
+    below_groove = (srm.SLOT_Z0 + srm.RAMP_Z0) / 2
+    r.check(
+        is_solid_at(part, fin_r * diag, fin_r * diag, groove_mid),
+        "fingers stand on the diagonals",
+        f"solid at r={fin_r:.2f}, 45 deg, mid-groove",
+    )
+    r.check(
+        not is_solid_at(part, fin_r, 0, groove_mid)
+        and not is_solid_at(part, 0, fin_r, groove_mid),
+        "...with the slots open on the axes",
+    )
+    lip_r = srm.SNOUT_D / 2 - 0.15
+    r.check(
+        not is_solid_at(part, lip_r * diag, lip_r * diag, groove_mid),
+        "tie groove is cut",
+        f"open at r={lip_r:.2f}, 45 deg",
+    )
+    r.check(
+        is_solid_at(part, lip_r * diag, lip_r * diag, below_groove),
+        "...with full diameter below it",
+    )
+    lip_z = (srm.WAIST_TOP + srm.SHOULDER_CHAMFER + srm.TIP_Z - srm.SNOUT_TIP_CHAMFER) / 2
+    r.check(
+        is_solid_at(part, lip_r * diag, lip_r * diag, lip_z),
+        "...and a retention lip above it",
+        f"solid at z={lip_z:.2f}",
+    )
+
+    # The finger wall at the waist is printable, and the hinge sits below the
+    # groove so the tie closes the fingers rather than bending their roots.
+    r.check(
+        srm.WAIST_R - srm.BORE_D / 2 >= fits.MIN_WALL,
+        "waist wall is at least the printable minimum",
+        f"{srm.WAIST_R - srm.BORE_D / 2:.2f} vs {fits.MIN_WALL}",
+    )
+    r.check(
+        srm.SLOT_Z0 + srm.SLOT_W / 2 < srm.RAMP_Z0,
+        "slot roots hinge below the groove",
+        f"{srm.SLOT_Z0 + srm.SLOT_W / 2:.2f} vs ramp at {srm.RAMP_Z0:.2f}",
+    )
+
+    # A standard tie fits the groove: up to 3.6 mm wide plus hand room.
+    r.check(
+        srm.TIE_SLOT_W >= 3.6 + 0.4,
+        "groove takes a 3.6 mm cable tie",
+        f"{srm.TIE_SLOT_W} mm wide, {srm.GROOVE_DEPTH} mm deep",
+    )
+
+    # The slot rims were rolled, not merely asked for: the same selector that
+    # fed the fillet ladder, re-run, with an empty answer as the assertion.
+    rims = srm.slot_rim_edges(part)
+    r.check(
+        not rims,
+        "slot rims are filleted",
+        "nothing sharp left"
+        if not rims
+        else f"{len(rims)} left: "
+        + "; ".join(f"{ed.geom_type} len={ed.length:.2f}" for ed in rims),
+    )
+
+
+def check_strain_relief_edges(part: Part, r: Report) -> None:
+    """The raw-edge rule for the insert.
+
+    Everything horizontal is chamfered in the two revolve profiles and the
+    hex-rim ladder, and the vertical slot rims and hex corners are filleted,
+    so the allow list is short: the male thread's own helical geometry (the
+    same exception every cap already carries), and the closing seams of the
+    revolved walls, which have no second face to measure an angle against.
+    """
+
+    def _is_male_thread_edge(edge) -> bool:
+        return (
+            edge.geom_type == GeomType.BSPLINE
+            and edge.bounding_box().max.Z < srm.STEM_L
+        )
+
+    def _is_revolve_seam(edge) -> bool:
+        return is_periodic_seam(part, edge)
+
+    _check_sharp_edges(
+        part,
+        "strain relief",
+        r,
+        allow=(
+            (
+                "male thread helix",
+                _is_male_thread_edge,
+                "IsoThread crest and fade bsplines -- thread flanks are the "
+                "named exception to the raw-edge rule, as on both caps",
+            ),
+            (
+                "revolved-wall seams",
+                _is_revolve_seam,
+                "the bore wall's and seat cone's own periodic closing seams: "
+                "one face each side, so there is no dihedral to measure",
+            ),
+        ),
+    )
+
+
 def run() -> Report:
     r = Report()
     length = c.SECTION_LENGTH
@@ -4014,6 +4262,10 @@ def run() -> Report:
     check_wired_chamber(capw, r)
     check_strap_slot(capw, r, section="Wired endcap strap slot")
     check_wired_edges(capw, r)
+
+    srp = srm.create_strain_relief()
+    check_strain_relief(srp, r)
+    check_strain_relief_edges(srp, r)
 
     check_cap_on_profile(r)
     check_assembly(r)

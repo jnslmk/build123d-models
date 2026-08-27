@@ -59,6 +59,7 @@ MODELS = [
     "led_profiles.assemblies.suspended",
     "led_profiles.endcap",
     "led_profiles.endcap_wired",
+    "led_profiles.strain_relief",
     "led_profiles.corner",
     "led_profiles.strap",
     "led_profiles.stand",

@@ -32,6 +32,7 @@ from .profile import create_diffuser, create_extrusion, create_strip
 from .stand import create_post
 from .stand.keeper import create_keeper
 from .stand.leg import create_leg
+from .strain_relief import create_strain_relief
 from .strap import create_strap
 
 # ``create()`` is a finished lamp: bought aluminium, bought diffuser, the COB
@@ -61,6 +62,7 @@ __all__ = [
     "create_leg",
     "create_post",
     "create_standing",
+    "create_strain_relief",
     "create_strap",
     "create_strip",
     "create_suspended",
