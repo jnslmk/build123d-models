@@ -3987,21 +3987,25 @@ def _check_sharp_edges(
 
 
 def check_strain_relief(part: Part, r: Report) -> None:
-    """The gland-replacing insert: thread fit, seat, bore, and collet.
+    """The gland-replacing insert: thread fit, flush seat, bore, and the fin.
 
     Everything that matters here is a fit against the caps' own printed
     thread or interior geometry the tie has to work against -- none of it
     visible in a projection, so it is all identities on the module's derived
-    constants plus point samples off the solid.
+    constants plus point samples off the solid. The second-article rules are
+    asserted by name: the bore carries the FDM undersize correction on top of
+    the free fit, the tie-down is one solid fin rather than fingers, and the
+    flange seats flat with its clearance cone strictly inside the cap's
+    mouth chamfer.
     """
     r.section("Strain relief insert")
     bb = part.bounding_box()
 
     r.check(abs(bb.min.Z) < 1e-6, "print pose: tip ring on z=0", f"{bb.min.Z:.4f}")
     r.check(
-        abs(bb.max.Z - srm.TIP_Z) < 0.01,
-        "...and the collet tip is where the constants say",
-        f"{bb.max.Z:.2f} vs {srm.TIP_Z:.2f}",
+        abs(bb.max.Z - srm.FIN_TOP) < 0.01,
+        "...and the fin's tip is where the constants say",
+        f"{bb.max.Z:.2f} vs {srm.FIN_TOP:.2f}",
     )
 
     # The thread fit, held as one total rather than two halves that could
@@ -4047,7 +4051,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
             part,
             (srm.FEMALE_MINOR_D / 2 - 0.05) * cos(a),
             (srm.FEMALE_MINOR_D / 2 - 0.05) * sin(a),
-            1.0,
+            0.8,
         )
     ]
     r.check(
@@ -4057,33 +4061,46 @@ def check_strain_relief(part: Part, r: Report) -> None:
         f"{srm.FEMALE_MINOR_D / 2:.2f}",
     )
 
-    # Axial stack: seated on its cone, the tip lands on the relief pocket's
-    # floor plane -- the deepest the bore is guaranteed open in both caps.
+    # The flush seat's axial stack. With the flange on the cap's face,
+    # stem-z below the flange is cap-z: the male thread band must be the
+    # female's own [GLAND_COLLAR, GLAND_MALE_L], and the tip must stop short
+    # of the relief pocket's floor.
     r.check(
-        srm.STEM_L + srm.SEAT_SINK <= e.POCKET_FLOOR_Z + 1e-9,
-        "seated tip stops at the pocket floor",
-        f"{srm.STEM_L} + {srm.SEAT_SINK} vs {e.POCKET_FLOOR_Z}",
+        abs((srm.STEM_L - srm.THREAD_Z0 - srm.THREAD_L) - e.GLAND_COLLAR) < 1e-9
+        and abs((srm.STEM_L - srm.THREAD_Z0) - e.GLAND_MALE_L) < 1e-9,
+        "at flush seat the male band is the female band, exactly",
+        f"cap-z {e.GLAND_COLLAR} to {e.GLAND_MALE_L}",
+    )
+    r.check(
+        srm.STEM_L <= e.POCKET_FLOOR_Z - 1e-9,
+        "seated tip stops short of the pocket floor",
+        f"{srm.STEM_L} vs {e.POCKET_FLOOR_Z}",
     )
 
-    # The seat: a 45 deg cone (by construction, asserted) that spans past the
-    # cap's mouth chamfer, so the two cones mate face-on-face.
+    # The flange seats FLAT: solid right above its plane at the seat ring,
+    # nothing at all below it there -- a leftover seat taper would fail the
+    # second probe, which is the first article's defect pinned down.
+    seat_r = srm.HEAD_AF / 2 - srm.SEAT_RIM_CHAMFER - 0.2
     r.check(
-        abs((srm.SEAT_TOP_Z - srm.STEM_L) - (srm.SEAT_TOP_R - srm.MALE_MAJOR_D / 2))
-        < 1e-9,
-        "seat cone is 45 deg",
+        is_solid_at(part, seat_r, 0, srm.FLANGE_Z + 0.05)
+        and not is_solid_at(part, seat_r, 0, srm.FLANGE_Z - 0.05),
+        "flange underside is flat on the seat plane",
+        f"probed either side of z={srm.FLANGE_Z:.2f} at r={seat_r:.2f}",
+    )
+
+    # What hangs below the flange is daylight to the cap: the clearance cone
+    # ends MOUTH_CLEAR inside the mouth chamfer's rim, and the solid agrees.
+    r.check(
+        srm.CONE_TOP_R <= e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN - srm.MOUTH_CLEAR
+        + 1e-9,
+        "clearance cone stays inside the cap's mouth chamfer",
+        f"r {srm.CONE_TOP_R:.2f} vs chamfer rim "
+        f"{e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN:.2f}, "
+        f"{srm.MOUTH_CLEAR} mm of daylight",
     )
     r.check(
-        srm.SEAT_TOP_R >= e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN,
-        "...and spans the whole mouth chamfer",
-        f"r {srm.SEAT_TOP_R:.2f} vs chamfer rim "
-        f"{e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN:.2f}",
-    )
-    cone_r = srm.MALE_MAJOR_D / 2 + 1.0
-    r.check(
-        is_solid_at(part, cone_r - 0.15, 0, srm.STEM_L + 1.0)
-        and not is_solid_at(part, cone_r + 0.15, 0, srm.STEM_L + 1.0),
-        "...and the cone is on the solid where the arithmetic puts it",
-        f"probed either side of r={cone_r:.2f} at z={srm.STEM_L + 1.0:.2f}",
+        not is_solid_at(part, srm.CONE_TOP_R + 0.1, 0, srm.FLANGE_Z - 0.05),
+        "...and nothing solid stands outside it below the flange",
     )
 
     # The head stays inside the envelope every mount reserves for the bought
@@ -4094,18 +4111,20 @@ def check_strain_relief(part: Part, r: Report) -> None:
         f"{max(bb.size.X, bb.size.Y):.2f} vs {mc.GLAND_ENV_D:.2f}",
     )
 
-    # The bore, open end to end -- the one thing this part exists to provide.
-    groove_mid = (srm.RAMP_Z0 + srm.GROOVE_DEPTH + srm.WAIST_TOP) / 2
+    # The bore: oversize on purpose. The named identity is the whole point of
+    # the second revision -- free fit alone printed too tight on the cable.
+    r.check(
+        abs(srm.BORE_D - (mc.CABLE_OD + fits.FREE + srm.BORE_UNDERSIZE)) < 1e-9,
+        "bore is free fit plus the FDM undersize correction",
+        f"{srm.BORE_D:.2f} on a {mc.CABLE_OD} mm cable",
+    )
     stations = [
         0.2,
         1.0,
         srm.THREAD_Z0 + srm.THREAD_L / 2,
         srm.STEM_L,
-        srm.HEX_Z0 + 2.0,
+        srm.FLANGE_Z + 2.0,
         srm.HEAD_TOP - 0.2,
-        srm.SLOT_Z0 + 1.0,
-        groove_mid,
-        srm.TIP_Z - 0.2,
     ]
     blocked = [z for z in stations if is_solid_at(part, 0, 0, z)]
     off_r = 0.8 * srm.BORE_D / 2
@@ -4127,50 +4146,55 @@ def check_strain_relief(part: Part, r: Report) -> None:
         "...through a solid stem wall",
         f"solid at r={wall_r:.2f}, mid-thread",
     )
-
-    # The collet: four fingers on the diagonals, slots on the axes, the tie
-    # groove cut into the fingers and full diameter left above and below it.
-    fin_r = (srm.WAIST_R + srm.BORE_D / 2) / 2
-    diag = cos(radians(45))
-    below_groove = (srm.SLOT_Z0 + srm.RAMP_Z0) / 2
     r.check(
-        is_solid_at(part, fin_r * diag, fin_r * diag, groove_mid),
-        "fingers stand on the diagonals",
-        f"solid at r={fin_r:.2f}, 45 deg, mid-groove",
-    )
-    r.check(
-        not is_solid_at(part, fin_r, 0, groove_mid)
-        and not is_solid_at(part, 0, fin_r, groove_mid),
-        "...with the slots open on the axes",
-    )
-    lip_r = srm.SNOUT_D / 2 - 0.15
-    r.check(
-        not is_solid_at(part, lip_r * diag, lip_r * diag, groove_mid),
-        "tie groove is cut",
-        f"open at r={lip_r:.2f}, 45 deg",
-    )
-    r.check(
-        is_solid_at(part, lip_r * diag, lip_r * diag, below_groove),
-        "...with full diameter below it",
-    )
-    lip_z = (srm.WAIST_TOP + srm.SHOULDER_CHAMFER + srm.TIP_Z - srm.SNOUT_TIP_CHAMFER) / 2
-    r.check(
-        is_solid_at(part, lip_r * diag, lip_r * diag, lip_z),
-        "...and a retention lip above it",
-        f"solid at z={lip_z:.2f}",
+        srm.FIN_X0 >= srm.BORE_D / 2 + srm.TOP_MOUTH_LEAD + 1e-9,
+        "top mouth's lead-in stays clear of the fin's face",
+        f"fin at {srm.FIN_X0:.2f} vs lead rim "
+        f"{srm.BORE_D / 2 + srm.TOP_MOUTH_LEAD:.2f}",
     )
 
-    # The finger wall at the waist is printable, and the hinge sits below the
-    # groove so the tie closes the fingers rather than bending their roots.
+    # The fin: one solid buttress. Full section above and below the groove,
+    # the waist across it still FIN_T - GROOVE_DEPTH thick over the full
+    # width, and the groove open on the outer three faces only.
+    groove_mid = (srm.GROOVE_Z0 + srm.GROOVE_Z1) / 2
+    fin_mid_x = srm.FIN_X0 + (srm.FIN_T - srm.GROOVE_DEPTH) / 2
+    outer_x = srm.HEAD_AF / 2 - 0.15
     r.check(
-        srm.WAIST_R - srm.BORE_D / 2 >= fits.MIN_WALL,
-        "waist wall is at least the printable minimum",
-        f"{srm.WAIST_R - srm.BORE_D / 2:.2f} vs {fits.MIN_WALL}",
+        is_solid_at(part, fin_mid_x, 0, srm.HEAD_TOP + 2.0)
+        and is_solid_at(part, fin_mid_x, 0, srm.FIN_TOP - 2.0),
+        "fin is solid below and above the groove",
+        f"probed at x={fin_mid_x:.2f}",
     )
     r.check(
-        srm.SLOT_Z0 + srm.SLOT_W / 2 < srm.RAMP_Z0,
-        "slot roots hinge below the groove",
-        f"{srm.SLOT_Z0 + srm.SLOT_W / 2:.2f} vs ramp at {srm.RAMP_Z0:.2f}",
+        is_solid_at(part, outer_x, 0, srm.HEAD_TOP + 2.0)
+        and is_solid_at(part, outer_x, 0, (srm.GROOVE_Z1 + srm.FIN_TOP) / 2),
+        "...at full section out to the hex flat",
+        f"solid at x={outer_x:.2f}, below the groove and on the lip above",
+    )
+    r.check(
+        not is_solid_at(part, outer_x, 0, groove_mid)
+        and not is_solid_at(part, fin_mid_x, srm.FIN_W / 2 - 0.3, groove_mid),
+        "tie groove is open on the outer face and the sides",
+    )
+    r.check(
+        is_solid_at(part, fin_mid_x, 0, groove_mid)
+        and is_solid_at(part, fin_mid_x, srm.FIN_W / 2 - srm.GROOVE_DEPTH - 0.4,
+                        groove_mid),
+        "...and the waist behind it is solid",
+        f"{srm.FIN_T - srm.GROOVE_DEPTH:.2f} mm thick across "
+        f"{srm.FIN_W - 2 * srm.GROOVE_DEPTH:.2f} mm",
+    )
+    r.check(
+        not is_solid_at(part, srm.FIN_X0 - 0.1, 0, groove_mid)
+        and is_solid_at(part, srm.FIN_X0 + 0.1, 0, groove_mid),
+        "the cable-side face is flat through the groove band",
+        "no groove on the inner face -- that is where the cable lies",
+    )
+    r.check(
+        srm.FIN_T - srm.GROOVE_DEPTH >= 2 * fits.MIN_WALL,
+        "fin waist is a structural wall, not a finger",
+        f"{srm.FIN_T - srm.GROOVE_DEPTH:.2f} mm vs 2 x MIN_WALL "
+        f"= {2 * fits.MIN_WALL}",
     )
 
     # A standard tie fits the groove: up to 3.6 mm wide plus hand room.
@@ -4180,12 +4204,12 @@ def check_strain_relief(part: Part, r: Report) -> None:
         f"{srm.TIE_SLOT_W} mm wide, {srm.GROOVE_DEPTH} mm deep",
     )
 
-    # The slot rims were rolled, not merely asked for: the same selector that
-    # fed the fillet ladder, re-run, with an empty answer as the assertion.
-    rims = srm.slot_rim_edges(part)
+    # The groove shoulders were chamfered, not merely asked for: the same
+    # selector that fed the ladder, re-run, empty as the assertion.
+    rims = srm.groove_rim_edges(part)
     r.check(
         not rims,
-        "slot rims are filleted",
+        "groove shoulder rims are chamfered",
         "nothing sharp left"
         if not rims
         else f"{len(rims)} left: "
@@ -4226,8 +4250,8 @@ def check_strain_relief_edges(part: Part, r: Report) -> None:
             (
                 "revolved-wall seams",
                 _is_revolve_seam,
-                "the bore wall's and seat cone's own periodic closing seams: "
-                "one face each side, so there is no dihedral to measure",
+                "the bore wall's own periodic closing seam: one face on both "
+                "sides, so there is no dihedral to measure",
             ),
         ),
     )

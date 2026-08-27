@@ -389,12 +389,15 @@ assumed at 24 and 30 mm, which cost 32 mm of dark tube at every vertex.
 ### When the glands run out
 
 `strain_relief.py` is a printed stand-in for ends that need a cable out but no
-IP sealing: it screws into the same M12 × 1.5 printed thread, and the cable is
-strain-relieved by a cable tie (≤3.6 mm wide) cinched into a groove around a
-four-finger collet snout, closing the fingers onto the jacket. It seats on a
-45° cone in the caps' own bore-mouth lead-in, stays inside `GLAND_ENV_D`, and
-only makes sense where a cable can actually route — i.e. the wired cap. Print
-tip-down with a brim (the bed contact is just the stem tip's ring).
+IP sealing: it screws into the same M12 × 1.5 printed thread, the cable runs
+loose through an oversize bore (free fit plus the FDM undersize correction),
+and a cable tie (≤3.6 mm wide) cinches it against one solid fin on the head,
+seated in a groove around the fin's outer faces. The flange lands flush on the
+cap's face, gland-style, the head stays inside `GLAND_ENV_D`, and it only
+makes sense where a cable can actually route — i.e. the wired cap. Print
+tip-down with a brim (the bed contact is just the stem tip's ring). The first
+article's four-finger collet and tapered seat are gone on printed evidence:
+the fingers snapped and the taper held the head off the cap.
 
 ## Controller
 
