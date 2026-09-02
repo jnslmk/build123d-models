@@ -4,6 +4,7 @@
 ``create_section()``  -- a 60 mm slice of the same, for reading the cross-section
 ``create_extrusion()``-- the bare aluminium, re-exported for parts that need it
 ``create_print_layout()`` -- every printed part, in a row, in its print pose
+``create_previz()``   -- the two visible solids, simplified for a visualiser
 
 The bought hardware here is the datum every printed part is designed against,
 and the thing to interfere-check them with.
@@ -18,7 +19,13 @@ from models.lib.edges import as_part
 from . import config as c
 from . import endcap as endcap_mod
 from . import gland as gland_mod
-from .profile import create_diffuser, create_extrusion, create_strip
+from .profile import (
+    create_diffuser,
+    create_extrusion,
+    create_previz_diffuser,
+    create_previz_shell,
+    create_strip,
+)
 
 # UI schema for the parametric web app. See tessellate_models.model_params().
 # Only the length is worth a slider -- everything else is a measurement of a
@@ -90,6 +97,22 @@ def create_bare(length: float = c.LENGTH) -> Compound:
     """Just the bought hardware, no endcaps -- the datum on its own."""
     assembly = Compound(children=hardware(length))
     assembly.label = f"T8 profile assembly ({length:.0f} mm)"
+    return assembly
+
+
+def create_previz(length: float = c.LENGTH) -> Compound:
+    """The bought hardware simplified down to what a visualiser can see.
+
+    ``create_bare()``'s two visible solids with every internal feature dropped
+    -- see ``profile.previz_shell_section``. This is the render datum, not a
+    manufacturing one: it is what Beamhouse's authored GDTF for the STAR-TENT
+    spoke carries as meshes, one file per GDTF ``<Model>``, which is why the
+    two parts are labelled rather than merged.
+    """
+    assembly = Compound(
+        children=[create_previz_shell(length), create_previz_diffuser(length)]
+    )
+    assembly.label = f"T8 profile previz ({length:.0f} mm)"
     return assembly
 
 

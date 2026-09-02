@@ -218,3 +218,69 @@ def create_strip(length: float = c.LENGTH) -> list[Part]:
     emitter.color = EMITTER_COLOR
     emitter.label = "COB emitter"
     return [carrier, emitter]
+
+
+# ------------------------------------------------------------------- previz
+
+# The two solids Beamhouse's GDTF profile ships as meshes, one per GDTF
+# ``<Model>``. See ADR-0022 rule 9 in ``jnslmk/beamhouse``: the simplification
+# is a *modelling* decision -- which features are invisible once the tube is
+# closed -- so it belongs here, next to the constants that express it, and not
+# downstream as mesh decimation guessing at intent.
+#
+# Everything removed is behind aluminium or behind the diffuser on a closed
+# tube: the wiring cavity, the corner pockets, the screw bosses and their pilot
+# ports (32 B-rep faces down to 6), and the diffuser's inner bore. What is kept
+# is the outline, which is the whole point -- the stadium is what an audience
+# sees and what the GDTF's ``PrimitiveType="Cube"`` fallback can only
+# approximate.
+#
+# The COB strip is not here. It sits at z ~= 15.1 mm under a translucent
+# diffuser and is not visible through it; the diffuser is the emissive surface.
+
+
+def previz_shell_section() -> Sketch:
+    """The aluminium's outline with nothing hollowed out of it.
+
+    ``aluminium_section()`` minus every void: the same stadium, truncated at
+    the rim, as one solid face.
+    """
+    with BuildSketch() as s:
+        SlotOverall(c.HEIGHT, c.WIDTH, rotation=90)
+        with Locations((0, _loc(c.RIM_Z))):
+            Rectangle(
+                _big(), _big(), align=(Align.CENTER, Align.MIN), mode=Mode.SUBTRACT
+            )
+    return s.sketch
+
+
+def previz_diffuser_section() -> Sketch:
+    """The diffuser's outline, solid -- ``diffuser_section()`` less its bore.
+
+    The bore is the diffuser's inside face. Nothing sees it: the aluminium
+    stops at the rim and the strip below it is the only thing that could look
+    through, and it faces the other way.
+    """
+    with BuildSketch() as s:
+        SlotOverall(c.HEIGHT, c.WIDTH, rotation=90)
+        with Locations((0, _loc(c.RIM_Z))):
+            Rectangle(
+                _big(), _big(), align=(Align.CENTER, Align.MIN), mode=Mode.INTERSECT
+            )
+    return s.sketch
+
+
+def create_previz_shell(length: float = c.LENGTH) -> Part:
+    """The aluminium as a render mesh: outer shell only."""
+    part = _extruded(previz_shell_section(), length)
+    part.color = ALU_COLOR
+    part.label = "previz body"
+    return part
+
+
+def create_previz_diffuser(length: float = c.LENGTH) -> Part:
+    """The diffuser as a render mesh: solid, no bore."""
+    part = _extruded(previz_diffuser_section(), length)
+    part.color = DIFFUSER_COLOR
+    part.label = "previz diffuser"
+    return part

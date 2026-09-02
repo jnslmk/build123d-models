@@ -22,13 +22,26 @@ alongside as they get designed.
 
 from . import config, mount_config
 from .assemblies import create_standing, create_suspended, create_triangle
-from .assembly import PARAMS, create, create_bare, create_print_layout, create_section
+from .assembly import (
+    PARAMS,
+    create,
+    create_bare,
+    create_previz,
+    create_print_layout,
+    create_section,
+)
 from .corner import create_corner
 from .cradle import create_cradle
 from .endcap import create_endcap
 from .feet import create_eye_foot, create_wall_foot
 from .gland import create_cable, create_gland
-from .profile import create_diffuser, create_extrusion, create_strip
+from .profile import (
+    create_diffuser,
+    create_extrusion,
+    create_previz_diffuser,
+    create_previz_shell,
+    create_strip,
+)
 from .stand import create_post
 from .stand.keeper import create_keeper
 from .stand.leg import create_leg
@@ -56,6 +69,9 @@ __all__ = [
     "create_extrusion",
     "create_eye_foot",
     "create_gland",
+    "create_previz",
+    "create_previz_diffuser",
+    "create_previz_shell",
     "create_print_layout",
     "create_section",
     "create_keeper",

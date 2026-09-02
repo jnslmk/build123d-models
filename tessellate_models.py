@@ -54,6 +54,10 @@ MODELS = [
     # The lamp system: the whole stick, the three ways it gets mounted, and
     # each printed part on its own in print pose.
     "led_profiles",
+    # Render meshes, not print jobs: the two solids a visualiser sees once the
+    # tube is closed, one file each because GDTF addresses a mesh per <Model>.
+    "led_profiles.previz_body",
+    "led_profiles.previz_diffuser",
     "led_profiles.assemblies.triangle",
     "led_profiles.assemblies.standing",
     "led_profiles.assemblies.suspended",

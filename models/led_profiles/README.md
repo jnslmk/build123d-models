@@ -76,6 +76,33 @@ uv run check led_profiles                 # hold the section to its measurements
 Values marked *assumed* in `config.py` are reconstructions the calipers did not
 pin down — check them before a printed part depends on one.
 
+#### Previz meshes
+
+Two extra models exist purely as render assets for
+[Beamhouse](https://github.com/jnslmk/beamhouse), the stage-lighting visualiser
+that draws this profile as a lit fixture:
+
+```bash
+uv run show led_profiles.previz_body      # the aluminium, outer shell only
+uv run show led_profiles.previz_diffuser  # the diffuser, solid
+```
+
+They are the same outline with everything a closed tube hides taken out of it —
+the wiring cavity, the corner pockets, the screw bosses and their pilot ports,
+and the diffuser's inner bore. That is 32 B-rep faces down to 6 each, and at
+this repo's export tolerance **148 verts / 7.3 KB** apiece against 1116 and 284
+for the real solids.
+
+Two files rather than one compound, because GDTF addresses a mesh per `<Model>`
+element and a single-file export cannot name its parts: even here the glTF node
+comes out as `=>[0:1:1:2]`. Beamhouse's decision record for all of this is its
+ADR-0022 (rules 8 and 9) and ADR-0033.
+
+The simplification lives here rather than downstream because it is a *modelling*
+judgement — which features are invisible on a closed tube — that reads
+`config.py`'s own constants. Done downstream it would be mesh decimation
+guessing at intent, and it would drift the moment the profile is re-measured.
+
 ### Endcap
 
 `endcap.py`. One design at both ends, since both carry a pigtail. Screws to the
