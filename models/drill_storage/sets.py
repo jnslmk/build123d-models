@@ -208,7 +208,11 @@ class DrillSet:
         in one of them and not the others. That was the bug the second printed
         cartridge found: an eased land behind a relief too narrow to reach it.
         """
-        shank = drill.shank if drill.shank is not None else drill.nominal - self.shank_allowance
+        shank = (
+            drill.shank
+            if drill.shank is not None
+            else drill.nominal - self.shank_allowance
+        )
         return shank + (c.small_bore_comp(shank) if self.small_bore_comp else 0.0)
 
     def footprint_r(self, drill: Drill) -> float:
@@ -448,13 +452,13 @@ METAL = DrillSet(
 # Eight carbide-tipped masonry bits. No hex tool: a masonry set is drills, and
 # the room is better spent on the 12 mm.
 #
-# The shanks are measured, and they are ground below nominal -- this is a
-# reduced-shank set, where every shank is ground to the next-lower R10 preferred
-# number (12 -> 10, 10 -> 8, 8 -> 6.3, 6 -> 5, 5 -> 4, 4 -> 3.15). That is what
+# The shanks are measured, and they are ground below nominal -- mostly to the
+# next-lower R10 preferred number (12 -> 10, 10 -> 8, 6 -> 5, 5 -> 4, 4 -> 3.15).
+# The 8 mm bit breaks that rule: it measures 7.2, not 6.3. That is what
 # makes the set more than a different drill list: a masonry bit's brazed carbide
 # tip stands proud of the shank on every side, so a bore cut to the printed size
-# would grip 0.2 mm of air. The five measured sizes (12/9.9, 10/8, 6/5.1,
-# 5/4.1, 4/3.15) are the user's caliper readings; the rest (8, 7, 3) are
+# would grip 0.2 mm of air. The six measured sizes (12/9.9, 10/8, 8/7.2, 6/5.1,
+# 5/4.1, 4/3.15) are the user's caliper readings; the rest (7, 3) are
 # extrapolated on that same rule and will be corrected when the drills are at
 # hand. Bores are cut to the shank either way -- a drill stands on its shank,
 # and the legend still reads the nominal size, because that is what the bit is
@@ -475,7 +479,7 @@ STONE = DrillSet(
         Drill(5.0, 85.0, shank=4.1),
         Drill(6.0, 100.0, shank=5.1),
         Drill(7.0, 100.0, shank=6.3),
-        Drill(8.0, 120.0, shank=6.3),
+        Drill(8.0, 120.0, shank=7.2),
         Drill(10.0, 150.0, shank=8.0),
         Drill(12.0, 150.0, shank=9.9),
     ),
