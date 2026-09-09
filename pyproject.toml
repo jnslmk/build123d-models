@@ -61,6 +61,7 @@ packages = [
     "models.led_profiles",
     "models.led_profiles.stand",
     "models.led_profiles.assemblies",
+    "models.led_profiles.previz",
     "models.led_psu_enclosure",
     "models.salad_bowl_lamp",
     "models.sonicare_charger_holder",

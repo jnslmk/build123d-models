@@ -418,9 +418,7 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
         f"1.2, and the port is a continuous channel so nothing caps it",
     )
     r.check(
-        abs(
-            e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH + e.SCREW_FLOOR_T - e.CAP_T
-        )
+        abs(e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH + e.SCREW_FLOOR_T - e.CAP_T)
         < 0.001,
         "access stage plus seat plus floor is the whole flange",
         f"{e.SCREW_ACCESS_DEPTH} + {e.SCREW_SEAT_DEPTH:.3f} + "
@@ -1281,8 +1279,7 @@ def check_endcap_wired(cap: Part, r: Report) -> None:
     r.check(
         abs(bb.size.X - ew.CAP_W) < 0.01 and abs(bb.size.Y - ew.CAP_H) < 0.01,
         "flange size -- flush with the tube, like the standard cap",
-        f"{bb.size.X:.2f} x {bb.size.Y:.2f} mm against a "
-        f"{c.WIDTH} x {c.HEIGHT} tube",
+        f"{bb.size.X:.2f} x {bb.size.Y:.2f} mm against a {c.WIDTH} x {c.HEIGHT} tube",
     )
     r.check(
         abs(bb.min.Z) < 0.01, "outer face on z=0 (print pose)", f"min z {bb.min.Z:.3f}"
@@ -1556,8 +1553,13 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
     # hollow's are the same offset of the same stadium, so the surface at the
     # bottom of the arc is one flush wall from the floor to the plug's tip.
     y_wall = -(c.HEIGHT - 2 * c.WALL - e.PLUG_FIT) / 2 + e.PLUG_WALL  # -13.02
-    run = [ew.CHAMBER_FLOOR_Z + 1, z_mid, ew.CAP_T - 0.5, ew.CAP_T + 1,
-           ew.CAP_T + e.PLUG_DEPTH / 2]
+    run = [
+        ew.CHAMBER_FLOOR_Z + 1,
+        z_mid,
+        ew.CAP_T - 0.5,
+        ew.CAP_T + 1,
+        ew.CAP_T + e.PLUG_DEPTH / 2,
+    ]
     inside_blocked = [z for z in run if is_solid_at(cap, 0.0, y_wall + 0.3, z)]
     wall_missing = [z for z in run if not is_solid_at(cap, 0.0, y_wall - 0.3, z)]
     r.check(
@@ -1934,6 +1936,45 @@ def check_assembly(r: Report) -> None:
         "...and it plus its first bend radius adds free_length at each end",
         f"{reach / 2:.1f} mm past each cap face "
         f"({mc.GLAND_PROUD:.1f} gland + {gland_mod.CABLE_STUB:.0f} cable)",
+    )
+
+
+def check_previz(r: Report) -> None:
+    """The render pair is the whole lamp, split at the diffuser.
+
+    The body holds everything but the diffuser and the strip, the diffuser
+    module holds exactly the diffuser, and together they span exactly the
+    finished lamp -- which is what keeps the two GLBs the visualizer loads
+    aligned with each other and with the tube they stand in for.
+    """
+    from .previz import body as previz_body
+    from .previz import diffuser as previz_diffuser
+
+    r.section("Previz")
+    body = previz_body.create(c.SECTION_LENGTH)
+    labels = [child.label for child in body.children]
+    r.check(
+        len(labels) == 7,
+        "body is extrusion, two caps, two glands, two cables",
+        f"{len(labels)} children: {', '.join(labels)}",
+    )
+    r.check(
+        not any("diffuser" in label or "COB" in label for label in labels),
+        "body carries no diffuser and no strip",
+        ", ".join(labels),
+    )
+    diffuser = previz_diffuser.create(c.SECTION_LENGTH)
+    whole = Compound(children=lamp_parts(c.SECTION_LENGTH)).bounding_box()
+    pair = Compound(children=[body, diffuser]).bounding_box()
+    r.check(
+        all(
+            abs(getattr(pair.min, axis) - getattr(whole.min, axis)) < 0.05
+            and abs(getattr(pair.max, axis) - getattr(whole.max, axis)) < 0.05
+            for axis in "XYZ"
+        ),
+        "body plus diffuser span the finished lamp",
+        f"pair {pair.size.X:.1f} x {pair.size.Y:.1f} x {pair.size.Z:.1f} mm, "
+        f"lamp {whole.size.X:.1f} x {whole.size.Y:.1f} x {whole.size.Z:.1f} mm",
     )
 
 
@@ -4091,8 +4132,8 @@ def check_strain_relief(part: Part, r: Report) -> None:
     # What hangs below the flange is daylight to the cap: the clearance cone
     # ends MOUTH_CLEAR inside the mouth chamfer's rim, and the solid agrees.
     r.check(
-        srm.CONE_TOP_R <= e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN - srm.MOUTH_CLEAR
-        + 1e-9,
+        srm.CONE_TOP_R
+        <= e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN - srm.MOUTH_CLEAR + 1e-9,
         "clearance cone stays inside the cap's mouth chamfer",
         f"r {srm.CONE_TOP_R:.2f} vs chamfer rim "
         f"{e.GLAND_MAJOR_D / 2 + e.GLAND_LEAD_IN:.2f}, "
@@ -4178,8 +4219,9 @@ def check_strain_relief(part: Part, r: Report) -> None:
     )
     r.check(
         is_solid_at(part, fin_mid_x, 0, groove_mid)
-        and is_solid_at(part, fin_mid_x, srm.FIN_W / 2 - srm.GROOVE_DEPTH - 0.4,
-                        groove_mid),
+        and is_solid_at(
+            part, fin_mid_x, srm.FIN_W / 2 - srm.GROOVE_DEPTH - 0.4, groove_mid
+        ),
         "...and the waist behind it is solid",
         f"{srm.FIN_T - srm.GROOVE_DEPTH:.2f} mm thick across "
         f"{srm.FIN_W - 2 * srm.GROOVE_DEPTH:.2f} mm",
@@ -4193,8 +4235,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
     r.check(
         srm.FIN_T - srm.GROOVE_DEPTH >= 2 * fits.MIN_WALL,
         "fin waist is a structural wall, not a finger",
-        f"{srm.FIN_T - srm.GROOVE_DEPTH:.2f} mm vs 2 x MIN_WALL "
-        f"= {2 * fits.MIN_WALL}",
+        f"{srm.FIN_T - srm.GROOVE_DEPTH:.2f} mm vs 2 x MIN_WALL = {2 * fits.MIN_WALL}",
     )
 
     # A standard tie fits the groove: up to 3.6 mm wide plus hand room.
@@ -4293,7 +4334,7 @@ def run() -> Report:
 
     check_cap_on_profile(r)
     check_assembly(r)
-
+    check_previz(r)
     check_cradle(create_cradle(), r)
     check_strap(strap_mod.create_strap(), r)
     check_corner(r)

@@ -57,6 +57,8 @@ MODELS = [
     "led_profiles.assemblies.triangle",
     "led_profiles.assemblies.standing",
     "led_profiles.assemblies.suspended",
+    "led_profiles.previz.body",
+    "led_profiles.previz.diffuser",
     "led_profiles.endcap",
     "led_profiles.endcap_wired",
     "led_profiles.strain_relief",

@@ -79,6 +79,24 @@ def parts(
     ]
 
 
+def previz_parts(length: float = c.LENGTH) -> list[Part]:
+    """The render-closed lamp without its diffuser: the extrusion, both
+    endcaps, both glands and both cable stubs, each already in its installed
+    place.
+
+    The COB strip stays out -- it is enclosed once the diffuser closes the
+    channel, so the renderer never sees it -- and the diffuser itself ships as
+    its own model, so downstream the light can come from it.
+    """
+    return [
+        create_extrusion(length),
+        endcap_mod.seated(length=length),
+        endcap_mod.seated(at_far_end=True, length=length),
+        *gland_mod.seated(length=length),
+        *gland_mod.seated(at_far_end=True, length=length),
+    ]
+
+
 def create(length: float = c.LENGTH) -> Compound:
     """A whole lamp: profile, strip, diffuser and both glanded endcaps."""
     assembly = Compound(children=parts(length))
