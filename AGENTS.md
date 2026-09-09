@@ -229,9 +229,9 @@ committed (`exports/` is gitignored).
 
 Then **put it in front of the user**:
 
-- **Locally**, open it with the browser tool: `file://<repo>/exports/<name>.html`.
-  Or `uv run view <name> --serve` and open the printed URL when you want it in
-  your own browser.
+- **Locally**, open the HTML file in a new browser window on the user's machine:
+  `xdg-open exports/<name>.html` (not a tab in the headless browser tool).
+  Or `uv run view <name> --serve` and open the printed URL in a new window.
 - **In the Claude cloud environment**, publish the HTML file as an artifact,
   which hands the user a private claude.ai URL and opens it in their browser.
   Because the file is self-contained under the artifact's strict CSP (no
