@@ -20,18 +20,12 @@ EXPORTS_DIR = Path("exports")
 # Meshing tolerances for every triangulated export (STL and glTF; STEP is B-rep
 # and exact, so it is unaffected).
 #
-# ``build123d`` defaults to 0.001 mm linear / 0.1 rad angular. Both are far below
-# anything an FDM printer can express -- a 0.4 mm nozzle laying 0.2 mm layers
-# resolves roughly 0.1 mm -- and the angular one is what makes the files huge,
-# because it keeps subdividing curves long after the linear limit is satisfied.
-#
-# The linear tolerance is a *hard cap* on the distance between the mesh and the
-# real surface, so 0.01 mm bounds the error at a twentieth of a layer height no
-# matter what the angular term does. Measured on the roster, moving to
-# 0.01 mm / 0.2 rad cuts the STL bytes by roughly 4x and the meshing time with
-# them, for a deviation nothing downstream can print or see.
-STL_TOLERANCE = 0.01
-STL_ANGULAR_TOLERANCE = 0.2
+# build123d meshes in relative mode, so the linear setting scales with feature
+# size. The previous 0.01 / 0.2 settings left the 198 mm salad-bowl rim at
+# 63 facets and 0.123 mm chord sag. These tighter settings produce 252 facets
+# and 0.008 mm sag on that rim without retaining a separate absolute mesh.
+STL_TOLERANCE = 0.001
+STL_ANGULAR_TOLERANCE = 0.05
 
 # House blue (#59a6ff) — the viewer's default so uncolored models still render in
 # brand colour rather than glTF's material-less white. Kept in sync with the CSS

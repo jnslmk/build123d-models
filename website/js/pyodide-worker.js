@@ -103,7 +103,10 @@ def _run(model, params_json, source, source_path):
     t = time.time()
     part = mod.create(**params)       # Part or Compound; exporters handle both
     cad_ms = round((time.time() - t) * 1000)
-    export_stl(part, "/tmp/out.stl", tolerance=0.1)   # colourless, drives downloads
+    # Keep browser downloads at the same printable resolution as export.py.
+    export_stl(
+        part, "/tmp/out.stl", tolerance=0.001, angular_tolerance=0.05
+    )  # colourless, drives downloads
     have_glb = False
     try:                               # colour-carrying render asset for the viewer
         _apply_default_colors(part)
