@@ -46,7 +46,7 @@ from .shade import create_shade, pad_planes
 PLA_DENSITY = 1.24e-3  # g/mm3
 
 MASS_BUDGET_G = 175.0
-"""What the eight magnets are sized against.
+"""What the magnets are sized against.
 
 Not a measured holding force -- magnet grade and the bowl's own steel decide
 that, and neither is known here (see README). It is a budget: the part is
@@ -55,14 +55,14 @@ blows through it has to answer for itself rather than quietly halving the margin
 
 It came down with the magnets. A 6 x 2 disc has well under half the pull of the
 8 x 3 this started with, so the 250 g that budget once allowed would have been a
-number that no longer stood for anything. 175 g is about 1.4x the part.
+number that no longer stood for anything. 175 g is about 1.5x the part.
 
 **The discs have since gone to 5 x 1 and this number has not moved, which is a
 debt rather than a decision.** A 5 x 1 has roughly a third of a 6 x 2's pull, so
-eight of them are holding 141 g on a good deal less margin than 175 g was meant
-to describe -- and the part grew, too, when the band was taken down to the rim.
-The budget cannot simply follow the magnets down: 141 g of part is 141 g of part,
-and a budget under it would fail on the part it was written for. So what has to
+eight of them are holding the shade -- 141 g when this was written, 118 g now
+that the default lamp carries none -- on a good deal less margin than 175 g was
+meant to describe. The budget cannot simply follow the magnets down: a budget
+under the part would fail on the part it was written for. So what has to
 answer for itself is the magnet count, on the bowl, with ``fit_test``: if eight
 5 x 1 discs slide, the fix is more of them or thicker ones, and this number gets
 rewritten around whatever that turns out to be.
@@ -70,7 +70,6 @@ rewritten around whatever that turns out to be.
 
 BETWEEN = [22.5 + 90.0 * k for k in range(4)]
 """Angles with neither a magnet pad nor a cross arm on them -- see the module docstring."""
-
 
 
 def _at(plane, along: float, up: float = 0.0, across: float = 0.0):
@@ -104,7 +103,9 @@ def check_bowl(bowl: Part, lamp: Lamp, r: Report) -> None:
         radius = lamp.bowl_inner_radius(depth)
         clear = lamp.bowl_clear_radius(depth)  # the bulge, where there is one
         at = f"depth {depth:.1f}, r {radius:.2f}"
-        r.check(is_solid_at(bowl, radius + lamp.bowl_wall / 2, 0, depth), f"steel at {at}")
+        r.check(
+            is_solid_at(bowl, radius + lamp.bowl_wall / 2, 0, depth), f"steel at {at}"
+        )
         r.check(not is_solid_at(bowl, clear - 0.4, 0, depth), f"air inside at {at}")
         r.check(
             not is_solid_at(bowl, radius + lamp.bowl_wall + 0.4, 0, depth),
@@ -117,11 +118,15 @@ def check_bowl(bowl: Part, lamp: Lamp, r: Report) -> None:
     )
     beside = lamp.bowl_hole_d / 2 + 4.0
     r.check(
-        is_solid_at(bowl, beside, 0, lamp.bowl_outer_height(beside) - lamp.bowl_wall / 2),
+        is_solid_at(
+            bowl, beside, 0, lamp.bowl_outer_height(beside) - lamp.bowl_wall / 2
+        ),
         "steel remains beside the hole",
     )
     r.check(
-        not is_solid_at(bowl, lamp.bowl_hole_d / 2 - 2.0, 0, lamp.bowl_outer_height(0) - 0.4),
+        not is_solid_at(
+            bowl, lamp.bowl_hole_d / 2 - 2.0, 0, lamp.bowl_outer_height(0) - 0.4
+        ),
         "the hole is the diameter it claims",
     )
 
@@ -205,7 +210,11 @@ def check_shade_body(shade: Part, lamp: Lamp, r: Report) -> None:
 
     box = shade.bounding_box()
     r.check(abs(box.min.Z) < 1e-6, "sits on z = 0 in print pose", f"{box.min.Z:.4f}")
-    r.check(abs(box.max.Z - lamp.band_h) < 1e-6, f"{lamp.band_h:.0f} mm tall", f"{box.max.Z:.3f}")
+    r.check(
+        abs(box.max.Z - lamp.band_h) < 1e-6,
+        f"{lamp.band_h:.0f} mm tall",
+        f"{box.max.Z:.3f}",
+    )
 
     mass = shade.volume * PLA_DENSITY
     r.check(
@@ -306,7 +315,7 @@ def check_band_wall(shade: Part, lamp: Lamp, r: Report) -> None:
 def check_seat(shade: Part, bowl: Part, lamp: Lamp, r: Report) -> None:
     """The band's face *is* the bowl's inner surface, and the part drops in.
 
-    Everywhere above the bulge's notch, which is 17 of the band's 23 mm -- inside
+    Everywhere above the bulge's notch, which is 16.6 of the band's 22.4 mm -- inside
     the notch the face is deliberately not on the sphere, and ``check_bead`` owns
     that. The claim that has to hold either way is the one that mattered in the
     first place: every magnet lands on steel.
@@ -374,7 +383,9 @@ def check_pockets(shade: Part, lamp: Lamp, r: Report) -> None:
 
     for i, plane in enumerate(pad_planes(lamp)):
         tag = f"pocket {i}"
-        r.check(not is_solid_at(shade, *_at(plane, lamp.magnet_t / 2)), f"{tag} is hollow")
+        r.check(
+            not is_solid_at(shade, *_at(plane, lamp.magnet_t / 2)), f"{tag} is hollow"
+        )
         r.check(
             not is_solid_at(shade, *_at(plane, lamp.magnet_t - 0.2)),
             f"{tag} is open to full magnet depth",
@@ -500,14 +511,34 @@ SLIDER_CASES: list[tuple[str, dict]] = [
     # (MIN_GAP, MIN_EYE) starts fighting a derived maximum.
     (
         "small bowl",
-        dict(bowl_d=120, bowl_h=55, band_h=12, wall=2.0, ring_count=3, eye_d=25,
-             magnet_d=4, magnet_t=1.5, magnet_count=5, rim_inset=2),
+        dict(
+            bowl_d=120,
+            bowl_h=55,
+            band_h=12,
+            wall=2.0,
+            ring_count=3,
+            eye_d=25,
+            magnet_d=4,
+            magnet_t=1.5,
+            magnet_count=5,
+            rim_inset=2,
+        ),
     ),
     # A mixing bowl with as much grille as the sliders allow.
     (
         "big bowl, many rings",
-        dict(bowl_d=320, bowl_h=150, band_h=30, wall=4.0, ring_count=10, eye_d=110,
-             magnet_d=12, magnet_t=3.5, magnet_count=16, rim_inset=6),
+        dict(
+            bowl_d=320,
+            bowl_h=150,
+            band_h=30,
+            wall=4.0,
+            ring_count=10,
+            eye_d=110,
+            magnet_d=12,
+            magnet_t=3.5,
+            magnet_count=16,
+            rim_inset=6,
+        ),
     ),
     # Two rings is the floor: the band and the hub, with no inner ring at all,
     # so ring_gap() divides by one and ring_radii() returns a single radius.
@@ -515,17 +546,44 @@ SLIDER_CASES: list[tuple[str, dict]] = [
     # Nothing here is a sensible number. All of it has to come back valid.
     (
         "every slider past its stop",
-        dict(bowl_d=1e4, bowl_h=1e-3, bowl_wall=99, bowl_hole_d=1e4, band_h=1e4,
-             wall=0.0, chamfer=99, rim_inset=1e4, eye_d=1e4, ring_count=999,
-             arm_embed=99, magnet_d=1e4, magnet_t=1e4, magnet_count=999,
-             pocket_lead_in=99),
+        dict(
+            bowl_d=1e4,
+            bowl_h=1e-3,
+            bowl_wall=99,
+            bowl_hole_d=1e4,
+            band_h=1e4,
+            wall=0.0,
+            chamfer=99,
+            rim_inset=1e4,
+            eye_d=1e4,
+            ring_count=999,
+            arm_embed=99,
+            magnet_d=1e4,
+            magnet_t=1e4,
+            magnet_count=999,
+            pocket_lead_in=99,
+        ),
     ),
     # ...and the same from the other side.
     (
         "every slider below its stop",
-        dict(bowl_d=0, bowl_h=0, bowl_wall=0, bowl_hole_d=0, band_h=0, wall=0,
-             chamfer=-5, rim_inset=-5, eye_d=0, ring_count=-9, arm_embed=-9,
-             magnet_d=0, magnet_t=0, magnet_count=0, pocket_lead_in=-9),
+        dict(
+            bowl_d=0,
+            bowl_h=0,
+            bowl_wall=0,
+            bowl_hole_d=0,
+            band_h=0,
+            wall=0,
+            chamfer=-5,
+            rim_inset=-5,
+            eye_d=0,
+            ring_count=-9,
+            arm_embed=-9,
+            magnet_d=0,
+            magnet_t=0,
+            magnet_count=0,
+            pocket_lead_in=-9,
+        ),
     ),
 ]
 
@@ -568,8 +626,11 @@ def check_parameters(r: Report) -> None:
 
     for label, kwargs in SLIDER_CASES:
         lamp = Lamp.of(**kwargs)
-        r.check(lamp.ring_gap() >= MIN_GAP - 1e-9, f"{label}: rings keep their air",
-                f"{lamp.ring_gap():.2f} mm")
+        r.check(
+            lamp.ring_gap() >= MIN_GAP - 1e-9,
+            f"{label}: rings keep their air",
+            f"{lamp.ring_gap():.2f} mm",
+        )
         r.check(min(lamp.ring_radii()) > 0, f"{label}: every ring has a radius")
         r.check(
             lamp.rim_inset + lamp.band_h < lamp.bowl_h - lamp.bowl_wall - lamp.wall,
@@ -578,21 +639,23 @@ def check_parameters(r: Report) -> None:
 
         shade = create_shade(lamp)
         box = shade.bounding_box()
-        r.check(len(shade.solids()) == 1, f"{label}: builds one solid",
-                f"{len(shade.solids())} solid(s)")
+        r.check(
+            len(shade.solids()) == 1,
+            f"{label}: builds one solid",
+            f"{len(shade.solids())} solid(s)",
+        )
         r.check(
             abs(box.min.Z) < 1e-6 and abs(box.max.Z - lamp.band_h) < 1e-6,
             f"{label}: comes out in print pose",
             f"z {box.min.Z:.3f}..{box.max.Z:.3f}, band_h {lamp.band_h:.2f}",
         )
-        # Half a magnet pitch, not BETWEEN: these lamps carry anywhere from one
-        # magnet to sixteen, and at sixteen the pads land on 22.5 deg themselves.
+        # Half a magnet pitch, not BETWEEN: these lamps carry anywhere from none
+        # to sixteen, and at sixteen the pads land on 22.5 deg themselves. A lamp
+        # with no magnets has no pads to avoid, so any angle will do.
         mid = lamp.band_h / 2
+        angle = 180.0 / lamp.magnet_count if lamp.magnet_count else BETWEEN[0]
         r.check(
-            is_solid_at(
-                shade,
-                *_polar(lamp.band_outer_radius(mid) - 0.3, 180.0 / lamp.magnet_count, mid),
-            ),
+            is_solid_at(shade, *_polar(lamp.band_outer_radius(mid) - 0.3, angle, mid)),
             f"{label}: the seat is there",
         )
         r.check(
@@ -613,7 +676,10 @@ def run() -> Report:
     check_eye(shade, lamp, r)
     check_band_wall(shade, lamp, r)
     check_seat(shade, bowl, lamp, r)
-    check_pockets(shade, lamp, r)
+    # The default lamp carries no magnets, so the pocket assertions run on a
+    # magnet-bearing twin: same numbers, eight pockets cut.
+    magnet_lamp = Lamp.of(magnet_count=8)
+    check_pockets(create_shade(magnet_lamp), magnet_lamp, r)
     check_fit_test(band, shade, lamp, r)
     check_edges(shade, r)
     check_parameters(r)

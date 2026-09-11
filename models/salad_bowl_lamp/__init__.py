@@ -1,11 +1,12 @@
-"""Pendant lamp made from a 20 cm IKEA stainless salad bowl.
+"""Pendant lamp made from a 201 mm IKEA stainless salad bowl, as measured.
 
 The bowl is turned over and hung from a flex through a 42 mm hole drilled at
-what used to be its bottom. That leaves a 200 mm mouth pointing at the floor
+what used to be its bottom. That leaves a 201 mm mouth pointing at the floor
 with a bare lamp in it, which is the problem this model solves: a printed grille
-of concentric rings on a cross drops into the mouth and is held there by eight
-disc magnets pulling on the steel from the inside. Nothing is drilled, glued or
-clamped to the bowl beyond the one hole it already has.
+of concentric rings on a cross drops into the mouth and can be held there by
+disc magnets pulling on the steel from the inside (``magnet_count``; the default
+lamp carries none). Nothing is drilled, glued or clamped to the bowl beyond the
+one hole it already has.
 
 The mouth is not a plain circle: there is a bulge just inside it, 4 mm across and
 standing 1 mm proud. The grille's outer band answers it with a **notch** round
@@ -32,7 +33,7 @@ use. Nothing about that mesh is a print job, so the website offers no STL for it
 -- ``salad_bowl_lamp.shade`` is the download, and it is the only part of the
 finished lamp that gets printed. ``salad_bowl_lamp.fit_test`` is its outer band
 on its own, which is what to print first. See ``README.md`` for the hardware, the
-print settings and the one thing worth testing before printing 141 g of filament
+print settings and the one thing worth testing before printing 118 g of filament
 (whether the bowl is magnetic at all).
 """
 

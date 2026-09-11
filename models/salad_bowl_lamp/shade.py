@@ -3,11 +3,12 @@
     uv run show salad_bowl_lamp.shade
     uv run export salad_bowl_lamp.shade      # white PLA, no supports
 
-Five concentric rings, 23 mm tall and 2.4 mm thick, tied together by four cross
-arms of the same section, hung in the mouth of the inverted bowl by eight 5 x 1
-disc magnets. All of those numbers are sliders on the website (``PARAMS``); they are
+Five concentric rings, 22.4 mm tall and 2.0 mm thick, tied together by four cross
+arms of the same section, seated in the mouth of the inverted bowl and hung there
+by 5 x 1 disc magnets -- ``magnet_count`` of them; the default lamp carries none.
+All of those numbers are sliders on the website (``PARAMS``); they are
 the lamp this repo built, not the only lamp this module can cut. From underneath it is the sketch this was drawn from; from the side it
-is a baffle -- 20 mm of vertical wall between each 16 mm of air cuts the direct
+is a baffle -- 22 mm of vertical wall between each 15.5 mm of air cuts the direct
 view of the bulb at anything but a steep angle, which is the job.
 
 **Print pose is use pose**, and it is the good one either way. The outer band
@@ -28,7 +29,7 @@ Four decisions carry the design:
 * **The bulge in the mouth gets a notch, not a smaller band.** The band reaches
   down to the rim plane now, and its bottom 5.8 mm are cut back 1.3 mm -- full
   depth over the bulge, then ramped at 45 deg back onto the sphere. So the seat
-  is untouched over 17 of the band's 23 mm and the magnets stay mid-band on bare
+  is untouched over 16.6 of the band's 22.4 mm and the magnets stay mid-band on bare
   steel. It is cut in ``_seat_envelope`` rather than in the band, which is what
   makes it a notch in *every* piece of the shade at that height, arms included.
   The condition this carries -- that the bulge is a lump rather than a ring, so
@@ -43,8 +44,8 @@ Four decisions carry the design:
   struck from the bowl's own sphere centre, so it is ``WALL`` thick along every
   pocket axis and its inside is as plain as its outside -- no bosses, no pads,
   nothing standing proud where a hand goes when the shade is lifted out. A 1 mm
-  magnet in a 2.4 mm wall leaves 1.4 mm behind it. The notch is cut from the
-  outside alone, so the skirt below it is genuinely thinner (1.10 mm) rather
+  magnet in a 2.0 mm wall leaves 1.0 mm behind it. The notch is cut from the
+  outside alone, so the skirt below it is genuinely thinner (0.70 mm) rather
   than pushing a matching ridge into that inside face; the argument is in
   ``config.MIN_BACKING`` and ``Lamp.band_inner_radius``.
 
@@ -198,7 +199,10 @@ def _end_corners(profile: BuildSketch, outermost: bool) -> list[Vertex]:
     written that way first, and what caught it was ``check_edges``, not the build.
     """
     corners = []
-    for end in (profile.vertices().group_by(Axis.Y)[0], profile.vertices().group_by(Axis.Y)[-1]):
+    for end in (
+        profile.vertices().group_by(Axis.Y)[0],
+        profile.vertices().group_by(Axis.Y)[-1],
+    ):
         ordered = end.sort_by(Axis.X)
         corners.append(ordered[-1] if outermost else ordered[0])
     return corners
@@ -208,7 +212,7 @@ def _break_ends(lamp: Lamp, profile: BuildSketch, outermost: bool) -> None:
     """Chamfer a band profile's bottom and top corners, each to its own size.
 
     Two calls rather than one, because the two ends do not have the same wall
-    behind them: the notch takes 1.3 mm off the bottom of a 2.4 mm band, so the
+    behind them: the notch takes 1.3 mm off the bottom of a 2.0 mm band, so the
     skirt gets ``skirt_chamfer()`` and everything above it gets the part's own
     ``chamfer``. Sized together they would either leave the skirt with a knife
     edge or the rest of the part under-broken.
@@ -336,6 +340,8 @@ def pad_plane(lamp: Lamp, angle: float) -> Plane:
 
 
 def pad_planes(lamp: Lamp = DEFAULT) -> list[Plane]:
+    if lamp.magnet_count <= 0:
+        return []
     step = 360.0 / lamp.magnet_count
     return [pad_plane(lamp, i * step) for i in range(lamp.magnet_count)]
 
@@ -374,8 +380,8 @@ def _pockets(lamp: Lamp) -> Part:
 
     Depth is exactly ``magnet_t``: a pocket deeper than its magnet lets the disc
     sit at an unpredictable depth, and hold falls off fast with any air behind it.
-    What is left behind it is whatever the wall has left to give -- 0.4 mm on the
-    default lamp, and the case for that number is in ``config.MIN_BACKING``.
+    What is left behind it is whatever the wall has left to give -- 1.0 mm on the
+    default lamp, and the case for the floor it clears is in ``config.MIN_BACKING``.
 
     The lead-in runs *inward* from the tangent plane rather than outward from it,
     which is the opposite of the obvious construction and is forced by the
@@ -408,7 +414,8 @@ def create_band(lamp: Lamp = DEFAULT) -> Part:
     with BuildPart() as band:
         add(_band(lamp))
         add(_seat_envelope(lamp), mode=Mode.INTERSECT)
-        add(_pockets(lamp), mode=Mode.SUBTRACT)
+        if lamp.magnet_count > 0:
+            add(_pockets(lamp), mode=Mode.SUBTRACT)
     return band.part
 
 
@@ -420,7 +427,8 @@ def create_shade(lamp: Lamp = DEFAULT) -> Part:
             add(_ring(lamp, radius, radius))
         add(_cross(lamp))
         add(_seat_envelope(lamp), mode=Mode.INTERSECT)
-        add(_pockets(lamp), mode=Mode.SUBTRACT)
+        if lamp.magnet_count > 0:
+            add(_pockets(lamp), mode=Mode.SUBTRACT)
 
     part = shade.part
     part.label = "shade"

@@ -36,7 +36,7 @@ a bulge just inside the mouth**, 4 mm across and standing 1 mm proud of the
 sphere with rounded transitions. The band meets it with a notch -- the bottom
 5.8 mm of its outer face cut back 1.3 mm, full depth over the bulge and then
 ramped at 45 deg back onto the sphere -- rather than by being made smaller
-everywhere. So the seat is still the sphere over 17 of the band's 23 mm, the
+everywhere. So the seat is still the sphere over 16.6 of the band's 22.4 mm, the
 magnets still sit mid-band on bare steel, and the band now reaches down to the
 rim plane instead of starting 3 mm above it. What that costs, and the condition
 it carries, are on ``bead_w`` where the numbers are.
@@ -63,7 +63,7 @@ MIN_BACKING = 0.4
 """Plastic that must survive behind a seated magnet: one line at a 0.4 mm nozzle.
 
 The floor, not a target. The default lamp sat exactly on it while the discs were
-2 mm thick; at 1 mm they leave 1.4 mm behind them and the floor is no longer what
+2 mm thick; at 1 mm they leave 1.0 mm behind them and the floor is no longer what
 sets the wall. It stays because the wall slider is still clamped against it, and
 because it is the number a thicker disc runs into first. It is enough because the
 backing is never the loaded part: in service the magnet is pulled *outward* onto the steel
@@ -95,6 +95,15 @@ millimetre of overrun before the ramp starts is what keeps a bulge measured a
 touch short from meeting the ramp instead of the notch.
 """
 
+MIN_SKIRT = 0.7
+"""What the band's skirt below the notch may thin to.
+
+The library floor ``fits.MIN_WALL`` is 0.8, but the skirt carries no magnets and
+no load (see ``band_skirt``), and this lamp's wall is the owner's 2.0 mm -- which
+over the 1.3 mm notch leaves exactly 0.7 mm. ``Lamp.of`` still grows the wall
+rather than let a slider cut the skirt thinner than this.
+"""
+
 MIN_GAP = 2.0  # narrowest air a ring is allowed to leave its neighbour
 MIN_EYE = 12.0  # smallest centre hole worth calling an eye
 WALL_RANGE = (1.2, 6.0)
@@ -116,7 +125,7 @@ class Lamp:
     # IKEA stainless salad bowl, as measured, plus the hole drilled through its
     # bottom for the lamp holder. Only bowl_hole_d is free of consequence: it is
     # where the flex and the socket pass, and the shade never sees it.
-    bowl_d: float = 200.0
+    bowl_d: float = 201.0
     bowl_h: float = 95.0
     bowl_wall: float = 0.8  # spun sheet; nominal, and the shade only needs it to exist
     bowl_hole_d: float = 42.0
@@ -140,12 +149,12 @@ class Lamp:
     bead_clear: float = BEAD_CLEAR
 
     # --- The printed shade ---------------------------------------------------
-    band_h: float = 23.0  # every ring and every cross arm
-    wall: float = 2.4  # radial on a ring, tangential on an arm, normal on the band
+    band_h: float = 22.4  # every ring and every cross arm
+    wall: float = 2.0  # radial on a ring, tangential on an arm, normal on the band
     chamfer: float = 0.6  # every horizontal edge, cut in the revolved profile
     rim_inset: float = 0.0
     seat_clear: float = 0.0
-    eye_d: float = 45.0
+    eye_d: float = 55.0
     ring_count: int = 5
     arm_embed: float = 0.5
 
@@ -154,9 +163,11 @@ class Lamp:
     # the steel face-on with nothing between them.
     magnet_d: float = 5.0
     magnet_t: float = 1.0
-    magnet_count: int = 8
+    magnet_count: int = 0  # 0 seats the shade on its taper alone; no pockets are cut
     magnet_fit: float = MAGNET_FIT
-    pocket_lead_in: float = 0.5  # 45 deg all round the mouth, lofted, per the house rule
+    pocket_lead_in: float = (
+        0.5  # 45 deg all round the mouth, lofted, per the house rule
+    )
 
     # -- Construction ---------------------------------------------------------
 
@@ -200,9 +211,13 @@ class Lamp:
         # MIN_BACKING gives: a magnet never shrinks into a pocket it does not
         # fill, and a notch never stops short of the bulge it exists to clear.
         v["magnet_t"] = _clamp(v["magnet_t"], 0.5, 8.0)
-        notch = v["bead_h"] + v["bead_clear"] if v["bead_h"] > 0 and v["bead_w"] > 0 else 0.0
+        notch = (
+            v["bead_h"] + v["bead_clear"]
+            if v["bead_h"] > 0 and v["bead_w"] > 0
+            else 0.0
+        )
         v["wall"] = _clamp(
-            max(v["wall"], v["magnet_t"] + MIN_BACKING, notch + fits.MIN_WALL), *WALL_RANGE
+            max(v["wall"], v["magnet_t"] + MIN_BACKING, notch + MIN_SKIRT), *WALL_RANGE
         )
         v["magnet_t"] = min(v["magnet_t"], v["wall"] - MIN_BACKING)
 
@@ -242,7 +257,9 @@ class Lamp:
             v["pocket_lead_in"], 0.0, min(1.0, v["magnet_t"] / 2, v["magnet_d"] / 4)
         )
         probe = cls(**v)
-        v["magnet_count"] = int(_clamp(round(v["magnet_count"]), 1, probe._max_magnets()))
+        v["magnet_count"] = int(
+            _clamp(round(v["magnet_count"]), 0, probe._max_magnets())
+        )
         return cls(**v)
 
     def _max_eye_d(self) -> float:
@@ -285,7 +302,7 @@ class Lamp:
 
     @property
     def rim_drop(self) -> float:
-        """How far the sphere's centre sits beyond the rim plane (5.13 mm), always positive.
+        """How far the sphere's centre sits beyond the rim plane (5.66 mm), always positive.
 
         Upright that is *above* the rim; inverted it is *below* it. It is the
         term that turns a depth into a distance from the centre, so it appears in
@@ -296,10 +313,10 @@ class Lamp:
     def bowl_inner_radius(self, depth: float) -> float:
         """Inside radius of the inverted bowl, ``depth`` mm above the rim plane.
 
-        ``depth = 0`` is the rim itself (99.20 mm on the default lamp, *not* 100
-        -- the steel is on the outside of that number). It shrinks by 3.7 mm over
-        the shade's 20 mm, which is why the shade's outer band follows an arc
-        rather than being a cylinder: 3.7 mm of taper is far too much to absorb
+        ``depth = 0`` is the rim itself (99.70 mm on the default lamp, *not* 100.5
+        -- the steel is on the outside of that number). It shrinks by 3.9 mm over
+        the shade's 22.4 mm, which is why the shade's outer band follows an arc
+        rather than being a cylinder: 3.9 mm of taper is far too much to absorb
         in a clearance.
         """
         dz = depth + self.rim_drop
@@ -334,7 +351,7 @@ class Lamp:
         return self.bowl_inner_radius(depth) - self.bead_protrusion(depth)
 
     def bead_throat_radius(self) -> float:
-        """The narrowest circle in the bowl: 97.99 mm on the default lamp.
+        """The narrowest circle in the bowl: 98.48 mm on the default lamp.
 
         Sampled across the bulge rather than solved, because where it pinches is
         not where the crest is thickest. The bowl is still narrowing as the bulge
@@ -378,10 +395,10 @@ class Lamp:
         """Height of the pocket axis. Mid-band, so the magnets pull on a single
         circle through the part's own centre of mass and nothing tips.
 
-        11.5 mm on the default lamp, against a notch that has finished by 5.8 mm,
+        11.2 mm on the default lamp, against a notch that has finished by 5.8 mm,
         so every bore is well clear of it and lands on bare sphere. That is not
         left to luck -- ``checks.py`` asserts the gap rather than assuming a
-        23 mm band always has one.
+        22.4 mm band always has one.
         """
         return self.band_h / 2
 
@@ -422,10 +439,10 @@ class Lamp:
         return _clamp(self.band_notch_top() + self.band_notch_depth(), 0.0, self.band_h)
 
     def band_skirt(self) -> float:
-        """What is left of the wall below the notch: 1.10 mm on the default lamp.
+        """What is left of the wall below the notch: 0.70 mm on the default lamp.
 
         The notch is cut from the outside only, so this is the wall less the
-        notch's depth. ``Lamp.of`` will not let it fall below ``fits.MIN_WALL``
+        notch's depth. ``Lamp.of`` will not let it fall below ``MIN_SKIRT``
         -- a deeper bulge grows the wall rather than thinning this away.
         """
         return self.wall - self.band_notch_depth()
@@ -434,11 +451,11 @@ class Lamp:
         """The chamfer the band's bottom edges get, which is not the part's.
 
         A 0.6 mm chamfer needs 1.2 mm of face to be taken off both corners of,
-        and the skirt has 1.10 mm. Cut at full size the two would meet 0.05 mm up
-        and leave a raw 90 deg knife edge running right round the part -- built
-        exactly that, and ``checks.sharp_convex_edges`` is what found it. A third
-        of the skirt leaves the same proportion of flat between them that the
-        rest of the part's edges have.
+        and the skirt has 0.70 mm. Cut at full size the two would swallow the
+        skirt outright and leave a raw 90 deg knife edge running right round the
+        part -- built exactly that, and ``checks.sharp_convex_edges`` is what
+        found it. A third of the skirt (0.23 mm) leaves the same proportion of
+        flat between them that the rest of the part's edges have.
         """
         return min(self.chamfer, max(0.0, self.band_skirt() / 3))
 
@@ -448,7 +465,7 @@ class Lamp:
         Full depth over the bulge, nothing above the ramp, and a straight run
         between. This is the *only* place the band leaves the bowl's sphere:
         everything above ``band_notch_ramp_top`` is seat, which is what makes
-        the taper a taper over 17 of the band's 23 mm.
+        the taper a taper over 16.6 of the band's 22.4 mm.
         """
         depth = self.band_notch_depth()
         if depth <= 0.0:
@@ -467,9 +484,8 @@ class Lamp:
     def pad_backing(self) -> float:
         """Material left behind a seated magnet, on the pocket's own axis.
 
-        Derived, not chosen, and on the default lamp it is exactly ``MIN_BACKING``
-        -- a 2 mm magnet in a 2.4 mm wall leaves 0.4 mm. The case for that being
-        enough is in ``MIN_BACKING``.
+        Derived, not chosen: a 1 mm magnet in a 2.0 mm wall leaves 1.0 mm, well
+        over ``MIN_BACKING``. The case for that floor is in ``MIN_BACKING``.
 
         Off-axis it is thicker: both faces are spheres about the same centre, so
         the pocket's flat floor sits a further 0.05 mm clear at the bore's edge
@@ -485,7 +501,7 @@ class Lamp:
         The bowl's own inner sphere, less ``seat_clear`` -- which is zero, and
         that is the design -- everywhere except the bottom 5.8 mm, where
         ``band_setback`` cuts the notch that lets the bulge in the mouth pass.
-        17 of the band's 23 mm are seat, the notch touches nothing, and the
+        16.6 of the band's 22.4 mm are seat, the notch touches nothing, and the
         surface is one continuous sphere from the ramp's top to the band's.
 
         The mating surfaces converge at 10.5 deg, so a shade printed a few tenths oversize
@@ -520,16 +536,19 @@ class Lamp:
         band of uneven thickness needs in order to swallow a pocket.
 
         **This face does not follow the notch**, so the band is genuinely thinner
-        over the bottom 4.5 mm -- 1.11 mm against 2.41 mm. That is the shape the
+        over the bottom 4.5 mm -- 0.70 mm against 2.00 mm. That is the shape the
         notch was asked for, and it is the right way round of the two: the skirt
         below the bulge carries no magnets and no load, while stepping the inside
         as well would push a matching ridge into the one face a hand takes hold
-        of when the shade is lifted out. 1.11 mm is still three lines at a 0.4 mm
-        nozzle and comfortably over ``fits.MIN_WALL``; what it costs is first-
-        layer grip on a 200 mm ring, which is what the README's brim is for.
+        of when the shade is lifted out. 0.70 mm sits just under ``fits.MIN_WALL``
+        at the owner's request -- that is ``MIN_SKIRT``, and ``Lamp.of`` holds the
+        line there; what it costs is first-layer grip on a 200 mm ring, which is
+        what the README's brim is for.
         """
         centre_offset = self.rim_inset + z + self.rim_drop
-        return sqrt((self.bowl_r_in - self.seat_clear - self.wall) ** 2 - centre_offset**2)
+        return sqrt(
+            (self.bowl_r_in - self.seat_clear - self.wall) ** 2 - centre_offset**2
+        )
 
     def pad_face_radius(self) -> float:
         """Radius at which a magnet meets the steel: the band's face, at pad height.
@@ -562,7 +581,7 @@ class Lamp:
         Evenly spaced reads as concentric; anything else reads as a mistake. The
         band's inner radius at the *bottom* is the datum because that is where
         the band is widest, so that is where the gap is largest -- it closes by
-        3.8 mm over the height, which is invisible from below and is the price of
+        3.9 mm over the height, which is invisible from below and is the price of
         a band that follows the bowl.
         """
         span = self.band_inner_radius(0.0) - self.hub_outer_radius()
@@ -599,7 +618,8 @@ class Lamp:
 
 
 DEFAULT = Lamp()
-"""The lamp this repo built: a 20 cm IKEA bowl, eight 5 x 1 discs, a 2.4 mm wall.
+"""The lamp this repo built: a 201 mm IKEA bowl, a 2.0 mm wall, and by default
+no magnets.
 
 Every export, every render and every assertion in ``checks.py`` is this object.
 The sliders exist so the same design can be cut for a different bowl; they do not
@@ -636,7 +656,10 @@ BOWL_SHAPE_PARAMS = [
     _num("bead_w", "Rim bead width (mm)", 0.0, 20.0, 0.5),
     _num("bead_h", "Rim bead height (mm)", 0.0, 5.0, 0.1),
 ]
-BOWL_PARAMS = [*BOWL_SHAPE_PARAMS, _num("bowl_hole_d", "Lampholder hole (mm)", 4.0, 120.0, 1.0)]
+BOWL_PARAMS = [
+    *BOWL_SHAPE_PARAMS,
+    _num("bowl_hole_d", "Lampholder hole (mm)", 4.0, 120.0, 1.0),
+]
 BAND_PARAMS = [
     _num("band_h", "Band height (mm)", 4.0, 60.0, 0.5),
     _num("wall", "Wall thickness (mm)", *WALL_RANGE, 0.1),
@@ -645,7 +668,7 @@ BAND_PARAMS = [
 MAGNET_PARAMS = [
     _num("magnet_d", "Magnet diameter (mm)", 2.0, 20.0, 0.5),
     _num("magnet_t", "Magnet thickness (mm)", 0.5, 8.0, 0.5),
-    _num("magnet_count", "Magnets", 1, 24, 1),
+    _num("magnet_count", "Magnets", 0, 24, 1),
 ]
 GRILLE_PARAMS = [
     _num("eye_d", "Centre eye diameter (mm)", MIN_EYE, 200.0, 1.0),
