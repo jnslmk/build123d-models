@@ -43,6 +43,10 @@ NOT_A_MODEL = {
         "grips the tube with. AGENTS.md names it explicitly under 'the shared "
         "pieces a part is built from ... are not models'."
     ),
+    "soldering_aid.checks": (
+        "geometry assertion entry point imports create() to inspect the aid; "
+        "it is only reachable through uv run check, not a printable view."
+    ),
 }
 
 
@@ -50,7 +54,9 @@ def _model_name(path: Path) -> str:
     """``models/led_profiles/stand.py`` -> ``led_profiles.stand``; a package's
     ``__init__.py`` -> the package's own name."""
     rel = path.relative_to(MODELS_DIR)
-    parts = rel.parent.parts if rel.name == "__init__.py" else (*rel.parent.parts, rel.stem)
+    parts = (
+        rel.parent.parts if rel.name == "__init__.py" else (*rel.parent.parts, rel.stem)
+    )
     return ".".join(parts)
 
 
@@ -82,13 +88,19 @@ def _exposes_zero_arg_create(path: Path) -> bool:
     """
     tree = ast.parse(path.read_text())
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == "create":
+        if (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name == "create"
+        ):
             args = node.args
             positional = args.posonlyargs + args.args
             if len(positional) - len(args.defaults) > 0:
                 return False
             return all(d is not None for d in args.kw_defaults)
-        if isinstance(node, ast.ImportFrom) and any(a.asname == "create" or (a.asname is None and a.name == "create") for a in node.names):
+        if isinstance(node, ast.ImportFrom) and any(
+            a.asname == "create" or (a.asname is None and a.name == "create")
+            for a in node.names
+        ):
             return True
         if isinstance(node, ast.Assign) and any(
             isinstance(t, ast.Name) and t.id == "create" for t in node.targets
@@ -158,7 +170,8 @@ class RosterTests(unittest.TestCase):
             if not path.exists() or not _exposes_zero_arg_create(path):
                 broken.append(name)
         self.assertEqual(
-            [], sorted(broken),
+            [],
+            sorted(broken),
             "In MODELS but has no module with a zero-arg create(). This is the "
             "check that has to catch it: website._source_path now raises on an "
             "unresolvable name, so the alternative to failing here is failing "
@@ -187,7 +200,8 @@ class RosterTests(unittest.TestCase):
             if "__pycache__" not in init.parts
         }
         self.assertEqual(
-            set(), on_disk - declared,
+            set(),
+            on_disk - declared,
             "Package directories under models/ that are missing from "
             "[tool.setuptools] packages. Subpackages are not implied by their "
             "parent, so a built wheel ships without them.",
@@ -201,7 +215,8 @@ class RosterTests(unittest.TestCase):
             name for name, m in manifest.items() if not (ROOT / m["source"]).exists()
         ]
         self.assertEqual(
-            [], sorted(missing_source),
+            [],
+            sorted(missing_source),
             "Manifest entries whose 'source' path does not exist -- the Code "
             "panel shows 'source unavailable' for these.",
         )
@@ -213,7 +228,9 @@ class RosterTests(unittest.TestCase):
                 flat = MODELS_DIR / f"{name.replace('.', '/')}.py"
                 pkg = MODELS_DIR / name.replace(".", "/") / "__init__.py"
                 path = flat if flat.exists() else pkg
-                self.assertTrue(path.exists(), f"{name} no longer exists; drop the entry")
+                self.assertTrue(
+                    path.exists(), f"{name} no longer exists; drop the entry"
+                )
                 self.assertTrue(
                     _exposes_zero_arg_create(path),
                     f"{name} no longer has a zero-arg create(); the entry is dead",
