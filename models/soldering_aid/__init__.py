@@ -58,7 +58,7 @@ HOLE_Y = WALL_FRONT_Y
 
 
 def _thread_data() -> list[tuple[float, IsoThread]]:
-    """Return centered hole offsets and their printed female threads."""
+    """Return centered hole offsets and external thread cutters."""
     result = []
     for offset, diameter, pitch in zip(
         HOLE_OFFSETS,
@@ -70,8 +70,8 @@ def _thread_data() -> list[tuple[float, IsoThread]]:
             major_diameter=diameter + THREAD_CLEARANCE,
             pitch=pitch,
             length=THREAD_LENGTH,
-            external=False,
-            end_finishes=("fade", "fade"),
+            external=True,
+            end_finishes=("square", "square"),
             rotation=(-90, 0, 0),
         )
         result.append((offset, thread))
@@ -118,7 +118,7 @@ def create() -> Part:
                     mode=Mode.SUBTRACT,
                 )
             with Locations((x, HOLE_Y, HOLE_Z)):
-                add(thread)
+                add(thread, mode=Mode.SUBTRACT)
 
     return as_part(Pos(-WIDTH / 2, 0, 0) * aid.part)
 

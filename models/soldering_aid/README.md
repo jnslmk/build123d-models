@@ -15,8 +15,9 @@ Thread length matches the 2 mm wall because the holes are direct through-holes,
 not protruding bosses. Print one test before committing a connector pair:
 generic SP16 listings vary, while WEIPU's official SP17 family is documented.
 
-The rear-wall thread mouths use a fading lead-in. The clean L-profile has a
-0.35 mm bed/top chamfer and 0.8 mm fillets on its vertical outer edges.
+The rear-wall holes contain square-ended helical thread grooves. The clean
+L-profile has a 0.35 mm bed/top chamfer and 0.8 mm fillets on its vertical outer
+edges.
 
 ## WEIPU designation note
 
