@@ -25,6 +25,7 @@ from build123d import (
     Plane,
     Polygon,
     Pos,
+    add,
     extrude,
 )
 
@@ -44,7 +45,7 @@ THREAD_CLEARANCE = 0.30  # printed female thread, PETG baseline; tune to connect
 THREAD_LENGTH = WALL_THICKNESS
 EDGE_FILLET = 0.8
 EDGE_CHAMFER = 0.35
-HOLE_TOP_MARGIN = 2.0  # functional edge margin, not a mating fit
+HOLE_TOP_MARGIN = 8.5  # functional edge margin, matching the side-margin scale
 
 SP16_THREAD_RADIUS = (SP16_MAJOR_DIAMETER + THREAD_CLEARANCE) / 2
 SP17_THREAD_RADIUS = (SP17_MAJOR_DIAMETER + THREAD_CLEARANCE) / 2
@@ -70,7 +71,7 @@ def _thread_data() -> list[tuple[float, IsoThread]]:
             pitch=pitch,
             length=THREAD_LENGTH,
             external=False,
-            end_finishes=("fade", "chamfer"),
+            end_finishes=("fade", "fade"),
             rotation=(-90, 0, 0),
         )
         result.append((offset, thread))
@@ -116,12 +117,10 @@ def create() -> Part:
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,
                 )
+            with Locations((x, HOLE_Y, HOLE_Z)):
+                add(thread)
 
-    part = aid.part
-    for offset, thread in threads:
-        x = WIDTH / 2 + offset
-        part = Part(part.wrapped) + (Pos(x, HOLE_Y, HOLE_Z) * thread)
-    return as_part(Pos(-WIDTH / 2, 0, 0) * part)
+    return as_part(Pos(-WIDTH / 2, 0, 0) * aid.part)
 
 
 __all__ = ["create"]
