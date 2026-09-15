@@ -3,7 +3,7 @@
 One thin-wall L-profile extrusion holds two threaded circular connectors while
 soldering. The lower leg and rear wall are 2 mm thick; the rear wall is 60 mm
 high. The connector seats are direct threaded holes through the long rear wall,
-near its top edge.
+near its top edge, with equal clearance to the wall's side edges.
 
 The two seats are intentionally different:
 

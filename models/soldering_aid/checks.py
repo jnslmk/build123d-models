@@ -8,10 +8,13 @@ from models.lib.checks import Report, is_solid_at
 
 from . import (
     BASE_DEPTH,
-    HOLE_OFFSET,
+    HOLE_OFFSETS,
     HOLE_SPACING,
     HOLE_Y,
     HOLE_Z,
+    SIDE_MARGIN_TOLERANCE,
+    SP16_THREAD_RADIUS,
+    SP17_THREAD_RADIUS,
     SUPPORT_HEIGHT,
     THREAD_LENGTH,
     WALL_THICKNESS,
@@ -45,15 +48,18 @@ def run() -> Report:
         "rear wall is 50 percent taller",
         f"height={box.size.Z:.2f}",
     )
+    actual_spacing = HOLE_OFFSETS[1] - HOLE_OFFSETS[0]
     report.check(
-        HOLE_SPACING < WIDTH,
+        abs(actual_spacing - HOLE_SPACING) < 0.01,
         "connector spacing fits aid",
-        f"spacing={HOLE_SPACING:.1f}",
+        f"spacing={actual_spacing:.1f}",
     )
+    left_margin = WIDTH / 2 + HOLE_OFFSETS[0] - SP16_THREAD_RADIUS
+    right_margin = WIDTH / 2 - HOLE_OFFSETS[1] - SP17_THREAD_RADIUS
     report.check(
-        HOLE_Z > SUPPORT_HEIGHT / 2,
-        "holes sit in the upper long side",
-        f"z={HOLE_Z:.1f}",
+        abs(left_margin - right_margin) < SIDE_MARGIN_TOLERANCE,
+        "holes have similar side margins",
+        f"left={left_margin:.2f}, right={right_margin:.2f}",
     )
     report.check(
         len(part.solids()) == 1,
@@ -72,7 +78,7 @@ def run() -> Report:
         not is_solid_at(part, 0, 0, SUPPORT_HEIGHT / 2),
         "L-profile keeps its open corner",
     )
-    for offset in (-HOLE_OFFSET, HOLE_OFFSET):
+    for offset in HOLE_OFFSETS:
         report.check(
             not is_solid_at(
                 part,

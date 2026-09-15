@@ -46,9 +46,12 @@ EDGE_FILLET = 0.8
 EDGE_CHAMFER = 0.35
 HOLE_TOP_MARGIN = 2.0  # functional edge margin, not a mating fit
 
+SP16_THREAD_RADIUS = (SP16_MAJOR_DIAMETER + THREAD_CLEARANCE) / 2
+SP17_THREAD_RADIUS = (SP17_MAJOR_DIAMETER + THREAD_CLEARANCE) / 2
 WALL_FRONT_Y = BASE_DEPTH / 2 - WALL_THICKNESS
 MAX_THREAD_DIAMETER = max(SP16_MAJOR_DIAMETER, SP17_MAJOR_DIAMETER) + THREAD_CLEARANCE
-HOLE_OFFSET = HOLE_SPACING / 2
+HOLE_OFFSETS = (-HOLE_SPACING / 2, HOLE_SPACING / 2)
+SIDE_MARGIN_TOLERANCE = 1.0  # functional edge-margin difference, not a fit
 HOLE_Z = SUPPORT_HEIGHT - MAX_THREAD_DIAMETER / 2 - HOLE_TOP_MARGIN
 HOLE_Y = WALL_FRONT_Y
 
@@ -56,9 +59,11 @@ HOLE_Y = WALL_FRONT_Y
 def _thread_data() -> list[tuple[float, IsoThread]]:
     """Return centered hole offsets and their printed female threads."""
     result = []
-    for offset, diameter, pitch in (
-        (-HOLE_OFFSET, SP16_MAJOR_DIAMETER, SP16_PITCH),
-        (HOLE_OFFSET, SP17_MAJOR_DIAMETER, SP17_PITCH),
+    for offset, diameter, pitch in zip(
+        HOLE_OFFSETS,
+        (SP16_MAJOR_DIAMETER, SP17_MAJOR_DIAMETER),
+        (SP16_PITCH, SP17_PITCH),
+        strict=True,
     ):
         thread = IsoThread(
             major_diameter=diameter + THREAD_CLEARANCE,
