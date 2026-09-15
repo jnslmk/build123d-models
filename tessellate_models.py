@@ -79,6 +79,7 @@ MODELS = [
     "led_psu_enclosure.vent",
     "led_psu_enclosure.gasket",
     "lens_cap",
+    "soldering_aid",
     # Wall-mounted cradle for the round Sonicare charging puck, taped to tile.
     # Closed in front; the cable route is the only opening in the shell.
     "sonicare_charger_holder",
