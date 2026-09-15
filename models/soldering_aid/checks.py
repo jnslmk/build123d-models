@@ -10,10 +10,10 @@ from . import (
     BASE_DEPTH,
     HOLE_OFFSET,
     HOLE_SPACING,
+    HOLE_Y,
     HOLE_Z,
     SUPPORT_HEIGHT,
     THREAD_LENGTH,
-    WALL_FRONT_Y,
     WALL_THICKNESS,
     WIDTH,
     create,
@@ -37,7 +37,7 @@ def run() -> Report:
     )
     report.check(
         abs(box.size.Y - BASE_DEPTH) < 0.01,
-        "bosses stay within the base footprint",
+        "holes stay within the base footprint",
         f"depth={box.size.Y:.2f}",
     )
     report.check(
@@ -77,10 +77,10 @@ def run() -> Report:
             not is_solid_at(
                 part,
                 offset,
-                WALL_FRONT_Y - (THREAD_LENGTH / 2),
-                HOLE_Z,
+                HOLE_Y,
+                HOLE_Z + THREAD_LENGTH / 2,
             ),
-            "connector bore is open at the top wall",
+            "connector bore is threaded in the lower leg",
             f"x={offset:.1f}",
         )
     return report

@@ -1,8 +1,8 @@
 """One-piece thin-wall soldering aid for SP16-compatible and SP17 connectors.
 
 The aid is a single L-profile extrusion. Its 2 mm lower leg prints flat and its
-2 mm rear wall is 50% taller than the former 40 mm support. The threaded
-connector seats are bosses at the top of that wall, close to its side ends.
+2 mm rear wall is 50% taller than the former 40 mm support. The connector seats
+remain on the lower leg, now with printed female threads directly through it.
 
 WEIPU documents SP17 as M17 x 1. The similarly named SP16 parts found in
 supplier listings are not an official WEIPU SP16 family; this model therefore
@@ -18,7 +18,6 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
-    Cone,
     Cylinder,
     Locations,
     Mode,
@@ -35,29 +34,24 @@ WIDTH = 70.0
 BASE_DEPTH = 44.0
 WALL_THICKNESS = 2.0
 SUPPORT_HEIGHT = 60.0  # 50% taller than the former 40 mm rear wall
-BOSS_WALL = 2.0
-TOP_MARGIN = 2.0  # functional edge margin, not a mating fit
-HOLE_END_MARGIN = 3.0  # functional edge margin, not a mating fit
+HOLE_SPACING = 36.0
 
 SP16_MAJOR_DIAMETER = 16.0  # generic SP16-compatible connector
 SP16_PITCH = 1.5
 SP17_MAJOR_DIAMETER = 17.0  # WEIPU SP17, per the SP1712 drawing
 SP17_PITCH = 1.0
 THREAD_CLEARANCE = 0.30  # printed female thread, PETG baseline; tune to connector
-THREAD_LENGTH = 8.0
+THREAD_LENGTH = WALL_THICKNESS
 EDGE_FILLET = 0.8
 EDGE_CHAMFER = 0.35
 
-MAX_THREAD_MAJOR = max(SP16_MAJOR_DIAMETER, SP17_MAJOR_DIAMETER) + THREAD_CLEARANCE
-MAX_BOSS_RADIUS = MAX_THREAD_MAJOR / 2 + BOSS_WALL
-HOLE_OFFSET = WIDTH / 2 - MAX_BOSS_RADIUS - HOLE_END_MARGIN
-HOLE_SPACING = 2 * HOLE_OFFSET
-HOLE_Z = SUPPORT_HEIGHT - MAX_BOSS_RADIUS - TOP_MARGIN
-WALL_FRONT_Y = BASE_DEPTH / 2 - WALL_THICKNESS
+HOLE_OFFSET = HOLE_SPACING / 2
+HOLE_Z = 0.0
+HOLE_Y = 0.0
 
 
-def _thread_data() -> list[tuple[float, IsoThread, float, float]]:
-    """Return centered hole offsets, threads, boss radii and collar lengths."""
+def _thread_data() -> list[tuple[float, IsoThread]]:
+    """Return centered hole offsets and their printed female threads."""
     result = []
     for offset, diameter, pitch in (
         (-HOLE_OFFSET, SP16_MAJOR_DIAMETER, SP16_PITCH),
@@ -69,9 +63,8 @@ def _thread_data() -> list[tuple[float, IsoThread, float, float]]:
             length=THREAD_LENGTH,
             external=False,
             end_finishes=("fade", "chamfer"),
-            rotation=(90, 0, 0),
         )
-        result.append((offset, thread, thread.major_diameter / 2 + BOSS_WALL, pitch))
+        result.append((offset, thread))
     return result
 
 
@@ -104,38 +97,20 @@ def create() -> Part:
         )
         fillet_edge(aid, aid.edges().filter_by(Axis.Z), EDGE_FILLET)
 
-        for offset, thread, boss_radius, collar in threads:
+        for offset, thread in threads:
             x = WIDTH / 2 + offset
-            boss_depth = collar + THREAD_LENGTH
-            straight_depth = boss_depth - EDGE_CHAMFER
-            with Locations((x, WALL_FRONT_Y, HOLE_Z)):
-                Cylinder(
-                    boss_radius,
-                    straight_depth,
-                    rotation=(90, 0, 0),
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                )
-            with Locations((x, WALL_FRONT_Y - straight_depth, HOLE_Z)):
-                Cone(
-                    boss_radius,
-                    boss_radius - EDGE_CHAMFER,
-                    EDGE_CHAMFER,
-                    rotation=(90, 0, 0),
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                )
-            with Locations((x, WALL_FRONT_Y, HOLE_Z)):
+            with Locations((x, HOLE_Y, HOLE_Z)):
                 Cylinder(
                     thread.min_radius,
-                    boss_depth,
-                    rotation=(90, 0, 0),
+                    THREAD_LENGTH,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,
                 )
 
     part = aid.part
-    for offset, thread, _, collar in threads:
+    for offset, thread in threads:
         x = WIDTH / 2 + offset
-        part = Part(part.wrapped) + (Pos(x, WALL_FRONT_Y - collar, HOLE_Z) * thread)
+        part = Part(part.wrapped) + (Pos(x, HOLE_Y, HOLE_Z) * thread)
     return as_part(Pos(-WIDTH / 2, 0, 0) * part)
 
 
