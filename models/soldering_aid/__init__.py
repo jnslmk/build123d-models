@@ -1,23 +1,25 @@
-"""One-piece L-shaped soldering aid for SP16 and SP17 threaded connectors.
+"""One-piece thin-wall soldering aid for SP16-compatible and SP17 connectors.
 
-The two panel-mount threads are intentionally different: SP16 is M16 x 1 and
-SP17 is M17 x 1. The aid is a single L-profile extrusion: its broad lower leg
-prints flat and the rear leg stops the held connectors from sliding away.
+The aid is a single L-profile extrusion. Its 2 mm lower leg prints flat and its
+2 mm rear wall is 50% taller than the former 40 mm support. The threaded
+connector seats are bosses at the top of that wall, close to its side ends.
 
-Thread dimensions are based on the connector-family naming and the SP17
-manufacturer drawing: the SP17 panel cutout is Ø17 with a 15.6 mm anti-rotation
-flat and its mounting thread is M17 x 1. SP16 follows the corresponding M16 x 1
-panel thread used by the SP16 family. Verify the exact vendor variant before
-printing, because third-party SP connectors are not dimensionally identical.
+WEIPU documents SP17 as M17 x 1. The similarly named SP16 parts found in
+supplier listings are not an official WEIPU SP16 family; this model therefore
+uses the common generic SP16-compatible M16 x 1.5 specification on the left.
+Confirm that pitch against the connector in hand before printing.
 """
 
 from __future__ import annotations
 
 from bd_warehouse.thread import IsoThread
 from build123d import (
+    Align,
+    Axis,
     BuildPart,
     BuildSketch,
-    Circle,
+    Cone,
+    Cylinder,
     Locations,
     Mode,
     Part,
@@ -27,59 +29,113 @@ from build123d import (
     extrude,
 )
 
-from models.lib.edges import as_part
+from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
 WIDTH = 70.0
-PLATE_DEPTH = 40.0
-PLATE_THICKNESS = 8.0
-SUPPORT_HEIGHT = PLATE_DEPTH
-THREAD_PITCH = 1.0
+BASE_DEPTH = 44.0
+WALL_THICKNESS = 2.0
+SUPPORT_HEIGHT = 60.0  # 50% taller than the former 40 mm rear wall
+BOSS_WALL = 2.0
+TOP_MARGIN = 2.0  # functional edge margin, not a mating fit
+HOLE_END_MARGIN = 3.0  # functional edge margin, not a mating fit
+
+SP16_MAJOR_DIAMETER = 16.0  # generic SP16-compatible connector
+SP16_PITCH = 1.5
+SP17_MAJOR_DIAMETER = 17.0  # WEIPU SP17, per the SP1712 drawing
+SP17_PITCH = 1.0
 THREAD_CLEARANCE = 0.30  # printed female thread, PETG baseline; tune to connector
-THREAD_LENGTH = 6.5
-THREAD_COLLAR = THREAD_PITCH  # plain lead-in before the printed thread
-HOLE_SPACING = 36.0
+THREAD_LENGTH = 8.0
+EDGE_FILLET = 0.8
+EDGE_CHAMFER = 0.35
+
+MAX_THREAD_MAJOR = max(SP16_MAJOR_DIAMETER, SP17_MAJOR_DIAMETER) + THREAD_CLEARANCE
+MAX_BOSS_RADIUS = MAX_THREAD_MAJOR / 2 + BOSS_WALL
+HOLE_OFFSET = WIDTH / 2 - MAX_BOSS_RADIUS - HOLE_END_MARGIN
+HOLE_SPACING = 2 * HOLE_OFFSET
+HOLE_Z = SUPPORT_HEIGHT - MAX_BOSS_RADIUS - TOP_MARGIN
+WALL_FRONT_Y = BASE_DEPTH / 2 - WALL_THICKNESS
+
+
+def _thread_data() -> list[tuple[float, IsoThread, float, float]]:
+    """Return centered hole offsets, threads, boss radii and collar lengths."""
+    result = []
+    for offset, diameter, pitch in (
+        (-HOLE_OFFSET, SP16_MAJOR_DIAMETER, SP16_PITCH),
+        (HOLE_OFFSET, SP17_MAJOR_DIAMETER, SP17_PITCH),
+    ):
+        thread = IsoThread(
+            major_diameter=diameter + THREAD_CLEARANCE,
+            pitch=pitch,
+            length=THREAD_LENGTH,
+            external=False,
+            end_finishes=("fade", "chamfer"),
+            rotation=(90, 0, 0),
+        )
+        result.append((offset, thread, thread.major_diameter / 2 + BOSS_WALL, pitch))
+    return result
 
 
 def create() -> Part:
     """Return the one-piece L-profile connector aid in print pose."""
-    threads = [
-        (
-            x,
-            diameter,
-            IsoThread(
-                major_diameter=diameter + THREAD_CLEARANCE,
-                pitch=THREAD_PITCH,
-                length=THREAD_LENGTH,
-                external=False,
-                end_finishes=("fade", "fade"),
-            ),
-        )
-        for x, diameter in ((-HOLE_SPACING / 2, 16.0), (HOLE_SPACING / 2, 17.0))
-    ]
-    rear = PLATE_DEPTH / 2
+    threads = _thread_data()
     with BuildPart() as aid:
-        with BuildSketch(Plane.YZ):
+        with BuildSketch(Plane.YZ) as profile:
             Polygon(
-                (-rear, 0),
-                (rear, 0),
-                (rear, SUPPORT_HEIGHT),
-                (rear - PLATE_THICKNESS, SUPPORT_HEIGHT),
-                (rear - PLATE_THICKNESS, PLATE_THICKNESS),
-                (-rear, PLATE_THICKNESS),
+                (-BASE_DEPTH / 2, 0),
+                (BASE_DEPTH / 2, 0),
+                (BASE_DEPTH / 2, SUPPORT_HEIGHT),
+                (BASE_DEPTH / 2 - WALL_THICKNESS, SUPPORT_HEIGHT),
+                (BASE_DEPTH / 2 - WALL_THICKNESS, WALL_THICKNESS),
+                (-BASE_DEPTH / 2, WALL_THICKNESS),
                 align=None,
             )
-        extrude(amount=WIDTH)
-        for x, _, thread in threads:
-            with BuildSketch() as sketch:
-                with Locations((WIDTH / 2 + x, 0)):
-                    Circle(thread.min_radius)
-            extrude(sketch.sketch, amount=PLATE_THICKNESS, mode=Mode.SUBTRACT)
+        extrude(profile.sketch, amount=WIDTH)
+
+        chamfer_edge(aid, aid.faces().sort_by(Axis.Z).first.edges(), EDGE_CHAMFER)
+        chamfer_edge(aid, aid.faces().sort_by(Axis.Z).last.edges(), EDGE_CHAMFER)
+        chamfer_edge(
+            aid,
+            [
+                edge
+                for edge in aid.edges()
+                if abs(edge.center().Z - WALL_THICKNESS) < 0.01 and edge.length > 10.0
+            ],
+            EDGE_CHAMFER,
+        )
+        fillet_edge(aid, aid.edges().filter_by(Axis.Z), EDGE_FILLET)
+
+        for offset, thread, boss_radius, collar in threads:
+            x = WIDTH / 2 + offset
+            boss_depth = collar + THREAD_LENGTH
+            straight_depth = boss_depth - EDGE_CHAMFER
+            with Locations((x, WALL_FRONT_Y, HOLE_Z)):
+                Cylinder(
+                    boss_radius,
+                    straight_depth,
+                    rotation=(90, 0, 0),
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+            with Locations((x, WALL_FRONT_Y - straight_depth, HOLE_Z)):
+                Cone(
+                    boss_radius,
+                    boss_radius - EDGE_CHAMFER,
+                    EDGE_CHAMFER,
+                    rotation=(90, 0, 0),
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+            with Locations((x, WALL_FRONT_Y, HOLE_Z)):
+                Cylinder(
+                    thread.min_radius,
+                    boss_depth,
+                    rotation=(90, 0, 0),
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    mode=Mode.SUBTRACT,
+                )
 
     part = aid.part
-    for x, _, thread in threads:
-        # Internal thread roots overlap the wall. Rewrapping avoids the
-        # Solid-plus-thread overload returning a ShapeList on the second bore.
-        part = Part(part.wrapped) + (Pos(WIDTH / 2 + x, 0, THREAD_COLLAR) * thread)
+    for offset, thread, _, collar in threads:
+        x = WIDTH / 2 + offset
+        part = Part(part.wrapped) + (Pos(x, WALL_FRONT_Y - collar, HOLE_Z) * thread)
     return as_part(Pos(-WIDTH / 2, 0, 0) * part)
 
 
