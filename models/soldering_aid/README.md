@@ -2,20 +2,20 @@
 
 One thin-wall L-profile extrusion holds two threaded circular connectors while
 soldering. The lower leg and rear wall are 2 mm thick; the rear wall is 60 mm
-high. The connector seats remain on the lower leg in their original spacing,
-with printed female threads directly through the L-profile.
+high. The connector seats are direct threaded holes through the long rear wall,
+near its top edge.
 
 The two seats are intentionally different:
 
 - left: generic SP16-compatible, **M16 × 1.5** (verify the seller's drawing)
 - right: WEIPU SP17, **M17 × 1** (SP1712 panel connector)
 
-The model uses 0.30 mm diametral female-thread clearance as a PETG baseline and
-8 mm of printed thread engagement. Print one test before committing a connector
-pair: generic SP16 listings vary, while WEIPU's official SP17 family is the
-documented match for the right-hand seat.
+The model uses 0.30 mm diametral female-thread clearance as a PETG baseline.
+Thread length matches the 2 mm wall because the holes are direct through-holes,
+not protruding bosses. Print one test before committing a connector pair:
+generic SP16 listings vary, while WEIPU's official SP17 family is documented.
 
-The lower-leg thread mouths use chamfered entrances. The clean L-profile has a
+The rear-wall thread mouths use chamfered entrances. The clean L-profile has a
 0.35 mm bed/top chamfer and 0.8 mm fillets on its vertical outer edges.
 
 ## WEIPU designation note

@@ -37,7 +37,7 @@ def run() -> Report:
     )
     report.check(
         abs(box.size.Y - BASE_DEPTH) < 0.01,
-        "holes stay within the base footprint",
+        "aid depth includes the rear wall",
         f"depth={box.size.Y:.2f}",
     )
     report.check(
@@ -51,9 +51,9 @@ def run() -> Report:
         f"spacing={HOLE_SPACING:.1f}",
     )
     report.check(
-        HOLE_OFFSET > WIDTH / 4,
-        "holes sit near the side ends",
-        f"offset={HOLE_OFFSET:.1f}",
+        HOLE_Z > SUPPORT_HEIGHT / 2,
+        "holes sit in the upper long side",
+        f"z={HOLE_Z:.1f}",
     )
     report.check(
         len(part.solids()) == 1,
@@ -77,10 +77,10 @@ def run() -> Report:
             not is_solid_at(
                 part,
                 offset,
-                HOLE_Y,
-                HOLE_Z + THREAD_LENGTH / 2,
+                HOLE_Y + THREAD_LENGTH / 2,
+                HOLE_Z,
             ),
-            "connector bore is threaded in the lower leg",
+            "connector bore is threaded through the long side",
             f"x={offset:.1f}",
         )
     return report

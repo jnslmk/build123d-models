@@ -2,7 +2,7 @@
 
 The aid is a single L-profile extrusion. Its 2 mm lower leg prints flat and its
 2 mm rear wall is 50% taller than the former 40 mm support. The connector seats
-remain on the lower leg, now with printed female threads directly through it.
+are direct threaded holes through the long rear wall, near its top edge.
 
 WEIPU documents SP17 as M17 x 1. The similarly named SP16 parts found in
 supplier listings are not an official WEIPU SP16 family; this model therefore
@@ -44,10 +44,13 @@ THREAD_CLEARANCE = 0.30  # printed female thread, PETG baseline; tune to connect
 THREAD_LENGTH = WALL_THICKNESS
 EDGE_FILLET = 0.8
 EDGE_CHAMFER = 0.35
+HOLE_TOP_MARGIN = 2.0  # functional edge margin, not a mating fit
 
+WALL_FRONT_Y = BASE_DEPTH / 2 - WALL_THICKNESS
+MAX_THREAD_DIAMETER = max(SP16_MAJOR_DIAMETER, SP17_MAJOR_DIAMETER) + THREAD_CLEARANCE
 HOLE_OFFSET = HOLE_SPACING / 2
-HOLE_Z = 0.0
-HOLE_Y = 0.0
+HOLE_Z = SUPPORT_HEIGHT - MAX_THREAD_DIAMETER / 2 - HOLE_TOP_MARGIN
+HOLE_Y = WALL_FRONT_Y
 
 
 def _thread_data() -> list[tuple[float, IsoThread]]:
@@ -63,6 +66,7 @@ def _thread_data() -> list[tuple[float, IsoThread]]:
             length=THREAD_LENGTH,
             external=False,
             end_finishes=("fade", "chamfer"),
+            rotation=(-90, 0, 0),
         )
         result.append((offset, thread))
     return result
@@ -103,6 +107,7 @@ def create() -> Part:
                 Cylinder(
                     thread.min_radius,
                     THREAD_LENGTH,
+                    rotation=(-90, 0, 0),
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,
                 )
