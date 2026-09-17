@@ -101,17 +101,13 @@ def _ensure_vendor() -> Path:
 
 
 def _ensure_model_asset(name: str) -> Path:
-    """The model's GLB if present, else its STL; build either if missing."""
-    glb = EXPORTS_DIR / f"{name}.glb"
-    stl = EXPORTS_DIR / f"{name}.stl"
-    if glb.exists():
-        return glb
-    if stl.exists():
-        return stl
+    """Build and return the model's current GLB, falling back to STL."""
     module = importlib.import_module(f"models.{name}")
     from export import export
 
     export(module.create(), name, step=False)  # writes STL + GLB
+    glb = EXPORTS_DIR / f"{name}.glb"
+    stl = EXPORTS_DIR / f"{name}.stl"
     return glb if glb.exists() else stl
 
 
