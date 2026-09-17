@@ -13,8 +13,8 @@ from . import (
     HOLE_Y,
     HOLE_Z,
     SIDE_MARGIN_TOLERANCE,
-    SP16_THREAD_RADIUS,
-    SP17_THREAD_RADIUS,
+    LEFT_THREAD_RADIUS,
+    RIGHT_THREAD_RADIUS,
     SUPPORT_HEIGHT,
     THREAD_LENGTH,
     WALL_THICKNESS,
@@ -54,8 +54,8 @@ def run() -> Report:
         "connector spacing fits aid",
         f"spacing={actual_spacing:.1f}",
     )
-    left_margin = WIDTH / 2 + HOLE_OFFSETS[0] - SP16_THREAD_RADIUS
-    right_margin = WIDTH / 2 - HOLE_OFFSETS[1] - SP17_THREAD_RADIUS
+    left_margin = WIDTH / 2 + HOLE_OFFSETS[0] - LEFT_THREAD_RADIUS
+    right_margin = WIDTH / 2 - HOLE_OFFSETS[1] - RIGHT_THREAD_RADIUS
     report.check(
         abs(left_margin - right_margin) < SIDE_MARGIN_TOLERANCE,
         "holes have similar side margins",
