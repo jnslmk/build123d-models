@@ -89,19 +89,16 @@ def export(
     name: str,
     *,
     step: bool = False,
+    stl: bool = True,
     children: bool = True,
 ) -> list[Path]:
-    """Export model to STL (and child STLs); pass ``step=True`` to also emit STEP.
+    """Export a GLB plus the requested printable formats.
 
-    ``children=False`` skips the per-child STLs. They are worth having locally --
-    a compound's parts as separate files to drop in a slicer one at a time -- but
-    nothing publishes them: ``website.build_web_bundle`` copies only the roster
-    names, so in CI they are minutes of meshing and hundreds of megabytes written
-    for files no page ever links to.
+    ``stl`` defaults to true for existing callers. ``children=False`` skips
+    per-child STL files; incremental and artifact builds never publish them.
 
-    Returns the paths actually written, so a caller can record what a model
-    produced rather than assume it. That matters for the glTF, which is best
-    effort and may legitimately be absent.
+    Returns the paths actually written, so callers can stamp exactly what was
+    produced.
     """
     EXPORTS_DIR.mkdir(exist_ok=True)
     written = []
@@ -109,13 +106,17 @@ def export(
         path = EXPORTS_DIR / f"{name}.step"
         export_step(part, path)
         written.append(path)
-    stl = EXPORTS_DIR / f"{name}.stl"
-    export_stl(
-        part, stl, tolerance=STL_TOLERANCE, angular_tolerance=STL_ANGULAR_TOLERANCE
-    )
-    written.append(stl)
-    if children:
-        written += _export_child_stls(part, name)
+    if stl:
+        path = EXPORTS_DIR / f"{name}.stl"
+        export_stl(
+            part,
+            path,
+            tolerance=STL_TOLERANCE,
+            angular_tolerance=STL_ANGULAR_TOLERANCE,
+        )
+        written.append(path)
+        if children:
+            written += _export_child_stls(part, name)
     # Colour-carrying render asset for the web viewer (STL is colourless). Best
     # effort: a glTF failure must never block the STL/STEP build.
     try:

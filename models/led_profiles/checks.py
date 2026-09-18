@@ -33,7 +33,6 @@ from models.lib.checks import (
     Report,
     interior_angle,
     is_periodic_seam,
-    is_solid_at,
     is_vertical_seam,
     sharp_convex_edges,
 )
@@ -110,27 +109,27 @@ def check_outline(alu: Part, r: Report) -> None:
     # (z > RADIUS, so the section is straight-sided) but still below the floor
     # web, which spans the full width and would read as wall.
     z_flank = (c.RADIUS + c.CAVITY_TOP_Z) / 2
-    r.check(is_solid_at(alu, X, c.WIDTH / 2 - 0.25, z_flank), "flank wall present")
+    r.check(r.solid_at(alu, X, c.WIDTH / 2 - 0.25, z_flank), "flank wall present")
     r.check(
-        not is_solid_at(alu, X, c.WIDTH / 2 - c.WALL - 0.2, z_flank),
+        not r.solid_at(alu, X, c.WIDTH / 2 - c.WALL - 0.2, z_flank),
         "flank wall is only WALL thick",
         f"hollow {c.WALL + 0.2:.1f} mm in",
     )
-    r.check(is_solid_at(alu, X, 0, c.WALL / 2), "bottom wall present")
+    r.check(r.solid_at(alu, X, 0, c.WALL / 2), "bottom wall present")
 
 
 def check_wiring_cavity(alu: Part, r: Report) -> None:
     """The hollow the 24 V bus and the ESP32 PCB have to fit into."""
     r.section("Wiring cavity")
     r.check(
-        not is_solid_at(alu, X, 0, c.CAVITY_TOP_Z - 0.5),
+        not r.solid_at(alu, X, 0, c.CAVITY_TOP_Z - 0.5),
         "cavity is open below the floor web",
     )
     r.check(
-        not is_solid_at(alu, X, 0, c.CAVITY_TOP_Z / 2),
+        not r.solid_at(alu, X, 0, c.CAVITY_TOP_Z / 2),
         "cavity is open through its depth",
     )
-    r.check(is_solid_at(alu, X, 0, c.CAVITY_TOP_Z + c.FLOOR_T / 2), "floor web present")
+    r.check(r.solid_at(alu, X, 0, c.CAVITY_TOP_Z + c.FLOOR_T / 2), "floor web present")
     depth = c.CAVITY_TOP_Z - c.WALL
     r.check(depth > 10.0, "cavity depth", f"{depth:.1f} mm under the strip floor")
     r.check(
@@ -144,32 +143,32 @@ def check_channel(alu: Part, r: Report) -> None:
     """The two-step channel: shallow recess, with the strip slot inside it."""
     r.section("LED channel")
     z_recess = c.RIM_Z - c.RECESS_H / 2
-    r.check(not is_solid_at(alu, X, 0, z_recess), "recess is open")
+    r.check(not r.solid_at(alu, X, 0, z_recess), "recess is open")
     r.check(
-        is_solid_at(alu, X, c.CHANNEL_W / 2 + c.CHANNEL_WALL / 2, z_recess),
+        r.solid_at(alu, X, c.CHANNEL_W / 2 + c.CHANNEL_WALL / 2, z_recess),
         "recess wall present",
     )
     r.check(
-        not is_solid_at(alu, X, c.CHANNEL_W / 2 - 0.2, z_recess),
+        not r.solid_at(alu, X, c.CHANNEL_W / 2 - 0.2, z_recess),
         "recess is CHANNEL_W wide",
         f"open out to {c.CHANNEL_W / 2 - 0.2:.2f} from centre",
     )
 
     z_slot = c.STRIP_FLOOR_Z + c.STRIP_SLOT_H / 2
-    r.check(not is_solid_at(alu, X, 0, z_slot), "strip slot is open")
+    r.check(not r.solid_at(alu, X, 0, z_slot), "strip slot is open")
     r.check(
-        not is_solid_at(alu, X, c.STRIP_SLOT_W / 2 - 0.2, z_slot),
+        not r.solid_at(alu, X, c.STRIP_SLOT_W / 2 - 0.2, z_slot),
         "slot is STRIP_SLOT_W wide",
     )
     r.check(
-        is_solid_at(alu, X, 0, c.STRIP_FLOOR_Z - 0.2), "floor is solid under the slot"
+        r.solid_at(alu, X, 0, c.STRIP_FLOOR_Z - 0.2), "floor is solid under the slot"
     )
 
     # The step itself: material beside the slot, hollow directly above it.
     u_step = (c.STRIP_SLOT_W / 2 + c.CHANNEL_W / 2) / 2
-    r.check(is_solid_at(alu, X, u_step, z_slot), "ledge beside the slot")
+    r.check(r.solid_at(alu, X, u_step, z_slot), "ledge beside the slot")
     r.check(
-        not is_solid_at(alu, X, u_step, z_recess),
+        not r.solid_at(alu, X, u_step, z_recess),
         "and the recess runs over that ledge",
         f"the {c.RECESS_H:.1f} mm step the user flagged as missing",
     )
@@ -180,13 +179,11 @@ def check_screw_ports(alu: Part, r: Report) -> None:
     r.section("Endcap screw ports")
     u = c.SCREW_SPACING / 2
     z = c.SCREW_BOSS_Z
-    r.check(not is_solid_at(alu, X, u, z), "port bore is open (+u)")
-    r.check(
-        not is_solid_at(alu, -X + c.SECTION_LENGTH, -u, z), "port bore is open (-u)"
-    )
+    r.check(not r.solid_at(alu, X, u, z), "port bore is open (+u)")
+    r.check(not r.solid_at(alu, -X + c.SECTION_LENGTH, -u, z), "port bore is open (-u)")
     ring = (c.SCREW_PILOT_D / 2 + c.BOSS_OD / 2) / 2
-    r.check(is_solid_at(alu, X, u, z + ring), "boss material around the bore")
-    r.check(is_solid_at(alu, X, u - ring, z), "boss material inboard of the bore")
+    r.check(r.solid_at(alu, X, u, z + ring), "boss material around the bore")
+    r.check(r.solid_at(alu, X, u - ring, z), "boss material inboard of the bore")
 
     # The shell curves in above and below the straight band; make sure the bore
     # has not been pushed somewhere it breaks out through the outside.
@@ -223,22 +220,22 @@ def check_diffuser(alu: Part, diffuser: Part, r: Report) -> None:
     r.check(abs(bb.min.Z - c.RIM_Z) < 0.01, "seats on the rim", f"z {bb.min.Z:.2f}")
 
     r.check(
-        is_solid_at(diffuser, X, 0, c.HEIGHT - c.DIFFUSER_T / 2), "crown wall present"
+        r.solid_at(diffuser, X, 0, c.HEIGHT - c.DIFFUSER_T / 2), "crown wall present"
     )
     r.check(
-        not is_solid_at(diffuser, X, 0, c.HEIGHT - c.DIFFUSER_T - 0.15),
+        not r.solid_at(diffuser, X, 0, c.HEIGHT - c.DIFFUSER_T - 0.15),
         "crown is DIFFUSER_T thick",
         f"{c.DIFFUSER_T} mm",
     )
     # Inner width just above the rim -- the second of the two measurements.
     z_probe = c.RIM_Z + 0.15
     r.check(
-        not is_solid_at(diffuser, X, c.DIFFUSER_INNER_W / 2 - 0.3, z_probe),
+        not r.solid_at(diffuser, X, c.DIFFUSER_INNER_W / 2 - 0.3, z_probe),
         "hollow to DIFFUSER_INNER_W just above the rim",
         f"{c.DIFFUSER_INNER_W} mm inside",
     )
     r.check(
-        is_solid_at(diffuser, X, c.DIFFUSER_INNER_W / 2 + 0.2, z_probe),
+        r.solid_at(diffuser, X, c.DIFFUSER_INNER_W / 2 + 0.2, z_probe),
         "and solid outboard of that",
     )
 
@@ -356,18 +353,18 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
         f"a 16 mm screw needs",
     )
     r.check(
-        not is_solid_at(cap, u, v, 0.05),
+        not r.solid_at(cap, u, v, 0.05),
         "bore is open at the outer face",
     )
     # The access stage is a plain cylinder: open just inside its wall and
     # closed just outside, at two depths a cone could not pass both of.
     for depth in (e.SCREW_ACCESS_DEPTH * 0.25, e.SCREW_ACCESS_DEPTH * 0.9):
         r.check(
-            not is_solid_at(cap, u - (e.SCREW_ACCESS_D / 2 - 0.15), v, depth),
+            not r.solid_at(cap, u - (e.SCREW_ACCESS_D / 2 - 0.15), v, depth),
             f"access bore is full width {depth:.1f} mm down",
         )
         r.check(
-            is_solid_at(cap, u - (e.SCREW_ACCESS_D / 2 + 0.3), v, depth),
+            r.solid_at(cap, u - (e.SCREW_ACCESS_D / 2 + 0.3), v, depth),
             "...and closed just outside it -- a bore, not a pocket",
         )
     # The taper: a 90 deg head is 45 deg per side, so at any depth into the seat
@@ -379,11 +376,11 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
         radius = e.SCREW_SEAT_D / 2 - depth
         z = e.SCREW_ACCESS_DEPTH + depth
         r.check(
-            not is_solid_at(cap, u - (radius - 0.15), v, z),
+            not r.solid_at(cap, u - (radius - 0.15), v, z),
             f"seat is open {depth} mm below the access stage, to r={radius:.2f}",
         )
         r.check(
-            is_solid_at(cap, u - (radius + 0.15), v, z),
+            r.solid_at(cap, u - (radius + 0.15), v, z),
             "...and closed again just outside it -- 45 deg, not a counterbore",
         )
     r.check(
@@ -403,16 +400,16 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     # there, which is wrong -- that is the floor, and it is meant to be solid.)
     z_seat_end = e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH
     r.check(
-        not is_solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, z_seat_end - 0.05),
+        not r.solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, z_seat_end - 0.05),
         "seat arrives at the clearance hole",
     )
     r.check(
-        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, z_seat_end - 0.05),
+        r.solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, z_seat_end - 0.05),
         "...with no flat annular floor around it",
         "a pan-head counterbore left a 1.075 mm ring of unsupported ceiling here",
     )
     r.check(
-        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, e.CAP_T - 0.3),
+        r.solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, e.CAP_T - 0.3),
         "material alongside the clearance hole is solid",
         f"{e.SCREW_FLOOR_T:.2f} mm between the seat and the aluminium -- it was "
         f"1.2, and the port is a continuous channel so nothing caps it",
@@ -425,7 +422,7 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
         f"{e.SCREW_FLOOR_T:.3f} = {e.CAP_T}",
     )
     r.check(
-        not is_solid_at(cap, u, v, e.CAP_T - 0.2),
+        not r.solid_at(cap, u, v, e.CAP_T - 0.2),
         "clearance hole carries on through to the aluminium",
     )
     # ...and the screw actually gets there, far enough to hold. 2 x the thread
@@ -454,11 +451,11 @@ def check_screw_pockets(cap: Part, r: Report) -> None:
     )
     half = e.cap_half_width(c.SCREW_BOSS_Z)
     r.check(
-        not is_solid_at(cap, half - 0.1, v, e.SCREW_ACCESS_DEPTH / 2),
+        not r.solid_at(cap, half - 0.1, v, e.SCREW_ACCESS_DEPTH / 2),
         "...and the scallop is really cut down the access stage",
     )
     r.check(
-        is_solid_at(cap, half - 0.1, v, e.CAP_T - 0.2),
+        r.solid_at(cap, half - 0.1, v, e.CAP_T - 0.2),
         "...but the flank below it is whole",
         f"the bite stops where the seat does, "
         f"{e.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH:.2f} mm in, so the "
@@ -503,9 +500,9 @@ def check_gland(cap: Part, r: Report) -> None:
         "bore is on the cap's centre",
         f"z {e.GLAND_Z} = HEIGHT / 2",
     )
-    r.check(not is_solid_at(cap, 0, _loc(e.GLAND_Z), z_mid), "bore is open")
+    r.check(not r.solid_at(cap, 0, _loc(e.GLAND_Z), z_mid), "bore is open")
     r.check(
-        is_solid_at(cap, 0, _loc(e.GLAND_Z) - e.GLAND_MAJOR_D / 2 - 1.0, z_mid),
+        r.solid_at(cap, 0, _loc(e.GLAND_Z) - e.GLAND_MAJOR_D / 2 - 1.0, z_mid),
         "solid below the bore",
     )
 
@@ -537,7 +534,7 @@ def check_gland(cap: Part, r: Report) -> None:
         e.CAP_T + e.PLUG_DEPTH / 2,
         total - 0.2,
     ]
-    blocked = [z for z in stations if is_solid_at(cap, 0, _loc(e.GLAND_Z), z)]
+    blocked = [z for z in stations if r.solid_at(cap, 0, _loc(e.GLAND_Z), z)]
     r.check(
         not blocked,
         "bore axis is clear end to end, flange and plug alike",
@@ -547,9 +544,7 @@ def check_gland(cap: Part, r: Report) -> None:
     # that is where a plug that merely dodged the bore would still show up.
     plug_probe = e.CAP_T + e.PLUG_DEPTH / 2
     r.check(
-        not is_solid_at(
-            cap, 0, _loc(e.GLAND_Z) - 0.8 * e.GLAND_MAJOR_D / 2, plug_probe
-        ),
+        not r.solid_at(cap, 0, _loc(e.GLAND_Z) - 0.8 * e.GLAND_MAJOR_D / 2, plug_probe),
         "...including the crescent the plug would otherwise fill",
         f"probed {0.8 * e.GLAND_MAJOR_D / 2:.2f} mm below the axis, mid-plug",
     )
@@ -591,7 +586,7 @@ def check_gland(cap: Part, r: Report) -> None:
     # station (midway to CAP_T) would stand in the pocket and report "not
     # threaded" about a place with no bore wall at all.
     r.check(
-        not is_solid_at(
+        not r.solid_at(
             cap,
             e.GLAND_MAJOR_D / 2 - 1.0825 * e.GLAND_PITCH / 2 + 0.25,
             _loc(e.GLAND_Z),
@@ -622,7 +617,7 @@ def check_gland(cap: Part, r: Report) -> None:
         for z in [
             e.GLAND_COLLAR + 0.25 + 0.25 * i for i in range(int(4 * e.GLAND_MALE_L))
         ]
-        if z < thread_top and is_solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
+        if z < thread_top and r.solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
     ]
     r.check(
         len(turns) >= 3 * int(e.GLAND_THREAD_L / e.GLAND_PITCH),
@@ -765,25 +760,25 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
     # --- and the same thing, read off the solid ------------------------------
     y_probe = e.GLAND_MAJOR_D / 2 + 0.5  # clear of the bore, inside the pocket
     r.check(
-        not is_solid_at(cap, 0.0, y_probe, e.CAP_T - 0.2)
-        and not is_solid_at(cap, 0.0, y_probe, e.POCKET_FLOOR_Z + 0.2),
+        not r.solid_at(cap, 0.0, y_probe, e.CAP_T - 0.2)
+        and not r.solid_at(cap, 0.0, y_probe, e.POCKET_FLOOR_Z + 0.2),
         "pocket is open, floor to the flange's inner face",
         f"probed on the bore's axis at y={y_probe:.2f}",
     )
     r.check(
-        is_solid_at(cap, 0.0, y_probe, e.POCKET_FLOOR_Z - 0.3),
+        r.solid_at(cap, 0.0, y_probe, e.POCKET_FLOOR_Z - 0.3),
         "...and the floor under it is solid",
     )
     y_web = e.POCKET_Y_LOW - e.POCKET_WEB / 2
     r.check(
-        is_solid_at(cap, 0.0, y_web, e.CAP_T - 0.2)
-        and is_solid_at(cap, 0.0, y_web, e.POCKET_FLOOR_Z + 0.2),
+        r.solid_at(cap, 0.0, y_web, e.CAP_T - 0.2)
+        and r.solid_at(cap, 0.0, y_web, e.POCKET_FLOOR_Z + 0.2),
         "web to the strap slot is really there",
         f"material at y={y_web:.2f}, midway between the pocket's bottom edge "
         f"and the slot's roof, at both the flange's inner face and the floor",
     )
     r.check(
-        is_solid_at(
+        r.solid_at(
             cap,
             e.POCKET_X + e.POCKET_CLEAR / 2,
             _loc(c.SCREW_BOSS_Z),
@@ -797,8 +792,8 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
     z_cone = e.POCKET_FLOOR_Z - e.POCKET_LEAD / 2
     r_cone = e.GLAND_MAJOR_D / 2 + e.POCKET_LEAD / 2
     r.check(
-        not is_solid_at(cap, r_cone - 0.15, 0.0, z_cone)
-        and is_solid_at(cap, r_cone + 0.15, 0.0, z_cone),
+        not r.solid_at(cap, r_cone - 0.15, 0.0, z_cone)
+        and r.solid_at(cap, r_cone + 0.15, 0.0, z_cone),
         "floor's rim into the bore is chamfered, not left square",
         f"{e.POCKET_LEAD} mm cone, probed at r={r_cone:.2f}, z={z_cone:.2f}",
     )
@@ -806,8 +801,8 @@ def check_gland_pocket(cap: Part, r: Report) -> None:
     # a cone clipped to a pocket smaller than itself would leave. Probed on the
     # bore's low side, which is where the pocket's own boundary is nearest.
     r.check(
-        not is_solid_at(cap, 0.0, -(r_cone - 0.15), z_cone)
-        and is_solid_at(cap, 0.0, -(r_cone + 0.15), z_cone),
+        not r.solid_at(cap, 0.0, -(r_cone - 0.15), z_cone)
+        and r.solid_at(cap, 0.0, -(r_cone + 0.15), z_cone),
         "...and the chamfer runs right round the rim",
         f"same pair of probes on the bore's low side, where the pocket wall is "
         f"{min(hypot(p.X, p.Y) for p in pts) - e.GLAND_MAJOR_D / 2:.2f} mm out",
@@ -841,16 +836,16 @@ def check_plug_shell(cap: Part, r: Report) -> None:
     )
     y_plug = y_chord - 0.3
     r.check(
-        not is_solid_at(cap, 0.0, y_plug, z_plug)
-        and not is_solid_at(cap, x_seam - 0.5, y_plug, z_plug)
-        and is_solid_at(cap, x_seam + e.PLUG_WALL / 2, y_plug, z_plug),
+        not r.solid_at(cap, 0.0, y_plug, z_plug)
+        and not r.solid_at(cap, x_seam - 0.5, y_plug, z_plug)
+        and r.solid_at(cap, x_seam + e.PLUG_WALL / 2, y_plug, z_plug),
         "plug is hollow, and the wall starts where the seams are",
         f"open on the axis and at x={x_seam - 0.5:.2f}, solid at "
         f"x={x_seam + e.PLUG_WALL / 2:.2f}, mid-plug at z={z_plug:.2f}",
     )
     r.check(
-        is_solid_at(cap, 0.0, plug_bot + e.PLUG_WALL / 2, z_plug)
-        and not is_solid_at(cap, 0.0, plug_bot + e.PLUG_WALL + 0.5, z_plug),
+        r.solid_at(cap, 0.0, plug_bot + e.PLUG_WALL / 2, z_plug)
+        and not r.solid_at(cap, 0.0, plug_bot + e.PLUG_WALL + 0.5, z_plug),
         f"...and it is {e.PLUG_WALL} mm at the bottom of the arc",
         f"solid at y={plug_bot + e.PLUG_WALL / 2:.2f}, open at "
         f"y={plug_bot + e.PLUG_WALL + 0.5:.2f}. This column was solid from "
@@ -860,7 +855,7 @@ def check_plug_shell(cap: Part, r: Report) -> None:
     # The hollow stops at CAP_T on purpose -- that face is the seat the screws
     # clamp against the aluminium, and it is not the relief pocket's to take.
     r.check(
-        is_solid_at(cap, 0.0, plug_bot + e.PLUG_WALL + 0.5, e.CAP_T - 0.3),
+        r.solid_at(cap, 0.0, plug_bot + e.PLUG_WALL + 0.5, e.CAP_T - 0.3),
         "...and it stops at the flange's seat face, which stays solid",
         f"material at z={e.CAP_T - 0.3:.2f} directly under the hollow, where "
         f"the flange beds against the extrusion's {c.WALL} mm wall",
@@ -885,8 +880,8 @@ def check_plug_shell(cap: Part, r: Report) -> None:
     plug_in = plug_bot + e.PLUG_WALL
     facet = plug_bot + (e.PLUG_LEAD_IN - d)
     r.check(
-        is_solid_at(cap, 0.0, (facet + plug_in) / 2, tip - d)
-        and not is_solid_at(cap, 0.0, facet - 0.2, tip - d),
+        r.solid_at(cap, 0.0, (facet + plug_in) / 2, tip - d)
+        and not r.solid_at(cap, 0.0, facet - 0.2, tip - d),
         "...and the land is really there at the tip",
         f"solid at y={(facet + plug_in) / 2:.2f} and air at y={facet - 0.2:.2f}, "
         f"{d} mm below the tip -- the lead-in's facet has come in to "
@@ -921,7 +916,7 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
         f"{z_hi - z_lo:.2f} mm for a {e.STRAP_W} mm strap "
         f"({fits.for_material(fits.FREE, 'asa'):.2f} FREE for ASA)",
     )
-    r.check(not is_solid_at(cap, 0.0, y, z_mid), "slot is open on the centre line")
+    r.check(not r.solid_at(cap, 0.0, y, z_mid), "slot is open on the centre line")
 
     # Open all the way across, sampled at eight stations rather than at the
     # middle: a slot that failed to reach one flank is still open at x=0.
@@ -935,7 +930,7 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
         7.0,
         half_lo - 0.3,
     ]
-    blocked = [x for x in span if is_solid_at(cap, x, y, z_mid)]
+    blocked = [x for x in span if r.solid_at(cap, x, y, z_mid)]
     r.check(
         not blocked,
         "...and open flank to flank, so the strap threads through",
@@ -945,12 +940,12 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
     # Closed at both ends along the cap's axis. This is what keeps the strap
     # captive and what leaves the tube's wall seat at CAP_T unbroken.
     r.check(
-        is_solid_at(cap, 0.0, y, z_lo - e.STRAP_WALL / 2),
+        r.solid_at(cap, 0.0, y, z_lo - e.STRAP_WALL / 2),
         "closed toward the outer face",
         f"{e.STRAP_WALL} mm of wall, slot starts at z={z_lo:.2f}",
     )
     r.check(
-        is_solid_at(cap, 0.0, y, z_hi + e.STRAP_WALL / 2),
+        r.solid_at(cap, 0.0, y, z_hi + e.STRAP_WALL / 2),
         "...and toward the seat, so the tube's wall still beds on solid",
         f"{e.STRAP_WALL} mm of wall, slot stops at z={z_hi:.2f} of {e.CAP_T}",
     )
@@ -962,8 +957,8 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
         f"{e.strap_roof():.2f} mm -- what the strap pulls on",
     )
     r.check(
-        is_solid_at(cap, 0.0, y + e.STRAP_SLOT_H / 2 + 0.3, z_mid)
-        and is_solid_at(cap, 0.0, -e.GLAND_MAJOR_D / 2 - 0.3, z_mid),
+        r.solid_at(cap, 0.0, y + e.STRAP_SLOT_H / 2 + 0.3, z_mid)
+        and r.solid_at(cap, 0.0, -e.GLAND_MAJOR_D / 2 - 0.3, z_mid),
         "...and it is really there, top and bottom",
     )
     r.check(
@@ -972,7 +967,7 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
         f"{e.strap_floor():.2f} mm to the bottom of the shell",
     )
     r.check(
-        is_solid_at(cap, 0.0, y - e.STRAP_SLOT_H / 2 - 0.3, z_mid),
+        r.solid_at(cap, 0.0, y - e.STRAP_SLOT_H / 2 - 0.3, z_mid),
         "...and it is really there too",
     )
 
@@ -985,8 +980,8 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
         f"{-gap:.2f} mm below the lowest point of a pocket",
     )
     r.check(
-        is_solid_at(cap, c.SCREW_SPACING / 2, y, z_mid) is False
-        or not is_solid_at(cap, c.SCREW_SPACING / 2, _loc(c.SCREW_BOSS_Z), z_mid),
+        r.solid_at(cap, c.SCREW_SPACING / 2, y, z_mid) is False
+        or not r.solid_at(cap, c.SCREW_SPACING / 2, _loc(c.SCREW_BOSS_Z), z_mid),
         "...and the screw hole is still its own hole",
     )
 
@@ -999,8 +994,8 @@ def check_strap_slot(cap: Part, r: Report, section: str = "Endcap strap slot") -
         f"half-width runs {half_lo:.2f} to {half_hi:.2f} mm up the mouth",
     )
     r.check(
-        not is_solid_at(cap, half_lo - 0.2, y, z_mid)
-        and not is_solid_at(cap, -(half_lo - 0.2), y, z_mid),
+        not r.solid_at(cap, half_lo - 0.2, y, z_mid)
+        and not r.solid_at(cap, -(half_lo - 0.2), y, z_mid),
         "slot really breaks out through both flanks",
     )
     # The fillet, measured as an angle rather than by point probes. Both mouths
@@ -1066,12 +1061,12 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
 
     # Bed face, sampled down the bottom arc -- clear of both screw pockets.
     r.check(
-        not is_solid_at(cap, 0.0, -(half_h - 0.25 * ch), 0.25 * ch),
+        not r.solid_at(cap, 0.0, -(half_h - 0.25 * ch), 0.25 * ch),
         "bed face chamfered -- no elephant's foot",
         f"{ch} mm",
     )
     r.check(
-        is_solid_at(cap, 0.0, -(half_h - 2 * ch), 0.25 * ch),
+        r.solid_at(cap, 0.0, -(half_h - 2 * ch), 0.25 * ch),
         "...and no more than that",
     )
 
@@ -1079,7 +1074,7 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
     # the extrusion's 0.5 mm wall stands on, edge to edge now that the cap is
     # flush. An absence check, because a chamfer here would pass silently.
     r.check(
-        is_solid_at(cap, e.CAP_W / 2 - 0.1, 0.0, e.CAP_T - 0.05),
+        r.solid_at(cap, e.CAP_W / 2 - 0.1, 0.0, e.CAP_T - 0.05),
         "cap face is square at the flank -- the tube's wall seat",
         "flush cap: the whole face is seat, so nothing up here gets a bevel",
     )
@@ -1091,12 +1086,12 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
     arc_cy = _loc(c.BOT_ARC_Z)
     plug_r = c.RADIUS - c.WALL - e.PLUG_FIT / 2
     r.check(
-        not is_solid_at(cap, 0.0, arc_cy - (plug_r - 0.25 * li), tip - 0.25 * li),
+        not r.solid_at(cap, 0.0, arc_cy - (plug_r - 0.25 * li), tip - 0.25 * li),
         "plug's leading edge has a lead-in",
         f"{li} mm, vs {e.PLUG_FIT / 2:.2f} mm of radial clearance",
     )
     r.check(
-        is_solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
+        r.solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
         "...and the plug's tip is still there",
     )
     # The corners that lead-in leaves where its facets meet. At 0.4 they were
@@ -1124,12 +1119,12 @@ def check_endcap_edges(cap: Part, r: Report) -> None:
     # it clearly has not reached.
     void_r = plug_r - e.PLUG_WALL
     r.check(
-        not is_solid_at(cap, 0.0, arc_cy - (void_r + 0.25 * li), tip - 0.25 * li),
+        not r.solid_at(cap, 0.0, arc_cy - (void_r + 0.25 * li), tip - 0.25 * li),
         "...and the hollow's own rim has a matching lead-in",
         f"{li} mm on the inside too, widening toward the tip",
     )
     r.check(
-        is_solid_at(cap, 0.0, arc_cy - (void_r + 2 * li), tip - 0.25 * li),
+        r.solid_at(cap, 0.0, arc_cy - (void_r + 2 * li), tip - 0.25 * li),
         "...and the wall between the two chamfers is still there",
     )
 
@@ -1351,18 +1346,18 @@ def check_wired_screws(cap: Part, r: Report) -> None:
         f"with the seat's own FREE fit and sink",
     )
     r.check(
-        not is_solid_at(cap, u, v, 0.05),
+        not r.solid_at(cap, u, v, 0.05),
         "bore is open at the outer face",
     )
     # The access stage is a plain cylinder: open just inside its wall and
     # closed just outside, at two depths a cone could not pass both of.
     for depth in (ew.SCREW_ACCESS_DEPTH * 0.25, ew.SCREW_ACCESS_DEPTH * 0.9):
         r.check(
-            not is_solid_at(cap, u - (ew.SCREW_ACCESS_D / 2 - 0.15), v, depth),
+            not r.solid_at(cap, u - (ew.SCREW_ACCESS_D / 2 - 0.15), v, depth),
             f"access bore is full width {depth:.1f} mm down",
         )
         r.check(
-            is_solid_at(cap, u - (ew.SCREW_ACCESS_D / 2 + 0.3), v, depth),
+            r.solid_at(cap, u - (ew.SCREW_ACCESS_D / 2 + 0.3), v, depth),
             "...and closed just outside it -- a bore, not a pocket",
         )
     # The seat: the standard cap's 45 deg cone, one access stage down. Same
@@ -1371,28 +1366,28 @@ def check_wired_screws(cap: Part, r: Report) -> None:
         radius = e.SCREW_SEAT_D / 2 - depth
         z = ew.SCREW_ACCESS_DEPTH + depth
         r.check(
-            not is_solid_at(cap, u - (radius - 0.15), v, z),
+            not r.solid_at(cap, u - (radius - 0.15), v, z),
             f"seat is open {depth} mm below the access stage, to r={radius:.2f}",
         )
         r.check(
-            is_solid_at(cap, u - (radius + 0.15), v, z),
+            r.solid_at(cap, u - (radius + 0.15), v, z),
             "...and closed just outside it -- 45 deg, not a counterbore",
         )
     z_seat_end = ew.SCREW_ACCESS_DEPTH + e.SCREW_SEAT_DEPTH
     r.check(
-        not is_solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, z_seat_end - 0.05),
+        not r.solid_at(cap, u - e.SCREW_CLEAR_D / 2, v, z_seat_end - 0.05),
         "seat arrives at the clearance hole",
     )
     r.check(
-        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, z_seat_end - 0.05),
+        r.solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.25, v, z_seat_end - 0.05),
         "...with no flat annular floor around it",
     )
     r.check(
-        not is_solid_at(cap, u, v, ew.CAP_T - 0.2),
+        not r.solid_at(cap, u, v, ew.CAP_T - 0.2),
         "clearance hole carries on through to the aluminium",
     )
     r.check(
-        is_solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, ew.CAP_T - 0.3),
+        r.solid_at(cap, u - e.SCREW_CLEAR_D / 2 - 0.4, v, ew.CAP_T - 0.3),
         "screw column alongside the hole is solid at the seat face",
         "the chamber keeps a POCKET_CLEAR column round each hole, and its "
         "top is what the port's boss beds against",
@@ -1408,11 +1403,11 @@ def check_wired_screws(cap: Part, r: Report) -> None:
     )
     half = e.cap_half_width(c.SCREW_BOSS_Z)
     r.check(
-        not is_solid_at(cap, half - 0.1, v, ew.SCREW_ACCESS_DEPTH / 2),
+        not r.solid_at(cap, half - 0.1, v, ew.SCREW_ACCESS_DEPTH / 2),
         "...and the scallop is really cut down the access stage",
     )
     r.check(
-        is_solid_at(cap, half - 0.1, v, ew.CAP_T - 0.2),
+        r.solid_at(cap, half - 0.1, v, ew.CAP_T - 0.2),
         "...but the flank below the seat is whole",
     )
 
@@ -1524,20 +1519,20 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
     # --- the route, read off the solid -----------------------------------
     z_mid = (ew.CHAMBER_FLOOR_Z + ew.CAP_T) / 2
     stations = [ew.CHAMBER_FLOOR_Z + 0.2, z_mid, ew.CAP_T - 0.2]
-    blocked = [z for z in stations if is_solid_at(cap, 0.0, 0.0, z)]
+    blocked = [z for z in stations if r.solid_at(cap, 0.0, 0.0, z)]
     r.check(
         not blocked,
         "chamber is open on the bore's axis, floor to the inner face",
         f"blocked at z={blocked}" if blocked else f"{len(stations)} stations open",
     )
     r.check(
-        not is_solid_at(cap, 0.0, e.GLAND_MAJOR_D / 2 + 1.0, z_mid)
-        and not is_solid_at(cap, 0.0, -(e.GLAND_MAJOR_D / 2 + 1.0), z_mid),
+        not r.solid_at(cap, 0.0, e.GLAND_MAJOR_D / 2 + 1.0, z_mid)
+        and not r.solid_at(cap, 0.0, -(e.GLAND_MAJOR_D / 2 + 1.0), z_mid),
         "...and open above AND below the bore -- a chamber, not a slot",
         "the standard cap is solid at both of these probes mid-flange",
     )
     r.check(
-        is_solid_at(cap, 0.0, e.GLAND_MAJOR_D / 2 + 0.5, ew.CHAMBER_FLOOR_Z - 0.3),
+        r.solid_at(cap, 0.0, e.GLAND_MAJOR_D / 2 + 0.5, ew.CHAMBER_FLOOR_Z - 0.3),
         "floor under the chamber is solid",
     )
     r.check(
@@ -1560,8 +1555,8 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
         ew.CAP_T + 1,
         ew.CAP_T + e.PLUG_DEPTH / 2,
     ]
-    inside_blocked = [z for z in run if is_solid_at(cap, 0.0, y_wall + 0.3, z)]
-    wall_missing = [z for z in run if not is_solid_at(cap, 0.0, y_wall - 0.3, z)]
+    inside_blocked = [z for z in run if r.solid_at(cap, 0.0, y_wall + 0.3, z)]
+    wall_missing = [z for z in run if not r.solid_at(cap, 0.0, y_wall - 0.3, z)]
     r.check(
         not inside_blocked and not wall_missing,
         "chamber wall is flush with the plug channel's, floor to tip",
@@ -1582,13 +1577,13 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
     # red against it (demonstrated on the pre-fix solid, not assumed).
     col = (c.SCREW_SPACING / 2 - 1.2, v - 2.45)
     r.check(
-        is_solid_at(cap, col[0], col[1], z_mid),
+        r.solid_at(cap, col[0], col[1], z_mid),
         "screw columns are really there in the flange",
         f"solid at ({col[0]:.2f}, {col[1]:.2f}), inside the scallop's bite "
         f"and clear of the clearance hole",
     )
     r.check(
-        not is_solid_at(cap, col[0], col[1], ew.CAP_T + 1.0),
+        not r.solid_at(cap, col[0], col[1], ew.CAP_T + 1.0),
         "...and end at the inner face -- no ribs down the plug's channel",
         "the plug keeps the standard cap's own hollow, cut separately from "
         "the scalloped chamber",
@@ -1600,13 +1595,13 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
     # (check_strap_slot runs on this cap too, for the slot's own geometry.)
     z_web = (e.strap_slot_z()[1] + ew.CHAMBER_FLOOR_Z) / 2
     r.check(
-        is_solid_at(cap, 0.0, e.STRAP_SLOT_Y, z_web),
+        r.solid_at(cap, 0.0, e.STRAP_SLOT_Y, z_web),
         "web between the slot's roof and the chamber floor is really there",
         f"solid at y={e.STRAP_SLOT_Y}, z={z_web:.2f}, between a slot roof at "
         f"{e.strap_slot_z()[1]:.2f} and a floor at {ew.CHAMBER_FLOOR_Z}",
     )
     r.check(
-        not is_solid_at(cap, 0.0, e.STRAP_SLOT_Y, ew.CHAMBER_FLOOR_Z + 0.3),
+        not r.solid_at(cap, 0.0, e.STRAP_SLOT_Y, ew.CHAMBER_FLOOR_Z + 0.3),
         "...and the chamber is open directly above it",
         "the slot's y sits inside the chamber's section, so a floor that "
         "crept below the slot's roof would merge the two -- strap in the "
@@ -1621,7 +1616,7 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
         for z in [
             e.GLAND_COLLAR + 0.25 + 0.25 * i for i in range(int(4 * e.GLAND_MALE_L))
         ]
-        if z < thread_top and is_solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
+        if z < thread_top and r.solid_at(cap, r_crest, _loc(e.GLAND_Z), z)
     ]
     r.check(
         len(turns) >= 3 * int(e.GLAND_THREAD_L / e.GLAND_PITCH),
@@ -1629,7 +1624,7 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
         f"{len(turns)} sampled stations carry material at r={r_crest:.2f}",
     )
     r.check(
-        not is_solid_at(
+        not r.solid_at(
             cap, r_crest, _loc(e.GLAND_Z), (thread_top + ew.CHAMBER_FLOOR_Z) / 2
         ),
         "...and the bore between thread and floor is plain",
@@ -1641,10 +1636,10 @@ def check_wired_chamber(cap: Part, r: Report) -> None:
     z_cone = ew.CHAMBER_FLOOR_Z - e.POCKET_LEAD / 2
     r_cone = e.GLAND_MAJOR_D / 2 + e.POCKET_LEAD / 2
     r.check(
-        not is_solid_at(cap, r_cone - 0.15, 0.0, z_cone)
-        and is_solid_at(cap, r_cone + 0.15, 0.0, z_cone)
-        and not is_solid_at(cap, 0.0, -(r_cone - 0.15), z_cone)
-        and is_solid_at(cap, 0.0, -(r_cone + 0.15), z_cone),
+        not r.solid_at(cap, r_cone - 0.15, 0.0, z_cone)
+        and r.solid_at(cap, r_cone + 0.15, 0.0, z_cone)
+        and not r.solid_at(cap, 0.0, -(r_cone - 0.15), z_cone)
+        and r.solid_at(cap, 0.0, -(r_cone + 0.15), z_cone),
         "floor's rim into the bore is chamfered, all the way round",
         f"{e.POCKET_LEAD} mm cone at r={r_cone:.2f}, z={z_cone:.2f}",
     )
@@ -1663,16 +1658,16 @@ def check_wired_edges(cap: Part, r: Report) -> None:
     ch, li = e.EDGE_CHAMFER, e.PLUG_LEAD_IN
 
     r.check(
-        not is_solid_at(cap, 0.0, -(half_h - 0.25 * ch), 0.25 * ch),
+        not r.solid_at(cap, 0.0, -(half_h - 0.25 * ch), 0.25 * ch),
         "bed face chamfered -- no elephant's foot",
         f"{ch} mm",
     )
     r.check(
-        is_solid_at(cap, 0.0, -(half_h - 2 * ch), 0.25 * ch),
+        r.solid_at(cap, 0.0, -(half_h - 2 * ch), 0.25 * ch),
         "...and no more than that",
     )
     r.check(
-        is_solid_at(cap, ew.CAP_W / 2 - 0.1, 0.0, ew.CAP_T - 0.05),
+        r.solid_at(cap, ew.CAP_W / 2 - 0.1, 0.0, ew.CAP_T - 0.05),
         "cap face is square at the flank -- the tube's wall seat",
     )
 
@@ -1680,21 +1675,21 @@ def check_wired_edges(cap: Part, r: Report) -> None:
     arc_cy = _loc(c.BOT_ARC_Z)
     plug_r = c.RADIUS - c.WALL - e.PLUG_FIT / 2
     r.check(
-        not is_solid_at(cap, 0.0, arc_cy - (plug_r - 0.25 * li), tip - 0.25 * li),
+        not r.solid_at(cap, 0.0, arc_cy - (plug_r - 0.25 * li), tip - 0.25 * li),
         "plug's leading edge has a lead-in",
         f"{li} mm",
     )
     r.check(
-        is_solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
+        r.solid_at(cap, 0.0, arc_cy - (plug_r - 2 * li), tip - 0.25 * li),
         "...and the plug's tip is still there",
     )
     void_r = plug_r - e.PLUG_WALL
     r.check(
-        not is_solid_at(cap, 0.0, arc_cy - (void_r + 0.25 * li), tip - 0.25 * li),
+        not r.solid_at(cap, 0.0, arc_cy - (void_r + 0.25 * li), tip - 0.25 * li),
         "...and the hollow's own rim has a matching lead-in",
     )
     r.check(
-        is_solid_at(cap, 0.0, arc_cy - (void_r + 2 * li), tip - 0.25 * li),
+        r.solid_at(cap, 0.0, arc_cy - (void_r + 2 * li), tip - 0.25 * li),
         "...and the wall between the two chamfers is still there",
     )
     corners = ew.plug_tip_corner_edges(cap)
@@ -1714,12 +1709,12 @@ def check_wired_edges(cap: Part, r: Report) -> None:
     z_probe = ew.SCREW_MOUTH_LEAD * 0.4
     r_cone = ew.SCREW_ACCESS_D / 2 + ew.SCREW_MOUTH_LEAD * 0.6
     r.check(
-        not is_solid_at(cap, u - (r_cone - 0.1), v, z_probe),
+        not r.solid_at(cap, u - (r_cone - 0.1), v, z_probe),
         "access mouth has a lead-in cone at the bed face",
         f"{ew.SCREW_MOUTH_LEAD} mm -- where the screw goes in by hand",
     )
     r.check(
-        is_solid_at(cap, u - (r_cone + 0.25), v, z_probe),
+        r.solid_at(cap, u - (r_cone + 0.25), v, z_probe),
         "...and no more than that",
     )
 
@@ -1824,24 +1819,24 @@ def check_cap_on_profile(r: Report) -> None:
     z_wall = z_outer + e.PLUG_WALL / 2
     z_air = z_outer + e.PLUG_WALL + 0.5
     r.check(
-        is_solid_at(near, x_plug, 0, z_wall),
+        r.solid_at(near, x_plug, 0, z_wall),
         "plug's wall is on the floor of the cavity",
         f"material on the axis at z={z_wall:.2f}, mid-wall -- the plug's outer "
         f"surface stands {z_outer:.2f} mm off the tube's inside",
     )
     r.check(
-        not is_solid_at(near, x_plug, 0, z_air),
+        not r.solid_at(near, x_plug, 0, z_air),
         "...and it is a wall, not a fill: the cavity is open above it",
         f"air on the axis at z={z_air:.2f}, over {e.PLUG_WALL} mm of wall. This "
         f"column was solid to z={e.GLAND_Z + e.POCKET_Y_LOW:.2f} when the plug "
         f"was a half-disc -- that is the room the wiring gets back",
     )
     r.check(
-        not is_solid_at(near, x_plug, 0, e.GLAND_Z),
+        not r.solid_at(near, x_plug, 0, e.GLAND_Z),
         "...and the gland's axis is clear through the plug",
     )
     r.check(
-        not is_solid_at(near, x_plug, 0, e.plug_top_z() + 0.2),
+        not r.solid_at(near, x_plug, 0, e.plug_top_z() + 0.2),
         "...and the plug stops PLUG_TOP_GAP below the cavity ceiling",
         f"top at z={e.plug_top_z():.2f}, ceiling at {c.CAVITY_TOP_Z}",
     )
@@ -1854,12 +1849,12 @@ def check_cap_on_profile(r: Report) -> None:
     r_out = c.RADIUS - c.WALL - e.PLUG_FIT / 2
     half_out = sqrt(r_out**2 - rise**2)
     r.check(
-        is_solid_at(near, x_plug, half_out - 0.1, z_probe),
+        r.solid_at(near, x_plug, half_out - 0.1, z_probe),
         "plug reaches out to the cavity wall",
         f"solid to {half_out:.2f} mm from centre",
     )
     r.check(
-        not is_solid_at(near, x_plug, half_out + 0.05, z_probe),
+        not r.solid_at(near, x_plug, half_out + 0.05, z_probe),
         "and stands off it",
     )
     gap = e.PLUG_FIT / 2
@@ -1871,11 +1866,11 @@ def check_cap_on_profile(r: Report) -> None:
 
     # Screw axis: the cap's hole must be centred on the profile's port.
     r.check(
-        not is_solid_at(near, -e.CAP_T / 2, c.SCREW_SPACING / 2, c.SCREW_BOSS_Z),
+        not r.solid_at(near, -e.CAP_T / 2, c.SCREW_SPACING / 2, c.SCREW_BOSS_Z),
         "screw hole is open through the cap",
     )
     r.check(
-        not is_solid_at(alu, 1.0, c.SCREW_SPACING / 2, c.SCREW_BOSS_Z),
+        not r.solid_at(alu, 1.0, c.SCREW_SPACING / 2, c.SCREW_BOSS_Z),
         "and lines up with the port bore",
     )
 
@@ -2045,16 +2040,16 @@ def check_cradle(part: Part, r: Report) -> None:
     u_out = (c.WIDTH + mc.BORE_FIT) / 2 + 0.5
     u_in = (c.WIDTH + mc.BORE_FIT) / 2 - 0.3
     z = mc.TUBE_AXIS_Z
-    r.check(is_solid_at(part, mc.BAND_LEN / 2, u_out, z), "band: wall present")
-    r.check(not is_solid_at(part, mc.BAND_LEN / 2, u_in, z), "band: bore is open")
+    r.check(r.solid_at(part, mc.BAND_LEN / 2, u_out, z), "band: wall present")
+    r.check(not r.solid_at(part, mc.BAND_LEN / 2, u_in, z), "band: bore is open")
     # And relieved in the middle, which is the +/-1 deg a closed polygon needs.
     r.check(
-        not is_solid_at(part, mc.CRADLE_LEN / 2, u_in + mc.BAND_RELIEF * 0.8, z),
+        not r.solid_at(part, mc.CRADLE_LEN / 2, u_in + mc.BAND_RELIEF * 0.8, z),
         "middle is relieved",
         f"{mc.BAND_RELIEF} mm diametral, for the polygon's angular slack",
     )
     r.check(
-        not is_solid_at(part, mc.CRADLE_LEN / 3, 0, 0.5),
+        not r.solid_at(part, mc.CRADLE_LEN / 3, 0, 0.5),
         "cradle floor drains",
         "an upward-facing trough outdoors is a gutter",
     )
@@ -2080,8 +2075,8 @@ def _chamfer_pair(part: Part, r: Report, label: str, inside, outside) -> None:
     1.6 mm. ``chamfer_edge`` returns True both times, so the solid is the only
     witness.
     """
-    r.check(not is_solid_at(part, *inside), label, f"{mc.EDGE_CHAMFER} mm")
-    r.check(is_solid_at(part, *outside), f"...{label}: and no more than that")
+    r.check(not r.solid_at(part, *inside), label, f"{mc.EDGE_CHAMFER} mm")
+    r.check(r.solid_at(part, *outside), f"...{label}: and no more than that")
 
 
 def check_boss_pad_edges(part: Part, name: str, r: Report) -> None:
@@ -2112,14 +2107,14 @@ def check_boss_pad_edges(part: Part, name: str, r: Report) -> None:
             for end in (-1.0, 1.0):
                 x = station + end * mc.STRAP_W / 2
                 r.check(
-                    not is_solid_at(
+                    not r.solid_at(
                         part, x - end * 0.2 * fr, u - side * 0.2 * fr, top / 2
                     ),
                     f"{name}: boss pad corner filleted at x={x:.0f}, u={u:+.1f}",
                     f"R{fr}",
                 )
                 r.check(
-                    is_solid_at(part, x - end * fr, u - side * fr, top / 2),
+                    r.solid_at(part, x - end * fr, u - side * fr, top / 2),
                     "...and the corner itself is still there",
                 )
 
@@ -2175,26 +2170,26 @@ def check_cradle_edges(
     # The two deliberate exceptions. A pass that "fixes" either should have to
     # delete a check that says why it is there.
     r.check(
-        is_solid_at(
+        r.solid_at(
             part, mc.STRAP_STATIONS[0], mc.BOSS_U + mc.INSERT_D / 2 + 0.05, top - 0.05
         ),
         f"{name}: insert mouth left raw",
         "a printed lead-in removes the material the heat-set has to melt into",
     )
     r.check(
-        is_solid_at(part, mc.CRADLE_LEN / 2, 0.9, 0.02),
+        r.solid_at(part, mc.CRADLE_LEN / 2, 0.9, 0.02),
         f"{name}: trough's own bed sliver left raw",
         "2.2 mm of a clipped R17 arc meeting it at ~4 deg -- no corner to break",
     )
     # The drain mouths take a boolean cone, not an edge op.
     x_drain = mc.CRADLE_LEN / 3
     r.check(
-        not is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.3 * ch, 0.2 * ch),
+        not r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.3 * ch, 0.2 * ch),
         f"{name}: drain mouth coned at the bed",
         f"{ch} mm lead-in, cut as a boolean",
     )
     r.check(
-        is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.3, ch + 0.4),
+        r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.3, ch + 0.4),
         "...and the bore is back to DRAIN_D above it",
     )
 
@@ -2208,12 +2203,12 @@ def check_cradle_edges(
     floor_z = trough_floor_z(x_drain, mc.CRADLE_LEN)
     arc_r = trough_floor_arc_r(x_drain, mc.CRADLE_LEN)
     r.check(
-        not is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.25 * ch, floor_z - 0.25 * ch),
+        not r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.25 * ch, floor_z - 0.25 * ch),
         f"{name}: drain funnelled at the trough floor -- the water side",
         f"{ch} mm lead-in at floor z={floor_z:.2f}",
     )
     r.check(
-        is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 1.5 * ch, floor_z - 0.25 * ch),
+        r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 1.5 * ch, floor_z - 0.25 * ch),
         "...and no more than that",
     )
     # The flank of that same mouth, and the only sample here that can tell the
@@ -2226,13 +2221,13 @@ def check_cradle_edges(
     # was solid before) and inside the lifted cone (so it is air now).
     lip = arc_r - sqrt(arc_r**2 - (mc.DRAIN_D / 2) ** 2)
     r.check(
-        not is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.05, floor_z + lip / 2),
+        not r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.05, floor_z + lip / 2),
         f"{name}: ...and broken on the flank, where the floor has climbed away",
         f"lip {lip:.3f} mm at y=DRAIN_D/2, funnel lifted "
         f"{cradle_mod.drain_funnel_rise(arc_r):.3f} mm above the floor",
     )
     r.check(
-        is_solid_at(part, x_drain, mc.DRAIN_D / 2 + 2 * ch + 0.5, floor_z + lip / 2),
+        r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 2 * ch + 0.5, floor_z + lip / 2),
         "...and the floor outboard of the funnel is untouched",
     )
 
@@ -2305,26 +2300,26 @@ def check_foot_edges(part: Part, name: str, hole_d: float, r: Report) -> None:
         for end in (-1.0, 1.0):
             x = mid + end * feet_mod.PAD_LEN / 2
             r.check(
-                not is_solid_at(part, x - end * 0.2 * fr, u - side * 0.2 * fr, top / 2),
+                not r.solid_at(part, x - end * 0.2 * fr, u - side * 0.2 * fr, top / 2),
                 f"{name}: bolt pad corner filleted at x={x:.0f}, u={u:+.1f}",
                 f"R{fr}",
             )
             r.check(
-                is_solid_at(part, x - end * fr, u - side * fr, top / 2),
+                r.solid_at(part, x - end * fr, u - side * fr, top / 2),
                 "...and the corner itself is still there",
             )
         # Bolt-hole lead-ins: boolean cones, the house rule for a bore mouth,
         # and the same instrument and size strap.create_strap uses.
         hu = side * feet_mod.HOLE_U
         r.check(
-            not is_solid_at(
+            not r.solid_at(
                 part, mid, hu + side * (hole_d / 2 + 0.6 * lead), 0.2 * lead
             ),
             f"{name}: bolt hole coned at the bed mouth at u={hu:+.1f}",
             f"{lead} mm",
         )
         r.check(
-            is_solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), lead + 0.4),
+            r.solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), lead + 0.4),
             "...and the bore is back to size above it",
         )
         # Sampled *below* the floor, inside the material the cone has to take
@@ -2333,20 +2328,20 @@ def check_foot_edges(part: Part, name: str, hole_d: float, r: Report) -> None:
         # this pocket kept a raw 90 deg shoulder through a passing check (see
         # feet._create_foot on the cone that used to sit up there).
         r.check(
-            not is_solid_at(
+            not r.solid_at(
                 part, mid, hu + side * (hole_d / 2 + 0.6 * lead), floor - 0.2 * lead
             ),
             f"{name}: bolt hole coned at the counterbore floor at u={hu:+.1f}",
             "the bolt has to find the hole blind, from inside the pocket",
         )
         r.check(
-            is_solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), floor - 1.6 * lead),
+            r.solid_at(part, mid, hu + side * (hole_d / 2 + 0.3), floor - 1.6 * lead),
             "...and the bore is back to size below it",
         )
         # The seat the nyloc bears on is still flat: the cone stops one
         # BOLT_LEAD_IN out, not at the counterbore wall.
         r.check(
-            is_solid_at(
+            r.solid_at(
                 part, mid, hu + side * (hole_d / 2 + 1.6 * lead), floor - 0.2 * lead
             ),
             "...and the nut's seat outboard of it is still flat",
@@ -2448,12 +2443,12 @@ def check_bore_crown_bridge(part: Part, r: Report) -> None:
     z45 = strap_mod.CROWN_Z - strap_mod.BORE_HALF_W * (1 - 1 / sqrt(2))
     eps = 0.05 / sqrt(2)
     r.check(
-        not is_solid_at(part, x45 - eps, 0.0, z45 - eps),
+        not r.solid_at(part, x45 - eps, 0.0, z45 - eps),
         "45 deg crossing point is void just inboard, on the real solid",
         f"x={x45:.2f}, z={z45:.2f}",
     )
     r.check(
-        is_solid_at(part, x45 + eps, 0.0, z45 + eps),
+        r.solid_at(part, x45 + eps, 0.0, z45 + eps),
         "...and solid just outboard -- the crossing is where the formula says",
     )
 
@@ -2479,23 +2474,23 @@ def check_strap_edges(part: Part, r: Report) -> None:
     # Bed chamfer, on both feet -- the half-a-part regression above.
     for sign, side in ((1, "+x"), (-1, "-x")):
         r.check(
-            not is_solid_at(part, sign * (u_out - 0.25 * ch), 0, 0.25 * ch),
+            not r.solid_at(part, sign * (u_out - 0.25 * ch), 0, 0.25 * ch),
             f"bed chamfered on the {side} foot",
             f"{ch} mm; a per-face selection would treat only one of the two",
         )
         r.check(
-            is_solid_at(part, sign * (u_out - 2 * ch), 0, 2 * ch),
+            r.solid_at(part, sign * (u_out - 2 * ch), 0, 2 * ch),
             f"...and no more than that ({side})",
         )
 
     # The bore's own bed edge: the tube's lead-in as the strap drops on.
     r.check(
-        not is_solid_at(part, u_bore + 0.25 * ch, 0, 0.25 * ch),
+        not r.solid_at(part, u_bore + 0.25 * ch, 0, 0.25 * ch),
         "bore mouth chamfered at the bed -- the strap's lead-in onto the tube",
         f"{ch} mm at u={u_bore}",
     )
     r.check(
-        is_solid_at(part, u_bore + 2 * ch, 0, 2 * ch),
+        r.solid_at(part, u_bore + 2 * ch, 0, 2 * ch),
         "...and no more than that",
     )
 
@@ -2503,16 +2498,16 @@ def check_strap_edges(part: Part, r: Report) -> None:
     # edges. Sampled inboard of the bolt hole and clear of the corner fillet,
     # so this reads the chamfer and nothing else.
     r.check(
-        not is_solid_at(part, 19.0, v - 0.25 * ch, mc.FOOT_H - 0.25 * ch),
+        not r.solid_at(part, 19.0, v - 0.25 * ch, mc.FOOT_H - 0.25 * ch),
         "foot land chamfered at the end edge",
         f"{ch} mm",
     )
     r.check(
-        is_solid_at(part, 19.0, v - 2 * ch, mc.FOOT_H - 2 * ch),
+        r.solid_at(part, 19.0, v - 2 * ch, mc.FOOT_H - 2 * ch),
         "...and no more than that",
     )
     r.check(
-        not is_solid_at(part, u_out - 0.25 * ch, 0, mc.FOOT_H - 0.25 * ch),
+        not r.solid_at(part, u_out - 0.25 * ch, 0, mc.FOOT_H - 0.25 * ch),
         "foot land chamfered at the outer edge",
         f"{ch} mm",
     )
@@ -2520,33 +2515,33 @@ def check_strap_edges(part: Part, r: Report) -> None:
     # The feet's vertical corners: the part comes off in the hand twice per
     # strip change, and these are the only true vertical edges it has.
     r.check(
-        not is_solid_at(part, u_out - 0.2 * fr, v - 0.2 * fr, mc.FOOT_H / 2),
+        not r.solid_at(part, u_out - 0.2 * fr, v - 0.2 * fr, mc.FOOT_H / 2),
         "foot corners filleted",
         f"R{fr}",
     )
     r.check(
-        is_solid_at(part, u_out - fr, v - fr, mc.FOOT_H / 2),
+        r.solid_at(part, u_out - fr, v - fr, mc.FOOT_H / 2),
         "...and the corner itself is still there",
     )
 
     # The arch's outer silhouette and its bore mouth, on the end faces. Both
     # sampled over the crown, which is the sharpest stretch of either.
     r.check(
-        not is_solid_at(part, 0, v - 0.25 * ch, strap_mod.OUTER_Z - 0.25 * ch),
+        not r.solid_at(part, 0, v - 0.25 * ch, strap_mod.OUTER_Z - 0.25 * ch),
         "arch silhouette chamfered over the crown",
         f"{ch} mm",
     )
     r.check(
-        is_solid_at(part, 0, v - 2 * ch, strap_mod.OUTER_Z - 2 * ch),
+        r.solid_at(part, 0, v - 2 * ch, strap_mod.OUTER_Z - 2 * ch),
         "...and no more than that",
     )
     r.check(
-        not is_solid_at(part, 0, v - 0.25 * ch, strap_mod.CROWN_Z + 0.25 * ch),
+        not r.solid_at(part, 0, v - 0.25 * ch, strap_mod.CROWN_Z + 0.25 * ch),
         "bore mouth chamfered over the crown",
         f"{ch} mm",
     )
     r.check(
-        is_solid_at(part, 0, v - 2 * ch, strap_mod.CROWN_Z + 2 * ch),
+        r.solid_at(part, 0, v - 2 * ch, strap_mod.CROWN_Z + 2 * ch),
         "...and no more than that",
     )
 
@@ -2554,13 +2549,13 @@ def check_strap_edges(part: Part, r: Report) -> None:
     # or chamfer on that concave edge adds material, and it has only
     # BOLT_HEAD_CLEAR to grow into before it is under the M4 head.
     r.check(
-        not is_solid_at(part, flank + 0.15, 0, mc.FOOT_H + 0.1),
+        not r.solid_at(part, flank + 0.15, 0, mc.FOOT_H + 0.1),
         "arch root left raw, so nothing grows into the head clearance",
         f"flank {flank:.2f}, head swept circle at "
         f"{mc.BOSS_U - mc.BOLT_HEAD_D / 2:.2f}, {mc.BOLT_HEAD_CLEAR} mm between",
     )
     r.check(
-        is_solid_at(part, mc.BOSS_U - mc.BOLT_HEAD_D / 2 + 0.1, 0, mc.FOOT_H - 0.2),
+        r.solid_at(part, mc.BOSS_U - mc.BOLT_HEAD_D / 2 + 0.1, 0, mc.FOOT_H - 0.2),
         "and the head's bearing land is solid under it",
     )
 
@@ -2751,12 +2746,12 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     half = corner_mod.BODY_W / 2
     top = corner_mod.TOP_Z
     r.check(
-        not is_solid_at(part, *at(mid, half - 0.25 * ch, top - 0.25 * ch)),
+        not r.solid_at(part, *at(mid, half - 0.25 * ch, top - 0.25 * ch)),
         tag + "rim chamfered along the arm",
         f"{ch} mm",
     )
     r.check(
-        is_solid_at(part, *at(mid, half - 2 * ch, top - 2 * ch)),
+        r.solid_at(part, *at(mid, half - 2 * ch, top - 2 * ch)),
         tag + "...and no more than that",
     )
 
@@ -2766,7 +2761,7 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     band = start + mc.BAND_LEN / 2
     bore = (c.WIDTH + mc.BORE_FIT) / 2
     r.check(
-        not is_solid_at(part, *at(band, bore + 0.25 * ch, top - 0.25 * ch)),
+        not r.solid_at(part, *at(band, bore + 0.25 * ch, top - 0.25 * ch)),
         tag + "trough mouth chamfered -- the tube's lead-in",
         f"{ch} mm at u={bore:.2f}",
     )
@@ -2777,12 +2772,12 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     pad = mc.BOSS_U + mc.BOSS_OD / 2
     z_mid = corner_mod.TOP_Z / 2
     r.check(
-        not is_solid_at(part, *at(end - 0.2 * fr, pad - 0.2 * fr, z_mid)),
+        not r.solid_at(part, *at(end - 0.2 * fr, pad - 0.2 * fr, z_mid)),
         tag + "arm end corners filleted",
         f"R{fr}",
     )
     r.check(
-        is_solid_at(part, *at(end - fr, pad - fr, z_mid)),
+        r.solid_at(part, *at(end - fr, pad - fr, z_mid)),
         tag + "...and the corner itself is still there",
     )
 
@@ -2798,14 +2793,14 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     z_ch = (corner_mod.PLINTH_H + corner_mod.TOP_Z) / 2
     for side in (-1.0, 1.0):
         r.check(
-            is_solid_at(
+            r.solid_at(
                 part, *at(start - 0.15 * mf, side * (half_ch - 0.15 * mf), z_ch)
             ),
             tag + f"trough mouth corner filleted at u={side * half_ch:+.1f}",
             f"R{mf} -- half the clearance the channel holds for the cap collar",
         )
         r.check(
-            not is_solid_at(part, *at(start - mf, side * (half_ch - mf), z_ch)),
+            not r.solid_at(part, *at(start - mf, side * (half_ch - mf), z_ch)),
             tag + "...and no further into the channel than that",
         )
 
@@ -2892,18 +2887,18 @@ def check_corner_undrained(part: Part, r: Report, angle: float = 60.0) -> None:
     z_plinth = corner_mod.PLINTH_H / 2
 
     r.check(
-        is_solid_at(part, 0.0, 0.0, z_plinth),
+        r.solid_at(part, 0.0, 0.0, z_plinth),
         tag + "knuckle plinth is solid -- no drain",
         f"channel floor at z={corner_mod.PLINTH_H}, holds water",
     )
     r.check(
-        is_solid_at(part, *at(start * 0.55, 0.0, z_plinth)),
+        r.solid_at(part, *at(start * 0.55, 0.0, z_plinth)),
         tag + "near arm plinth is solid -- no drain",
     )
     for frac in (0.35, 0.75):
         d = start + mc.CRADLE_LEN * frac
         r.check(
-            is_solid_at(part, *at(d, 0.0, z_plinth)),
+            r.solid_at(part, *at(d, 0.0, z_plinth)),
             tag + f"trough plinth is solid at {frac:.0%} of the cradle -- no drain",
         )
 
@@ -3083,26 +3078,26 @@ def check_stand_trough(part: Part, r: Report) -> None:
     z = (sc.STATIONS[0] + sc.STATIONS[1]) / 2  # clear of both stations' pads
 
     r.check(
-        not is_solid_at(part, 0.0, 0.0, z),
+        not r.solid_at(part, 0.0, 0.0, z),
         "the tube's own space is empty",
         f"sampled on the axis at z={z:.0f}",
     )
     back = -(c.HEIGHT + mc.BORE_FIT) / 2
     r.check(
-        is_solid_at(part, 0.0, back - mc.CRADLE_WALL / 2, z)
-        and not is_solid_at(part, 0.0, back - mc.CRADLE_WALL - 1.0, z),
+        r.solid_at(part, 0.0, back - mc.CRADLE_WALL / 2, z)
+        and not r.solid_at(part, 0.0, back - mc.CRADLE_WALL - 1.0, z),
         "a full wall behind the tube",
         f"{mc.CRADLE_WALL:.1f} mm from y={back:.2f} to {back - mc.CRADLE_WALL:.2f}",
     )
     r.check(
-        not is_solid_at(part, 0.0, sc.MOUTH_Y + 1.0, z),
+        not r.solid_at(part, 0.0, sc.MOUTH_Y + 1.0, z),
         "the mouth is open above the rim",
         f"nothing at y={sc.MOUTH_Y + 1:.2f}, so the diffuser is never shadowed "
         f"except by a keeper",
     )
     flank = (c.WIDTH + mc.BORE_FIT) / 2
     r.check(
-        is_solid_at(part, flank + mc.CRADLE_WALL / 2, 0.0, z),
+        r.solid_at(part, flank + mc.CRADLE_WALL / 2, 0.0, z),
         "and full walls beside it",
         f"sampled at x={flank + mc.CRADLE_WALL / 2:.2f}",
     )
@@ -3113,8 +3108,8 @@ def check_stand_seat(part: Part, r: Report) -> None:
     r.section("stand: the seat and the cable")
     y = -(sc.WELL_D / 2 + 2.0)
     r.check(
-        is_solid_at(part, 0.0, y, sc.SEAT_Z - 1.0)
-        and not is_solid_at(part, 0.0, y, sc.SEAT_Z + 1.0),
+        r.solid_at(part, 0.0, y, sc.SEAT_Z - 1.0)
+        and not r.solid_at(part, 0.0, y, sc.SEAT_Z + 1.0),
         "the endcap lands on solid material",
         f"seat at z={sc.SEAT_Z:.1f}, sampled at y={y:.2f} -- outside the "
         f"{sc.WELL_D:.2f} well, inside the tube's own footprint",
@@ -3136,7 +3131,7 @@ def check_stand_seat(part: Part, r: Report) -> None:
         f"{gl.CABLE_STUB:.0f})",
     )
     clear = all(
-        not is_solid_at(part, 0.0, 0.0, z)
+        not r.solid_at(part, 0.0, 0.0, z)
         for z in (0.5, sc.FLANGE_T / 2, sc.FLANGE_T + 2.0, sc.SEAT_Z - 1.0)
     )
     r.check(
@@ -3165,12 +3160,12 @@ def check_stand_stations(post: Part, keeper: Part, r: Report) -> None:
     for centre in sc.STATIONS:
         bottom, top = stand_mod.station_z(centre)
         r.check(
-            not is_solid_at(post, sc.PEG_U, sc.PEG_Y, top - sc.PEG_L / 2),
+            not r.solid_at(post, sc.PEG_U, sc.PEG_Y, top - sc.PEG_L / 2),
             f"socket at z={centre:.0f} is open",
             f"pad {bottom:.1f}..{top:.1f}, socket {sc.SOCKET_DEPTH:.0f} deep",
         )
         r.check(
-            is_solid_at(post, sc.PEG_U, sc.PEG_Y, bottom + 1.0),
+            r.solid_at(post, sc.PEG_U, sc.PEG_Y, bottom + 1.0),
             f"and bottoms on a floor at z={centre:.0f}",
             f"{sc.PAD_H - sc.SOCKET_DEPTH:.1f} mm of pad under it",
         )
@@ -3197,8 +3192,8 @@ def check_stand_stations(post: Part, keeper: Part, r: Report) -> None:
     )
     crown = c.HEIGHT / 2 + sc.KEEPER_CLEAR
     r.check(
-        not is_solid_at(keeper, 0.0, crown - 0.3, sc.KEEPER_W / 2)
-        and is_solid_at(keeper, 0.0, crown + sc.KEEPER_T / 2, sc.KEEPER_W / 2),
+        not r.solid_at(keeper, 0.0, crown - 0.3, sc.KEEPER_W / 2)
+        and r.solid_at(keeper, 0.0, crown + sc.KEEPER_T / 2, sc.KEEPER_W / 2),
         "and the crown is where that clearance says it is",
         f"bore ends at y={crown:.2f}, {sc.KEEPER_T:.1f} mm of wall above it",
     )
@@ -3242,7 +3237,7 @@ def check_stand_seated(r: Report) -> None:
 
         for u in (sc.PEG_U, -sc.PEG_U):
             r.check(
-                is_solid_at(keeper, u, sc.PEG_Y, top - sc.PEG_L / 2),
+                r.solid_at(keeper, u, sc.PEG_Y, top - sc.PEG_L / 2),
                 f"the peg at u={u:+.0f} is down in its socket at z={centre:.0f}",
                 f"keeper material on the socket's axis {sc.PEG_L / 2:.0f} mm "
                 f"below the pads' face at z={top:.1f} -- pegs point down, the "
@@ -3280,19 +3275,19 @@ def check_stand_legs(part: Part, r: Report) -> None:
         f"{bb.size.X:.0f} mm against a {BED:.0f} mm bed",
     )
     r.check(
-        not is_solid_at(part, 0.0, 0.0, sc.LEG_T / 2),
+        not r.solid_at(part, 0.0, 0.0, sc.LEG_T / 2),
         "the pivot bore goes through",
         f"{sc.PIVOT_CLEAR_D:.1f} mm for an M6",
     )
     r.check(
-        not is_solid_at(part, 0.0, sc.PIVOT_NUT_POCKET_D / 2 - 1.0, 1.0)
-        and is_solid_at(part, 0.0, sc.PIVOT_NUT_POCKET_D / 2 - 1.0, sc.LEG_T - 1.0),
+        not r.solid_at(part, 0.0, sc.PIVOT_NUT_POCKET_D / 2 - 1.0, 1.0)
+        and r.solid_at(part, 0.0, sc.PIVOT_NUT_POCKET_D / 2 - 1.0, sc.LEG_T - 1.0),
         "with a nyloc pocket in the underside only",
         f"{sc.PIVOT_NUT_POCKET_D:.2f} across corners, "
         f"{sc.PIVOT_NUT_POCKET_H:.1f} deep, so the leg still lies flat",
     )
     r.check(
-        is_solid_at(part, sc.STOP_SLOT_R, 0.0, sc.LEG_T + sc.STOP_PIN_H / 2),
+        r.solid_at(part, sc.STOP_SLOT_R, 0.0, sc.LEG_T + sc.STOP_PIN_H / 2),
         "the stop pin stands proud of the top face",
         f"{sc.STOP_PIN_D:.2f} x {sc.STOP_PIN_H:.1f} into a "
         f"{sc.STOP_SLOT_W:.1f} x {sc.STOP_SLOT_DEPTH:.1f} slot",
@@ -3454,7 +3449,7 @@ def check_feet(r: Report) -> None:
         f"{wall:.2f} mm = PAD_WALL, {wall / 0.4:.0f} perimeters at 0.4 mm",
     )
     r.check(
-        is_solid_at(
+        r.solid_at(
             feet_mod.create_eye_foot(),
             mc.CRADLE_LEN / 2,
             pocket + wall / 2,
@@ -3755,34 +3750,28 @@ def _check_suspended_bessel_points(suspended: Compound, r: Report) -> None:
         )
 
 
-def check_assemblies(r: Report) -> None:
-    """Whole-lamp scenes: printed parts against bought hardware, at full scale.
-
-    Every scene here is built at its default LENGTH (1.5 m). Shortening the
-    tube would not meaningfully speed this up -- the cost is dominated by
-    endcap threads and corner booleans, both independent of tube length
-    (measured: LENGTH=200 only shaved ~13% off the triangle build) -- while it
-    would weaken ``_end_face_points``' area-based pick of the tube's end
-    faces, which needs the flank/web faces to keep running the tube's full
-    length to stay far bigger than the end caps. So the full-size scene is
-    worth what it costs.
-    """
+def check_assemblies(r: Report, only: str | None = None) -> None:
+    """Check all whole-lamp scenes, or one targeted registered scene."""
     r.section("Assemblies")
-    suspended = assemblies.create_suspended()
-    standing = assemblies.create_standing()
-    triangle = assemblies.create_triangle()
-
-    # One lamp's worth of bought hardware -- alu, carrier, emitter, diffuser
-    # (``profile.create_extrusion``/``create_strip``/``create_diffuser``) -- per
-    # lamp in the scene: one lamp in the suspended and standing views, three
-    # around the triangle.
+    creators = {
+        "suspended": assemblies.create_suspended,
+        "standing": assemblies.create_standing,
+        "triangle": assemblies.create_triangle,
+    }
+    names = (only,) if only is not None else tuple(creators)
     bought_per_lamp = len(BOUGHT_LABEL_PREFIXES)
-    _check_scene_clearance(suspended, "suspended", r, expected_bought=bought_per_lamp)
-    _check_scene_clearance(standing, "standing", r, expected_bought=bought_per_lamp)
-    _check_scene_clearance(triangle, "triangle", r, expected_bought=3 * bought_per_lamp)
-
-    _check_triangle_geometry(triangle, r)
-    _check_suspended_bessel_points(suspended, r)
+    for name in names:
+        scene = creators[name]()
+        _check_scene_clearance(
+            scene,
+            name,
+            r,
+            expected_bought=(3 if name == "triangle" else 1) * bought_per_lamp,
+        )
+        if name == "triangle":
+            _check_triangle_geometry(scene, r)
+        elif name == "suspended":
+            _check_suspended_bessel_points(scene, r)
 
 
 def _shared_volume(a: Part, b: Part) -> float:
@@ -4066,7 +4055,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
         (z, a)
         for z in (3.0, 5.0, 7.0)
         for a in azimuths
-        if is_solid_at(part, (crest_r + 0.05) * cos(a), (crest_r + 0.05) * sin(a), z)
+        if r.solid_at(part, (crest_r + 0.05) * cos(a), (crest_r + 0.05) * sin(a), z)
     ]
     r.check(
         not proud,
@@ -4077,7 +4066,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
     )
     r.check(
         any(
-            is_solid_at(part, (crest_r - 0.15) * cos(a), (crest_r - 0.15) * sin(a), 5.0)
+            r.solid_at(part, (crest_r - 0.15) * cos(a), (crest_r - 0.15) * sin(a), 5.0)
             for a in azimuths
         ),
         "...and the crest is actually there",
@@ -4088,7 +4077,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
     collar_hits = [
         a
         for a in azimuths
-        if is_solid_at(
+        if r.solid_at(
             part,
             (srm.FEMALE_MINOR_D / 2 - 0.05) * cos(a),
             (srm.FEMALE_MINOR_D / 2 - 0.05) * sin(a),
@@ -4123,8 +4112,8 @@ def check_strain_relief(part: Part, r: Report) -> None:
     # second probe, which is the first article's defect pinned down.
     seat_r = srm.HEAD_AF / 2 - srm.SEAT_RIM_CHAMFER - 0.2
     r.check(
-        is_solid_at(part, seat_r, 0, srm.FLANGE_Z + 0.05)
-        and not is_solid_at(part, seat_r, 0, srm.FLANGE_Z - 0.05),
+        r.solid_at(part, seat_r, 0, srm.FLANGE_Z + 0.05)
+        and not r.solid_at(part, seat_r, 0, srm.FLANGE_Z - 0.05),
         "flange underside is flat on the seat plane",
         f"probed either side of z={srm.FLANGE_Z:.2f} at r={seat_r:.2f}",
     )
@@ -4140,7 +4129,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
         f"{srm.MOUTH_CLEAR} mm of daylight",
     )
     r.check(
-        not is_solid_at(part, srm.CONE_TOP_R + 0.1, 0, srm.FLANGE_Z - 0.05),
+        not r.solid_at(part, srm.CONE_TOP_R + 0.1, 0, srm.FLANGE_Z - 0.05),
         "...and nothing solid stands outside it below the flange",
     )
 
@@ -4167,12 +4156,12 @@ def check_strain_relief(part: Part, r: Report) -> None:
         srm.FLANGE_Z + 2.0,
         srm.HEAD_TOP - 0.2,
     ]
-    blocked = [z for z in stations if is_solid_at(part, 0, 0, z)]
+    blocked = [z for z in stations if r.solid_at(part, 0, 0, z)]
     off_r = 0.8 * srm.BORE_D / 2
     blocked += [
         z
         for z in stations
-        if is_solid_at(part, off_r, 0, z) or is_solid_at(part, 0, off_r, z)
+        if r.solid_at(part, off_r, 0, z) or r.solid_at(part, 0, off_r, z)
     ]
     r.check(
         not blocked,
@@ -4183,7 +4172,7 @@ def check_strain_relief(part: Part, r: Report) -> None:
     )
     wall_r = (srm.BORE_D / 2 + srm.MALE_ROOT_D / 2) / 2
     r.check(
-        is_solid_at(part, wall_r, 0, 5.0) and is_solid_at(part, 0, wall_r, 5.0),
+        r.solid_at(part, wall_r, 0, 5.0) and r.solid_at(part, 0, wall_r, 5.0),
         "...through a solid stem wall",
         f"solid at r={wall_r:.2f}, mid-thread",
     )
@@ -4201,25 +4190,25 @@ def check_strain_relief(part: Part, r: Report) -> None:
     fin_mid_x = srm.FIN_X0 + (srm.FIN_T - srm.GROOVE_DEPTH) / 2
     outer_x = srm.HEAD_AF / 2 - 0.15
     r.check(
-        is_solid_at(part, fin_mid_x, 0, srm.HEAD_TOP + 2.0)
-        and is_solid_at(part, fin_mid_x, 0, srm.FIN_TOP - 2.0),
+        r.solid_at(part, fin_mid_x, 0, srm.HEAD_TOP + 2.0)
+        and r.solid_at(part, fin_mid_x, 0, srm.FIN_TOP - 2.0),
         "fin is solid below and above the groove",
         f"probed at x={fin_mid_x:.2f}",
     )
     r.check(
-        is_solid_at(part, outer_x, 0, srm.HEAD_TOP + 2.0)
-        and is_solid_at(part, outer_x, 0, (srm.GROOVE_Z1 + srm.FIN_TOP) / 2),
+        r.solid_at(part, outer_x, 0, srm.HEAD_TOP + 2.0)
+        and r.solid_at(part, outer_x, 0, (srm.GROOVE_Z1 + srm.FIN_TOP) / 2),
         "...at full section out to the hex flat",
         f"solid at x={outer_x:.2f}, below the groove and on the lip above",
     )
     r.check(
-        not is_solid_at(part, outer_x, 0, groove_mid)
-        and not is_solid_at(part, fin_mid_x, srm.FIN_W / 2 - 0.3, groove_mid),
+        not r.solid_at(part, outer_x, 0, groove_mid)
+        and not r.solid_at(part, fin_mid_x, srm.FIN_W / 2 - 0.3, groove_mid),
         "tie groove is open on the outer face and the sides",
     )
     r.check(
-        is_solid_at(part, fin_mid_x, 0, groove_mid)
-        and is_solid_at(
+        r.solid_at(part, fin_mid_x, 0, groove_mid)
+        and r.solid_at(
             part, fin_mid_x, srm.FIN_W / 2 - srm.GROOVE_DEPTH - 0.4, groove_mid
         ),
         "...and the waist behind it is solid",
@@ -4227,8 +4216,8 @@ def check_strain_relief(part: Part, r: Report) -> None:
         f"{srm.FIN_W - 2 * srm.GROOVE_DEPTH:.2f} mm",
     )
     r.check(
-        not is_solid_at(part, srm.FIN_X0 - 0.1, 0, groove_mid)
-        and is_solid_at(part, srm.FIN_X0 + 0.1, 0, groove_mid),
+        not r.solid_at(part, srm.FIN_X0 - 0.1, 0, groove_mid)
+        and r.solid_at(part, srm.FIN_X0 + 0.1, 0, groove_mid),
         "the cable-side face is flat through the groove band",
         "no groove on the inner face -- that is where the cable lies",
     )
@@ -4298,13 +4287,11 @@ def check_strain_relief_edges(part: Part, r: Report) -> None:
     )
 
 
-def run() -> Report:
-    r = Report()
+def _check_profile_model(r: Report) -> None:
     length = c.SECTION_LENGTH
     alu = create_extrusion(length)
     diffuser = create_diffuser(length)
     carrier, _emitter = create_strip(length)
-
     check_outline(alu, r)
     check_wiring_cavity(alu, r)
     check_channel(alu, r)
@@ -4312,6 +4299,8 @@ def run() -> Report:
     check_diffuser(alu, diffuser, r)
     check_strip(alu, carrier, r)
 
+
+def _check_endcap_model(r: Report) -> None:
     cap = e.create_endcap()
     check_endcap(cap, r)
     check_screw_pockets(cap, r)
@@ -4320,19 +4309,95 @@ def run() -> Report:
     check_plug_shell(cap, r)
     check_strap_slot(cap, r)
     check_endcap_edges(cap, r)
-
-    capw = ew.create_endcap_wired()
-    check_endcap_wired(capw, r)
-    check_wired_screws(capw, r)
-    check_wired_chamber(capw, r)
-    check_strap_slot(capw, r, section="Wired endcap strap slot")
-    check_wired_edges(capw, r)
-
-    srp = srm.create_strain_relief()
-    check_strain_relief(srp, r)
-    check_strain_relief_edges(srp, r)
-
     check_cap_on_profile(r)
+
+
+def _check_wired_endcap_model(r: Report) -> None:
+    cap = ew.create_endcap_wired()
+    check_endcap_wired(cap, r)
+    check_wired_screws(cap, r)
+    check_wired_chamber(cap, r)
+    check_strap_slot(cap, r, section="Wired endcap strap slot")
+    check_wired_edges(cap, r)
+
+
+def _check_strain_relief_model(r: Report) -> None:
+    part = srm.create_strain_relief()
+    check_strain_relief(part, r)
+    check_strain_relief_edges(part, r)
+
+
+def _check_stand_post_model(r: Report) -> None:
+    post = stand_mod.create_post()
+    keeper = keeper_mod.create_keeper()
+    check_stand_no_undercut(r)
+    check_stand_trough(post, r)
+    check_stand_seat(post, r)
+    check_stand_stations(post, keeper, r)
+    check_stand_seated(r)
+    check_mount_basics(post, "stand post", r)
+
+
+def _check_stand_leg_model(r: Report) -> None:
+    leg = leg_mod.create_leg()
+    check_stand_legs(leg, r)
+    check_mount_basics(leg, "stand leg", r)
+
+
+def _check_stand_keeper_model(r: Report) -> None:
+    post = stand_mod.create_post()
+    keeper = keeper_mod.create_keeper()
+    check_stand_stations(post, keeper, r)
+    check_stand_seated(r)
+    check_mount_basics(keeper, "stand keeper", r)
+
+
+def _check_assembly_model(name: str, r: Report) -> None:
+    check_assemblies(r, name.rsplit(".", 1)[-1])
+
+
+TARGET_CHECKS: dict[str, Callable[[Report], None]] = {
+    "led_profiles.endcap": _check_endcap_model,
+    "led_profiles.endcap_wired": _check_wired_endcap_model,
+    "led_profiles.strain_relief": _check_strain_relief_model,
+    "led_profiles.corner": check_corner,
+    "led_profiles.strap": lambda r: check_strap(strap_mod.create_strap(), r),
+    "led_profiles.stand": _check_stand_post_model,
+    "led_profiles.stand.leg": _check_stand_leg_model,
+    "led_profiles.stand.keeper": _check_stand_keeper_model,
+    "led_profiles.feet": check_feet,
+    "led_profiles.previz.body": check_previz,
+    "led_profiles.previz.diffuser": check_previz,
+    "led_profiles.assemblies.triangle": lambda r: _check_assembly_model("triangle", r),
+    "led_profiles.assemblies.standing": lambda r: _check_assembly_model("standing", r),
+    "led_profiles.assemblies.suspended": lambda r: _check_assembly_model(
+        "suspended", r
+    ),
+}
+
+
+def handles_model(name: str) -> bool:
+    """Whether this family supplies a targeted check for ``name``."""
+    return name in TARGET_CHECKS
+
+
+def run_model(name: str) -> Report | None:
+    """Run only the assertions relevant to one registered family model."""
+    check = TARGET_CHECKS.get(name)
+    if check is None:
+        return None
+    r = Report()
+    check(r)
+    return r
+
+
+def run() -> Report:
+    """Complete family integration check."""
+    r = Report()
+    _check_profile_model(r)
+    _check_endcap_model(r)
+    _check_wired_endcap_model(r)
+    _check_strain_relief_model(r)
     check_assembly(r)
     check_previz(r)
     check_cradle(create_cradle(), r)

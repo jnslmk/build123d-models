@@ -23,6 +23,8 @@ none of the OCP cost and this stays a sub-second test.
 from __future__ import annotations
 
 import ast
+import subprocess
+import sys
 import tomllib
 import unittest
 from pathlib import Path
@@ -177,6 +179,21 @@ class RosterTests(unittest.TestCase):
             "unresolvable name, so the alternative to failing here is failing "
             "the site build with what reads like a website bug.",
         )
+
+    def test_loading_registry_does_not_import_build123d_or_ocp(self) -> None:
+        probe = (
+            "import sys; import tessellate_models; "
+            "print(int('build123d' in sys.modules or "
+            "any(name == 'OCP' or name.startswith('OCP.') for name in sys.modules)))"
+        )
+        done = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(done.stdout.strip(), "0")
 
     def test_source_path_refuses_a_name_it_cannot_resolve(self) -> None:
         """Pins the raise, so nobody restores the silent fallback by accident."""

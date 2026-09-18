@@ -3,11 +3,14 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
+from unittest.mock import Mock, patch
 
 import check as check_module
 
@@ -451,6 +454,150 @@ class ReportStructuredCaptureTests(unittest.TestCase):
                 },
             ],
         )
+
+
+class FontPreloadTests(unittest.TestCase):
+    def test_importing_check_preloads_fontfix_without_ocp(self) -> None:
+        probe = (
+            "import sys; import check; "
+            "assert 'fontfix' in sys.modules, 'fontfix not preloaded'; "
+            "heavy = [n for n in sys.modules "
+            "if n == 'build123d' or n == 'OCP' or n.startswith(('OCP.', 'build123d.'))]; "
+            "assert not heavy, heavy; print('ok')"
+        )
+        done = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=Path(__file__).resolve().parent.parent,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.strip(), "ok")
+
+
+class AncestorCheckDispatchTests(unittest.TestCase):
+    def test_nearest_claiming_parent_supplies_targeted_report(self) -> None:
+        report = object()
+        checks = types.SimpleNamespace(
+            handles_model=lambda name: name == "family.part",
+            run_model=Mock(return_value=report),
+        )
+        with (
+            patch.object(
+                check_module.importlib.util, "find_spec", return_value=object()
+            ),
+            patch.object(check_module.importlib, "import_module", return_value=checks),
+        ):
+            run = check_module._ancestor_check("family.part")
+        self.assertIsNotNone(run)
+        self.assertIs(run(), report)
+        checks.run_model.assert_called_once_with("family.part")
+
+    def test_parent_hook_that_does_not_claim_model_is_ignored(self) -> None:
+        checks = types.SimpleNamespace(
+            handles_model=lambda _name: False,
+            run_model=Mock(),
+        )
+        with (
+            patch.object(
+                check_module.importlib.util, "find_spec", return_value=object()
+            ),
+            patch.object(check_module.importlib, "import_module", return_value=checks),
+        ):
+            self.assertIsNone(check_module._ancestor_check("family.part"))
+        checks.run_model.assert_not_called()
+
+    def test_led_profile_targets_cover_registered_children(self) -> None:
+        from models.led_profiles import checks
+        from tessellate_models import MODELS
+
+        children = {name for name in MODELS if name.startswith("led_profiles.")}
+        self.assertEqual(children, set(checks.TARGET_CHECKS))
+
+
+class ReportSolidProbeTests(unittest.TestCase):
+    def test_repeated_samples_share_one_classifier_per_solid(self) -> None:
+        from models.lib import checks
+
+        part = Mock()
+        probe = Mock(side_effect=(True, False))
+        with patch.object(checks, "solid_probe", return_value=probe) as factory:
+            report = checks.Report()
+            self.assertTrue(report.solid_at(part, 1, 2, 3))
+            self.assertFalse(report.solid_at(part, 4, 5, 6))
+
+        factory.assert_called_once_with(part)
+        self.assertEqual(probe.call_args_list[0].args, (1, 2, 3))
+        self.assertEqual(probe.call_args_list[1].args, (4, 5, 6))
+
+
+class LedProfilesRunShapeTests(unittest.TestCase):
+    """The led_profiles family's targeted dispatch and root-run coverage."""
+
+    def test_unknown_registered_target_is_not_claimed(self) -> None:
+        from models.led_profiles import checks
+
+        self.assertFalse(checks.handles_model("not_a_family_member"))
+        self.assertIsNone(checks.run_model("not_a_family_member"))
+
+    def test_root_run_covers_every_section_exactly_once(self) -> None:
+        import models.led_profiles.checks as checks
+
+        with (
+            patch.object(checks, "_check_profile_model") as profile,
+            patch.object(checks, "_check_endcap_model") as endcap,
+            patch.object(checks, "_check_wired_endcap_model") as wired,
+            patch.object(checks, "_check_strain_relief_model") as strain,
+            patch.object(checks, "check_assembly") as assembly,
+            patch.object(checks, "check_previz") as previz,
+            patch.object(checks, "check_cradle") as cradle,
+            patch.object(checks, "check_strap") as strap,
+            patch.object(checks, "check_corner") as corner,
+            patch.object(checks, "check_stand") as stand,
+            patch.object(checks, "check_feet") as feet,
+            patch.object(checks, "check_assemblies") as assemblies,
+        ):
+            report = checks.run()
+        for called in (
+            profile,
+            endcap,
+            wired,
+            strain,
+            assembly,
+            previz,
+            cradle,
+            strap,
+            corner,
+            stand,
+            feet,
+            assemblies,
+        ):
+            self.assertEqual(called.call_count, 1)
+        self.assertIsInstance(report, checks.Report)
+        self.assertEqual(report.entries, [])
+
+    def test_assembly_targets_dispatch_their_scene_only(self) -> None:
+        from models.led_profiles import checks
+
+        assemblies = Mock()
+        assemblies.create_standing = Mock(return_value=object())
+        with (
+            patch.object(checks, "assemblies", assemblies),
+            patch.object(checks, "_check_scene_clearance") as clearance,
+            patch.object(checks, "_check_triangle_geometry") as triangle,
+            patch.object(checks, "_check_suspended_bessel_points") as bessel,
+        ):
+            checks.run_model("led_profiles.assemblies.standing")
+            checks.run_model("led_profiles.assemblies.triangle")
+            checks.run_model("led_profiles.assemblies.suspended")
+
+        clearance.assert_any_call(mock.ANY, "standing", mock.ANY, expected_bought=4)
+        clearance.assert_any_call(mock.ANY, "triangle", mock.ANY, expected_bought=12)
+        bessel.assert_called_once()
+        triangle.assert_called_once()
+        assemblies.create_standing.assert_called_once()
+        assemblies.create_triangle.assert_called_once()
+        assemblies.create_suspended.assert_called_once()
 
 
 if __name__ == "__main__":

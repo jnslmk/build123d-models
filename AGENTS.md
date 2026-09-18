@@ -109,7 +109,9 @@ uv run render lens_cap shot.png           # a .png output path needs no flag
 uv run sketch box_closure             # exports/sketch-box_closure.html
 uv run sketch sketches/box_closure.py out.html
 
-# Run a model's geometry assertions, exit non-zero on failure
+# Run a model's geometry assertions, exit non-zero on failure.
+# led_profiles.<part> runs just that part's targeted assertions;
+# uv run check led_profiles is the whole family's integration check.
 uv run check lens_cap
 
 # Build ONE model (this is the one to reach for -- see "Build only what changed")

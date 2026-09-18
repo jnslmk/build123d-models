@@ -21,6 +21,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 import model_deps
 from tessellate_models import MODELS
@@ -85,6 +86,15 @@ class AffectedModelsTests(unittest.TestCase):
                     model_deps.affected_models([name], list(MODELS)), list(MODELS)
                 )
 
+    def test_orchestration_files_do_not_invalidate_geometry(self) -> None:
+        for path in ("main.py", "model_deps.py", "tessellate_models.py"):
+            with self.subTest(path=path):
+                self.assertNotIn(path, model_deps.GLOBAL_INPUTS)
+                self.assertEqual(
+                    model_deps.affected_models([path], list(MODELS)),
+                    [],
+                )
+
     def test_shared_engine_selects_the_family(self) -> None:
         hits = model_deps.affected_models(["models/drill_storage/box.py"], list(MODELS))
         self.assertIn("drill_storage.wood", hits)
@@ -126,6 +136,24 @@ class FingerprintTests(unittest.TestCase):
         # optional input rather than blowing up the whole build.
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(model_deps._digest(Path(tmp) / "absent"), "absent")
+
+    def test_one_plan_parses_and_digests_each_shared_source_once(self) -> None:
+        names = ("lens_cap", "round_snap_box")
+        with (
+            patch.object(
+                model_deps,
+                "_imported_modules",
+                wraps=model_deps._imported_modules,
+            ) as parse,
+            patch.object(model_deps, "_digest", wraps=model_deps._digest) as digest,
+        ):
+            result = model_deps.fingerprints(names)
+
+        self.assertEqual(set(result), set(names))
+        parsed_paths = [call.args[1] for call in parse.call_args_list]
+        digested_paths = [call.args[0] for call in digest.call_args_list]
+        self.assertEqual(len(parsed_paths), len(set(parsed_paths)))
+        self.assertEqual(len(digested_paths), len(set(digested_paths)))
 
 
 PROBE = (

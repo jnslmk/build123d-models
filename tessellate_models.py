@@ -9,7 +9,16 @@ import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
 
 import importlib
 
-from models.drill_storage.sets import roster_names
+DRILL_SET_NAMES = ("wood", "metal", "stone")
+
+
+def _drill_set_roster() -> list[str]:
+    return [
+        f"drill_storage.{name}{suffix}"
+        for name in DRILL_SET_NAMES
+        for suffix in ("", ".base", ".insert", ".cover")
+    ]
+
 
 # The model roster the website + CI expose. The **single** source of truth:
 # ``main.py`` builds straight from this list rather than keeping its own copy.
@@ -36,13 +45,11 @@ MODELS = [
     # Gridfinity drill storage: the family view, then one variant per tool set.
     # A variant is an assembled scene plus its three printed parts -- ASA base,
     # TPU cartridge, PETG cover -- which are three filaments and so three jobs.
-    # The per-set names are spliced from ``sets.roster_names()`` so the roster
-    # and the set definitions cannot drift. ``allen`` is the 8-piece hex-key
-    # box and ``hex`` the 16-piece driver-bit box: both 1x1 Gridfinity, cut
-    # from the same hex geometry (BITS shaves its lead-in clearances), each a
-    # rigid base + TPU insert + translucent cover.
+    # The per-set names are derived here (``DRILL_SET_NAMES``) rather than
+    # spliced from ``sets.roster_names()``: importing that module reaches
+    # build123d/OCP, which an up-to-date incremental planner must never pay.
     "drill_storage",
-    *roster_names(),
+    *_drill_set_roster(),
     "drill_storage.allen",
     "drill_storage.allen.base",
     "drill_storage.allen.insert",

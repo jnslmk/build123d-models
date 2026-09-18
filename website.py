@@ -189,20 +189,25 @@ def _manifest() -> dict:
         step = EXPORTS / f"{name}.step"
         glb = EXPORTS / f"{name}.glb"
         thumb = EXPORTS / f"{name}.png"
+        assembly = model_is_assembly(name)
         models.append(
             {
                 "name": name,
                 "label": _label(name),
                 "params": model_params(name),
-                "assembly": model_is_assembly(name),
+                "assembly": assembly,
                 "source": _source_path(name),
                 # UTC ISO-8601, or null when neither git nor the filesystem can
                 # say; the page renders it in the visitor's own timezone.
                 "updated": _last_edited(name),
-                # Kept even for an assembly, which offers no STL download: it is
-                # the preview's fallback when a model has no GLB.
-                "stl": f"exports/{name}.stl" if stl.exists() else None,
-                "step": f"exports/{name}.step" if step.exists() else None,
+                # Assemblies are preview-only: STL/STEP read as null no matter
+                # what lingers in exports/, and the bundle never ships one.
+                "stl": (
+                    f"exports/{name}.stl" if not assembly and stl.exists() else None
+                ),
+                "step": (
+                    f"exports/{name}.step" if not assembly and step.exists() else None
+                ),
                 "glb": f"exports/{name}.glb" if glb.exists() else None,
                 "thumb": f"exports/{name}.png" if thumb.exists() else None,
             }
@@ -217,7 +222,12 @@ def build_web_bundle() -> None:
     (WEBSITE_DIR / "models-manifest.json").write_text(json.dumps(_manifest(), indent=2))
     copied = 0
     for name in MODELS:
-        for ext in ("stl", "step", "glb", "png"):
+        assembly = model_is_assembly(name)
+        extensions = ("glb", "png") if assembly else ("stl", "step", "glb", "png")
+        if assembly:
+            for ext in ("stl", "step"):
+                (WEBSITE_EXPORTS / f"{name}.{ext}").unlink(missing_ok=True)
+        for ext in extensions:
             src = EXPORTS / f"{name}.{ext}"
             if src.exists():
                 shutil.copy2(src, WEBSITE_EXPORTS / src.name)

@@ -43,22 +43,24 @@ ROOT = Path(__file__).parent.resolve()
 MODELS_DIR = ROOT / "models"
 
 # Files that feed *every* model's output, so a change to one invalidates the
-# whole roster. These are the build's own inputs rather than any one model's:
-# the exporter (tolerances, which formats get written), the font preload that
-# runs before OCP imports, the roster and loader, the driver that decides how
-# ``export`` is called, this module (it defines what a fingerprint *means*), and
-# the lockfile that pins the OCC version every solid is cut by.
+# whole roster: the exporter (tolerances, which formats get written), the font
+# preload that runs before OCP imports, and the lockfile that pins the OCC
+# version every solid is cut by.
 #
-# ``pyproject.toml`` is deliberately absent: its dependency edits already show
-# up in ``uv.lock``, and its ``[tool.setuptools] packages`` list has no effect on
-# a source-tree build. Hashing it would force a full rebuild every time a model
-# package is registered, for no change in geometry.
+# Orchestration-only modules -- ``main.py`` (how the build is scheduled), this
+# module (what a fingerprint *means*), ``tessellate_models.py`` (the roster and
+# its loader) -- are deliberately absent: none of them changes a single triangle
+# of geometry, so hashing them would force the whole roster to rebuild whenever
+# the build loop itself was touched, for no change in output. A new model is
+# registered by editing ``tessellate_models.py``, and that shows up as the new
+# name's "never built" stamp, not as 40 pointless rebuilds.
+#
+# ``pyproject.toml`` is deliberately absent too: its dependency edits already
+# show up in ``uv.lock``, and its ``[tool.setuptools] packages`` list has no
+# effect on a source-tree build.
 GLOBAL_INPUTS = (
     "export.py",
     "fontfix.py",
-    "main.py",
-    "model_deps.py",
-    "tessellate_models.py",
     "uv.lock",
 )
 
@@ -136,14 +138,8 @@ def _imported_modules(module: str, path: Path) -> set[str]:
     return found
 
 
-@lru_cache(maxsize=None)
-def model_files(name: str) -> tuple[Path, ...]:
-    """Every file under ``models/`` that building ``name`` can reach.
-
-    Walks the import graph from ``models.<name>``, following only ``models.*``
-    edges -- third-party imports are pinned by ``uv.lock``, which is hashed
-    separately as a global input.
-    """
+def _model_files(name: str, import_cache: dict[Path, set[str]]) -> tuple[Path, ...]:
+    """Walk one model while sharing parsed imports with sibling walks."""
     root = f"models.{name}"
     if _module_path(root) is None:
         raise ModuleNotFoundError(f"Model '{name}' not found in models/")
@@ -160,14 +156,19 @@ def model_files(name: str) -> tuple[Path, ...]:
         if path is None:
             continue
         files.add(path)
-        pending.extend(_imported_modules(module, path))
-        # Importing ``models.pkg.part`` runs ``models/__init__.py`` and
-        # ``models/pkg/__init__.py`` first, so whatever those execute is part of
-        # this model's build whether or not it names them. Walking the ancestors
-        # too picks up what *they* import -- which for a package like
-        # ``led_psu_enclosure`` is its entire re-exported surface.
+        imported = import_cache.get(path)
+        if imported is None:
+            imported = _imported_modules(module, path)
+            import_cache[path] = imported
+        pending.extend(imported)
         pending.extend(_ancestors(module))
     return tuple(sorted(files))
+
+
+@lru_cache(maxsize=None)
+def model_files(name: str) -> tuple[Path, ...]:
+    """Every file under ``models/`` that building ``name`` can reach."""
+    return _model_files(name, {})
 
 
 def _digest(path: Path) -> str:
@@ -177,17 +178,32 @@ def _digest(path: Path) -> str:
         return "absent"
 
 
-def fingerprint(name: str) -> str:
-    """A content hash of everything that decides ``name``'s exported geometry.
+def fingerprints(names: list[str] | tuple[str, ...]) -> dict[str, str]:
+    """Content hashes for one build plan, sharing source parses and digests."""
+    imports: dict[Path, set[str]] = {}
+    digests: dict[Path, str] = {}
 
-    Equal fingerprints mean the exports on disk are exactly what a rebuild would
-    produce, so the rebuild can be skipped. Both the model's own import closure
-    and ``GLOBAL_INPUTS`` are covered, and paths are hashed alongside contents so
-    that moving a file counts as a change.
-    """
-    parts = [f"{path.relative_to(ROOT)}:{_digest(path)}" for path in model_files(name)]
-    parts += [f"{rel}:{_digest(ROOT / rel)}" for rel in GLOBAL_INPUTS]
-    return hashlib.sha256("\n".join(sorted(parts)).encode()).hexdigest()
+    def digest(path: Path) -> str:
+        value = digests.get(path)
+        if value is None:
+            value = _digest(path)
+            digests[path] = value
+        return value
+
+    out = {}
+    for name in names:
+        parts = [
+            f"{path.relative_to(ROOT)}:{digest(path)}"
+            for path in _model_files(name, imports)
+        ]
+        parts += [f"{rel}:{digest(ROOT / rel)}" for rel in GLOBAL_INPUTS]
+        out[name] = hashlib.sha256("\n".join(sorted(parts)).encode()).hexdigest()
+    return out
+
+
+def fingerprint(name: str) -> str:
+    """A content hash of everything that decides one model's export."""
+    return fingerprints((name,))[name]
 
 
 def affected_models(changed: list[str], models: list[str]) -> list[str]:

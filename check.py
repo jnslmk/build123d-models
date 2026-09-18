@@ -12,7 +12,9 @@ Discovery, in order:
    ``main()``  -- the convention for a model big enough to earn its own package.
 2. ``models.<name>`` exposes ``check()``  -- the convention for a single-file
    model.
-3. Neither -- say so plainly and exit 0. A model without checks is not a
+3. A parent package's ``checks`` submodule exposes ``run_model(name)`` -- shared
+   targeted checks for one registered child model.
+4. None of those -- say so plainly and exit 0. A model without checks is not a
    failure, and reporting it as one would train people to ignore this command.
 
 ``--json <path>`` additionally writes every assertion -- its section, name,
@@ -33,6 +35,8 @@ discovery order, stdout and exit codes.
 """
 
 from __future__ import annotations
+
+import fontfix  # noqa: F401 -- preload system libfontconfig before model/OCP imports
 
 import importlib
 import importlib.util
@@ -65,6 +69,24 @@ def _checks_submodule(module: ModuleType, name: str) -> ModuleType | None:
     if importlib.util.find_spec(f"models.{name}.checks") is None:
         return None
     return importlib.import_module(f"models.{name}.checks")
+
+
+def _ancestor_check(module_name: str):
+    """Nearest parent ``checks.run_model`` hook, if one claims this model."""
+    parts = module_name.split(".")
+    for size in range(len(parts) - 1, 0, -1):
+        parent = ".".join(parts[:size])
+        checks_name = f"models.{parent}.checks"
+        if importlib.util.find_spec(checks_name) is None:
+            continue
+        checks = importlib.import_module(checks_name)
+        run_model = getattr(checks, "run_model", None)
+        handles_model = getattr(checks, "handles_model", None)
+        if callable(run_model) and (
+            not callable(handles_model) or handles_model(module_name)
+        ):
+            return lambda: run_model(module_name)
+    return None
 
 
 def _write_json(path: str, payload: dict) -> None:
@@ -207,6 +229,16 @@ def main() -> None:
             print(result.render())
             sys.exit(1 if result.failures else 0)
         sys.exit(1 if result is False else 0)
+
+    ancestor = _ancestor_check(name)
+    if ancestor is not None:
+        if json_path is not None:
+            _run_check_fn_json(name, ancestor, json_path)
+            return
+        report = ancestor()
+        if report is not None:
+            print(report.render())
+            sys.exit(1 if report.failures else 0)
 
     print(f"Model '{name}' has no checks defined (no checks.main(), no check()).")
     if json_path is not None:

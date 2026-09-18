@@ -1,4 +1,4 @@
-"""Build the roster's models and export them to STL + STEP + GLB.
+"""Build printable models to STL + STEP + GLB and assemblies to preview GLB.
 
 There is no model list here. The roster is ``tessellate_models.MODELS`` and this
 builds straight from it, so CI, the website and this command can never disagree
@@ -46,7 +46,7 @@ from tessellate_models import MODELS
 ROOT = Path(__file__).parent.resolve()
 EXPORTS_DIR = ROOT / "exports"
 STAMPS = EXPORTS_DIR / ".build-stamps.json"
-STAMP_VERSION = 1
+STAMP_VERSION = 2
 
 # Each worker holds a whole OCC solid, so the pool is bounded by memory as well
 # as by cores. Past eight, the meshing threads OCC starts internally contend
@@ -95,18 +95,17 @@ def _staleness(name: str, stamp: dict | None, fingerprint: str) -> str:
     return ""
 
 
-def plan(force: bool) -> tuple[list[tuple[str, str]], dict[str, dict]]:
-    """The models to rebuild and why, plus the stamps carried over from before."""
+def plan(force: bool) -> tuple[list[tuple[str, str, str]], dict[str, dict]]:
+    """Models to rebuild as ``(name, reason, pre-build fingerprint)``."""
     stamps = {} if force else _load_stamps()
+    current = model_deps.fingerprints(tuple(MODELS))
     stale = []
     for name in MODELS:
         reason = (
-            "forced"
-            if force
-            else _staleness(name, stamps.get(name), model_deps.fingerprint(name))
+            "forced" if force else _staleness(name, stamps.get(name), current[name])
         )
         if reason:
-            stale.append((name, reason))
+            stale.append((name, reason, current[name]))
     return stale, stamps
 
 
@@ -125,11 +124,23 @@ def _build(name: str) -> dict:
     os.chdir(ROOT)
 
     from export import export
-    from tessellate_models import get_part
+    from tessellate_models import get_part, model_is_assembly
 
     started = time.perf_counter()
     try:
-        written = export(get_part(name), name, step=True, children=False)
+        assembly = model_is_assembly(name)
+        written = export(
+            get_part(name),
+            name,
+            step=not assembly,
+            stl=not assembly,
+            children=False,
+        )
+        if assembly and not any(path.suffix == ".glb" for path in written):
+            raise RuntimeError("assembly preview GLB export failed")
+        if assembly:
+            for suffix in (".stl", ".step"):
+                (EXPORTS_DIR / f"{name}{suffix}").unlink(missing_ok=True)
     except Exception:  # noqa: BLE001 -- collected and re-reported by main()
         return {"name": name, "error": traceback.format_exc()}
     return {
@@ -139,7 +150,7 @@ def _build(name: str) -> dict:
     }
 
 
-def _order(stale: list[tuple[str, str]], stamps: dict[str, dict]) -> list[str]:
+def _order(stale: list[tuple[str, str, str]], stamps: dict[str, dict]) -> list[str]:
     """Longest job first, using the durations the last successful build recorded.
 
     A model with no recorded duration sorts first: it has never been timed, and
@@ -149,7 +160,7 @@ def _order(stale: list[tuple[str, str]], stamps: dict[str, dict]) -> list[str]:
     def cost(name: str) -> float:
         return stamps.get(name, {}).get("seconds", float("inf"))
 
-    return sorted((name for name, _ in stale), key=cost, reverse=True)
+    return sorted((name for name, _, _ in stale), key=cost, reverse=True)
 
 
 def main() -> None:
@@ -180,12 +191,13 @@ def main() -> None:
         return
 
     print(f"Building {len(stale)} of {len(MODELS)} models:")
-    for name, reason in sorted(stale):
+    for name, reason, _fingerprint in sorted(stale):
         print(f"  {name}  ({reason})")
     if args.list:
         return
 
     order = _order(stale, stamps)
+    fingerprints = {name: fingerprint for name, _, fingerprint in stale}
     jobs = max(1, min(args.jobs, len(order)))
     print(f"\nUsing {jobs} process(es).\n")
 
@@ -202,7 +214,7 @@ def main() -> None:
                 print(f"[{done}/{len(order)}] FAILED {name}")
                 continue
             stamps[name] = {
-                "fingerprint": model_deps.fingerprint(name),
+                "fingerprint": fingerprints[name],
                 "seconds": round(result["seconds"], 3),
                 "outputs": result["outputs"],
             }

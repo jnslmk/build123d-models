@@ -14,13 +14,19 @@ that can fetch nothing from the network:
 Usage: uv run view <name> [--out PATH] [--serve] [--port N]
 """
 
+import fontfix  # noqa: F401 -- preload system libfontconfig before model/OCP imports
+
 import base64
 import importlib
+import json
 import re
 import sys
 import time
 import urllib.request
 from pathlib import Path
+
+import model_deps
+from main import STAMP_VERSION
 
 HERE = Path(__file__).parent.resolve()
 EXPORTS_DIR = HERE / "exports"
@@ -100,15 +106,48 @@ def _ensure_vendor() -> Path:
     return d
 
 
+def _stamped_model_asset(name: str) -> Path | None:
+    """Return a source-current stamped GLB/STL without importing the model."""
+    try:
+        state = json.loads((EXPORTS_DIR / ".build-stamps.json").read_text())
+        stamp = state["models"][name]
+    except (OSError, KeyError, TypeError, AttributeError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(stamp, dict)
+        or state.get("version") != STAMP_VERSION
+        or stamp.get("fingerprint") != model_deps.fingerprint(name)
+    ):
+        return None
+    outputs = set(stamp.get("outputs", ()))
+    for suffix in (".glb", ".stl"):
+        asset = EXPORTS_DIR / f"{name}{suffix}"
+        if asset.name in outputs and asset.is_file():
+            return asset
+    return None
+
+
 def _ensure_model_asset(name: str) -> Path:
-    """Build and return the model's current GLB, falling back to STL."""
+    """Reuse a current stamped GLB/STL, otherwise rebuild once without children."""
+    current = _stamped_model_asset(name)
+    if current is not None:
+        return current
+
+    glb = EXPORTS_DIR / f"{name}.glb"
+    stl = EXPORTS_DIR / f"{name}.stl"
+    glb.unlink(missing_ok=True)
+    stl.unlink(missing_ok=True)
+
     module = importlib.import_module(f"models.{name}")
     from export import export
 
-    export(module.create(), name, step=False)  # writes STL + GLB
-    glb = EXPORTS_DIR / f"{name}.glb"
-    stl = EXPORTS_DIR / f"{name}.stl"
-    return glb if glb.exists() else stl
+    assembly = bool(getattr(module, "IS_ASSEMBLY", False))
+    export(module.create(), name, step=False, stl=not assembly, children=False)
+    if glb.exists():
+        return glb
+    if stl.exists():
+        return stl
+    raise RuntimeError(f"export produced no GLB or STL for {name}")
 
 
 def _module_js(vendor: Path, has_glb: bool, b64: str) -> str:

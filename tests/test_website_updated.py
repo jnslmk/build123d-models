@@ -43,8 +43,9 @@ def git(repo: Path, *args: str, when: str | None = None) -> None:
     env |= {"GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}
     if when:
         env |= {"GIT_AUTHOR_DATE": when, "GIT_COMMITTER_DATE": when}
-    subprocess.run(["git", "-C", str(repo), *args], check=True, env=env,
-                   capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(repo), *args], check=True, env=env, capture_output=True
+    )
 
 
 class CommitDatesTests(unittest.TestCase):
@@ -170,7 +171,8 @@ class ShallowCloneTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, shallow.parent, ignore_errors=True)
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", f"file://{src}", str(shallow)],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         self.addCleanup(setattr, website, "HERE", website.HERE)
@@ -182,6 +184,72 @@ class ShallowCloneTests(unittest.TestCase):
         # the 2024 commit -- which adds both files. Hence fetch-depth: 0.
         self.assertEqual(dates["a.py"].year, 2024)
         self.assertEqual(dates["b.py"].year, 2024)
+
+
+class AssemblyAssetTests(unittest.TestCase):
+    def test_manifest_keeps_keys_but_nulls_assembly_downloads(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            exports = Path(tmp)
+            for ext in ("stl", "step", "glb"):
+                (exports / f"scene.{ext}").write_bytes(ext.encode())
+            with (
+                mock.patch.object(website, "MODELS", ["scene"]),
+                mock.patch.object(website, "EXPORTS", exports),
+                mock.patch.object(website, "model_is_assembly", return_value=True),
+                mock.patch.object(website, "model_params", return_value=[]),
+                mock.patch.object(
+                    website, "_source_path", return_value="models/scene.py"
+                ),
+                mock.patch.object(website, "_last_edited", return_value=None),
+            ):
+                entry = website._manifest()["models"][0]
+
+        self.assertIsNone(entry["stl"])
+        self.assertIsNone(entry["step"])
+        self.assertEqual(entry["glb"], "exports/scene.glb")
+        self.assertEqual(
+            set(entry),
+            {
+                "name",
+                "label",
+                "params",
+                "assembly",
+                "source",
+                "updated",
+                "stl",
+                "step",
+                "glb",
+                "thumb",
+            },
+        )
+
+    def test_bundle_removes_stale_assembly_downloads_and_copies_preview(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            exports = root / "exports"
+            web = root / "website"
+            bundled = web / "exports"
+            exports.mkdir()
+            bundled.mkdir(parents=True)
+            (exports / "scene.glb").write_bytes(b"preview")
+            for ext in ("stl", "step"):
+                (exports / f"scene.{ext}").write_bytes(b"obsolete")
+                (bundled / f"scene.{ext}").write_bytes(b"stale")
+
+            with (
+                mock.patch.object(website, "MODELS", ["scene"]),
+                mock.patch.object(website, "EXPORTS", exports),
+                mock.patch.object(website, "WEBSITE_DIR", web),
+                mock.patch.object(website, "WEBSITE_EXPORTS", bundled),
+                mock.patch.object(website, "model_is_assembly", return_value=True),
+                mock.patch.object(website, "_py_sources", return_value={}),
+                mock.patch.object(website, "_manifest", return_value={"models": []}),
+            ):
+                website.build_web_bundle()
+
+            self.assertEqual((bundled / "scene.glb").read_bytes(), b"preview")
+            self.assertFalse((bundled / "scene.stl").exists())
+            self.assertFalse((bundled / "scene.step").exists())
 
 
 if __name__ == "__main__":

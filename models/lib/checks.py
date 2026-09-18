@@ -48,24 +48,23 @@ def is_solid_at(part: Part, x: float, y: float, z: float) -> bool:
 
 
 def solid_probe(part: Part):
-    """A reusable inside/outside test, for when one point is not enough.
+    """Build one reusable inside/outside classifier for an already-built solid.
 
-    ``is_solid_at`` builds a fresh classifier per call, which is right for a
-    handful of samples and far too slow for the thousands ``interior_angle``
-    needs. This builds it once.
-
-    Public because the cost is not a footnote on complicated parts: constructing
-    the classifier scales with face count, and on a lofted shell of 168 B-spline
-    faces (``spiral_vase_lampshade``) one ``is_solid_at`` measures 2.7 seconds
-    against roughly a millisecond through a probe built once. Any ``checks.py``
-    taking more than a handful of samples of the same solid should take them
-    through this instead. Note the argument type: it takes a ``Vector``, not
-    three floats, matching ``interior_angle``'s ``probe`` parameter.
+    The returned callable accepts either a ``Vector`` or three coordinates.
+    Keeping the classifier local to a check run avoids both the construction
+    cost at every sample and a global shape cache that could survive mutation.
     """
     clf = BRepClass3d_SolidClassifier(part.wrapped)
 
-    def inside(v: Vector) -> bool:
-        clf.Perform(gp_Pnt(v.X, v.Y, v.Z), TOL)
+    def inside(
+        point: Vector | float, y: float | None = None, z: float | None = None
+    ) -> bool:
+        pnt = (
+            gp_Pnt(point.X, point.Y, point.Z)
+            if isinstance(point, Vector)
+            else gp_Pnt(point, y, z)
+        )
+        clf.Perform(pnt, TOL)
         return clf.State() in (TopAbs_IN, TopAbs_ON)
 
     return inside
@@ -681,7 +680,17 @@ class Report:
         self.failures: list[str] = []
         self.lines: list[str] = []
         self.entries: list[dict] = []
+        self._solid_probes = {}
         self._section: str = ""
+
+    def solid_at(self, part: Part, x: float, y: float, z: float) -> bool:
+        """Probe one completed solid, reusing its classifier for this report."""
+        key = part.wrapped  # TopoDS_Shape hashes on identity
+        cached = self._solid_probes.get(key)
+        if cached is None:
+            cached = solid_probe(part)
+            self._solid_probes[key] = cached
+        return cached(x, y, z)
 
     def check(self, ok: bool, label: str, detail: str = "") -> None:
         mark = "PASS" if ok else "FAIL"
