@@ -13,6 +13,7 @@ from . import (
     HOLE_OFFSETS,
     HOLE_SPACING,
     HOLE_Z,
+    INNER_CHAMFER,
     LEFT_THREAD_RADIUS,
     RIGHT_THREAD_RADIUS,
     SIDE_MARGIN_TOLERANCE,
@@ -79,6 +80,13 @@ def run() -> Report:
         not is_solid_at(part, 0, SUPPORT_HEIGHT / 2, BASE_DEPTH / 2),
         "L-profile keeps its open corner",
     )
+    chamfer_inside = WALL_THICKNESS + INNER_CHAMFER / 4
+    chamfer_outside = WALL_THICKNESS + INNER_CHAMFER * 3 / 4
+    report.check(
+        is_solid_at(part, 0, chamfer_inside, chamfer_inside)
+        and not is_solid_at(part, 0, chamfer_outside, chamfer_outside),
+        "full-width triangular chamfer reinforces the inner corner",
+    )
     for offset, radius in zip(
         HOLE_OFFSETS,
         (LEFT_THREAD_RADIUS, RIGHT_THREAD_RADIUS),
@@ -125,6 +133,13 @@ def run() -> Report:
             )
         )
 
+    def is_full_width_end(edge: Edge) -> bool:
+        box = edge.bounding_box()
+        return edge.geom_type == GeomType.LINE and (
+            (abs(box.min.X + WIDTH / 2) < 0.01 and abs(box.max.X + WIDTH / 2) < 0.01)
+            or (abs(box.min.X - WIDTH / 2) < 0.01 and abs(box.max.X - WIDTH / 2) < 0.01)
+        )
+
     survey = sharp_convex_edges(
         part,
         allow=(
@@ -132,6 +147,11 @@ def run() -> Report:
                 is_thread_edge,
                 "thread flanks are mating surfaces; the direct-seat mouths stay "
                 "square to preserve the full 2 mm engagement",
+            ),
+            (
+                is_full_width_end,
+                "side-face edges stay square so the reinforcement reaches the "
+                "full part width",
             ),
         ),
     )

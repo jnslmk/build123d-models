@@ -2,7 +2,8 @@
 
 The aid is a single L-profile extrusion. Its 2 mm rear wall prints flat with the
 connector holes facing the heatbed, while the 2 mm lower leg rises as a side
-support. The connector seats are direct threaded holes near the wall's top edge.
+support. A 5 mm full-width internal chamfer reinforces the bend. The connector
+seats are direct threaded holes near the wall's top edge.
 
 Calipers measured a 17 mm major diameter on the left connector and 20 mm on the
 right. The pitches remain the existing unverified 1.5 mm and 1.0 mm settings;
@@ -34,6 +35,7 @@ from models.lib.edges import as_part, chamfer_edge, fillet_edge, reseat_on_bed
 WIDTH = 70.0
 BASE_DEPTH = 44.0
 WALL_THICKNESS = 2.0
+INNER_CHAMFER = 5.0
 SUPPORT_HEIGHT = 60.0  # 50% taller than the former 40 mm rear wall
 HOLE_SPACING = 36.0
 
@@ -91,7 +93,14 @@ def create() -> Part:
                 (BASE_DEPTH / 2, 0),
                 (BASE_DEPTH / 2, SUPPORT_HEIGHT),
                 (BASE_DEPTH / 2 - WALL_THICKNESS, SUPPORT_HEIGHT),
-                (BASE_DEPTH / 2 - WALL_THICKNESS, WALL_THICKNESS),
+                (
+                    BASE_DEPTH / 2 - WALL_THICKNESS,
+                    WALL_THICKNESS + INNER_CHAMFER,
+                ),
+                (
+                    BASE_DEPTH / 2 - WALL_THICKNESS - INNER_CHAMFER,
+                    WALL_THICKNESS,
+                ),
                 (-BASE_DEPTH / 2, WALL_THICKNESS),
                 align=None,
             )
@@ -104,7 +113,8 @@ def create() -> Part:
             [
                 edge
                 for edge in aid.edges()
-                if abs(edge.center().Z - WALL_THICKNESS) < 0.01 and edge.length > 10.0
+                if abs(edge.center().Z - WALL_THICKNESS) < 0.01
+                and abs(edge.length - WIDTH) < 0.01
             ],
             EDGE_CHAMFER,
         )

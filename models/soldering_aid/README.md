@@ -17,5 +17,6 @@ flanks after the full-diameter bores are cut. The existing 1.5 mm left and
 1.0 mm right pitch settings were not measured; verify pitch with each connector
 before printing.
 
-The clean L-profile has a 0.35 mm bed/top chamfer and 0.8 mm fillets on its
-vertical outer edges.
+The clean L-profile has a 5 mm, 45° full-width chamfer reinforcing its inside
+corner, a 0.35 mm bed/top chamfer, and 0.8 mm fillets on its vertical outer
+edges.
