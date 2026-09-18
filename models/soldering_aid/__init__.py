@@ -1,8 +1,8 @@
 """One-piece thin-wall soldering aid for two circular connectors.
 
-The aid is a single L-profile extrusion. Its 2 mm lower leg prints flat and its
-2 mm rear wall is 50% taller than the former 40 mm support. The connector seats
-are direct threaded holes through the long rear wall, near its top edge.
+The aid is a single L-profile extrusion. Its 2 mm rear wall prints flat with the
+connector holes facing the heatbed, while the 2 mm lower leg rises as a side
+support. The connector seats are direct threaded holes near the wall's top edge.
 
 Calipers measured a 17 mm major diameter on the left connector and 20 mm on the
 right. The pitches remain the existing unverified 1.5 mm and 1.0 mm settings;
@@ -24,11 +24,12 @@ from build123d import (
     Plane,
     Polygon,
     Pos,
+    Rotation,
     add,
     extrude,
 )
 
-from models.lib.edges import as_part, chamfer_edge, fillet_edge
+from models.lib.edges import as_part, chamfer_edge, fillet_edge, reseat_on_bed
 
 WIDTH = 70.0
 BASE_DEPTH = 44.0
@@ -60,7 +61,7 @@ HOLE_Y = WALL_FRONT_Y
 
 
 def _thread_data() -> list[tuple[float, IsoThread]]:
-    """Return centered hole offsets and external thread cutters."""
+    """Return centered hole offsets and internal thread inserts."""
     result = []
     for offset, diameter, pitch in zip(
         HOLE_OFFSETS,
@@ -72,8 +73,8 @@ def _thread_data() -> list[tuple[float, IsoThread]]:
             major_diameter=diameter + THREAD_CLEARANCE,
             pitch=pitch,
             length=THREAD_LENGTH,
-            external=True,
-            end_finishes=("square", "square"),
+            external=False,
+            end_finishes=("fade", "fade"),
             rotation=(-90, 0, 0),
         )
         result.append((offset, thread))
@@ -113,16 +114,17 @@ def create() -> Part:
             x = WIDTH / 2 + offset
             with Locations((x, HOLE_Y, HOLE_Z)):
                 Cylinder(
-                    thread.min_radius,
+                    thread.major_diameter / 2,
                     THREAD_LENGTH,
                     rotation=(-90, 0, 0),
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,
                 )
             with Locations((x, HOLE_Y, HOLE_Z)):
-                add(thread, mode=Mode.SUBTRACT)
+                add(thread)
 
-    return as_part(Pos(-WIDTH / 2, 0, 0) * aid.part)
+    centered = as_part(Pos(-WIDTH / 2, 0, 0) * aid.part)
+    return reseat_on_bed(as_part(Rotation(-90, 0, 0) * centered))
 
 
 __all__ = ["create"]
