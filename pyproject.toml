@@ -50,6 +50,8 @@ default-groups = ["dev", "viewer", "pdf"]
 packages = [
     "models",
     "models.lib",
+    "models.beamhouse",
+    "models.gled2",
     "models.cable_spool",
     "models.drill_storage",
     "models.drill_storage.allen",

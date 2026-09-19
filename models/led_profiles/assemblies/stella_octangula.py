@@ -11,6 +11,7 @@ three support-free cradle arms and six existing profile straps.
 from __future__ import annotations
 
 from math import sqrt
+from typing import NamedTuple
 
 from build123d import Compound, Part, Plane, Vector
 
@@ -29,6 +30,60 @@ IS_ASSEMBLY = True
 TETRA_EDGES = [(i, j) for i in range(4) for j in range(i + 1, 4)]
 BASE_SIGNS = [(1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)]
 OFFSET_SIGNS = [(-x, y, z) for x, y, z in BASE_SIGNS]
+
+
+class LampSegment(NamedTuple):
+    """One lamp's tube axis in world coordinates, in millimetres.
+
+    ``name`` is the wiring label used by the ``gled2`` and ``beamhouse``
+    projects: ``b0..b5`` on the base tetrahedron, ``o0..o5`` on the offset one;
+    ``edge_index`` is the ``TETRA_EDGES`` slot and ``vertices`` the tetra
+    vertex indices the lamp spans.
+    """
+
+    name: str
+    tetra: str
+    edge_index: int
+    vertices: tuple[int, int]
+    start: Vector
+    end: Vector
+
+
+def lamp_segments(length: float = c.LENGTH) -> list[LampSegment]:
+    """The twelve lamp axes exactly as ``create_stella_octangula`` places them.
+
+    Same arithmetic as the assembly's tube placement — vertex, face offset,
+    gland setback, under-band lift — so the show-control projects and the CAD
+    cannot drift apart. Light-control consumers (SVG installations, patches)
+    build off this, never off re-derived geometry.
+    """
+    segments: list[LampSegment] = []
+    for prefix, tetra, signs, offset in (
+        ("b", "base", BASE_SIGNS, 0.0),
+        ("o", "offset", OFFSET_SIGNS, s.EDGE_OFFSET),
+    ):
+        vertices = tetra_vertices(length, signs)
+        for edge_index, (a_index, b_index) in enumerate(TETRA_EDGES):
+            a, b = vertices[a_index], vertices[b_index]
+            direction = _unit(b - a)
+            outward = _face_normal(a, _face_axis(a, b))
+            origin = (
+                a
+                + outward * offset
+                + direction * s.CRADLE_START
+                + outward * m.TUBE_UNDER_Z
+            )
+            segments.append(
+                LampSegment(
+                    name=f"{prefix}{edge_index}",
+                    tetra=tetra,
+                    edge_index=edge_index,
+                    vertices=(a_index, b_index),
+                    start=origin,
+                    end=origin + direction * length,
+                )
+            )
+    return segments
 
 
 def tetra_vertices(length: float, signs: list[tuple[int, int, int]]) -> list[Vector]:
@@ -188,10 +243,12 @@ def create(length: float = c.LENGTH) -> Compound:
 __all__ = [
     "BASE_SIGNS",
     "IS_ASSEMBLY",
+    "LampSegment",
     "OFFSET_SIGNS",
     "PARAMS",
     "TETRA_EDGES",
     "create",
     "create_stella_octangula",
+    "lamp_segments",
     "tetra_vertices",
 ]
