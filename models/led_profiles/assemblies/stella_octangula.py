@@ -154,10 +154,11 @@ def _vertex_core_frame(
     return Plane(origin=centre - radial * s.CORE_T, x_dir=pair_axis, z_dir=radial)
 
 
-def _arm_straps(frame: Plane, tag: str) -> list[Part]:
+def _arm_straps(
+    frame: Plane, tag: str, strap_sources: list[tuple[Part, float]]
+) -> list[Part]:
     straps: list[Part] = []
-    for station in m.STRAP_STATIONS:
-        local = strap_mod.seated(s.CRADLE_START + station)
+    for local, station in strap_sources:
         straps.append(_placed(local, frame, f"strap ({tag}, {station:.0f} mm)"))
     return straps
 
@@ -166,6 +167,11 @@ def create_stella_octangula(length: float = c.LENGTH) -> Compound:
     """Twelve lamps, 24 arms, eight cores and 48 straps in the final form."""
     children: list[Part] = []
     arm_source = create_arm()
+    strap_sources = [
+        (strap_mod.seated(s.CRADLE_START + station), station)
+        for station in m.STRAP_STATIONS
+    ]
+    lamp_sources = lamp_parts(length, cable=False)
 
     for tetra_name, signs, offset in (
         ("base", BASE_SIGNS, 0.0),
@@ -213,17 +219,21 @@ def create_stella_octangula(length: float = c.LENGTH) -> Compound:
                 )
             )
             children.extend(
-                _arm_straps(near_frame, f"{tetra_name} edge {edge_index} near")
+                _arm_straps(
+                    near_frame, f"{tetra_name} edge {edge_index} near", strap_sources
+                )
             )
             children.extend(
-                _arm_straps(far_frame, f"{tetra_name} edge {edge_index} far")
+                _arm_straps(
+                    far_frame, f"{tetra_name} edge {edge_index} far", strap_sources
+                )
             )
 
             tube_origin = (
                 near_endpoint + direction * s.CRADLE_START + outward * m.TUBE_UNDER_Z
             )
             tube_frame = _edge_frame(tube_origin, direction, outward)
-            for part in lamp_parts(length, cable=False):
+            for part in lamp_sources:
                 children.append(
                     _placed(
                         part,
