@@ -555,6 +555,7 @@ class LedProfilesRunShapeTests(unittest.TestCase):
             patch.object(checks, "check_corner") as corner,
             patch.object(checks, "check_stand") as stand,
             patch.object(checks, "check_feet") as feet,
+            patch.object(checks, "check_stella_parts") as stella,
             patch.object(checks, "check_assemblies") as assemblies,
         ):
             report = checks.run()
@@ -570,6 +571,7 @@ class LedProfilesRunShapeTests(unittest.TestCase):
             corner,
             stand,
             feet,
+            stella,
             assemblies,
         ):
             self.assertEqual(called.call_count, 1)
