@@ -14,6 +14,7 @@ alongside as they get designed.
     uv run show led_profiles                # the full 1.5 m lamp, caps on
     uv run show led_profiles.corner         # one part; also .strap .stand .feet
     uv run show led_profiles.assemblies.triangle   # 3 lamps, 3 corners, 12 straps
+    uv run show led_profiles.assemblies.stella_octangula  # 12-lamp double tetrahedron
     uv run show led_profiles.assemblies.standing   # upright on the tripod stand
     uv run show led_profiles.assemblies.suspended  # hung from two eye feet
     uv run export led_profiles.corner       # STLs for the slicer, a part at a time
@@ -21,7 +22,12 @@ alongside as they get designed.
 """
 
 from . import config, mount_config
-from .assemblies import create_standing, create_suspended, create_triangle
+from .assemblies import (
+    create_standing,
+    create_stella_octangula,
+    create_suspended,
+    create_triangle,
+)
 from .assembly import PARAMS, create, create_bare, create_print_layout, create_section
 from .corner import create_corner
 from .cradle import create_cradle
@@ -33,6 +39,8 @@ from .stand import create_post
 from .stand.keeper import create_keeper
 from .stand.leg import create_leg
 from .strain_relief import create_strain_relief
+from .stella_arm import create_arm as create_stella_arm
+from .stella_core import create_core as create_stella_core
 from .strap import create_strap
 
 # ``create()`` is a finished lamp: bought aluminium, bought diffuser, the COB
@@ -62,6 +70,9 @@ __all__ = [
     "create_leg",
     "create_post",
     "create_standing",
+    "create_stella_arm",
+    "create_stella_core",
+    "create_stella_octangula",
     "create_strain_relief",
     "create_strap",
     "create_strip",

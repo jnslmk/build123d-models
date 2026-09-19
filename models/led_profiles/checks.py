@@ -48,6 +48,10 @@ from . import gland as gl
 from . import gland as gland_mod
 from . import mount_config as mc
 from . import stand as stand_mod
+from . import stella_arm as stella_arm_mod
+from . import stella_config as stella_cfg
+from . import stella_core as stella_core_mod
+from . import stella_core_offset as stella_core_offset_mod
 from .stand import config as sc
 from .stand import keeper as keeper_mod
 from .stand import leg as leg_mod
@@ -3750,6 +3754,141 @@ def _check_suspended_bessel_points(suspended: Compound, r: Report) -> None:
         )
 
 
+def check_stella_parts(r: Report) -> None:
+    """Print pose, fastener voids and the stated load basis for the new hub."""
+    r.section("Stella connector")
+    arm = stella_arm_mod.create_arm()
+    base = stella_core_mod.create_core(0.0)
+    offset = stella_core_offset_mod.create()
+    check_mount_basics(arm, "stella arm", r)
+    check_mount_basics(base, "stella base core", r)
+    check_mount_basics(offset, "stella offset core", r)
+
+    face_z = sqrt(2) * stella_cfg.BOLT_FACE_X
+    for side in (-1.0, 1.0):
+        face = (
+            stella_cfg.BOLT_FACE_X,
+            side * stella_cfg.BOLT_Y,
+            face_z,
+        )
+        inside = tuple(
+            face[axis] + stella_arm_mod.INTO_ARM[axis] * 2.0 for axis in range(3)
+        )
+        r.check(
+            not r.solid_at(arm, *inside),
+            f"arm nut pocket {side:+.0f}: opens behind the mating face",
+        )
+
+    for name, part, offset_value in (
+        ("base", base, 0.0),
+        ("offset", offset, stella_cfg.EDGE_OFFSET),
+    ):
+        for index, (x, y) in enumerate(stella_core_mod.bolt_centers(offset_value)):
+            r.check(
+                not r.solid_at(part, x, y, stella_cfg.CORE_T / 2),
+                f"{name} core bolt {index}: clearance bore is through",
+            )
+        eye_x, eye_y = stella_core_mod.eye_center(offset_value)
+        r.check(
+            not r.solid_at(part, eye_x, eye_y, stella_cfg.CORE_T / 2),
+            f"{name} core: sling eye is through",
+        )
+        r.check(
+            r.solid_at(
+                part,
+                eye_x,
+                eye_y + stella_cfg.SLING_SLOT_H / 2 + 4.0,
+                stella_cfg.CORE_T / 2,
+            ),
+            f"{name} core: material surrounds the sling eye",
+        )
+        _check_sharp_edges(
+            part,
+            f"stella {name} core",
+            r,
+            (
+                (
+                    "periodic through-hole seam",
+                    lambda edge, p=part: is_periodic_seam(p, edge),
+                    "a cylinder or obround wall owns both sides of its topology seam",
+                ),
+            ),
+        )
+
+    def _is_stella_nut_edge(edge) -> bool:
+        centre = edge.bounding_box().center()
+        return (
+            edge.bounding_box().max.X < stella_cfg.FLANGE_RUN + 1.0
+            and abs(abs(centre.Y) - stella_cfg.BOLT_Y) < 5.0
+            and edge.bounding_box().min.Z > 8.0
+        )
+
+    _check_sharp_edges(
+        arm,
+        "stella arm",
+        r,
+        (
+            (
+                "insert mouth left raw",
+                _is_insert_mouth_edge,
+                "the existing cradle's heat-set insert exception",
+            ),
+            (
+                "trough seam",
+                lambda edge: _is_trough_seam_edge(edge, mc.CRADLE_DEPTH),
+                "the existing cradle's bore/wall cross-section discontinuity",
+            ),
+            (
+                "trough bed sliver",
+                _is_bed_sliver,
+                "the existing cradle's shallow tangent footprint",
+            ),
+            (
+                "captive-nut pocket",
+                _is_stella_nut_edge,
+                "nut pockets stay unchamfered so an M5 nut cannot spin",
+            ),
+            (
+                "treated triangular flange",
+                lambda edge: edge.bounding_box().max.X < stella_cfg.FLANGE_RUN + 1.0,
+                "the R0.8-treated 54.7-degree flange retains acute residual "
+                "edges; its sloped perimeter is buried against the core",
+            ),
+        ),
+    )
+
+    bearing_stress = stella_cfg.DESIGN_HUB_LOAD_N / (2 * stella_cfg.CORE_T * 5.0)
+    r.check(
+        bearing_stress < stella_cfg.ASA_SUSTAINED_STRESS_MPA,
+        "two M5 core bolts keep nominal bearing stress below ASA sustained limit",
+        f"{bearing_stress:.2f} MPa vs {stella_cfg.ASA_SUSTAINED_STRESS_MPA:.1f} MPa",
+    )
+
+
+def _check_stella_geometry(scene: Compound, r: Report) -> None:
+    """The scene contains the selected topology and keeps crossings separated."""
+    counts = {
+        "aluminium profile": 12,
+        "stella vertex arm": 24,
+        "stella vertex core": 4,
+        "stella offset vertex core": 4,
+        "strap (": 48,
+    }
+    for prefix, expected in counts.items():
+        found = sum(child.label.startswith(prefix) for child in scene.children)
+        r.check(
+            found == expected,
+            f"stella: {expected} x {prefix.rstrip(' (')}",
+            f"{found} found",
+        )
+    r.check(
+        abs(stella_cfg.CROSSING_GAP - c.HEIGHT - stella_cfg.CROSSING_CLEAR) < 1e-9,
+        "stella: each crossing separates full profile envelopes by FREE fit",
+        f"{stella_cfg.CROSSING_GAP:.2f} mm axes, {c.HEIGHT:.2f} mm profile, "
+        f"{stella_cfg.CROSSING_CLEAR:.2f} mm clear",
+    )
+
+
 def check_assemblies(r: Report, only: str | None = None) -> None:
     """Check all whole-lamp scenes, or one targeted registered scene."""
     r.section("Assemblies")
@@ -3757,6 +3896,7 @@ def check_assemblies(r: Report, only: str | None = None) -> None:
         "suspended": assemblies.create_suspended,
         "standing": assemblies.create_standing,
         "triangle": assemblies.create_triangle,
+        "stella_octangula": assemblies.create_stella_octangula,
     }
     names = (only,) if only is not None else tuple(creators)
     bought_per_lamp = len(BOUGHT_LABEL_PREFIXES)
@@ -3766,12 +3906,17 @@ def check_assemblies(r: Report, only: str | None = None) -> None:
             scene,
             name,
             r,
-            expected_bought=(3 if name == "triangle" else 1) * bought_per_lamp,
+            expected_bought=(
+                12 if name == "stella_octangula" else 3 if name == "triangle" else 1
+            )
+            * bought_per_lamp,
         )
         if name == "triangle":
             _check_triangle_geometry(scene, r)
         elif name == "suspended":
             _check_suspended_bessel_points(scene, r)
+        elif name == "stella_octangula":
+            _check_stella_geometry(scene, r)
 
 
 def _shared_volume(a: Part, b: Part) -> float:
@@ -4362,6 +4507,9 @@ TARGET_CHECKS: dict[str, Callable[[Report], None]] = {
     "led_profiles.strain_relief": _check_strain_relief_model,
     "led_profiles.corner": check_corner,
     "led_profiles.strap": lambda r: check_strap(strap_mod.create_strap(), r),
+    "led_profiles.stella_arm": check_stella_parts,
+    "led_profiles.stella_core": check_stella_parts,
+    "led_profiles.stella_core_offset": check_stella_parts,
     "led_profiles.stand": _check_stand_post_model,
     "led_profiles.stand.leg": _check_stand_leg_model,
     "led_profiles.stand.keeper": _check_stand_keeper_model,
@@ -4372,6 +4520,9 @@ TARGET_CHECKS: dict[str, Callable[[Report], None]] = {
     "led_profiles.assemblies.standing": lambda r: _check_assembly_model("standing", r),
     "led_profiles.assemblies.suspended": lambda r: _check_assembly_model(
         "suspended", r
+    ),
+    "led_profiles.assemblies.stella_octangula": lambda r: _check_assembly_model(
+        "stella_octangula", r
     ),
 }
 
@@ -4403,6 +4554,7 @@ def run() -> Report:
     check_cradle(create_cradle(), r)
     check_strap(strap_mod.create_strap(), r)
     check_corner(r)
+    check_stella_parts(r)
     check_stand(r)
     check_feet(r)
     check_assemblies(r)

@@ -251,8 +251,9 @@ uv run export led_profiles.corner       # its STL for the slicer
 ```
 
 Each printed part is its own model — `.endcap`, `.strap`, `.corner`, `.stand`,
-`.feet` — so the slicer gets them one at a time. `create_print_layout()` still
-spreads the whole set into one row, each in its print pose, for anyone who wants
+`.feet`, `.stella_arm`, `.stella_core`, and `.stella_core_offset` — so the
+slicer gets them one at a time. `create_print_layout()` still spreads the
+original mounting set into one row, each in its print pose, for anyone who wants
 them in a single file (it is also the only way to reach the wall foot, which
 shares `feet`'s CLI target with the eye foot).
 
@@ -273,21 +274,31 @@ exportable, and on the generated website alongside the parts:
 | `assemblies.triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
 | `assemblies.standing` | 1 lamp vertical on the tripod stand, three printed legs deployed on the floor, both keepers seated, lower endcap on the seat |
 | `assemblies.suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
+| `assemblies.stella_octangula` | 12 finished lamps forming two interpenetrating tetrahedra, 24 modular cradle arms, 8 vertex cores and 48 straps; one tetrahedron's edges move outward by one profile envelope so the six projected crossings remain physically separate |
 
 ```bash
 uv run show led_profiles.assemblies.triangle    # 3 lamps, 3 corners, 12 straps
 uv run show led_profiles.assemblies.standing    # upright in the tripod hub
 uv run show led_profiles.assemblies.suspended   # hung from two eye feet
+uv run show led_profiles.assemblies.stella_octangula  # 12-lamp double tetrahedron
 ```
 
-All three take a lamp `length` (the site exposes it as a slider) and are
+All four take a lamp `length` (the site exposes it as a slider) and are
 re-exported from the package, so `from models.led_profiles import
-create_standing` still works.
+create_stella_octangula` works alongside the earlier scene builders.
 
 The triangle's 94 mm of unlit tube per vertex (noted above) is the visible
 consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
+
+The stella connector is a serviceable, support-free four-piece hub: one flat
+core and three identical cradle arms. Each arm keeps the existing two-strap
+profile interface and fastens to the core with two M5 bolts into captive nuts.
+The core includes a rounded 20 × 10 mm eye for a soft sling. The preliminary
+250 N per-hub load target comes from twelve 0.65 kg lamps, four upper suspension
+vertices, a 5× static factor, uneven sharing and unmodelled connector/cable mass;
+it is a design target, not an overhead certification.
 
 ### LED Strip
 
