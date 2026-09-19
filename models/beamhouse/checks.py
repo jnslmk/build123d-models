@@ -20,6 +20,8 @@ from models.beamhouse import (
     CHANNELS_PER_PIXEL,
     LAMP_DEFINITION,
     PIXELS_PER_LAMP,
+    PREVIEW_BODY_FILENAME,
+    PREVIEW_DIFFUSER_FILENAME,
     SLOTS_PER_UNIVERSE,
     breaks_for,
     document,
@@ -32,6 +34,7 @@ KNOWN_TOP_LEVEL = {
     "patch",
     "definitions",
     "fixtures",
+    "assets",
     "overrides",
     "density",
     "beamLength",
@@ -68,6 +71,13 @@ def run() -> Report:
         definition["channelsPerPixel"] == CHANNELS_PER_PIXEL,
         "three slots per pixel",
         "",
+    )
+    assets = doc["assets"][LAMP_DEFINITION]
+    r.check(
+        assets
+        == {"body": PREVIEW_BODY_FILENAME, "diffuser": PREVIEW_DIFFUSER_FILENAME},
+        "preview assets are project-relative",
+        str(assets),
     )
 
     r.section("patch tiling")

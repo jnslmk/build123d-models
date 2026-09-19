@@ -29,6 +29,9 @@ from models.led_profiles.assemblies.stella_octangula import (
 )
 
 LAMP_DEFINITION = "bhs:stella-lamp"
+PREVIEW_BODY_FILENAME = "led_profiles.previz_body.glb"
+PREVIEW_DIFFUSER_FILENAME = "led_profiles.previz_diffuser.glb"
+
 
 # The reference rig's scene constants (app/src/scene.ts).
 DENSITY = 0.32
@@ -133,6 +136,12 @@ def document(length: float = c.LENGTH) -> dict:
             }
         },
         "fixtures": fixtures,
+        "assets": {
+            LAMP_DEFINITION: {
+                "body": PREVIEW_BODY_FILENAME,
+                "diffuser": PREVIEW_DIFFUSER_FILENAME,
+            }
+        },
         "density": DENSITY,
         "beamLength": BEAM_LENGTH_M,
         "overrides": overrides,

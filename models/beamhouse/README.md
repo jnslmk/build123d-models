@@ -14,10 +14,10 @@ cd ~/git-projects/lighting/beamhouse && bun run start
 
 The scene carries an inline snapshot patch (12 fixtures), one
 `bhs:stella-lamp` strip definition (23 px, 65.22 mm pitch, 3 slots/px),
-per-fixture placement overrides, and an `iso` camera view. Beamhouse renders
-that definition with the original `led_profiles.previz_body` and
-`led_profiles.previz_diffuser` GLBs; `Cylinder` is only the missing-asset
-fallback.
+project-relative preview asset references, per-fixture placement overrides,
+and an `iso` camera view. The generated project owns the
+`led_profiles.previz_body.glb` and `led_profiles.previz_diffuser.glb` files
+beside the `.bhs` scene; `Cylinder` is the generic missing-asset fallback.
 
 ## Patch
 
