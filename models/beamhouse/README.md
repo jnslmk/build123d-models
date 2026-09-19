@@ -13,9 +13,11 @@ cd ~/git-projects/lighting/beamhouse && bun run start
 ```
 
 The scene carries an inline snapshot patch (12 fixtures), one
-`bhs:stella-lamp` strip definition (23 px, 65.22 mm pitch, 3 slots/px,
-Cylinder — matches the round profile), per-fixture placement overrides, and
-an `iso` camera view.
+`bhs:stella-lamp` strip definition (23 px, 65.22 mm pitch, 3 slots/px),
+per-fixture placement overrides, and an `iso` camera view. Beamhouse renders
+that definition with the original `led_profiles.previz_body` and
+`led_profiles.previz_diffuser` GLBs; `Cylinder` is only the missing-asset
+fallback.
 
 ## Patch
 
@@ -28,8 +30,8 @@ first slot = 1 + (LED mod 170) × 3. Universe 1 holds LEDs 0–169 (into lamp
 
 CAD z-up millimetres map to Beamhouse's y-up metres as
 `(x, y, z)_cad → (x, z, -y)_cad / 1000`; the suspension axis stays vertical.
-Orientations are the two-angle Euler ('XYZ') that points a strip's local +X
-along its lamp.
+Orientations use the full three.js `XYZ` Euler rotation: local +X follows the
+lamp axis and the diffuser follows the CAD assembly's outward face normal.
 
 ## Regenerate
 

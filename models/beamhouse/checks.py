@@ -4,8 +4,8 @@ The document must satisfy every rule Beamhouse's strict loader (app/src/bhs.ts)
 enforces — top-level keys, required scene properties, definition and fixture
 shapes — because that is what will parse it. On top of that the patch must tile
 the wire slots without gaps or overlaps (the visualiser and gled have to light
-the same pixel), and the overrides' rotations must actually aim a fixture's
-+X along its lamp.
+the same pixel), and the overrides' rotations must align both a fixture's +X
+axis along its lamp and the original GLB's diffuser toward the CAD face normal.
 
     uv run check beamhouse
 """
@@ -103,7 +103,8 @@ def run() -> Report:
         placement = doc["overrides"][str(fixture["id"])]
         pos, (rx, ry, rz) = placement["pos"], placement["rot"]
         in_range = (
-            all(abs(value) < 1e6 for value in pos) and max(abs(ry), abs(rz)) <= 360.0
+            all(abs(value) < 1e6 for value in pos)
+            and max(abs(rx), abs(ry), abs(rz)) <= 360.0
         )
         r.check(
             len(pos) == 3 and in_range,
@@ -112,20 +113,34 @@ def run() -> Report:
         )
         direction = segment.end - segment.start
         norm = direction.length
-        ry_rad, rz_rad = radians(ry), radians(rz)
-        aimed = (
-            cos(ry_rad) * cos(rz_rad) * norm,
-            sin(rz_rad) * norm,
-            -sin(ry_rad) * cos(rz_rad) * norm,
+        rx_rad, ry_rad, rz_rad = radians(rx), radians(ry), radians(rz)
+        cx, sx = cos(rx_rad), sin(rx_rad)
+        cy, sy = cos(ry_rad), sin(ry_rad)
+        cz, sz = cos(rz_rad), sin(rz_rad)
+        rotation = (
+            (cy * cz, -cy * sz, sy),
+            (cx * sz + sx * sy * cz, cx * cz - sx * sy * sz, -sx * cy),
+            (sx * sz - cx * sy * cz, sx * cz + cx * sy * sz, cx * cy),
         )
-        actual = (direction.X, direction.Y, direction.Z)
-        error = max(abs(a - b) for a, b in zip(aimed, actual))
-        # rx is always 0 by construction; a nonzero one would need a full
-        # rotation matrix here, and breaks the two-angle aim below.
+        aimed = tuple(rotation[axis][0] * norm for axis in range(3))
+        actual = (direction.X, direction.Z, -direction.Y)
+        direction_error = max(abs(a - b) for a, b in zip(aimed, actual))
         r.check(
-            rx == 0.0 and error < 1e-6 * max(norm, 1.0),
+            direction_error < 1e-6 * max(norm, 1.0),
             f"fixture {fixture['id']} rot points +X along the lamp",
-            f"max component error {error:.2e} mm",
+            f"max component error {direction_error:.2e} mm",
+        )
+        diffuser = tuple(-rotation[axis][1] for axis in range(3))
+        outward = (
+            segment.outward.X,
+            segment.outward.Z,
+            -segment.outward.Y,
+        )
+        outward_error = max(abs(a - b) for a, b in zip(diffuser, outward))
+        r.check(
+            outward_error < 1e-6,
+            f"fixture {fixture['id']} diffuser faces outward",
+            f"max component error {outward_error:.2e}",
         )
         r.check(
             fixture["addresses"] == breaks_for(fixture_index),

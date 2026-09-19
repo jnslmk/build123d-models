@@ -37,8 +37,8 @@ class LampSegment(NamedTuple):
 
     ``name`` is the wiring label used by the ``gled2`` and ``beamhouse``
     projects: ``b0..b5`` on the base tetrahedron, ``o0..o5`` on the offset one;
-    ``edge_index`` is the ``TETRA_EDGES`` slot and ``vertices`` the tetra
-    vertex indices the lamp spans.
+    ``edge_index`` is the ``TETRA_EDGES`` slot, ``vertices`` the tetra vertex
+    indices the lamp spans, and ``outward`` its diffuser-facing normal.
     """
 
     name: str
@@ -47,6 +47,7 @@ class LampSegment(NamedTuple):
     vertices: tuple[int, int]
     start: Vector
     end: Vector
+    outward: Vector
 
 
 def lamp_segments(length: float = c.LENGTH) -> list[LampSegment]:
@@ -81,6 +82,7 @@ def lamp_segments(length: float = c.LENGTH) -> list[LampSegment]:
                     vertices=(a_index, b_index),
                     start=origin,
                     end=origin + direction * length,
+                    outward=outward,
                 )
             )
     return segments

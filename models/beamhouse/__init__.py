@@ -8,9 +8,8 @@ only source of truth; this package projects it.
 
 Coordinates follow the house convention: the CAD's z-up millimetres map to
 Beamhouse's y-up metres as (x, y, z)_cad -> (x, z, -y)_cad / 1000, so the
-suspension axis stays vertical. Lamp orientations are the two-angle
-decomposition Beamhouse's three.js 'XYZ' Euler needs to point a strip's local
-+X along its lamp.
+suspension axis stays vertical. Lamp orientations use Beamhouse's three.js
+``XYZ`` Euler order to align both the tube axis and the diffuser-facing normal.
 
     uv run python -c "import models.beamhouse; models.beamhouse.write()"
     uv run check beamhouse
@@ -19,7 +18,7 @@ decomposition Beamhouse's three.js 'XYZ' Euler needs to point a strip's local
 from __future__ import annotations
 
 import json
-from math import atan2, degrees, hypot
+from math import asin, atan2, degrees
 from pathlib import Path
 
 from models.gled2 import CHANNELS_PER_PIXEL, LEDS_PER_UNIVERSE, PIXELS_PER_LAMP
@@ -71,16 +70,36 @@ def breaks_for(segment_index: int, pixels: int = PIXELS_PER_LAMP) -> list[dict]:
     return breaks
 
 
+def _scene_components(vector) -> tuple[float, float, float]:
+    """CAD z-up coordinates mapped to Beamhouse y-up coordinates."""
+    return vector.X, vector.Z, -vector.Y
+
+
 def _cad_to_scene(point) -> list[float]:
     """CAD millimetres, z up, to Beamhouse metres, y up."""
-    return [point.X / 1000, point.Z / 1000, -point.Y / 1000]
+    return [component / 1000 for component in _scene_components(point)]
+
+
+def _euler_xyz(matrix) -> tuple[float, float, float]:
+    """Three.js XYZ Euler angles for a rotation matrix."""
+    clamped = min(1.0, max(-1.0, matrix[0][2]))
+    if abs(clamped) < 0.9999999:
+        return (
+            degrees(atan2(-matrix[1][2], matrix[2][2])),
+            degrees(asin(clamped)),
+            degrees(atan2(-matrix[0][1], matrix[0][0])),
+        )
+    return degrees(atan2(matrix[2][1], matrix[1][1])), degrees(asin(clamped)), 0.0
 
 
 def _aim(segment: LampSegment) -> tuple[float, float, float]:
-    """Euler XYZ degrees pointing a fixture's local +X along the lamp."""
-    direction = segment.end - segment.start
-    dx, dy, dz = direction.X, direction.Y, direction.Z
-    return (0.0, degrees(atan2(-dz, dx)), degrees(atan2(dy, hypot(dx, dz))))
+    """Place the original GLB with +X along the lamp and its diffuser outward."""
+    direction = (segment.end - segment.start).normalized()
+    x_axis = _scene_components(direction)
+    y_axis = tuple(-value for value in _scene_components(segment.outward))
+    z_axis = _scene_components(segment.outward.cross(direction))
+    matrix = tuple(zip(x_axis, y_axis, z_axis))
+    return _euler_xyz(matrix)
 
 
 def document(length: float = c.LENGTH) -> dict:
