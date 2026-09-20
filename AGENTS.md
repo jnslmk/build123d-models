@@ -9,8 +9,10 @@ unless one is asked for by name.
 
 - **`main` is deployed.** `.github/workflows/build.yml` builds every model in
   `tessellate_models.MODELS` and publishes the site on each push, so a push is a
-  release. Run `uv run check <model>`, `uv run ruff check .` and `uv run ty
-  check .` *before* pushing, not after.
+  release. Before pushing, run `uv run check <affected leaf>` for every changed
+  model with a physical gate, plus `uv run ruff check .` and `uv run ty check .`.
+  A whole-family check is a final integration gate for cross-part work, not the
+  default edit loop; see `docs/conventions.md` §"Geometry checks".
 - **Push what you verified.** A broken commit on `main` is a broken site, and
   there is no review step between the two to catch it.
 
@@ -69,9 +71,8 @@ uv run render lens_cap shot.png           # a .png output path needs no flag
 uv run sketch box_closure             # exports/sketch-box_closure.html
 uv run sketch sketches/box_closure.py out.html
 
-# Run a model's geometry assertions, exit non-zero on failure.
-# led_profiles.<part> runs just that part's targeted assertions;
-# uv run check led_profiles is the whole family's integration check.
+# Run a model's physical geometry gate; no gate is an intentional outcome.
+# `led_profiles.<part>` runs a targeted check; the family root is an integration gate.
 uv run check lens_cap
 
 # Build ONE model.
@@ -100,8 +101,9 @@ uv run selection                      # JSON output + human summary
 Each model has one module (or package) and a zero-arg `create()` that returns
 the part in print pose; dots express hierarchy. Register every model in
 `tessellate_models.MODELS`, add a new package to `[tool.setuptools] packages` in
-`pyproject.toml`, verify it through `checks.py`, and declare `PARAMS` and
-`IS_ASSEMBLY` in the model.
+`pyproject.toml`, and declare `PARAMS` and `IS_ASSEMBLY` in the model. A geometry
+check is optional, but must be a demonstrated physical gate rather than package
+furniture; `docs/conventions.md` §"Geometry checks" defines the decision.
 
 ## Design Guidelines
 

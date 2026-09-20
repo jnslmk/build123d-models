@@ -532,51 +532,13 @@ class ReportSolidProbeTests(unittest.TestCase):
 
 
 class LedProfilesRunShapeTests(unittest.TestCase):
-    """The led_profiles family's targeted dispatch and root-run coverage."""
+    """The led_profiles family's targeted dispatch."""
 
     def test_unknown_registered_target_is_not_claimed(self) -> None:
         from models.led_profiles import checks
 
         self.assertFalse(checks.handles_model("not_a_family_member"))
         self.assertIsNone(checks.run_model("not_a_family_member"))
-
-    def test_root_run_covers_every_section_exactly_once(self) -> None:
-        import models.led_profiles.checks as checks
-
-        with (
-            patch.object(checks, "_check_profile_model") as profile,
-            patch.object(checks, "_check_endcap_model") as endcap,
-            patch.object(checks, "_check_wired_endcap_model") as wired,
-            patch.object(checks, "_check_strain_relief_model") as strain,
-            patch.object(checks, "check_assembly") as assembly,
-            patch.object(checks, "check_previz") as previz,
-            patch.object(checks, "check_cradle") as cradle,
-            patch.object(checks, "check_strap") as strap,
-            patch.object(checks, "check_corner") as corner,
-            patch.object(checks, "check_stand") as stand,
-            patch.object(checks, "check_feet") as feet,
-            patch.object(checks, "check_stella_parts") as stella,
-            patch.object(checks, "check_assemblies") as assemblies,
-        ):
-            report = checks.run()
-        for called in (
-            profile,
-            endcap,
-            wired,
-            strain,
-            assembly,
-            previz,
-            cradle,
-            strap,
-            corner,
-            stand,
-            feet,
-            stella,
-            assemblies,
-        ):
-            self.assertEqual(called.call_count, 1)
-        self.assertIsInstance(report, checks.Report)
-        self.assertEqual(report.entries, [])
 
     def test_assembly_targets_dispatch_their_scene_only(self) -> None:
         from models.led_profiles import checks

@@ -163,14 +163,14 @@ models/<name>/
   <part>.py        # one printed part per module, each with its own create()
   assemblies/      # scenes, one module each, each IS_ASSEMBLY = True
   printable.py     # print layout for the slicer, when the headline view is a scene
-  checks.py        # geometry assertions, with a main() that owns the exit code
+  checks.py        # physical geometry gates, only when a model has one
   README.md        # what it is, what hardware it fits, how to print it
   docs/            # design-notes.md, part-data.md, assets/ (datasheets, SVGs)
 ```
 
-Not every package needs every entry — `config.py`, `assemblies/`, `printable.py`
-and `docs/` appear when the model earns them. `__init__.py`, `README.md` and
-`checks.py` are the floor.
+Not every package needs every entry — `config.py`, `assemblies/`, `printable.py`,
+`checks.py`, and `docs/` appear when the model earns them. `__init__.py` and
+`README.md` are the floor.
 
 ### The promotion rule
 
@@ -183,8 +183,8 @@ Do not wait for the second one:
    needs its own module to be addressable by name.
 3. **It needs measured hardware constants.** Those belong in a `config.py` next
    to the geometry that consumes them, not scattered as module-level literals.
-4. **It earns geometry assertions or written design notes.** `checks.py`,
-   `README.md` and `docs/` are package furniture.
+4. **It earns a physical geometry gate or written design notes.** A gate gets
+   `checks.py`; design notes get `docs/`.
 
 The promotion is mechanical: `models/<name>.py` becomes
 `models/<name>/__init__.py`, the shared numbers move to `config.py`, each part
@@ -216,14 +216,52 @@ Code panel keeps working.
   the website; `IS_ASSEMBLY = True` marks a scene that is not a print job, so no
   STL/STEP download is offered. Both live in the model, never in a list
   elsewhere that would drift.
-- **Verify in code.** A package gets `checks.py` with a `main()`; a single-file
-  model gets a module-level `check()`. `uv run check <name>` finds either.
+- **Use a physical gate when it earns one.** A package with a gate gets
+  `checks.py` with a `main()`; a single-file model gets `check()`. `uv run check
+  <name>` finds either. Do not add a check merely because geometry changed.
 - **No `main()` in a model.** Building and exporting is `main.py`'s and
   `export_model.py`'s job, and a `main()` that re-implements the export paths
   drifts from them. `uv run show/export/render/check <name>` is the interface.
 - **Docs live with the model.** A package: `README.md` plus `docs/`. A
   single-file model: the module docstring, which should say what it is, what it
   fits and how it prints.
+
+### Geometry checks
+
+A geometry check is a **physical gate**, not package furniture. Keep or add one
+only when it protects a named failure a finished model could otherwise ship, and
+prove it goes red on the pre-fix or deliberately broken geometry before relying
+on it. An assertion that has never rejected an error has not earned its runtime
+or maintenance cost.
+
+Good gates assert an independently observable relation: one solid in print pose;
+interference between separately posed parts; a fastener's head and driver
+envelope; a sharp-edge survey; or a load/stress or packing calculation whose
+input source is stated. A named fit rule may be a pure design gate when it is
+the source of truth, rather than a result re-derived from the same configuration.
+
+Retire or recast a check that:
+
+- restates a constant, collection length, or coordinate produced by the same
+  configuration or construction helper;
+- labels a point probe as a stronger property than the point actually proves;
+- preserves a current design choice rather than a physical failure mode;
+- samples one family member while claiming family coverage; or
+- allow-lists an edge by loose position. An edge exception instead matches its
+  geometry identity (topology, radius, or face), carries a reason, and accounts
+  for both `sharp` and `unclassifiable` survey results.
+
+Input measurements, STL tessellation, and a human's assembly sequence are not
+facts a B-rep probe can prove. Keep source dimensions with their evidence and
+printing caveats; test export quality in the exporter; recast tool access as a
+posed fastener/driver relation when geometry can express it.
+
+Use `Report.solid_at()` or `solid_probe()` for repeated samples of one completed
+solid. During an edit, run the affected leaf's targeted check. Run a whole-family
+check only as a final integration gate after cross-part work; keep deliberately
+slow exhaustive sweeps as explicit on-demand tools, not the default edit loop.
+When an intent changes, delete the old intent check with it and replace it only
+if the physical failure mode remains.
 
 ### Registering a model
 
