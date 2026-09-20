@@ -147,7 +147,7 @@ class LastEditedTests(unittest.TestCase):
 
     def test_a_model_is_never_older_than_its_own_source(self) -> None:
         dates = website._commit_dates()
-        own = dates[str(Path("models/lens_cap.py"))]
+        own = dates[str(Path("models/lens_cap/__init__.py"))]
         stamp = website._last_edited("lens_cap")
         assert stamp is not None
         self.assertGreaterEqual(datetime.fromisoformat(stamp), own)
