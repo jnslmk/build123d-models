@@ -68,6 +68,44 @@ Scale is not depth: four variants differing only in a fillet radius are not a
 sheet, they are one model rendered four times. Vary the thing the question is
 about.
 
+## Core-first CAD iteration
+
+For new assembly work, a feature family, or a change with an unresolved shape or
+dependent interface, work one **current slice** at a time. The executable
+procedure is the local `cad-iteration` skill; this section is its policy and
+record.
+
+A current slice is the smallest reviewable design unit: its anchor part, the
+requirements it must meet, the evidence behind its dimensions, and the questions
+that must be decided before another part depends on it. Start its
+`cad-contract.md` from the skill's reference template and keep it current.
+
+1. **Resolve real choices before geometry.** Record already-decided constraints
+   and evidence-backed dimensions in the contract. For a genuinely open design
+   decision, ask the human to invoke the existing user-invoked
+   `grill-with-docs` process; do not resolve or implement that choice until it
+   completes and its decision is recorded. It owns the rigorous design tree and
+   its ADR/glossary capture. If the unresolved question is shape, make sketches
+   under the workflow above and show the alternatives before choosing.
+2. **Build the anchor only.** Implement just the current anchor part. Describe
+   dependent connectors, fasteners, cable paths, and interfaces as constraints
+   in the contract rather than modelling them.
+3. **Prove and show the slice.** Run the targeted physical proof appropriate to
+   the part, then present the relevant visual views using the post-update
+   verification workflow below. State which contract predicates that proof and
+   those views cover.
+4. **Wait for human acceptance.** A slice is accepted only when the human
+   explicitly accepts it or gives an instruction that clearly approves this
+   specific slice. “Continue” alone means continue improving the current slice;
+   it does not authorise downstream work.
+5. **Advance deliberately.** After acceptance, make the next dependent
+   connector, fastener, cable path, or other interface its own current slice,
+   update the contract, and load the specialised skill that applies before
+   modelling it.
+
+The acceptance gate is a design boundary, not a formality: downstream geometry
+is allowed only after the current anchor has been accepted.
+
 ## Post-Update Verification
 
 **After every edit to a model, verify it visually and put the result in front
