@@ -72,7 +72,9 @@ uv run sketch box_closure             # exports/sketch-box_closure.html
 uv run sketch sketches/box_closure.py out.html
 
 # Run a model's physical geometry gate; no gate is an intentional outcome.
-# `led_profiles.<part>` runs a targeted check; the family root is an integration gate.
+# `led_profiles.<part>` is the interactive leaf check. Never run `uv run check
+# led_profiles.assemblies.stella_octangula` in, or background it from, an interactive
+# edit loop; reserve it for CI or a deliberate, adequately-resourced integration run.
 uv run check lens_cap
 
 # Build ONE model.
@@ -130,6 +132,13 @@ OCC edge `fillet`/`chamfer` calls are all-or-nothing and can cascade-corrupt a
 `BuildPart` after one failure; `Edge.center()` on a full circle is not its center
 (use `arc_center`). Load `build123d-geometry-ops` before edge ops or model checks.
 
+### Core-first CAD iteration
+
+Before starting an assembly, feature family, or change with an unresolved shape or
+dependent interface, load `cad-iteration`. It holds work to a human-approved
+anchor part before connectors, fasteners, cable paths, or other downstream
+interfaces are modelled.
+
 Full conventions — model-structure rationale, tier rules, the promotion rule,
 the sketch-before-you-model workflow, sketch authoring rules, and post-update
 verification details — live in `docs/conventions.md`. Read it before creating a
@@ -139,6 +148,7 @@ building a sketch.
 ## Available Skills
 
 - `build123d-geometry-ops` — edge treatments and internal geometry verification.
+- `cad-iteration` — human-gated core-first CAD iteration for an anchor part and its downstream interfaces.
 - `fdm-fits-and-clearances` — named fit classes and FDM bore compensation.
 - `fasteners-and-inserts` — heat-set inserts, nut traps, and threads.
 - `box-closures` — box lids and closures.
