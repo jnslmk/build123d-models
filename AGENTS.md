@@ -139,6 +139,11 @@ dependent interface, load `cad-iteration`. It holds work to a human-approved
 anchor part before connectors, fasteners, cable paths, or other downstream
 interfaces are modelled.
 
+**Stella re-entry:** When a request names `Stella` or `stella_octangula`, first
+read `models/led_profiles/docs/stella-cad-contract.md`. Its scoped entry map and
+current-slice contract are the re-entry source; refresh it when feedback changes
+the slice and at its acceptance gate.
+
 Full conventions — model-structure rationale, tier rules, the promotion rule,
 the sketch-before-you-model workflow, sketch authoring rules, and post-update
 verification details — live in `docs/conventions.md`. Read it before creating a
