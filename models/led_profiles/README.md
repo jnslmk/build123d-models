@@ -225,7 +225,7 @@ stainless hardware throughout and shelter the complete assembly from rain.
 | `wall foot` | 60 × 58 × 21 mm | 2 × M5 into the wall |
 | `stella_arm` | 86 × 62 × 29 mm | 1 × M5 × 25 + exposed nut to the core |
 | `stella_keeper` | 62 × 10 × 36 mm | 2 × M4 × 16 + exposed nuts to the arm |
-| `stella_core` / `_offset` | Ø76 / Ø126 × 10 mm | 3 arm joints per core |
+| `stella_core` / `_offset` | Ø99 / Ø149 × 10 mm | 3 arm joints, 3 side-load cable passages |
 
 The bolt circle is `BOSS_U` = 22.1 mm off the tube axis, which is not a round
 number because it is derived: the strap's own arch is 19.5 mm at its widest, and
@@ -277,7 +277,7 @@ exportable, and on the generated website alongside the parts:
 | `assemblies.triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
 | `assemblies.standing` | 1 lamp vertical on the tripod stand, three printed legs deployed on the floor, both keepers seated, lower endcap on the seat |
 | `assemblies.suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
-| `assemblies.stella_octangula` | 12 finished lamps forming two interpenetrating tetrahedra, 24 modular cradle arms, 8 round vertex cores and 24 slim keepers; one tetrahedron's edges move outward by one profile envelope so the six projected crossings remain physically separate |
+| `assemblies.stella_octangula` | Existing scene: 12 finished lamps forming two interpenetrating tetrahedra, 24 modular cradle arms, 8 round vertex cores and 24 slim keepers; one tetrahedron's edges move outward by one profile envelope so the six projected crossings remain physically separate |
 
 ```bash
 uv run show led_profiles.assemblies.triangle    # 3 lamps, 3 corners, 12 straps
@@ -295,15 +295,38 @@ consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
 
-The Stella connector is a serviceable, support-free four-piece hub: one round
+**Stella redesign (accepted definition, 2026-09-20).** The
+[Stella specification](docs/stella-specification.md) is the durable source of
+the accepted connector, profile-retention, cable-access, suspension, material,
+service, and evidence boundaries. It supersedes the circular-core intent but
+does not alter the existing production geometry.
+
+The first modelling slice is the **unshifted core body alone**. Its active
+[CAD contract](docs/cad-contract.md) owns dimensional sizing, reservations,
+core-only proof, and human acceptance; the
+[analytical basis](docs/stella-analytical-basis.md) records supporting evidence
+and its limitations. Arm/keeper, cable, sling, offset-core, and full-assembly
+geometry remain later, separately gated slices.
+
+**Existing implementation—not the redesign:**
+
+The existing Stella connector is a four-piece hub: one round
 core and three identical cradle arms. One M5 × 25 through-bolt and exposed nut
 clamp each arm to the core; two tapered FREE-fit keys carry shear and prevent
 rotation. Each arm has a 36 mm saddle and one 10 mm keeper retained by two
 M4 × 16 through-bolts with exposed nuts, replacing the former two-strap
-interface. The core carries a central 20 × 10 mm sling slot. The preliminary
-250 N per-hub load target comes from twelve 0.65 kg lamps, four upper suspension
-vertices, a 5× static factor, uneven sharing and unmodelled connector/cable
-mass; it is a design target, not an overhead certification.
+interface.
+
+Each profile cable crosses the core through its own oblique FREE-fit passage.
+The passage opens tangentially at the rim and the matching arm-tab notch opens
+at its inner edge, so the cable slides into both parts sideways with its Ø21 mm
+SP16 connector already fitted; nothing has to be threaded through a closed
+hole. The joint circle is derived from the cable's worst section at the rear of
+the tab, leaving 2 mm of printed wall before the key pockets. The core still
+carries a separate central 20 × 10 mm sling slot. The preliminary 250 N per-hub
+load target comes from twelve 0.65 kg lamps, four upper suspension vertices, a
+5× static factor, uneven sharing and unmodelled connector/cable mass; it is a
+design target, not an overhead certification.
 
 ### LED Strip
 
@@ -531,7 +554,9 @@ Only external connections required: **24 V, GND, DATA**.
       `gland.free_length()` above the floor and the bore under it is open, so
       nothing stands in line with the gland at all.
 - [x] Suspension eye and wall feet
-- [x] Stella octangula — round keyed cores, 24 through-bolted arms and keepers
+- [ ] Stella octangula — [redesign specification](docs/stella-specification.md)
+      accepted; core sizing and revised geometry pending in the
+      [CAD contract](docs/cad-contract.md)
 - [ ] PCB mount inside the endcap
 - [ ] PCB (ESP32 Mini + power distribution + LED output)
 - [ ] Mounting hardware

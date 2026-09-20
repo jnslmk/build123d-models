@@ -1,17 +1,18 @@
 # Stella re-entry index
 
 > This is the stable, compact entry point for `led_profiles` Stella work.
-> The current-slice contract owns user decisions, acceptance, and proof;
-> geometry modules own dimensions and implemented state.
+> The specification owns accepted requirements; the current-slice contract owns
+> slice acceptance and proof; geometry modules own dimensions and implemented
+> state.
 
 ## Start rule
 
 1. Read this index first.
-2. If `models/led_profiles/docs/cad-contract.md` exists, read it next. It is
-   the current-slice source and supersedes older design assumptions.
-3. If no current contract exists, start one from
-   `skill://cad-iteration/references/cad-contract.md` before creating geometry
-   for a new design slice.
+2. Read `../CONTEXT.md` and `stella-specification.md` next. They define the
+   physical vocabulary and durable user-accepted requirements.
+3. If `cad-contract.md` exists, read it as the current-slice source. If it does
+   not, start one from `skill://cad-iteration/references/cad-contract.md` before
+   creating geometry for a new design slice.
 4. Read only the matching row in the scoped map below. Session histories are
    provenance, not iteration setup.
 
@@ -19,9 +20,9 @@
 
 | Request concerns | Read now | Read only when needed |
 | --- | --- | --- |
-| Any Stella iteration | This index; `stella_config.py`; current `cad-contract.md` | `README.md` for user-facing wording; `docs/design-notes.md` for rationale |
+| Any Stella iteration | This index; `../CONTEXT.md`; `stella-specification.md`; current `cad-contract.md`; `stella_config.py` | `README.md` for public wording; `docs/design-notes.md` for rationale |
 | Core body, cable mouth, or sling slot | `stella_core.py`; `checks.py::check_stella_parts` | `mount_config.py` when the cable envelope or material changes |
-| Arm tab, notch, ribs, or saddle | `stella_arm.py`; `checks.py::check_stella_parts` | `part-joints` for a core/arm joint change; `fasteners-and-inserts` for M4/M5 geometry |
+| Arm tab, notch, ribs, or saddle | `stella_arm.py`; `checks.py::check_stella_parts` | `part-joints` for a core/arm joint change; `fasteners-and-inserts` for M3 geometry |
 | Keeper geometry | `stella_keeper.py`; `checks.py::check_stella_parts` | `fasteners-and-inserts` for its bolts or clearances |
 | Vertex or double-tetrahedron placement | `assemblies/stella_octangula.py`, after the affected part passes its slice gate | Full-assembly proof is an integration/CI gate |
 | Edge treatment or a new geometry predicate | `build123d-geometry-ops`, then the target source/check | `fdm-fits-and-clearances` before changing a fit or cable-slot clearance |
@@ -43,7 +44,9 @@ interactive loop.
 ## Contract hygiene
 
 When feedback changes a pending slice, update `cad-contract.md` before more
-geometry. At acceptance, replace its current slice with the next anchor, retain
-only live locked decisions and evidence, and record the exact approval and proof
-command. Keep this index limited to entry paths and loop policy so it does not
-become a second source of design state.
+geometry. When feedback changes an accepted requirement, invoke
+`grill-with-docs` and update `stella-specification.md` before the contract. At
+acceptance, replace the current slice with the next anchor, retain only live
+constraints and evidence, and record the exact approval and proof command. Keep
+this index limited to entry paths and loop policy so it does not become a second
+source of design state.

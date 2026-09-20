@@ -76,17 +76,17 @@ procedure is the local `cad-iteration` skill; this section is its policy and
 record.
 
 A current slice is the smallest reviewable design unit: its anchor part, the
-requirements it must meet, the evidence behind its dimensions, and the questions
-that must be decided before another part depends on it. Start its
+specification constraints it must meet, the evidence behind its dimensions, and
+the questions that must be decided before another part depends on it. Start its
 `cad-contract.md` from the skill's reference template and keep it current.
 
-1. **Resolve real choices before geometry.** Record already-decided constraints
-   and evidence-backed dimensions in the contract. For a genuinely open design
-   decision, ask the human to invoke the existing user-invoked
-   `grill-with-docs` process; do not resolve or implement that choice until it
-   completes and its decision is recorded. It owns the rigorous design tree and
-   its ADR/glossary capture. If the unresolved question is shape, make sketches
-   under the workflow above and show the alternatives before choosing.
+1. **Resolve intent before geometry.** A model specification records durable
+   accepted requirements; a CAD contract cites their IDs and records only their
+   slice-specific consequences. For a genuinely open design choice, ask the
+   human to invoke the repository `grill-with-docs` process. It owns the design
+   tree and updates the scoped glossary, specification, and any earned ADR. If
+   the unresolved question is shape, make sketches under the workflow above and
+   show the alternatives before choosing.
 2. **Build the anchor only.** Implement just the current anchor part. Describe
    dependent connectors, fasteners, cable paths, and interfaces as constraints
    in the contract rather than modelling them.
@@ -183,16 +183,21 @@ cloud session and `DISPLAY` is not.
 Every public `tessellate_models.MODELS` entry resolves to one documentation unit:
 the nearest enclosing package `README.md`. Resolve from the entry's containing
 package upward; a child-package README overrides its parent family README. The
-resolved repository-relative path is the model's documentation path.
+resolved repository-relative path is the model's public documentation entry
+point.
 
 The executable gate is the `model-documentation` skill. Before geometry or a
-model-contract change, read the resolved README and wait for the user to confirm
-both its purpose and the proposed accepted-design-decision delta.
+model-contract change, read the resolved README, the applicable detailed
+specification it links to, and the narrowest mapped context when
+`CONTEXT-MAP.md` provides one. Then wait for the user to confirm the purpose and
+the proposed accepted-decision delta.
 
-Lead each README with its concise purpose. Its `## Design decisions` section
-records durable accepted choices with their rationale and consequence. CAD
-contracts own current-slice evidence and open questions; sketches own reversible
-alternatives. Do not place an unresolved choice in a README.
+Lead each README with its concise purpose and link each active design subject to
+its `docs/<subject>-specification.md`. That specification records durable
+user-accepted requirements, evidence boundaries, and open technical definitions;
+the CAD contract records only the active slice's references, evidence, proof, and
+acceptance. A scoped `CONTEXT.md` is a glossary, never a substitute for either
+record. Sketches own reversible alternatives.
 
 Documentation makes a standalone public entry a package: promote
 `models/<name>.py` to `models/<name>/__init__.py` before documenting or
@@ -226,7 +231,7 @@ models/<name>/
   printable.py     # print layout for the slicer, when the headline view is a scene
   checks.py        # physical geometry gates, only when a model has one
   README.md        # documentation unit unless a child package README overrides it
-  docs/            # design-notes.md, part-data.md, assets/ (datasheets, SVGs)
+  docs/            # <subject>-specification.md, cad-contract.md, design-notes.md, adr/, assets/
 ```
 
 Not every package needs every entry — `config.py`, `assemblies/`, `printable.py`,

@@ -145,10 +145,14 @@ dependent interface, load `cad-iteration`. It holds work to a human-approved
 anchor part before connectors, fasteners, cable paths, or other downstream
 interfaces are modelled.
 
+**CAD definition:** For a `grill-with-docs` request, read
+`.claude/skills/grill-with-docs/SKILL.md`. It resolves the scoped context, model
+specification, and current slice before a design decision is captured.
+
 **Stella re-entry:** When a request names `Stella` or `stella_octangula`, first
 read `models/led_profiles/docs/stella-cad-contract.md`. Its scoped entry map
-points to the current-slice contract; update that contract when feedback changes
-the slice and at its acceptance gate.
+resolves the local context, accepted specification, and current-slice contract;
+update that contract when feedback changes the slice and at its acceptance gate.
 
 Full conventions — model-structure rationale, tier rules, the promotion rule,
 the sketch-before-you-model workflow, sketch authoring rules, and post-update

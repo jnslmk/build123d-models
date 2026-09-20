@@ -17,39 +17,43 @@ can force a change in the part it attaches to. Keep that commitment out of the
 model until the human accepts the part that owns it.
 
 This skill implements the project policy in `docs/conventions.md` §"Core-first
-CAD iteration". Keep the current slice's decisions in the compact template at
-`references/cad-contract.md`.
+CAD iteration". Keep slice-local execution information in the compact template
+at `references/cad-contract.md`; link its context and specification rather than
+copying their durable decisions.
 
 Before changing this contract or its geometry, load `model-documentation`; it
-owns README resolution and the purpose/accepted-decision user gate.
+owns README/specification resolution and the purpose/accepted-decision user gate.
 
 ## Current-slice contract
 
 Before writing geometry, name the current slice and its **anchor part**. Complete
-the contract's locked decisions, evidence-backed dimensions, open decisions,
-service/assembly sequence, required skills, verifiable predicates, visual review,
-and acceptance gate.
+its context/specification references, applicable requirement IDs, evidence-backed
+dimensions, open technical definitions, service/assembly constraints, required
+skills, verifiable predicates, visual review, and acceptance gate.
 
-The contract is a boundary, not a backlog. It may describe a downstream interface
-as a requirement, envelope, or unanswered question, but the current model may
-implement only the anchor part. A part is an anchor when the human can judge its
-shape, proportions, purpose, and print pose without its dependants being made
-real.
+The contract is a boundary, not a backlog or second specification. It may
+describe a downstream interface as a requirement, envelope, or unanswered
+question, but the current model may implement only the anchor part. A part is an
+anchor when the human can judge its shape, proportions, purpose, and print pose
+without its dependants being made real.
 
 ## Resolve only what is genuinely open
 
 Separate a missing decision from an implementation detail:
 
-- A locked decision or measured dimension belongs in the contract with its source.
-- A genuinely open design choice must be handed explicitly to the existing
+- A durable accepted requirement belongs in the model specification. The contract
+  cites its ID and records only the consequence for this slice.
+- A genuinely open design choice must be handed explicitly to the repository's
   user-invoked `grill-with-docs` process. Ask the human to invoke it; it owns the
-  design-tree questioning and ADR/glossary capture. Do not resolve or implement
-  that choice until the process has completed and its decision is recorded in the
-  contract.
-- When that open choice is shape, use the sketch workflow in
+  design-tree questioning and updates the scoped glossary, specification, and any
+  earned ADR. Do not resolve or implement that choice until the process completes
+  and the contract can cite its accepted requirement.
+- A measured dimension or unsized technical definition belongs in the contract
+  with its source and blocking effect.
+- When an open choice is shape, use the sketch workflow in
   `docs/conventions.md` §"Sketch before you model" to supply reversible
-  alternatives for the decision. Do not promote a sketch to an anchor until the
-  recorded decision permits it.
+  alternatives. Do not promote a sketch to an anchor until the specification
+  permits it.
 
 ## Iterate the anchor
 

@@ -12,10 +12,10 @@ description: >-
 
 # Model documentation
 
-**The README is the accepted design record, not a workbench.** Read the resolved
-README before every geometry or model-contract change, then make the human
-confirm the model's purpose and the accepted-decision delta before geometry
-begins.
+**The README is the public entry point; the detailed specification owns accepted
+intent.** Read the resolved README and any applicable specification before every
+geometry or model-contract change, then make the human confirm the model's
+purpose and accepted-decision delta before geometry begins.
 
 ## Resolve the documentation unit
 
@@ -28,26 +28,35 @@ begins.
    `README.md`. A README in a child package is that child's documentation unit
    and overrides its parent family README. If none exists, establish one at the
    family scope that owns the model.
-4. Read the resolved README in full. For a new documentation unit, draft only
-   its proposed concise purpose before the gate; its accepted decisions remain
-   empty until the user confirms them.
+4. Read the resolved README in full. Follow the applicable active
+   `docs/<subject>-specification.md` link, if the change has a detailed design
+   subject. When `CONTEXT-MAP.md` exists, read the narrowest mapped
+   `CONTEXT.md` for that family.
+5. For a new documentation unit, draft only its concise purpose before the gate.
+   For a new design subject, start its specification from
+   `skill://grill-with-docs/references/model-specification.md`; accepted
+   requirements remain empty until the user confirms them.
 
 ## User gate
 
 Before changing geometry or a model contract:
 
-1. State the README's current purpose in the terms of the proposed change.
-2. State the exact accepted-decision delta: which durable decision will be
-   added, changed, removed, or that there is no accepted-decision change.
+1. State the README's current purpose and the applicable specification's purpose
+   in the terms of the proposed change.
+2. State the exact accepted-decision delta: which requirement will be added,
+   changed, removed, or that there is no accepted-decision change.
 3. Ask the user to confirm both the purpose and that delta. Wait for their
    response; do not begin geometry or alter the model contract while it is
    pending.
-4. After confirmation, update the resolved README when the accepted decision
-   changed, then make the approved geometry or contract change.
+4. After confirmation, update the applicable specification when a requirement
+   changed, update the README pointer if the documentation entry changed, then
+   make the approved geometry or contract change.
 
-## README content
+## README and specification content
 
-Lead with the concise purpose. Under `## Design decisions`, record only durable
-accepted choices, each with its rationale and consequence. Keep unresolved
-choices, alternatives, and current-slice evidence in the CAD contract or
-sketches until the user accepts them; do not promote them into the README.
+Lead the README with the concise public purpose and link every active design
+subject to its detailed specification. The specification records durable
+accepted requirements once, each with its source or rationale and consequence.
+Keep unresolved technical definitions, current-slice evidence, and acceptance
+state in the CAD contract; keep reversible alternatives in sketches. A scoped
+`CONTEXT.md` contains only the terms that make those records unambiguous.

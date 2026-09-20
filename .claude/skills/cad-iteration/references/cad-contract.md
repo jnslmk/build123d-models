@@ -4,6 +4,12 @@
 > when feedback changes the slice. The next dependent slice gets a new current
 > anchor only after this one passes its acceptance gate.
 
+## References
+
+- **Context:**
+- **Specification:**
+- **Supporting evidence:**
+
 ## Current slice
 
 - **Name:**
@@ -13,11 +19,11 @@
 - **Deferred interfaces:** Connectors, fasteners, cable paths, and other dependent
   geometry described here are constraints only until this slice is accepted.
 
-## Locked decisions
+## Applicable specification constraints
 
-| Decision | Rationale or source | Consequence for this slice |
-| --- | --- | --- |
-| | | |
+| Requirement ID or source | Consequence for this slice |
+| --- | --- |
+| | |
 
 ## Evidence-backed dimensions
 
@@ -25,18 +31,17 @@
 | --- | --- | --- | --- |
 | | | | |
 
-## Open decisions
+## Open technical definitions
 
-> For every genuinely open decision, ask the human to invoke the user-invoked
-> `grill-with-docs` process. Do not resolve it until that process completes and
-> its decision is recorded here; sketches and measurements are supporting evidence
-> only after the hand-off.
+> A design choice that changes an accepted requirement returns to the
+> user-invoked `grill-with-docs` process. Record source-backed sizing, material,
+> manufacturing, and evidence gaps here instead.
 
-| Decision | Why it is open | Resolution path | Blocking effect |
-| --- | --- | --- | --- |
-| | | Mandatory `grill-with-docs` hand-off | |
+| Question | Resolution path | Blocking effect |
+| --- | --- | --- |
+| | | |
 
-## Service and assembly sequence
+## Service and assembly constraints
 
 1.
 2.
