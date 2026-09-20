@@ -564,5 +564,156 @@ class LedProfilesRunShapeTests(unittest.TestCase):
         assemblies.create_suspended.assert_called_once()
 
 
+class StellaStreamingCheckTests(unittest.TestCase):
+    def test_descriptors_preserve_full_scene_and_bought_counts(self) -> None:
+        from typing import cast
+
+        from build123d import Part
+        from models.led_profiles import checks
+        from models.led_profiles.assemblies import stella_octangula
+
+        sources = {
+            "arm": types.SimpleNamespace(label="stella vertex arm"),
+            "base_core": types.SimpleNamespace(label="stella vertex core"),
+            "offset_core": types.SimpleNamespace(label="stella offset vertex core"),
+            "keeper": types.SimpleNamespace(label="stella keeper"),
+            **{
+                f"lamp_{index}": types.SimpleNamespace(label=label)
+                for index, label in enumerate(
+                    (
+                        "aluminium profile",
+                        "COB strip",
+                        "COB emitter",
+                        "diffuser",
+                        "endcap",
+                        "endcap",
+                        "gland",
+                        "gland",
+                        "cable",
+                        "cable",
+                    )
+                )
+            },
+        }
+
+        placements = stella_octangula.placement_descriptors(
+            cast(dict[str, Part], sources)
+        )
+
+        self.assertEqual(len(placements), 176)
+        self.assertEqual(
+            sum(
+                checks._classify_child(placement.label) == "bought"
+                for placement in placements
+            ),
+            48,
+        )
+
+    def test_stella_aabb_matches_a_materialized_placement(self) -> None:
+        from build123d import Box, Plane
+
+        from models.led_profiles import checks
+        from models.led_profiles.assemblies import stella_octangula
+        from models.lib.edges import as_part
+
+        source = Box(2, 4, 6)
+        placement = stella_octangula.StellaPlacement(
+            "source",
+            Plane(origin=(5, -2, 3), x_dir=(0, 1, 0), z_dir=(0, 0, 1)),
+            "printed mount",
+        )
+
+        expected = as_part(placement.frame.location * source).bounding_box()
+        actual = checks._stella_aabb(source, placement)
+
+        self.assertEqual(
+            actual,
+            (
+                expected.min.X,
+                expected.max.X,
+                expected.min.Y,
+                expected.max.Y,
+                expected.min.Z,
+                expected.max.Z,
+            ),
+        )
+
+    def test_stella_target_uses_descriptors_not_full_scene(self) -> None:
+        from models.led_profiles import checks
+
+        sources = {"arm": Mock()}
+        placements = [Mock()]
+        with (
+            patch.object(
+                checks.stella_octangula, "source_parts", return_value=sources
+            ) as source_parts,
+            patch.object(
+                checks.stella_octangula,
+                "placement_descriptors",
+                return_value=placements,
+            ) as descriptors,
+            patch.object(
+                checks.stella_octangula,
+                "create_stella_octangula",
+                side_effect=AssertionError("full scene must not be built by check"),
+            ) as scene,
+            patch.object(checks, "_check_stella_clearance") as clearance,
+            patch.object(checks, "_check_stella_geometry") as geometry,
+        ):
+            checks.run_model("led_profiles.assemblies.stella_octangula")
+
+        source_parts.assert_called_once_with()
+        descriptors.assert_called_once_with(sources)
+        clearance.assert_called_once_with(sources, placements, mock.ANY)
+        geometry.assert_called_once_with(sources, placements, mock.ANY)
+        scene.assert_not_called()
+
+    def test_stella_clearance_materializes_only_aabb_candidates(self) -> None:
+        from typing import cast
+
+        from build123d import Part
+        from models.led_profiles import checks
+        from models.led_profiles.assemblies import stella_octangula
+        from models.lib.checks import Report
+
+        printed = types.SimpleNamespace(source_key="printed", label="printed mount")
+        candidate = types.SimpleNamespace(
+            source_key="candidate", label="aluminium profile (near)"
+        )
+        distant_bought = [
+            types.SimpleNamespace(
+                source_key=f"distant_{index}",
+                label=f"aluminium profile (distant {index})",
+            )
+            for index in range(47)
+        ]
+        placements = [printed, candidate, *distant_bought]
+        sources = {placement.source_key: Mock() for placement in placements}
+
+        def bounds(_source, placement):
+            return (
+                (0.0, 1.0, 0.0, 1.0, 0.0, 1.0)
+                if placement in (printed, candidate)
+                else (2.0, 3.0, 2.0, 3.0, 2.0, 3.0)
+            )
+
+        with (
+            patch.object(checks, "_stella_aabb", side_effect=bounds),
+            patch.object(checks, "_materialize_stella_part") as materialize,
+            patch.object(checks, "_shared_volume", return_value=0.0) as overlap,
+        ):
+            checks._check_stella_clearance(
+                cast(dict[str, Part], sources),
+                cast(list[stella_octangula.StellaPlacement], placements),
+                Report(),
+            )
+
+        materialize.assert_has_calls(
+            [mock.call(sources, printed), mock.call(sources, candidate)]
+        )
+        self.assertEqual(materialize.call_count, 2)
+        overlap.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

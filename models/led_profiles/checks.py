@@ -15,7 +15,7 @@ making sense, this is what says so.
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from math import cos, hypot, radians, sin, sqrt
 
 from build123d import (
@@ -27,6 +27,7 @@ from build123d import (
     Part,
     Pos,
     Rotation,
+    Vector,
 )
 
 from models.lib import fits
@@ -41,6 +42,7 @@ from models.lib.checks import (
 from models.lib.edges import as_part
 
 from . import assemblies
+from .assemblies import stella_octangula
 from . import config as c
 from . import corner as corner_mod
 from . import endcap as e
@@ -3923,8 +3925,107 @@ def check_stella_parts(r: Report) -> None:
     )
 
 
-def _check_stella_geometry(scene: Compound, r: Report) -> None:
-    """The scene contains the selected topology and keeps crossings separated."""
+def _stella_aabb(
+    source: Part, placement: stella_octangula.StellaPlacement
+) -> tuple[float, float, float, float, float, float]:
+    """Source bounding box transformed through a placement frame."""
+    box = source.bounding_box()
+    corners = [
+        placement.frame.from_local_coords(Vector(x, y, z))
+        for x in (box.min.X, box.max.X)
+        for y in (box.min.Y, box.max.Y)
+        for z in (box.min.Z, box.max.Z)
+    ]
+    return (
+        min(point.X for point in corners),
+        max(point.X for point in corners),
+        min(point.Y for point in corners),
+        max(point.Y for point in corners),
+        min(point.Z for point in corners),
+        max(point.Z for point in corners),
+    )
+
+
+def _aabbs_overlap(
+    a: tuple[float, float, float, float, float, float],
+    b: tuple[float, float, float, float, float, float],
+) -> bool:
+    """Whether closed axis-aligned boxes might share a solid volume."""
+    return (
+        a[0] <= b[1]
+        and b[0] <= a[1]
+        and a[2] <= b[3]
+        and b[2] <= a[3]
+        and a[4] <= b[5]
+        and b[4] <= a[5]
+    )
+
+
+def _materialize_stella_part(
+    sources: Mapping[str, Part], placement: stella_octangula.StellaPlacement
+) -> Part:
+    """Pose one source part only for the narrow-phase check that needs it."""
+    source = sources[placement.source_key]
+    part = as_part(placement.frame.location * source)
+    part.label = placement.label
+    part.color = source.color
+    return part
+
+
+def _check_stella_clearance(
+    sources: Mapping[str, Part],
+    placements: list[stella_octangula.StellaPlacement],
+    r: Report,
+) -> None:
+    """Stream printed-to-bought clearance without building the full Stella scene."""
+    classified = [
+        (placement, _classify_child(placement.label)) for placement in placements
+    ]
+    bought = [placement for placement, category in classified if category == "bought"]
+    printed = [placement for placement, category in classified if category == "printed"]
+    expected_bought = 12 * len(BOUGHT_LABEL_PREFIXES)
+    r.check(
+        len(bought) == expected_bought,
+        f"stella_octangula: found all {expected_bought} bought parts",
+        f"{len(bought)} classified as bought -- a renamed label would exempt a part from this check silently",
+    )
+    if not bought:
+        return
+
+    bought_bounds = [
+        (placement, _stella_aabb(sources[placement.source_key], placement))
+        for placement in bought
+    ]
+    for printed_part in printed:
+        printed_bounds = _stella_aabb(sources[printed_part.source_key], printed_part)
+        candidates = [
+            bought_part
+            for bought_part, bought_aabb in bought_bounds
+            if _aabbs_overlap(printed_bounds, bought_aabb)
+        ]
+        overlap = max(
+            (
+                _shared_volume(
+                    _materialize_stella_part(sources, printed_part),
+                    _materialize_stella_part(sources, bought_part),
+                )
+                for bought_part in candidates
+            ),
+            default=0.0,
+        )
+        r.check(
+            overlap < 0.01,
+            f"stella_octangula: {printed_part.label} clear of bought hardware",
+            f"{overlap:.4f} mm^3 shared with {len(candidates)} candidate bought parts",
+        )
+
+
+def _check_stella_geometry(
+    sources: Mapping[str, Part],
+    placements: list[stella_octangula.StellaPlacement],
+    r: Report,
+) -> None:
+    """The descriptor topology and its small physical fixtures stay clear."""
     counts = {
         "aluminium profile": 12,
         "stella vertex arm": 24,
@@ -3933,7 +4034,7 @@ def _check_stella_geometry(scene: Compound, r: Report) -> None:
         "stella keeper (": 24,
     }
     for prefix, expected in counts.items():
-        found = sum(child.label.startswith(prefix) for child in scene.children)
+        found = sum(placement.label.startswith(prefix) for placement in placements)
         r.check(
             found == expected,
             f"stella: {expected} x {prefix.rstrip(' (')}",
@@ -3947,18 +4048,33 @@ def _check_stella_geometry(scene: Compound, r: Report) -> None:
     )
 
     arms = [
-        child for child in scene.children if child.label.startswith("stella vertex arm")
+        placement
+        for placement in placements
+        if placement.label.startswith("stella vertex arm")
     ]
-    cores = [child for child in scene.children if "vertex core" in child.label]
+    cores = [placement for placement in placements if "vertex core" in placement.label]
     keepers = [
-        child for child in scene.children if child.label.startswith("stella keeper (")
+        placement
+        for placement in placements
+        if placement.label.startswith("stella keeper (")
     ]
 
-    def nearest(part: Part, candidates: list[Part]) -> Part:
-        centre = part.bounding_box().center()
+    def nearest(
+        placement: stella_octangula.StellaPlacement,
+        candidates: list[stella_octangula.StellaPlacement],
+    ) -> stella_octangula.StellaPlacement:
+        def centre_for(candidate: stella_octangula.StellaPlacement) -> Vector:
+            bounds = _stella_aabb(sources[candidate.source_key], candidate)
+            return Vector(
+                (bounds[0] + bounds[1]) / 2,
+                (bounds[2] + bounds[3]) / 2,
+                (bounds[4] + bounds[5]) / 2,
+            )
+
+        centre = centre_for(placement)
         return min(
             candidates,
-            key=lambda candidate: (candidate.bounding_box().center() - centre).length,
+            key=lambda candidate: (centre_for(candidate) - centre).length,
         )
 
     joint_overlaps = []
@@ -3972,7 +4088,12 @@ def _check_stella_geometry(scene: Compound, r: Report) -> None:
             None,
         )
         if sample is not None and cores:
-            joint_overlaps.append(_shared_volume(sample, nearest(sample, cores)))
+            joint_overlaps.append(
+                _shared_volume(
+                    _materialize_stella_part(sources, sample),
+                    _materialize_stella_part(sources, nearest(sample, cores)),
+                )
+            )
     worst_joint = max(joint_overlaps, default=float("inf"))
     r.check(
         len(joint_overlaps) == 2 and worst_joint < 0.01,
@@ -3981,7 +4102,10 @@ def _check_stella_geometry(scene: Compound, r: Report) -> None:
     )
 
     keeper_overlap = (
-        _shared_volume(keepers[0], nearest(keepers[0], arms))
+        _shared_volume(
+            _materialize_stella_part(sources, keepers[0]),
+            _materialize_stella_part(sources, nearest(keepers[0], arms)),
+        )
         if keepers and arms
         else float("inf")
     )
@@ -3999,27 +4123,28 @@ def check_assemblies(r: Report, only: str | None = None) -> None:
         "suspended": assemblies.create_suspended,
         "standing": assemblies.create_standing,
         "triangle": assemblies.create_triangle,
-        "stella_octangula": assemblies.create_stella_octangula,
     }
-    names = (only,) if only is not None else tuple(creators)
+    names = (only,) if only is not None else (*creators, "stella_octangula")
     bought_per_lamp = len(BOUGHT_LABEL_PREFIXES)
     for name in names:
+        if name == "stella_octangula":
+            sources = stella_octangula.source_parts()
+            placements = stella_octangula.placement_descriptors(sources)
+            _check_stella_clearance(sources, placements, r)
+            _check_stella_geometry(sources, placements, r)
+            continue
+
         scene = creators[name]()
         _check_scene_clearance(
             scene,
             name,
             r,
-            expected_bought=(
-                12 if name == "stella_octangula" else 3 if name == "triangle" else 1
-            )
-            * bought_per_lamp,
+            expected_bought=(3 if name == "triangle" else 1) * bought_per_lamp,
         )
         if name == "triangle":
             _check_triangle_geometry(scene, r)
         elif name == "suspended":
             _check_suspended_bessel_points(scene, r)
-        elif name == "stella_octangula":
-            _check_stella_geometry(scene, r)
 
 
 def _shared_volume(a: Part, b: Part) -> float:

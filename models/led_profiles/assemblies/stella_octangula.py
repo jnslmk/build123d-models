@@ -10,6 +10,7 @@ three support-free cradle arms and three slim profile keepers.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from math import sqrt
 from typing import NamedTuple
 
@@ -30,6 +31,14 @@ IS_ASSEMBLY = True
 TETRA_EDGES = [(i, j) for i in range(4) for j in range(i + 1, 4)]
 BASE_SIGNS = [(1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)]
 OFFSET_SIGNS = [(-x, y, z) for x, y, z in BASE_SIGNS]
+
+
+class StellaPlacement(NamedTuple):
+    """One source part posed in the Stella scene without making a new BRep."""
+
+    source_key: str
+    frame: Plane
+    label: str
 
 
 class LampSegment(NamedTuple):
@@ -155,30 +164,36 @@ def _vertex_core_frame(
     return Plane(origin=centre, x_dir=pair_axis, z_dir=radial)
 
 
-def _arm_keeper(frame: Plane, tag: str, keeper_source: Part) -> Part:
-    return _placed(keeper_source, frame, f"stella keeper ({tag})")
+def source_parts(length: float = c.LENGTH) -> dict[str, Part]:
+    """Build each distinct Stella source solid once, keyed for placement."""
+    sources = {
+        "arm": create_arm(),
+        "base_core": create_core(0.0),
+        "offset_core": create_core(s.EDGE_OFFSET),
+        "keeper": seated_keeper(s.CRADLE_START + s.KEEPER_STATION),
+    }
+    sources.update(
+        {f"lamp_{index}": part for index, part in enumerate(lamp_parts(length))}
+    )
+    return sources
 
 
-def create_stella_octangula(length: float = c.LENGTH) -> Compound:
-    """Twelve lamps, 24 arms, eight cores and 24 keepers in the final form."""
-    children: list[Part] = []
-    arm_source = create_arm()
-    keeper_source = seated_keeper(s.CRADLE_START + s.KEEPER_STATION)
-    lamp_sources = lamp_parts(length, cable=False)
-
+def placement_descriptors(
+    sources: Mapping[str, Part], length: float = c.LENGTH
+) -> list[StellaPlacement]:
+    """Describe every full-scene placement while retaining its source BRep."""
+    placements: list[StellaPlacement] = []
     for tetra_name, signs, offset in (
         ("base", BASE_SIGNS, 0.0),
         ("offset", OFFSET_SIGNS, s.EDGE_OFFSET),
     ):
         vertices = tetra_vertices(length, signs)
-        core_source = create_core(offset)
-
+        core_key = "offset_core" if offset else "base_core"
         for index, vertex in enumerate(vertices):
-            core_frame = _vertex_core_frame(vertex, vertices, index, offset)
-            children.append(
-                _placed(
-                    core_source,
-                    core_frame,
+            placements.append(
+                StellaPlacement(
+                    core_key,
+                    _vertex_core_frame(vertex, vertices, index, offset),
                     (
                         f"stella offset vertex core {index}"
                         if offset
@@ -190,39 +205,32 @@ def create_stella_octangula(length: float = c.LENGTH) -> Compound:
         for edge_index, (a_index, b_index) in enumerate(TETRA_EDGES):
             a, b = vertices[a_index], vertices[b_index]
             direction = _unit(b - a)
-            axis = _face_axis(a, b)
-            outward = _face_normal(a, axis)
-            shift = outward * offset
-            near_endpoint, far_endpoint = a + shift, b + shift
+            outward = _face_normal(a, _face_axis(a, b))
+            near_endpoint, far_endpoint = a + outward * offset, b + outward * offset
             near_frame = _edge_frame(near_endpoint, direction, outward)
             far_frame = _edge_frame(far_endpoint, -direction, outward)
-
-            children.append(
-                _placed(
-                    arm_source,
-                    near_frame,
-                    f"stella vertex arm ({tetra_name} {edge_index} near)",
-                )
-            )
-            children.append(
-                _placed(
-                    arm_source,
-                    far_frame,
-                    f"stella vertex arm ({tetra_name} {edge_index} far)",
-                )
-            )
-            children.append(
-                _arm_keeper(
-                    near_frame,
-                    f"{tetra_name} edge {edge_index} near",
-                    keeper_source,
-                )
-            )
-            children.append(
-                _arm_keeper(
-                    far_frame,
-                    f"{tetra_name} edge {edge_index} far",
-                    keeper_source,
+            placements.extend(
+                (
+                    StellaPlacement(
+                        "arm",
+                        near_frame,
+                        f"stella vertex arm ({tetra_name} {edge_index} near)",
+                    ),
+                    StellaPlacement(
+                        "arm",
+                        far_frame,
+                        f"stella vertex arm ({tetra_name} {edge_index} far)",
+                    ),
+                    StellaPlacement(
+                        "keeper",
+                        near_frame,
+                        f"stella keeper ({tetra_name} edge {edge_index} near)",
+                    ),
+                    StellaPlacement(
+                        "keeper",
+                        far_frame,
+                        f"stella keeper ({tetra_name} edge {edge_index} far)",
+                    ),
                 )
             )
 
@@ -230,15 +238,25 @@ def create_stella_octangula(length: float = c.LENGTH) -> Compound:
                 near_endpoint + direction * s.CRADLE_START + outward * m.TUBE_UNDER_Z
             )
             tube_frame = _edge_frame(tube_origin, direction, outward)
-            for part in lamp_sources:
-                children.append(
-                    _placed(
-                        part,
-                        tube_frame,
-                        f"{part.label} ({tetra_name} lamp {edge_index})",
+            for source_key, part in sources.items():
+                if source_key.startswith("lamp_"):
+                    placements.append(
+                        StellaPlacement(
+                            source_key,
+                            tube_frame,
+                            f"{part.label} ({tetra_name} lamp {edge_index})",
+                        )
                     )
-                )
+    return placements
 
+
+def create_stella_octangula(length: float = c.LENGTH) -> Compound:
+    """Twelve lamps, 24 arms, eight cores and 24 keepers in the final form."""
+    sources = source_parts(length)
+    children = [
+        _placed(sources[placement.source_key], placement.frame, placement.label)
+        for placement in placement_descriptors(sources, length)
+    ]
     assembly = Compound(children=children)
     assembly.label = f"stella octangula ({length:.0f} mm lamps)"
     return assembly
@@ -255,9 +273,12 @@ __all__ = [
     "LampSegment",
     "OFFSET_SIGNS",
     "PARAMS",
+    "StellaPlacement",
     "TETRA_EDGES",
     "create",
     "create_stella_octangula",
     "lamp_segments",
+    "placement_descriptors",
+    "source_parts",
     "tetra_vertices",
 ]
