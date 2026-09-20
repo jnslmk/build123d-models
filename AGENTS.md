@@ -140,8 +140,8 @@ anchor part before connectors, fasteners, cable paths, or other downstream
 interfaces are modelled.
 
 **Stella re-entry:** When a request names `Stella` or `stella_octangula`, first
-read `models/led_profiles/docs/stella-cad-contract.md`. Its scoped entry map and
-current-slice contract are the re-entry source; refresh it when feedback changes
+read `models/led_profiles/docs/stella-cad-contract.md`. Its scoped entry map
+points to the current-slice contract; update that contract when feedback changes
 the slice and at its acceptance gate.
 
 Full conventions — model-structure rationale, tier rules, the promotion rule,
