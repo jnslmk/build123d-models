@@ -18,11 +18,13 @@ and copies the CI-rendered ``exports/<name>.stl|.step|.png`` into ``website/expo
 import functools
 import http.server
 import json
+import re
 import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from model_deps import model_files
 from tessellate_models import MODELS, model_is_assembly, model_params
@@ -82,6 +84,111 @@ def _source_path(name: str) -> str:
         f"models/{name.replace('.', '/')}.py nor "
         f"models/{name.replace('.', '/')}/__init__.py"
     )
+
+
+def _documentation_path(name: str) -> str:
+    """Nearest enclosing package README for a registered model.
+
+    A model can be a package, a module inside a package, or a nested module.
+    Documentation belongs to the closest package that supplies a README, so a
+    subfamily can override its parent's design notes without duplicating them
+    for every public part.
+    """
+    source = HERE / _source_path(name)
+    for directory in (source.parent, *source.parent.parents):
+        if not (directory / "__init__.py").exists():
+            continue
+        readme = directory / "README.md"
+        if readme.is_file():
+            return readme.relative_to(HERE).as_posix()
+        if directory == MODELS_DIR:
+            break
+    raise FileNotFoundError(
+        f"{name!r} is in tessellate_models.MODELS but no enclosing package has "
+        "a README.md"
+    )
+
+
+_DOCUMENTATION_ASSET_SUFFIXES = frozenset(
+    {
+        ".avif",
+        ".gif",
+        ".ico",
+        ".jpeg",
+        ".jpg",
+        ".mp3",
+        ".mp4",
+        ".ogg",
+        ".pdf",
+        ".png",
+        ".svg",
+        ".wav",
+        ".webm",
+        ".webp",
+    }
+)
+_MARKDOWN_LINK = re.compile(
+    r"!?\[[^\]]*\]\(\s*(?:<([^>]+)>|([^\s)]+))",
+)
+_REFERENCE_LINK = re.compile(
+    r"^\s*\[[^\]]+\]:\s*(?:<([^>]+)>|(\S+))",
+    re.MULTILINE,
+)
+_HTML_LINK = re.compile(r"""(?:href|src)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+
+
+def _documentation_targets(markdown: Path) -> set[Path]:
+    """Local Markdown and static assets linked from one Markdown file."""
+    text = markdown.read_text()
+    raw_targets = {
+        first or second
+        for pattern in (_MARKDOWN_LINK, _REFERENCE_LINK)
+        for first, second in pattern.findall(text)
+    }
+    raw_targets.update(_HTML_LINK.findall(text))
+
+    targets: set[Path] = set()
+    for target in raw_targets:
+        parsed = urlsplit(target)
+        if parsed.scheme or parsed.netloc or not parsed.path:
+            continue
+        candidate = (markdown.parent / unquote(parsed.path)).resolve()
+        try:
+            candidate.relative_to(HERE)
+        except ValueError:
+            continue
+        if not candidate.is_file():
+            continue
+        if candidate.suffix.lower() == ".md" or (
+            candidate.suffix.lower() in _DOCUMENTATION_ASSET_SUFFIXES
+        ):
+            targets.add(candidate)
+    return targets
+
+
+def _copy_documentation(readmes: set[Path]) -> int:
+    """Rebuild ``website/docs`` from local documentation reachable from READMEs."""
+    destination = WEBSITE_DIR / "docs"
+    shutil.rmtree(destination, ignore_errors=True)
+    destination.mkdir(parents=True, exist_ok=True)
+
+    pending = [readme.resolve() for readme in readmes]
+    copied: set[Path] = set()
+    while pending:
+        source = pending.pop()
+        if source in copied or not source.is_file():
+            continue
+        try:
+            relative = source.relative_to(HERE)
+        except ValueError:
+            continue
+        copied.add(source)
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        if source.suffix.lower() == ".md":
+            pending.extend(_documentation_targets(source) - copied)
+    return len(copied)
 
 
 def _label(name: str) -> str:
@@ -197,6 +304,7 @@ def _manifest() -> dict:
                 "params": model_params(name),
                 "assembly": assembly,
                 "source": _source_path(name),
+                "documentation": _documentation_path(name),
                 # UTC ISO-8601, or null when neither git nor the filesystem can
                 # say; the page renders it in the visitor's own timezone.
                 "updated": _last_edited(name),
@@ -216,10 +324,14 @@ def _manifest() -> dict:
 
 
 def build_web_bundle() -> None:
-    """Emit models-manifest.json + py-sources.json and copy prebuilt render assets."""
+    """Emit metadata, source files, documentation, and render assets for the site."""
     WEBSITE_EXPORTS.mkdir(parents=True, exist_ok=True)
+    manifest = _manifest()
     (WEBSITE_DIR / "py-sources.json").write_text(json.dumps(_py_sources()))
-    (WEBSITE_DIR / "models-manifest.json").write_text(json.dumps(_manifest(), indent=2))
+    (WEBSITE_DIR / "models-manifest.json").write_text(json.dumps(manifest, indent=2))
+    copied_docs = _copy_documentation(
+        {HERE / model["documentation"] for model in manifest["models"]}
+    )
     copied = 0
     for name in MODELS:
         assembly = model_is_assembly(name)
@@ -232,7 +344,10 @@ def build_web_bundle() -> None:
             if src.exists():
                 shutil.copy2(src, WEBSITE_EXPORTS / src.name)
                 copied += 1
-    print(f"Built web bundle: {len(MODELS)} models, {copied} render assets → website/")
+    print(
+        f"Built web bundle: {len(MODELS)} models, {copied} render assets, "
+        f"{copied_docs} documentation files → website/"
+    )
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):

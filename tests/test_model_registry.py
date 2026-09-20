@@ -200,7 +200,9 @@ class RosterTests(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             website._source_path("no_such_model_anywhere")
         # ...and still resolves both shapes of real model.
-        self.assertEqual(website._source_path("lens_cap"), "models/lens_cap.py")
+        self.assertEqual(
+            website._source_path("lens_cap"), "models/lens_cap/__init__.py"
+        )
         self.assertEqual(
             website._source_path("sonicare_charger_holder"),
             "models/sonicare_charger_holder/__init__.py",
@@ -236,6 +238,19 @@ class RosterTests(unittest.TestCase):
             sorted(missing_source),
             "Manifest entries whose 'source' path does not exist -- the Code "
             "panel shows 'source unavailable' for these.",
+        )
+
+    def test_every_model_resolves_to_existing_package_documentation(self) -> None:
+        """The Documentation panel must never receive a dead README path."""
+        documentation = {name: website._documentation_path(name) for name in MODELS}
+        missing = [
+            name for name, path in documentation.items() if not (ROOT / path).is_file()
+        ]
+        self.assertEqual(
+            [],
+            sorted(missing),
+            "Registered models must resolve to an enclosing package README.md; "
+            "nested package READMEs override their family README.",
         )
 
     def test_every_excuse_is_still_true(self) -> None:

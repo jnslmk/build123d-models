@@ -178,6 +178,27 @@ spurious `unresolved-import: cairo` in `uv run ty check .`. Detect the
 environment rather than guessing at it: `CLAUDE_CODE_REMOTE=true` is set in a
 cloud session and `DISPLAY` is not.
 
+## Model documentation
+
+Every public `tessellate_models.MODELS` entry resolves to one documentation unit:
+the nearest enclosing package `README.md`. Resolve from the entry's containing
+package upward; a child-package README overrides its parent family README. The
+resolved repository-relative path is the model's documentation path.
+
+The executable gate is the `model-documentation` skill. Before geometry or a
+model-contract change, read the resolved README and wait for the user to confirm
+both its purpose and the proposed accepted-design-decision delta.
+
+Lead each README with its concise purpose. Its `## Design decisions` section
+records durable accepted choices with their rationale and consequence. CAD
+contracts own current-slice evidence and open questions; sketches own reversible
+alternatives. Do not place an unresolved choice in a README.
+
+Documentation makes a standalone public entry a package: promote
+`models/<name>.py` to `models/<name>/__init__.py` before documenting or
+registering it. The Python import `models.<name>` and its `MODELS` roster name
+remain unchanged.
+
 ## Model Structure
 
 A model is either **one file** or **one package**. There is no third shape, and
@@ -189,8 +210,10 @@ which one a model gets is decided by the promotion rule below, not by taste.
 models/<name>.py
 ```
 
-For a model that is one part, built in one file, that nothing else imports. Keep
-it a single file for exactly as long as all of that stays true.
+For a one-part model built in one file that nothing else imports. A standalone
+public model needs its own README documentation unit and is therefore promoted
+to Tier 2; a public module inside a documented family resolves that family's
+README unless a child package overrides it.
 
 ### Tier 2 — model package
 
@@ -202,33 +225,37 @@ models/<name>/
   assemblies/      # scenes, one module each, each IS_ASSEMBLY = True
   printable.py     # print layout for the slicer, when the headline view is a scene
   checks.py        # physical geometry gates, only when a model has one
-  README.md        # what it is, what hardware it fits, how to print it
+  README.md        # documentation unit unless a child package README overrides it
   docs/            # design-notes.md, part-data.md, assets/ (datasheets, SVGs)
 ```
 
 Not every package needs every entry — `config.py`, `assemblies/`, `printable.py`,
-`checks.py`, and `docs/` appear when the model earns them. `__init__.py` and
-`README.md` are the floor.
+`checks.py`, and `docs/` appear when the model earns them. A family package
+needs a README when it is the nearest documentation scope; a child README exists
+only to override that scope. `__init__.py` is always required.
 
 ### The promotion rule
 
 Promote a single file to a package as soon as **any one** of these becomes true.
 Do not wait for the second one:
 
-1. **A sibling wants to import from it.** One model reaching into another
+1. **It is a standalone public entry.** Registration in `MODELS` requires its
+   own package README documentation unit.
+2. **A sibling wants to import from it.** One model reaching into another
    model's module is the signal that they are one family sharing one library.
-2. **It grows a second showable view or a second printable part.** Each of them
+3. **It grows a second showable view or a second printable part.** Each of them
    needs its own module to be addressable by name.
-3. **It needs measured hardware constants.** Those belong in a `config.py` next
+4. **It needs measured hardware constants.** Those belong in a `config.py` next
    to the geometry that consumes them, not scattered as module-level literals.
-4. **It earns a physical geometry gate or written design notes.** A gate gets
+5. **It earns a physical geometry gate or written design notes.** A gate gets
    `checks.py`; design notes get `docs/`.
 
 The promotion is mechanical: `models/<name>.py` becomes
-`models/<name>/__init__.py`, the shared numbers move to `config.py`, each part
-moves to its own module, and the roster names gain a dot. The website resolves a
-package name to its `__init__.py` automatically (`website._source_path`), so the
-Code panel keeps working.
+`models/<name>/__init__.py`, the shared numbers move to `config.py`, and each
+part moves to its own module. The top-level import `models.<name>` and existing
+`MODELS` roster name stay identical; only separately public child views add
+dotted roster names. The website resolves a package name to its `__init__.py`
+automatically (`website._source_path`), so the Code panel keeps working.
 
 ### Rules that hold in both tiers
 
@@ -260,9 +287,10 @@ Code panel keeps working.
 - **No `main()` in a model.** Building and exporting is `main.py`'s and
   `export_model.py`'s job, and a `main()` that re-implements the export paths
   drifts from them. `uv run show/export/render/check <name>` is the interface.
-- **Docs live with the model.** A package: `README.md` plus `docs/`. A
-  single-file model: the module docstring, which should say what it is, what it
-  fits and how it prints.
+- **Documentation is resolved, not copied.** A public entry uses its nearest
+  enclosing package README under the model-documentation policy above. A
+  non-public single-file implementation may use its module docstring for local
+  context.
 
 ### Geometry checks
 
@@ -306,6 +334,9 @@ if the physical failure mode remains.
 Add the name to **`tessellate_models.MODELS`**. That is the whole procedure —
 `main.py` builds straight from that list, the website reads it, CI reads it, so
 there is no second place to keep in sync and no way for them to disagree.
+
+Registration is a documentation commitment: the entry must resolve to its
+nearest package README under §"Model documentation" before it is public.
 
 Only modules with a zero-arg `create()` belong there. The shared pieces a part is
 built from (`drill_storage.box`, `led_profiles.cradle`, `led_psu_enclosure.config`,

@@ -34,8 +34,10 @@ def rel(paths) -> set[str]:
 
 
 class ModelFilesTests(unittest.TestCase):
-    def test_single_file_model_pulls_in_its_own_source(self) -> None:
-        self.assertIn("models/lens_cap.py", rel(model_deps.model_files("lens_cap")))
+    def test_package_model_pulls_in_its_own_source(self) -> None:
+        self.assertIn(
+            "models/lens_cap/__init__.py", rel(model_deps.model_files("lens_cap"))
+        )
 
     def test_every_model_includes_the_package_init_python_runs_first(self) -> None:
         # models/__init__.py executes on the way to any model, so a change to it
@@ -68,9 +70,9 @@ class ModelFilesTests(unittest.TestCase):
 
 
 class AffectedModelsTests(unittest.TestCase):
-    def test_a_models_own_file_selects_only_it(self) -> None:
+    def test_a_models_own_source_selects_only_it(self) -> None:
         self.assertEqual(
-            model_deps.affected_models(["models/lens_cap.py"], list(MODELS)),
+            model_deps.affected_models(["models/lens_cap/__init__.py"], list(MODELS)),
             ["lens_cap"],
         )
 

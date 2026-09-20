@@ -107,6 +107,12 @@ the part in print pose; dots express hierarchy. Register every model in
 check is optional, but must be a demonstrated physical gate rather than package
 furniture; `docs/conventions.md` §"Geometry checks" defines the decision.
 
+## Model documentation
+
+**Before every geometry or model-contract change, load `model-documentation`.**
+It resolves the public model's README and holds the change until the user confirms
+its purpose and accepted-design-decision delta.
+
 ## Design Guidelines
 
 **Default material is PETG** unless a model states otherwise. Clearances and
@@ -154,6 +160,7 @@ building a sketch.
 
 - `build123d-geometry-ops` — edge treatments and internal geometry verification.
 - `cad-iteration` — human-gated core-first CAD iteration for an anchor part and its downstream interfaces.
+- `model-documentation` — public-model README resolution and the purpose/decision user gate.
 - `fdm-fits-and-clearances` — named fit classes and FDM bore compensation.
 - `fasteners-and-inserts` — heat-set inserts, nut traps, and threads.
 - `box-closures` — box lids and closures.

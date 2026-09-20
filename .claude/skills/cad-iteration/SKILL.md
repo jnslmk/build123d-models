@@ -20,6 +20,9 @@ This skill implements the project policy in `docs/conventions.md` §"Core-first
 CAD iteration". Keep the current slice's decisions in the compact template at
 `references/cad-contract.md`.
 
+Before changing this contract or its geometry, load `model-documentation`; it
+owns README resolution and the purpose/accepted-decision user gate.
+
 ## Current-slice contract
 
 Before writing geometry, name the current slice and its **anchor part**. Complete

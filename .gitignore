@@ -19,6 +19,7 @@ exports/*.html
 # Generated web bundle (built by website.build_web_bundle / CI)
 website/models-manifest.json
 website/py-sources.json
+website/docs/
 
 # Sketches
 sketches/

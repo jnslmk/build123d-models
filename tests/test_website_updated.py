@@ -186,6 +186,109 @@ class ShallowCloneTests(unittest.TestCase):
         self.assertEqual(dates["b.py"].year, 2024)
 
 
+class DocumentationTests(unittest.TestCase):
+    def test_nearest_package_readme_overrides_its_family(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            models = root / "models"
+            nested = models / "family" / "nested"
+            nested.mkdir(parents=True)
+            for package in (models, models / "family", nested):
+                (package / "__init__.py").write_text("")
+            (nested / "part.py").write_text("def create(): pass\n")
+            (models / "README.md").write_text("root\n")
+            (models / "family" / "README.md").write_text("family\n")
+
+            with (
+                mock.patch.object(website, "HERE", root),
+                mock.patch.object(website, "MODELS_DIR", models),
+            ):
+                self.assertEqual(
+                    website._documentation_path("family.nested.part"),
+                    "models/family/README.md",
+                )
+                (nested / "README.md").write_text("nested\n")
+                self.assertEqual(
+                    website._documentation_path("family.nested.part"),
+                    "models/family/nested/README.md",
+                )
+
+    def test_bundle_copies_local_documentation_closure_and_removes_stale_files(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            readme = root / "models" / "family" / "README.md"
+            guide = readme.parent / "docs" / "guide.md"
+            manual = guide.parent / "assets" / "manual.pdf"
+            diagram = guide.parent / "images" / "diagram.svg"
+            for path, content in (
+                (
+                    readme,
+                    "[guide](docs/guide.md?version=1#design)\n"
+                    "[manual](docs/assets/manual.pdf#page=2)\n"
+                    "[external](https://example.test/design.md)\n"
+                    "[outside](../../../outside.md)\n"
+                    "[source](example.py)\n"
+                    "[script](docs/guide.js)\n"
+                    "[style](docs/guide.css)\n",
+                ),
+                (guide, "[diagram](images/diagram.svg?raw=1)\n"),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+            manual.parent.mkdir(parents=True, exist_ok=True)
+            diagram.parent.mkdir(parents=True, exist_ok=True)
+            manual.write_bytes(b"pdf")
+            diagram.write_text("<svg />")
+            (root.parent / "outside.md").write_text("do not bundle\n")
+            (readme.parent / "example.py").write_text("print('do not bundle')\n")
+            (guide.parent / "guide.js").write_text("console.log('source')\n")
+            (guide.parent / "guide.css").write_text("body { color: red; }\n")
+
+            web = root / "website"
+            stale = web / "docs" / "stale.md"
+            stale.parent.mkdir(parents=True)
+            stale.write_text("obsolete\n")
+            exports = root / "exports"
+            exports.mkdir()
+            bundled_exports = web / "exports"
+            manifest = {"models": [{"documentation": "models/family/README.md"}]}
+            with (
+                mock.patch.object(website, "HERE", root),
+                mock.patch.object(website, "MODELS", []),
+                mock.patch.object(website, "EXPORTS", exports),
+                mock.patch.object(website, "WEBSITE_DIR", web),
+                mock.patch.object(website, "WEBSITE_EXPORTS", bundled_exports),
+                mock.patch.object(website, "_py_sources", return_value={}),
+                mock.patch.object(website, "_manifest", return_value=manifest),
+            ):
+                website.build_web_bundle()
+
+            docs = web / "docs"
+            self.assertEqual(
+                (docs / "models/family/README.md").read_text(),
+                readme.read_text(),
+            )
+            self.assertEqual(
+                (docs / "models/family/docs/guide.md").read_text(),
+                guide.read_text(),
+            )
+            self.assertEqual(
+                (docs / "models/family/docs/assets/manual.pdf").read_bytes(),
+                b"pdf",
+            )
+            self.assertEqual(
+                (docs / "models/family/docs/images/diagram.svg").read_text(),
+                "<svg />",
+            )
+            self.assertFalse(stale.exists())
+            self.assertFalse((docs / "outside.md").exists())
+            self.assertFalse((docs / "models/family/example.py").exists())
+            self.assertFalse((docs / "models/family/docs/guide.js").exists())
+            self.assertFalse((docs / "models/family/docs/guide.css").exists())
+
+
 class AssemblyAssetTests(unittest.TestCase):
     def test_manifest_keeps_keys_but_nulls_assembly_downloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -199,6 +302,11 @@ class AssemblyAssetTests(unittest.TestCase):
                 mock.patch.object(website, "model_params", return_value=[]),
                 mock.patch.object(
                     website, "_source_path", return_value="models/scene.py"
+                ),
+                mock.patch.object(
+                    website,
+                    "_documentation_path",
+                    return_value="models/scene/README.md",
                 ),
                 mock.patch.object(website, "_last_edited", return_value=None),
             ):
@@ -216,6 +324,7 @@ class AssemblyAssetTests(unittest.TestCase):
                 "assembly",
                 "source",
                 "updated",
+                "documentation",
                 "stl",
                 "step",
                 "glb",
