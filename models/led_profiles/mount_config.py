@@ -57,8 +57,6 @@ CRADLE_OUTER_HALF_W = (c.WIDTH + BORE_FIT) / 2 + CRADLE_WALL  # 17.04
 BAND_LEN = 15.0
 BAND_RELIEF = 0.6
 
-DRAIN_D = 4.0  # every upward-facing pocket drains; see design-notes S5
-
 # House rule (AGENTS.md): chamfer horizontal edges, fillet vertical ones.
 EDGE_CHAMFER = 0.8
 EDGE_FILLET = 2.5

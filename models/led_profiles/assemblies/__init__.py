@@ -12,12 +12,12 @@ package rather than the single module it used to be: the site's roster
 | ``triangle``  | 3 lamps + 3 corners closed into a flat loop, 12 straps |
 | ``standing``  | 1 lamp upright in the tripod hub, legs deployed, 3 straps |
 | ``suspended`` | 1 lamp hung from two eye feet at the Bessel points, 4 straps |
-| ``stella_octangula`` | 12 lamps + 8 modular vertex hubs, 48 straps |
+| ``stella_octangula`` | 12 lamps + 8 round vertex hubs, 24 slim keepers |
 
 Every scene places the family's own finished parts rather than rebuilding them:
-``endcap``, ``strap``, ``feet``, ``corner``, ``stand``, and the stella core and
-arm modules. Scene modules own only the transforms and closed-form layout that
-join those parts.
+``endcap``, ``strap``, ``feet``, ``corner``, ``stand``, and the Stella core,
+arm and keeper modules. Scene modules own only the transforms and closed-form
+layout that join those parts.
 
 Names re-exported here are what ``models.led_profiles`` and ``checks.py``
 import, so ``from . import assemblies; assemblies.create_triangle()`` reads

@@ -314,11 +314,11 @@ tippier without failing.
 
 ---
 
-## 5. Outdoor, lightly — drain rather than seal
+## 5. Outdoor materials, without a weather-sealing claim
 
-The target is "survives light rain". Explicitly **not** an IP rating: no gaskets,
-no O-rings, no sealed joints. Three consequences, and the first one propagates
-further than it looks.
+The family is **unsealed and has no IP rating**: there are no gaskets, O-rings
+or sealed joints. ASA and stainless hardware make the printed and metal parts
+suitable for outdoor exposure, but they do not weatherproof the assembly.
 
 ### ASA, and what it does to every fit in the family
 
@@ -338,27 +338,14 @@ So the cradle specifies `for_material(SLIDING, "asa")`, **not** `SNUG`. Reaching
 for the fit class that *reads* right here gives a press fit on a 0.5 mm wall
 aluminium tube.
 
-### The print poses create three water traps
+### Pockets have solid floors
 
-Every part in this family is posed to print without support, and in all three
-cases that means a pocket opening upward. Two of the three get drains, and
-`checks.py` asserts a drain path from their lowest point:
-
-1. **The stand hub's gland well** — a cup directly under a vertical tube. Drain
-   straight through the flange.
-2. **The cradle trough** — holds water whenever the LEDs face up. Slots in the
-   floor.
-
-3. **The corner — the stated exception.** Its channel and both its troughs are
-   **undrained**. They were drilled at four stations (the knuckle, one short of
-   each cradle, and two out along each trough) and those drains have since been
-   removed, so the channel now holds water to the depth of its own mouth and
-   each trough to the lowest lip of its floor. `checks.py` reports both depths
-   and asserts the plinth is solid at every station that used to be drilled —
-   the exception is tested rather than merely written down, so re-drilling one
-   fails a check and forces this section to be restated. **A corner therefore
-   wants a sheltered mounting**, and a form that stands out in the rain wants
-   its drains back: the geometry is in this file's git history.
+The support-free print poses leave the stand well, cradle troughs and corner
+channel opening upward. Their floors remain solid; no outlet is cut through
+them. Water can therefore collect wherever those pockets face upward, including
+against the aluminium and around the corner's glands and jumper loop. This is a
+limit of the unsealed family, not a weather-management feature: shelter the
+complete assembly from rain.
 
 ### The rest
 
@@ -366,11 +353,9 @@ cases that means a pocket opening upward. Two of the three get drains, and
 screws, the leg pivots. Legs in stainless or galvanised flat bar; plain mild
 steel will bleed rust down a white diffuser within a season.
 
-And a note that is a recommendation rather than geometry: **the extrusion itself
-is not sealed either.** The diffuser snap and the endcap butt joint both admit
-water. For a horizontal outdoor tube the sensible move is a small drain hole in
-the tube's belly at its lowest point — but that is a modification to a bought
-part, so it stays advice.
+The extrusion is not sealed either. The diffuser snap and the endcap butt joint
+both admit water, reinforcing the requirement to shelter the assembly rather
+than modify the bought tube.
 
 ---
 
@@ -380,10 +365,19 @@ part, so it stays advice.
 |---|---|---|
 | `mount_config.py` | — | shared cradle, strap and gland constants, all derived from `config.py` |
 | `cradle.py` | `create_cradle()` | the shared trough, and the sections every foot cuts with |
-| `strap.py` | `create_strap()` | the one universal part, two per station |
+| `strap.py` | `create_strap()` | shared by corners and feet, two per station |
 | `corner.py` | `create_corner(angle=60)` | two cradles on a plinth, V-bar with an open channel |
 | `stand.py` | `create_stand_hub()` | vertical cradle, offset gland well, side exit, three leg pivots |
 | `feet.py` | `create_eye_foot()`, `create_wall_foot()` | eye is a **through-bolt**, not an insert |
+| `stella_config.py` | — | one-bolt keyed hub and one-keeper saddle dimensions |
+| `stella_core.py` | `create_core()` | round three-arm hub with six blind key pockets and a central sling slot |
+| `stella_arm.py` | `create_arm()` | ribbed keyed tab, 36 mm saddle and through-bolt crossbar |
+| `stella_keeper.py` | `create_keeper()` | 10 mm profile keeper, two M4 through-bolts with exposed nuts |
+
+The Stella is the deliberate exception to the shared strap pattern. Its short
+saddle takes one slim keeper, while one M5 through-bolt clamps each arm to the
+round core and two tapered FREE-fit keys carry shear. This removes heat-set
+inserts and captive-nut pockets from both Stella joints.
 
 Two departures from the sketch above, both found while building:
 
@@ -447,10 +441,9 @@ hollow, point-sampled; bed footprint inside 256 × 256 across the whole angle
 sweep, so the parts print on either machine; the angle between the two cradle
 axes measured *from the geometry* rather than asserted from the input; mock gland
 envelopes proven non-intersecting at the computed setback, with the dark run
-reported as a check line so it is visible in `uv run check`; a drain path from
-every enclosed pocket that has one, and solid plinth plus reported water depth
-at the corner's four undrained stations; and the stand's `F_tip` computed from
-real part volumes.
+reported as a check line so it is visible in `uv run check`; solid pocket floors
+where the mounts retain material; and the stand's `F_tip` computed from real
+part volumes.
 
 ---
 
@@ -599,7 +592,6 @@ ever reopens:
   change.
 - **Re-terminate below the cap.** The same question §9 asks of the corner
   pigtails, and the same answer would serve both.
-
 
 ---
 

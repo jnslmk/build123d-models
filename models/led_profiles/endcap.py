@@ -1302,8 +1302,8 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         # POCKET_Y_LOW by the strap slot's web, which is a flange constraint
         # with no jurisdiction out here. The floor this leaves is flat,
         # upward-facing in print pose and contiguous with the pocket's mouth,
-        # so it prints on solid material without support and still drains
-        # through the bore.
+        # so it prints on solid material without support and remains open to
+        # the gland bore.
         with BuildSketch(Plane.XY.offset(spec.cap_t)):
             add(plug_void_section(spec))
         extrude(amount=spec.plug_depth, mode=Mode.SUBTRACT)
@@ -1530,9 +1530,7 @@ def _plug_void_tip_edges(shape: BuildPart | Part, spec: Endcap = DEFAULT) -> Sha
     return ShapeList([edge for edge in curves if edge.length < outer_len - 1.0])
 
 
-def plug_tip_corner_edges(
-    shape: BuildPart | Part, spec: Endcap = DEFAULT
-) -> ShapeList:
+def plug_tip_corner_edges(shape: BuildPart | Part, spec: Endcap = DEFAULT) -> ShapeList:
     """Sharp corners left where the tip's lead-in chamfer turns a corner.
 
     A chamfer taken round a wire that has corners leaves one edge per corner,

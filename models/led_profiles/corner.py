@@ -49,11 +49,9 @@ the V's inner root, the channel's ends out at the knuckle), the whole rim at
 (chamfered -- outer silhouette, channel mouth, and both trough mouths, which is
 the tube's lead-in as it drops in sideways), and the bed face's outer wire.
 
-The channel and both troughs carry **no drains**. Every other upward-facing
-pocket in this family has one (``docs/design-notes.md`` S5), so this corner is
-the family's one stated exception rather than an oversight: standing water sits
-in the channel with the glands and the jumper loop, and in each trough against
-the aluminium. Anywhere it can rain, that is the corner's own limitation.
+The channel and both troughs have solid floors and can retain standing water
+around the glands, jumper loop and aluminium. This is consistent with the
+unsealed family: the complete assembly must be sheltered from rain.
 
 One build123d trap shapes how this file is written: **a ``BuildSketch`` opened
 inside a helper function does not attach to the caller's ``BuildPart``**, and

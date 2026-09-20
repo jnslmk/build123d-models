@@ -2,8 +2,8 @@
 
 One tetrahedron stays on the mathematical cube faces. The other moves each edge
 outward by one profile envelope, so the six apparent crossings pass in parallel
-planes instead of occupying the same volume. Each vertex uses one flat core,
-three support-free cradle arms and six existing profile straps.
+planes instead of occupying the same volume. Each vertex uses one round core,
+three support-free cradle arms and three slim profile keepers.
 
     uv run show led_profiles.assemblies.stella_octangula
 """
@@ -20,10 +20,10 @@ from models.lib.edges import as_part
 from .. import config as c
 from .. import mount_config as m
 from .. import stella_config as s
-from .. import strap as strap_mod
 from ..assembly import PARAMS, parts as lamp_parts
 from ..stella_arm import create_arm
 from ..stella_core import create_core
+from ..stella_keeper import seated as seated_keeper
 
 IS_ASSEMBLY = True
 
@@ -136,7 +136,7 @@ def _vertex_core_frame(
     index: int,
     offset: float,
 ) -> Plane:
-    """Core frame aligned to the x-face arm's bolt pair and radial normal."""
+    """Core frame aligned to the x-face arm's bolt and radial normal."""
     signs = Vector(*(1.0 if value > 0 else -1.0 for value in _components(vertex)))
     radial = _unit(signs)
     centre = vertex + signs * (offset / 3)
@@ -150,27 +150,20 @@ def _vertex_core_frame(
     face_normal = _face_normal(vertex, 0)
     pair_axis = _unit(face_normal.cross(edge))
 
-    # The core is authored z=0..CORE_T; its top is the arm-mating plane.
-    return Plane(origin=centre - radial * s.CORE_T, x_dir=pair_axis, z_dir=radial)
+    # The core grows outward from the arm-mating plane, leaving the ribs and
+    # exposed nuts on the inward side of the joint.
+    return Plane(origin=centre, x_dir=pair_axis, z_dir=radial)
 
 
-def _arm_straps(
-    frame: Plane, tag: str, strap_sources: list[tuple[Part, float]]
-) -> list[Part]:
-    straps: list[Part] = []
-    for local, station in strap_sources:
-        straps.append(_placed(local, frame, f"strap ({tag}, {station:.0f} mm)"))
-    return straps
+def _arm_keeper(frame: Plane, tag: str, keeper_source: Part) -> Part:
+    return _placed(keeper_source, frame, f"stella keeper ({tag})")
 
 
 def create_stella_octangula(length: float = c.LENGTH) -> Compound:
-    """Twelve lamps, 24 arms, eight cores and 48 straps in the final form."""
+    """Twelve lamps, 24 arms, eight cores and 24 keepers in the final form."""
     children: list[Part] = []
     arm_source = create_arm()
-    strap_sources = [
-        (strap_mod.seated(s.CRADLE_START + station), station)
-        for station in m.STRAP_STATIONS
-    ]
+    keeper_source = seated_keeper(s.CRADLE_START + s.KEEPER_STATION)
     lamp_sources = lamp_parts(length, cable=False)
 
     for tetra_name, signs, offset in (
@@ -218,14 +211,18 @@ def create_stella_octangula(length: float = c.LENGTH) -> Compound:
                     f"stella vertex arm ({tetra_name} {edge_index} far)",
                 )
             )
-            children.extend(
-                _arm_straps(
-                    near_frame, f"{tetra_name} edge {edge_index} near", strap_sources
+            children.append(
+                _arm_keeper(
+                    near_frame,
+                    f"{tetra_name} edge {edge_index} near",
+                    keeper_source,
                 )
             )
-            children.extend(
-                _arm_straps(
-                    far_frame, f"{tetra_name} edge {edge_index} far", strap_sources
+            children.append(
+                _arm_keeper(
+                    far_frame,
+                    f"{tetra_name} edge {edge_index} far",
+                    keeper_source,
                 )
             )
 

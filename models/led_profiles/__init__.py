@@ -41,6 +41,7 @@ from .stand.leg import create_leg
 from .strain_relief import create_strain_relief
 from .stella_arm import create_arm as create_stella_arm
 from .stella_core import create_core as create_stella_core
+from .stella_keeper import create_keeper as create_stella_keeper
 from .strap import create_strap
 
 # ``create()`` is a finished lamp: bought aluminium, bought diffuser, the COB
@@ -72,6 +73,7 @@ __all__ = [
     "create_standing",
     "create_stella_arm",
     "create_stella_core",
+    "create_stella_keeper",
     "create_stella_octangula",
     "create_strain_relief",
     "create_strap",

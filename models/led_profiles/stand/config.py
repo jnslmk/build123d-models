@@ -232,7 +232,6 @@ EDGE_FILLET = m.EDGE_FILLET  # 2.5
 # wall between them. Same 0.6 factor the old stand used, for the same reason.
 LIP_FILLET = 0.6 * EDGE_FILLET  # 1.5
 PAD_FILLET = 2.0  # the pads are 11 mm wide; this is the biggest that leaves a land
-DRAIN_D = m.DRAIN_D  # 4.0
 
 ASA_DENSITY = 1.07e-3  # g/mm^3
 
@@ -273,7 +272,9 @@ def keeper_pull(tip_force_n: float = 10.0) -> float:
     return tip_force_n * (tip_z - STATION_HIGH) / STATION_SPACING
 
 
-def tip_force(post_mass_g: float, leg_mass_g: float, tube_mass_g: float = 450.0) -> float:
+def tip_force(
+    post_mass_g: float, leg_mass_g: float, tube_mass_g: float = 450.0
+) -> float:
     """Horizontal push at the top of the tube that tips the stand, in newtons.
 
     A tripod tips about the line joining two adjacent legs, at ``reach *

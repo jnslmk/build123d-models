@@ -20,6 +20,7 @@ from math import cos, hypot, radians, sin, sqrt
 
 from build123d import (
     Align,
+    Axis,
     Compound,
     Cylinder,
     GeomType,
@@ -31,6 +32,7 @@ from build123d import (
 from models.lib import fits
 from models.lib.checks import (
     Report,
+    fastener_clearance,
     interior_angle,
     is_periodic_seam,
     is_vertical_seam,
@@ -50,6 +52,7 @@ from . import mount_config as mc
 from . import stand as stand_mod
 from . import stella_arm as stella_arm_mod
 from . import stella_config as stella_cfg
+from . import stella_keeper as stella_keeper_mod
 from . import stella_core as stella_core_mod
 from . import stella_core_offset as stella_core_offset_mod
 from .stand import config as sc
@@ -64,8 +67,6 @@ from . import cradle as cradle_mod
 from .cradle import (
     create_cradle,
     outer_half_width,
-    trough_floor_arc_r,
-    trough_floor_z,
 )
 from .profile import _loc, create_diffuser, create_extrusion, create_strip
 
@@ -2053,9 +2054,8 @@ def check_cradle(part: Part, r: Report) -> None:
         f"{mc.BAND_RELIEF} mm diametral, for the polygon's angular slack",
     )
     r.check(
-        not r.solid_at(part, mc.CRADLE_LEN / 3, 0, 0.5),
-        "cradle floor drains",
-        "an upward-facing trough outdoors is a gutter",
+        r.solid_at(part, mc.CRADLE_LEN / 3, 0, 0.5),
+        "cradle floor is continuous",
     )
     r.check(
         mc.BORE_FIT > 0.02,
@@ -2185,64 +2185,12 @@ def check_cradle_edges(
         f"{name}: trough's own bed sliver left raw",
         "2.2 mm of a clipped R17 arc meeting it at ~4 deg -- no corner to break",
     )
-    # The drain mouths take a boolean cone, not an edge op.
-    x_drain = mc.CRADLE_LEN / 3
-    r.check(
-        not r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.3 * ch, 0.2 * ch),
-        f"{name}: drain mouth coned at the bed",
-        f"{ch} mm lead-in, cut as a boolean",
-    )
-    r.check(
-        r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.3, ch + 0.4),
-        "...and the bore is back to DRAIN_D above it",
-    )
-
-    # And the drain's *other* mouth, where it actually drains from: the
-    # trough's own floor, the bore's curved underside. x_drain (CRADLE_LEN/3,
-    # the default station) falls in the relieved middle, so its floor sits
-    # BAND_RELIEF below the nominal one and curves to a wider radius --
-    # trough_floor_z/trough_floor_arc_r are what a raw TUBE_UNDER_Z would get
-    # wrong here, the same way it would if this station ever moved into a
-    # contact band instead.
-    floor_z = trough_floor_z(x_drain, mc.CRADLE_LEN)
-    arc_r = trough_floor_arc_r(x_drain, mc.CRADLE_LEN)
-    r.check(
-        not r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.25 * ch, floor_z - 0.25 * ch),
-        f"{name}: drain funnelled at the trough floor -- the water side",
-        f"{ch} mm lead-in at floor z={floor_z:.2f}",
-    )
-    r.check(
-        r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 1.5 * ch, floor_z - 0.25 * ch),
-        "...and no more than that",
-    )
-    # The flank of that same mouth, and the only sample here that can tell the
-    # old funnel from the new one. The floor is a cylinder lying along the
-    # tube, so at y = DRAIN_D/2 it has already climbed ``lip`` above its lowest
-    # point; a funnel whose widest ring sat *at* that lowest point never
-    # reached the lip out here and left it raw right round both flanks -- ~4
-    # sharp edges per drain, which is what the audit used to allow as the
-    # "drain funnel residual". This point sits below the floor at this y (so it
-    # was solid before) and inside the lifted cone (so it is air now).
-    lip = arc_r - sqrt(arc_r**2 - (mc.DRAIN_D / 2) ** 2)
-    r.check(
-        not r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 0.05, floor_z + lip / 2),
-        f"{name}: ...and broken on the flank, where the floor has climbed away",
-        f"lip {lip:.3f} mm at y=DRAIN_D/2, funnel lifted "
-        f"{cradle_mod.drain_funnel_rise(arc_r):.3f} mm above the floor",
-    )
-    r.check(
-        r.solid_at(part, x_drain, mc.DRAIN_D / 2 + 2 * ch + 0.5, floor_z + lip / 2),
-        "...and the floor outboard of the funnel is untouched",
-    )
 
     # The raw-edge rule, made falsifiable, over the whole solid -- not just
     # the samples above. ``extra_sharp_allow`` lets a foot add its own
     # exceptions (its counterbore) on top of the ones every cradle-derived
     # part shares: the insert mouths, the bed sliver, and the bore/wall's own
-    # cross-section wherever the trough is axially discontinuous. The
-    # curved-floor drains used to need a fourth (their funnel left the lip raw
-    # on both flanks); ``cradle.drain_funnel`` reaches the flanks now, so there
-    # is nothing left to allow.
+    # cross-section wherever the trough is axially discontinuous.
     _check_sharp_edges(
         part,
         name,
@@ -2808,7 +2756,7 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
             tag + "...and no further into the channel than that",
         )
 
-    check_corner_undrained(part, r, angle)
+    check_corner_floors(part, r, angle)
 
     # The raw-edge rule, made falsifiable, over the whole solid. Insert
     # mouths and the bore/wall's own cross-section seam are the same
@@ -2858,23 +2806,8 @@ def check_corner_edges(part: Part, r: Report, angle: float = 60.0) -> None:
     )
 
 
-def check_corner_undrained(part: Part, r: Report, angle: float = 60.0) -> None:
-    """The corner is the one part in this family whose pockets do **not** drain.
-
-    This is the complement of the check it replaces, and it exists for the
-    same reason that one did: design-notes S5 promises "a drain out of every
-    upward-facing pocket", the corner is now the stated exception to it, and
-    an exception that is only *not tested* is indistinguishable from a
-    regression. So the floors are asserted solid at exactly the four stations
-    that used to be drilled -- if a drain comes back, this fails and whoever
-    put it there has to restate S5 rather than quietly re-diverge from it.
-
-    It also reports the water each pocket now holds, computed from the same
-    floor geometry ``cradle.trough_floor_z`` gives the cradle: depth to the
-    channel's own rim at the trough mouth, and depth to the lowest lip of
-    each trough. Those numbers are the cost of the decision, so they belong
-    in ``uv run check`` output where they are read, not in a comment.
-    """
+def check_corner_floors(part: Part, r: Report, angle: float = 60.0) -> None:
+    """All corner pocket floors remain continuous through the plinth."""
     start = corner_mod.cradle_start(angle)
     bearing = corner_mod._axis_bearings(angle)[0]
     a = radians(bearing)
@@ -2887,36 +2820,21 @@ def check_corner_undrained(part: Part, r: Report, angle: float = 60.0) -> None:
             z,
         )
 
-    # Mid-plinth: below any pocket floor, above the bed chamfer's run-out.
     z_plinth = corner_mod.PLINTH_H / 2
-
     r.check(
         r.solid_at(part, 0.0, 0.0, z_plinth),
-        tag + "knuckle plinth is solid -- no drain",
-        f"channel floor at z={corner_mod.PLINTH_H}, holds water",
+        tag + "knuckle plinth floor is continuous",
     )
     r.check(
         r.solid_at(part, *at(start * 0.55, 0.0, z_plinth)),
-        tag + "near arm plinth is solid -- no drain",
+        tag + "near arm plinth floor is continuous",
     )
     for frac in (0.35, 0.75):
         d = start + mc.CRADLE_LEN * frac
         r.check(
             r.solid_at(part, *at(d, 0.0, z_plinth)),
-            tag + f"trough plinth is solid at {frac:.0%} of the cradle -- no drain",
+            tag + f"trough floor is continuous at {frac:.0%} of the cradle",
         )
-
-    # What that costs, in standing water. The channel fills to its own mouth
-    # at the trough, since that is where its rim is lowest; a trough fills to
-    # the lowest point of its floor's lip, which is the relieved middle.
-    channel_depth = corner_mod.TOP_Z - corner_mod.PLINTH_H
-    trough_depth = mc.CRADLE_DEPTH - trough_floor_z(mc.CRADLE_LEN / 2, mc.CRADLE_LEN)
-    r.check(
-        True,
-        tag + "standing water, both pockets (the stated S5 deviation)",
-        f"channel up to {channel_depth:.1f} mm deep, trough up to "
-        f"{trough_depth:.1f} mm -- sheltered mounting only",
-    )
 
 
 def _tube_clears_corner(part: Part, angle: float) -> bool:
@@ -3755,43 +3673,185 @@ def _check_suspended_bessel_points(suspended: Compound, r: Report) -> None:
 
 
 def check_stella_parts(r: Report) -> None:
-    """Print pose, fastener voids and the stated load basis for the new hub."""
+    """Print pose, mating clearances, fastener access and hub load basis."""
     r.section("Stella connector")
     arm = stella_arm_mod.create_arm()
+    keeper = stella_keeper_mod.create_keeper()
+    seated_keeper = stella_keeper_mod.seated(
+        stella_cfg.CRADLE_START + stella_cfg.KEEPER_STATION
+    )
     base = stella_core_mod.create_core(0.0)
     offset = stella_core_offset_mod.create()
     check_mount_basics(arm, "stella arm", r)
+    check_mount_basics(keeper, "stella keeper", r)
     check_mount_basics(base, "stella base core", r)
     check_mount_basics(offset, "stella offset core", r)
 
-    face_z = sqrt(2) * stella_cfg.BOLT_FACE_X
-    for side in (-1.0, 1.0):
-        face = (
-            stella_cfg.BOLT_FACE_X,
-            side * stella_cfg.BOLT_Y,
-            face_z,
+    def moved(
+        point: tuple[float, float, float],
+        direction: tuple[float, float, float],
+        distance: float,
+    ) -> tuple[float, float, float]:
+        return (
+            point[0] + direction[0] * distance,
+            point[1] + direction[1] * distance,
+            point[2] + direction[2] * distance,
         )
-        inside = tuple(
-            face[axis] + stella_arm_mod.INTO_ARM[axis] * 2.0 for axis in range(3)
+
+    bolt_face = (
+        stella_cfg.BOLT_FACE_X,
+        0.0,
+        sqrt(2) * stella_cfg.BOLT_FACE_X,
+    )
+    bolt_mid = moved(bolt_face, stella_arm_mod.INTO_ARM, stella_cfg.TAB_T / 2)
+    r.check(
+        not r.solid_at(arm, *bolt_mid),
+        "arm: one M5 clearance bore passes through the keyed tab",
+    )
+    for side in (-1.0, 1.0):
+        key_face = (
+            stella_cfg.BOLT_FACE_X,
+            side * stella_cfg.KEY_Y,
+            sqrt(2) * stella_cfg.BOLT_FACE_X,
+        )
+        key_mid = moved(
+            key_face,
+            stella_arm_mod.CORE_NORMAL,
+            stella_cfg.KEY_PROTRUSION / 2,
         )
         r.check(
-            not r.solid_at(arm, *inside),
-            f"arm nut pocket {side:+.0f}: opens behind the mating face",
+            r.solid_at(arm, *key_mid),
+            f"arm: shear key {side:+.0f} projects from the mating face",
         )
+
+    bolt_rear = moved(bolt_face, stella_arm_mod.INTO_ARM, stella_cfg.TAB_T)
+    nut_fouling = fastener_clearance(
+        arm,
+        bolt_rear,
+        stella_cfg.BOLT_NUT_D,
+        stella_cfg.BOLT_NUT_H,
+        Axis(bolt_rear, stella_arm_mod.INTO_ARM),
+    )
+    r.check(
+        nut_fouling < 0.01,
+        "arm: exposed M5 nut is reachable between the support ribs",
+        f"{nut_fouling:.3f} mm^3 obstructed",
+    )
+
+    station = stella_cfg.CRADLE_START + stella_cfg.KEEPER_STATION
+    for side in (-1.0, 1.0):
+        r.check(
+            not r.solid_at(
+                keeper,
+                side * stella_cfg.KEEPER_BOLT_U,
+                0.0,
+                stella_cfg.KEEPER_FOOT_T / 2,
+            ),
+            f"keeper: M4 bore {side:+.0f} passes through its foot",
+        )
+        r.check(
+            not r.solid_at(
+                arm,
+                station,
+                side * stella_cfg.KEEPER_BOLT_U,
+                stella_cfg.KEEPER_FOOT_T / 2,
+            ),
+            f"arm: M4 bore {side:+.0f} passes through the crossbar",
+        )
+        head_fouling = fastener_clearance(
+            keeper,
+            (
+                side * stella_cfg.KEEPER_BOLT_U,
+                0.0,
+                stella_cfg.KEEPER_FOOT_T,
+            ),
+            stella_cfg.KEEPER_BOLT_HEAD_D,
+            4.0,
+            driver_d=stella_cfg.KEEPER_BOLT_HEAD_D,
+            driver_len=12.0,
+        )
+        r.check(
+            head_fouling < 0.01,
+            f"keeper: M4 head and driver clear at foot {side:+.0f}",
+            f"{head_fouling:.3f} mm^3 obstructed",
+        )
+
+    arm_keeper_overlap = _shared_volume(arm, seated_keeper)
+    r.check(
+        arm_keeper_overlap < 0.01,
+        "keeper seats on the arm crossbar without interference",
+        f"{arm_keeper_overlap:.3f} mm^3 shared",
+    )
+    tube_pose = Pos(
+        stella_cfg.CRADLE_START,
+        0.0,
+        mc.TUBE_UNDER_Z,
+    )
+    profile = as_part(tube_pose * create_extrusion(stella_cfg.SADDLE_LEN))
+    diffuser = as_part(tube_pose * create_diffuser(stella_cfg.SADDLE_LEN))
+    for printed, printed_name in ((arm, "arm"), (seated_keeper, "keeper")):
+        for bought, bought_name in ((profile, "extrusion"), (diffuser, "diffuser")):
+            overlap = _shared_volume(printed, bought)
+            r.check(
+                overlap < 0.01,
+                f"{printed_name} clears the {bought_name}",
+                f"{overlap:.3f} mm^3 shared",
+            )
 
     for name, part, offset_value in (
         ("base", base, 0.0),
         ("offset", offset, stella_cfg.EDGE_OFFSET),
     ):
-        for index, (x, y) in enumerate(stella_core_mod.bolt_centers(offset_value)):
+        bolts = stella_core_mod.bolt_centers(offset_value)
+        keys = stella_core_mod.key_centers(offset_value)
+        r.check(len(bolts) == 3, f"{name} core has one bolt bore per arm")
+        r.check(len(keys) == 6, f"{name} core has two key pockets per arm")
+        radius = stella_cfg.core_outline_radius(offset_value)
+        bb = part.bounding_box()
+        r.check(
+            abs(bb.size.X - 2 * radius) < 0.02 and abs(bb.size.Y - 2 * radius) < 0.02,
+            f"{name} core is circular",
+            f"{bb.size.X:.2f} x {bb.size.Y:.2f} mm",
+        )
+        for index, (x, y) in enumerate(bolts):
             r.check(
                 not r.solid_at(part, x, y, stella_cfg.CORE_T / 2),
                 f"{name} core bolt {index}: clearance bore is through",
             )
+            head_at = (x, y, stella_cfg.CORE_T)
+            head_fouling = fastener_clearance(
+                part,
+                head_at,
+                stella_cfg.BOLT_HEAD_D,
+                stella_cfg.BOLT_HEAD_H,
+                Axis(head_at, (0.0, 0.0, 1.0)),
+                stella_cfg.BOLT_DRIVER_D,
+                stella_cfg.BOLT_DRIVER_LEN,
+            )
+            r.check(
+                head_fouling < 0.01,
+                f"{name} core bolt {index}: M5 head and driver clear the outer face",
+                f"{head_fouling:.3f} mm^3 obstructed",
+            )
+        pocket_depth = stella_cfg.KEY_PROTRUSION + stella_cfg.KEY_DEPTH_RELIEF
+        for index, (x, y, _angle) in enumerate(keys):
+            r.check(
+                not r.solid_at(
+                    part,
+                    x,
+                    y,
+                    stella_cfg.KEY_PROTRUSION / 2,
+                ),
+                f"{name} core key {index}: pocket accepts the arm key",
+            )
+            r.check(
+                r.solid_at(part, x, y, pocket_depth + 0.4),
+                f"{name} core key {index}: pocket remains blind",
+            )
         eye_x, eye_y = stella_core_mod.eye_center(offset_value)
         r.check(
             not r.solid_at(part, eye_x, eye_y, stella_cfg.CORE_T / 2),
-            f"{name} core: sling eye is through",
+            f"{name} core: central sling slot is through",
         )
         r.check(
             r.solid_at(
@@ -3800,7 +3860,7 @@ def check_stella_parts(r: Report) -> None:
                 eye_y + stella_cfg.SLING_SLOT_H / 2 + 4.0,
                 stella_cfg.CORE_T / 2,
             ),
-            f"{name} core: material surrounds the sling eye",
+            f"{name} core: material surrounds the sling slot",
         )
         _check_sharp_edges(
             part,
@@ -3815,53 +3875,58 @@ def check_stella_parts(r: Report) -> None:
             ),
         )
 
-    def _is_stella_nut_edge(edge) -> bool:
-        centre = edge.bounding_box().center()
-        return (
-            edge.bounding_box().max.X < stella_cfg.FLANGE_RUN + 1.0
-            and abs(abs(centre.Y) - stella_cfg.BOLT_Y) < 5.0
-            and edge.bounding_box().min.Z > 8.0
-        )
-
     _check_sharp_edges(
         arm,
         "stella arm",
         r,
         (
             (
-                "insert mouth left raw",
-                _is_insert_mouth_edge,
-                "the existing cradle's heat-set insert exception",
-            ),
-            (
                 "trough seam",
                 lambda edge: _is_trough_seam_edge(edge, mc.CRADLE_DEPTH),
-                "the existing cradle's bore/wall cross-section discontinuity",
+                "the cradle bore/wall cross-section discontinuity",
             ),
             (
                 "trough bed sliver",
                 _is_bed_sliver,
-                "the existing cradle's shallow tangent footprint",
+                "the cradle's shallow tangent footprint",
             ),
             (
-                "captive-nut pocket",
-                _is_stella_nut_edge,
-                "nut pockets stay unchamfered so an M5 nut cannot spin",
+                "core-mating key shoulders",
+                lambda edge: edge.bounding_box().max.X
+                < stella_cfg.FLANGE_RUN + stella_cfg.TAB_H / 2,
+                "key bearing shoulders stay square and are buried in the round "
+                "core pockets",
             ),
+        ),
+    )
+    _check_sharp_edges(
+        keeper,
+        "stella keeper",
+        r,
+        (
             (
-                "treated triangular flange",
-                lambda edge: edge.bounding_box().max.X < stella_cfg.FLANGE_RUN + 1.0,
-                "the R0.8-treated 54.7-degree flange retains acute residual "
-                "edges; its sloped perimeter is buried against the core",
+                "periodic through-hole seam",
+                lambda edge: is_periodic_seam(keeper, edge),
+                "a cylindrical bore owns both sides of its topology seam",
             ),
         ),
     )
 
-    bearing_stress = stella_cfg.DESIGN_HUB_LOAD_N / (2 * stella_cfg.CORE_T * 5.0)
+    bearing_stress = stella_cfg.DESIGN_HUB_LOAD_N / (
+        stella_cfg.CORE_T * stella_cfg.BOLT_NOMINAL_D
+    )
     r.check(
         bearing_stress < stella_cfg.ASA_SUSTAINED_STRESS_MPA,
-        "two M5 core bolts keep nominal bearing stress below ASA sustained limit",
+        "one M5 core bolt keeps nominal bearing stress below ASA sustained limit",
         f"{bearing_stress:.2f} MPa vs {stella_cfg.ASA_SUSTAINED_STRESS_MPA:.1f} MPa",
+    )
+    key_stress = stella_cfg.DESIGN_HUB_LOAD_N / (
+        2 * stella_cfg.KEY_D * stella_cfg.KEY_PROTRUSION
+    )
+    r.check(
+        key_stress < stella_cfg.ASA_SUSTAINED_STRESS_MPA,
+        "two keys keep nominal shear-bearing stress below ASA sustained limit",
+        f"{key_stress:.2f} MPa vs {stella_cfg.ASA_SUSTAINED_STRESS_MPA:.1f} MPa",
     )
 
 
@@ -3872,7 +3937,7 @@ def _check_stella_geometry(scene: Compound, r: Report) -> None:
         "stella vertex arm": 24,
         "stella vertex core": 4,
         "stella offset vertex core": 4,
-        "strap (": 48,
+        "stella keeper (": 24,
     }
     for prefix, expected in counts.items():
         found = sum(child.label.startswith(prefix) for child in scene.children)
@@ -3886,6 +3951,51 @@ def _check_stella_geometry(scene: Compound, r: Report) -> None:
         "stella: each crossing separates full profile envelopes by FREE fit",
         f"{stella_cfg.CROSSING_GAP:.2f} mm axes, {c.HEIGHT:.2f} mm profile, "
         f"{stella_cfg.CROSSING_CLEAR:.2f} mm clear",
+    )
+
+    arms = [
+        child for child in scene.children if child.label.startswith("stella vertex arm")
+    ]
+    cores = [child for child in scene.children if "vertex core" in child.label]
+    keepers = [
+        child for child in scene.children if child.label.startswith("stella keeper (")
+    ]
+
+    def nearest(part: Part, candidates: list[Part]) -> Part:
+        centre = part.bounding_box().center()
+        return min(
+            candidates,
+            key=lambda candidate: (candidate.bounding_box().center() - centre).length,
+        )
+
+    joint_overlaps = []
+    for tetra in ("base", "offset"):
+        sample = next(
+            (
+                arm
+                for arm in arms
+                if arm.label.startswith(f"stella vertex arm ({tetra}")
+            ),
+            None,
+        )
+        if sample is not None and cores:
+            joint_overlaps.append(_shared_volume(sample, nearest(sample, cores)))
+    worst_joint = max(joint_overlaps, default=float("inf"))
+    r.check(
+        len(joint_overlaps) == 2 and worst_joint < 0.01,
+        "stella: keyed arm joints seat without core interference",
+        f"{worst_joint:.3f} mm^3 worst shared volume",
+    )
+
+    keeper_overlap = (
+        _shared_volume(keepers[0], nearest(keepers[0], arms))
+        if keepers and arms
+        else float("inf")
+    )
+    r.check(
+        keeper_overlap < 0.01,
+        "stella: keeper seats on its arm without interference",
+        f"{keeper_overlap:.3f} mm^3 shared volume",
     )
 
 
@@ -3944,15 +4054,11 @@ def _shared_volume(a: Part, b: Part) -> float:
 # not noticed.
 #
 # The audit's first run left five findings that resolved to no design
-# decision at all, labelled KNOWN GAP and left to the model files. Four have
-# since been fixed in the geometry rather than in the allow-list -- the
-# curved-floor drain funnels (cradle.drain_funnel), the counterbore floor
-# steps (feet, stand), the cable slot's mouth (stand._cable_mouth_flare) and
-# the corner's own trough-mouth fillet (corner.MOUTH_FILLET, which was also
-# putting material inside the endcap collar). Two remain, both stated in
-# their own reason rather than folded into a neighbouring one: the well /
-# cable-slot crossing's horizontal pair, and the socket-root fillet's run-out
-# at the collar exclusion.
+# decision at all. Geometry files now treat the counterbore floor steps
+# (feet, stand), cable-slot mouth (stand._cable_mouth_flare), and the corner's
+# trough-mouth fillet directly. Two exceptions remain, each stated in its own
+# reason: the well / cable-slot crossing's horizontal pair, and the
+# socket-root fillet's run-out at the collar exclusion.
 #
 # **An allow entry is a claim about what an edge is, not a way to get to
 # green.** The run-out pair spent a release inside the "collar bore root"
@@ -4509,6 +4615,7 @@ TARGET_CHECKS: dict[str, Callable[[Report], None]] = {
     "led_profiles.strap": lambda r: check_strap(strap_mod.create_strap(), r),
     "led_profiles.stella_arm": check_stella_parts,
     "led_profiles.stella_core": check_stella_parts,
+    "led_profiles.stella_keeper": check_stella_parts,
     "led_profiles.stella_core_offset": check_stella_parts,
     "led_profiles.stand": _check_stand_post_model,
     "led_profiles.stand.leg": _check_stand_leg_model,

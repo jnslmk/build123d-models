@@ -189,13 +189,14 @@ nothing narrower than the bore anywhere on the way.
 
 See `docs/design-notes.md` for the reasoning. The short version:
 
-Nothing wraps the tube. The stadium is at its full 26.1 mm from z = 13.05 to
-z = 17.45, so a **cradle** that stops at the rim (z = 16.8) has no undercut — the
-tube drops in sideways, the diffuser is never shadowed and never trapped, and a
-closed polygon can be taken apart. Every foot carries its cradle integrally; the
-only wrapping part is a shared 18 mm **strap**, two per station. No mount takes
-its load through the endcap, because two M2 self-tappers are the only thing
-holding that on.
+Nothing wraps the tube below its rim. The stadium is at its full 26.1 mm from
+z = 13.05 to z = 17.45, so a **cradle** that stops at the rim (z = 16.8) has
+no undercut — the tube drops in sideways, the diffuser is never shadowed and
+never trapped, and a closed polygon can be taken apart. The general mounts use
+a shared 18 mm **strap**, two per station; the Stella arms instead use one
+dedicated 10 mm keeper on a through-bolted crossbar. No mount takes its load
+through the endcap, because two M2 self-tappers are the only thing holding that
+on.
 
 Corners stay coplanar, which costs ~94 mm of unlit tube per vertex — set by the
 two glands pointing at each other, not by the cable, because the jumper loop
@@ -208,10 +209,9 @@ replaced. `docs/design-notes.md` §4 has the sum and §11 the trade.
 **This family prints in ASA, not PETG** — UV outdoors, and HDT against a tube
 that runs 40–60 °C. That changes the fits: `fits.SNUG` in ASA is −0.05 mm, an
 interference fit, so the cradle uses `for_material(SLIDING, "asa")` = 0.07.
-Outdoor handling is *drain, not seal* — no gaskets, no IP claim, A2 stainless
-throughout, and a drain out of every upward-facing pocket **except the
-corner's**, whose channel and troughs are undrained and hold water: mount a
-corner somewhere sheltered. §5 has the depths.
+The family is unsealed and makes no IP claim: there are no gaskets or sealed
+joints, and the cradle, stand and corner pockets have solid floors. Use A2
+stainless hardware throughout and shelter the complete assembly from rain.
 
 | part | size | hardware |
 |---|---|---|
@@ -223,6 +223,9 @@ corner somewhere sheltered. §5 has the depths.
 | `stand.keeper` ×2 | 53 × 30 × 38 mm | — |
 | `eye foot` | 60 × 58 × 21 mm | 2 × M6 eye bolts + nyloc |
 | `wall foot` | 60 × 58 × 21 mm | 2 × M5 into the wall |
+| `stella_arm` | 86 × 62 × 29 mm | 1 × M5 × 25 + exposed nut to the core |
+| `stella_keeper` | 62 × 10 × 36 mm | 2 × M4 × 16 + exposed nuts to the arm |
+| `stella_core` / `_offset` | Ø76 / Ø126 × 10 mm | 3 arm joints per core |
 
 The bolt circle is `BOSS_U` = 22.1 mm off the tube axis, which is not a round
 number because it is derived: the strap's own arch is 19.5 mm at its widest, and
@@ -251,20 +254,20 @@ uv run export led_profiles.corner       # its STL for the slicer
 ```
 
 Each printed part is its own model — `.endcap`, `.strap`, `.corner`, `.stand`,
-`.feet`, `.stella_arm`, `.stella_core`, and `.stella_core_offset` — so the
-slicer gets them one at a time. `create_print_layout()` still spreads the
+`.feet`, `.stella_arm`, `.stella_core`, `.stella_core_offset`, and
+`.stella_keeper` — so the slicer gets them one at a time.
+`create_print_layout()` still spreads the
 original mounting set into one row, each in its print pose, for anyone who wants
 them in a single file (it is also the only way to reach the wall foot, which
 shares `feet`'s CLI target with the eye foot).
 
 ### Assemblies
 
-The `assemblies/` package puts the mounting family to use: one or three lamps
-seated in the mounts above, each placed with that part's own `seated()`
-transform (`feet.seated`, `strap.seated`, `stand.seated`/`seated_legs`,
-`corner.seated`) rather than a re-derived one. The only new geometry is the
-triangle's vertex layout (`triangle_vertices`) and the stand's tube-to-vertical
-rotation.
+The `assemblies/` package puts the mounting family to use. Each scene places
+finished parts with their own assembly transform (`feet.seated`,
+`strap.seated`, `stand.seated`/`seated_legs`, `corner.seated`, and
+`stella_keeper.seated`) rather than rebuilding geometry. Scene modules own only
+the closed-form layout and transforms that join those parts.
 
 One module per scene, so each is a model in its own right — showable,
 exportable, and on the generated website alongside the parts:
@@ -274,7 +277,7 @@ exportable, and on the generated website alongside the parts:
 | `assemblies.triangle` | 3 lamps + 3 corners closed into a flat loop, straps at all 12 cradle stations — the corner-and-strap half of the family; no stand hub or feet in this view |
 | `assemblies.standing` | 1 lamp vertical on the tripod stand, three printed legs deployed on the floor, both keepers seated, lower endcap on the seat |
 | `assemblies.suspended` | 1 lamp hung from two eye feet at the Bessel points — 0.2203 × length from each end, the two-point support that levels a simply-supported beam's own sag — plus the four straps that secure the feet (two per foot) |
-| `assemblies.stella_octangula` | 12 finished lamps forming two interpenetrating tetrahedra, 24 modular cradle arms, 8 vertex cores and 48 straps; one tetrahedron's edges move outward by one profile envelope so the six projected crossings remain physically separate |
+| `assemblies.stella_octangula` | 12 finished lamps forming two interpenetrating tetrahedra, 24 modular cradle arms, 8 round vertex cores and 24 slim keepers; one tetrahedron's edges move outward by one profile envelope so the six projected crossings remain physically separate |
 
 ```bash
 uv run show led_profiles.assemblies.triangle    # 3 lamps, 3 corners, 12 straps
@@ -292,13 +295,15 @@ consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
 
-The stella connector is a serviceable, support-free four-piece hub: one flat
-core and three identical cradle arms. Each arm keeps the existing two-strap
-profile interface and fastens to the core with two M5 bolts into captive nuts.
-The core includes a rounded 20 × 10 mm eye for a soft sling. The preliminary
+The Stella connector is a serviceable, support-free four-piece hub: one round
+core and three identical cradle arms. One M5 × 25 through-bolt and exposed nut
+clamp each arm to the core; two tapered FREE-fit keys carry shear and prevent
+rotation. Each arm has a 36 mm saddle and one 10 mm keeper retained by two
+M4 × 16 through-bolts with exposed nuts, replacing the former two-strap
+interface. The core carries a central 20 × 10 mm sling slot. The preliminary
 250 N per-hub load target comes from twelve 0.65 kg lamps, four upper suspension
-vertices, a 5× static factor, uneven sharing and unmodelled connector/cable mass;
-it is a design target, not an overhead certification.
+vertices, a 5× static factor, uneven sharing and unmodelled connector/cable
+mass; it is a design target, not an overhead certification.
 
 ### LED Strip
 
@@ -380,7 +385,8 @@ Benefits: easier installation, less stress on enclosure, easy replacement.
 ## Cable Glands
 
 Current choice: **M12, 3–7 mm range** — suitable for the 6.7 mm LAPP cable.
-Provides IP sealing and strain relief.
+The gland seals and strain-relieves the cable locally; the lamp assembly remains
+unsealed and has no IP claim.
 
 Measured off the fitting in hand, because two of these numbers set the size of
 every corner in the family (`docs/design-notes.md` §2 and §8):
@@ -525,6 +531,7 @@ Only external connections required: **24 V, GND, DATA**.
       `gland.free_length()` above the floor and the bore under it is open, so
       nothing stands in line with the gland at all.
 - [x] Suspension eye and wall feet
+- [x] Stella octangula — round keyed cores, 24 through-bolted arms and keepers
 - [ ] PCB mount inside the endcap
 - [ ] PCB (ESP32 Mini + power distribution + LED output)
 - [ ] Mounting hardware

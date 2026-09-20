@@ -74,6 +74,7 @@ MODELS = [
     "led_profiles.strap",
     "led_profiles.stella_arm",
     "led_profiles.stella_core",
+    "led_profiles.stella_keeper",
     "led_profiles.stella_core_offset",
     "led_profiles.stand",
     "led_profiles.stand.leg",
