@@ -155,13 +155,7 @@ ARM_INWARD_NORMAL = (
 ARM_FACE_TANGENT = (1 / sqrt(3), 0.0, sqrt(2 / 3))
 ARM_ROOT_FACE_X = 14.0
 ARM_ROOT_FACE_Z = sqrt(2) * ARM_ROOT_FACE_X + 2.0
-ARM_RIB_WIDTH = 12.0
-ARM_BEAM_WIDTH = 30.0
-ARM_BEAM_HEIGHT = 12.0
-ARM_BEAM_START = 12.0
-ARM_SADDLE_START = 66.0
-ARM_RAIL_WIDTH = 12.0
-ARM_RAIL_Y = 10.5
+ARM_SADDLE_START = 72.0
 
 # Open ABS saddle: SLIDING is 0.07 mm total at this material. It supports only
 # the aluminium below its rim; the diffuser remains entirely above the mouth.
@@ -175,14 +169,31 @@ SADDLE_LENGTH = 36.0
 SADDLE_BAND_LENGTH = 12.0
 SADDLE_RELIEF = 0.6  # angular-compliance relief, not a mating fit.
 SADDLE_EDGE_CHAMFER = 0.8
-# Smooth twin-web transition: each section is (profile-axis station, height)
-# measured from the print bed. The smooth taper approaches the rounded saddle
-# silhouette instead of ending as a rectangular tower.
-ARM_RAIL_SECTIONS = (
-    (32.0, 40.0),
-    (43.0, 38.0),
-    (54.0, 34.0),
-    (ARM_SADDLE_START, 28.0),
+# One hollow profile-derived shell carries the transition. Each explicit section
+# keeps the measured profile cavity fixed while only its outer half-width and
+# rounded mouth height change. The saddle begins after the retained x=65 screen.
+SHELL_RIM_RADIUS = 1.6
+SADDLE_JOIN_OVERLAP = 2.0
+# The same U-section collapses inside the shoulder so its start face is buried in
+# the accepted root. Scale/z-offset apply only inside this connector-root blend;
+# the full measured-profile cavity remains fixed from x=14 through the saddle.
+ARM_ROOT_BLEND_SECTIONS = (
+    (1.0, 24.0, SADDLE_MOUTH_Z, 0.06, 2.0),
+    (4.0, 24.0, SADDLE_MOUTH_Z, 0.25, 0.5),
+    (8.0, 24.0, SADDLE_MOUTH_Z, 0.55, 0.02),
+    (12.0, 24.0, SADDLE_MOUTH_Z, 0.85, 0.02),
+    (14.0, 24.5, 21.0, 1.0, 0.02),
+    (16.0, 24.5, 23.0, 1.0, 0.02),
+    (18.0, 23.5, 21.5, 1.0, 0.02),
+)
+ARM_SHELL_SECTIONS = (
+    (14.0, 24.0, SADDLE_MOUTH_Z),
+    (22.0, 24.0, 31.0),
+    (27.0, 24.0, 38.0),
+    (40.0, 23.0, 38.0),
+    (52.0, 22.5, 34.0),
+    (65.0, 22.2, 29.0),
+    (ARM_SADDLE_START, SADDLE_OUTER_HALF_W, SADDLE_MOUTH_Z),
 )
 
 # The future keeper will bridge the mouth and screw downward into these two
@@ -203,6 +214,6 @@ CABLE_ROUTE_Y = KEEPER_INSERT_Y + KEEPER_LAND_PAD_WIDTH / 2 + CABLE_ENVELOPE_D /
 CONNECTOR_ROUTE_Y = KEEPER_INSERT_Y + KEEPER_LAND_PAD_WIDTH / 2 + CONNECTOR_D / 2 + 3.0
 HAND_ROUTE_Y = KEEPER_INSERT_Y + KEEPER_LAND_PAD_WIDTH / 2 + COUPLING_HAND_D / 2 + 3.0
 
-# Root/beam section stations in the print frame. These are section screens of
-# the finished arm and not nominal blank reservations.
-ARM_SECTION_X = (18.0, 26.0, 36.0, 52.0, ARM_SADDLE_START - 1.0)
+# Finished-shell section screens. The station coverage is retained verbatim
+# from the accepted limited-beam screen even though the saddle now begins later.
+ARM_SECTION_X = (18.0, 26.0, 36.0, 52.0, 65.0)

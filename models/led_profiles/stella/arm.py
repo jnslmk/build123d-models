@@ -2,35 +2,32 @@
 
 from __future__ import annotations
 
-from math import cos, radians, sin
+from math import atan2, cos, radians, sin, sqrt
 
 from build123d import (
     Align,
-    Axis,
+    BuildLine,
     BuildPart,
     BuildSketch,
     Color,
     Cone,
     Cylinder,
+    Line,
     Locations,
     Mode,
     Part,
     Plane,
-    Polygon,
-    Rectangle,
     RectangleRounded,
+    Sketch,
     SlotOverall,
+    ThreePointArc,
     add,
     extrude,
     loft,
+    make_face,
 )
 
-from models.lib.edges import (
-    as_part,
-    bottom_chamfer_tool,
-    chamfer_edge,
-    top_chamfer_tool,
-)
+from models.lib.edges import as_part
 
 from . import config as c
 
@@ -51,6 +48,31 @@ def _offset(
     distance: float,
 ) -> tuple[float, float, float]:
     return tuple(point[i] + direction[i] * distance for i in range(3))  # type: ignore[return-value]
+
+
+def _guard_solid(
+    part: Part,
+    label: str,
+    volume_range: tuple[float, float],
+    min_z_range: tuple[float, float],
+    max_z_range: tuple[float, float],
+) -> Part:
+    """Fail beside construction when a boolean or loft stops making the intended
+    solid.
+    """
+    bounds = part.bounding_box()
+    if (
+        len(part.solids()) != 1
+        or not part.is_valid
+        or not volume_range[0] <= part.volume <= volume_range[1]
+        or not min_z_range[0] <= bounds.min.Z <= min_z_range[1]
+        or not max_z_range[0] <= bounds.max.Z <= max_z_range[1]
+    ):
+        raise RuntimeError(
+            f"{label} invalid: solids={len(part.solids())}, valid={part.is_valid}, "
+            f"volume={part.volume:.3f}, z={bounds.min.Z:.6f}..{bounds.max.Z:.6f}"
+        )
+    return part
 
 
 def _root() -> Part:
@@ -133,11 +155,17 @@ def _root() -> Part:
                 ),
                 mode=Mode.SUBTRACT,
             )
-    return root.part
+    return _guard_solid(
+        root.part,
+        "Stella arm root",
+        (10_000.0, 15_000.0),
+        (0.0, 0.2),
+        (40.0, 42.0),
+    )
 
 
 def _final_root_access_tools() -> tuple[Part, ...]:
-    """Clear screw shanks and straight driver approaches after every web is fused."""
+    """Clear screw shanks and straight driver approaches after fusing the shell."""
     centre = (c.ARM_ROOT_FACE_X, 0.0, c.ARM_ROOT_FACE_Z)
     tools: list[Part] = []
     for radial_offset in (-9.0, 9.0):
@@ -171,117 +199,194 @@ def _final_root_access_tools() -> tuple[Part, ...]:
     return tuple(tools)
 
 
-def _core_side_tool() -> Part:
-    """Half-space removing support webs from the accepted core/key side."""
-    bearing = _plane_at(
-        (c.ARM_ROOT_FACE_X, 0.0, c.ARM_ROOT_FACE_Z),
-        c.ARM_CORE_NORMAL,
-    )
-    with BuildPart() as tool:
-        with BuildSketch(bearing):
-            Rectangle(300.0, 300.0)
-        extrude(amount=100.0)
-    return tool.part
+def _shell_section(
+    station: float,
+    outer_half_width: float,
+    mouth_z: float,
+    scale: float = 1.0,
+    z_offset: float = 0.0,
+) -> Sketch:
+    """Build and prove one bounded U-section around its profile-derived cavity."""
+    inner_half_width = (c.profile.WIDTH + c.PROFILE_CLEAR) / 2 * scale
+    lower_arc_from_bed = (
+        c.SADDLE_AXIS_Z - (c.profile.HEIGHT - c.profile.WIDTH) / 2
+    ) * scale
+    lower_arc_z = z_offset + lower_arc_from_bed
+    outer_half_width *= scale
+    mouth_z = z_offset + mouth_z * scale
+    rim_r = c.SHELL_RIM_RADIUS * scale
+    if outer_half_width - inner_half_width <= 2 * rim_r:
+        raise RuntimeError(
+            f"shell section x={station:g} has no finite rounded rim land"
+        )
+    bed_half_width = sqrt(outer_half_width**2 - lower_arc_from_bed**2)
+    bed_angle = atan2(lower_arc_from_bed, bed_half_width)
+    quarter_offset = rim_r * (1 - 1 / sqrt(2))
 
-
-def _rib() -> Part:
-    """Printable triangular web carrying the sloped root into the beam."""
-    with BuildPart() as rib:
-        with BuildSketch(Plane.XZ):
-            Polygon(
-                (c.ARM_BEAM_START - 4.0, 0.0),
-                (32.0, 0.0),
-                (27.0, 31.0),
-                (18.0, 12.0),
-                align=(Align.MIN, Align.MIN),
+    with BuildSketch(Plane.YZ.offset(station)) as section_face:
+        with BuildLine() as boundary:
+            # Right inner flank and rounded rim.
+            Line(
+                (inner_half_width, lower_arc_z),
+                (inner_half_width, mouth_z - rim_r),
             )
-        extrude(amount=c.ARM_RIB_WIDTH / 2, both=True)
-        chamfer_edge(
-            rib,
-            [edge for edge in rib.edges() if edge not in rib.edges().filter_by(Axis.Z)],
-            c.SADDLE_EDGE_CHAMFER,
+            ThreePointArc(
+                (inner_half_width, mouth_z - rim_r),
+                (
+                    inner_half_width + quarter_offset,
+                    mouth_z - quarter_offset,
+                ),
+                (inner_half_width + rim_r, mouth_z),
+            )
+            Line(
+                (inner_half_width + rim_r, mouth_z),
+                (outer_half_width - rim_r, mouth_z),
+            )
+            ThreePointArc(
+                (outer_half_width - rim_r, mouth_z),
+                (
+                    outer_half_width - quarter_offset,
+                    mouth_z - quarter_offset,
+                ),
+                (outer_half_width, mouth_z - rim_r),
+            )
+
+            # Profile-following outer lower arc, truncated by a finite bed line.
+            Line(
+                (outer_half_width, mouth_z - rim_r),
+                (outer_half_width, lower_arc_z),
+            )
+            ThreePointArc(
+                (outer_half_width, lower_arc_z),
+                (
+                    outer_half_width * cos(bed_angle / 2),
+                    lower_arc_z - outer_half_width * sin(bed_angle / 2),
+                ),
+                (bed_half_width, z_offset),
+            )
+            Line((bed_half_width, z_offset), (-bed_half_width, z_offset))
+            ThreePointArc(
+                (-bed_half_width, z_offset),
+                (
+                    -outer_half_width * cos(bed_angle / 2),
+                    lower_arc_z - outer_half_width * sin(bed_angle / 2),
+                ),
+                (-outer_half_width, lower_arc_z),
+            )
+
+            # Mirrored left rim and the exact lower profile cavity close the face.
+            Line(
+                (-outer_half_width, lower_arc_z),
+                (-outer_half_width, mouth_z - rim_r),
+            )
+            ThreePointArc(
+                (-outer_half_width, mouth_z - rim_r),
+                (
+                    -outer_half_width + quarter_offset,
+                    mouth_z - quarter_offset,
+                ),
+                (-outer_half_width + rim_r, mouth_z),
+            )
+            Line(
+                (-outer_half_width + rim_r, mouth_z),
+                (-inner_half_width - rim_r, mouth_z),
+            )
+            ThreePointArc(
+                (-inner_half_width - rim_r, mouth_z),
+                (
+                    -inner_half_width - quarter_offset,
+                    mouth_z - quarter_offset,
+                ),
+                (-inner_half_width, mouth_z - rim_r),
+            )
+            Line(
+                (-inner_half_width, mouth_z - rim_r),
+                (-inner_half_width, lower_arc_z),
+            )
+            ThreePointArc(
+                (-inner_half_width, lower_arc_z),
+                (0.0, lower_arc_z - inner_half_width),
+                (inner_half_width, lower_arc_z),
+            )
+        make_face(boundary.edges())
+
+    section = section_face.sketch
+    bounds = section.bounding_box()
+    if (
+        len(section.faces()) != 1
+        or not section.is_valid
+        or not 0.5 <= section.area <= 1_100.0
+        or abs(bounds.min.Z - z_offset) > 1e-5
+        or abs(bounds.max.Z - mouth_z) > 1e-5
+    ):
+        raise RuntimeError(
+            f"shell section x={station:g} invalid: faces={len(section.faces())}, "
+            f"valid={section.is_valid}, area={section.area:.3f}, "
+            f"z={bounds.min.Z:.6f}..{bounds.max.Z:.6f}"
         )
-    return rib.part
+    return section
 
 
-def _beam() -> Part:
-    """Continuous low beam from the root webs to the saddle floor."""
-    length = c.ARM_SADDLE_START - c.ARM_BEAM_START
-    with BuildPart() as beam:
-        with BuildSketch():
-            with Locations((c.ARM_BEAM_START, 0.0)):
-                RectangleRounded(
-                    length,
-                    c.ARM_BEAM_WIDTH,
-                    3.0,
-                    align=(Align.MIN, Align.CENTER),
-                )
-        extrude(amount=c.ARM_BEAM_HEIGHT)
-        add(
-            bottom_chamfer_tool(
-                length,
-                c.ARM_BEAM_WIDTH,
-                3.0,
-                0.0,
-                c.SADDLE_EDGE_CHAMFER,
-            ).moved(Plane(origin=(c.ARM_BEAM_START + length / 2, 0.0, 0.0)).location),
-            mode=Mode.SUBTRACT,
-        )
-        add(
-            top_chamfer_tool(
-                length,
-                c.ARM_BEAM_WIDTH,
-                3.0,
-                c.ARM_BEAM_HEIGHT,
-                c.SADDLE_EDGE_CHAMFER,
-            ).moved(Plane(origin=(c.ARM_BEAM_START + length / 2, 0.0, 0.0)).location),
-            mode=Mode.SUBTRACT,
-        )
-    return beam.part
+def _transition_shell() -> Part:
+    """Loft one hollow profile-derived shell from connector root to saddle."""
+    sections = [
+        _shell_section(station, half_width, mouth_z)
+        for station, half_width, mouth_z in c.ARM_SHELL_SECTIONS
+    ]
+    with BuildPart() as transition:
+        loft(sections=sections)
+    return _guard_solid(
+        transition.part,
+        "Stella arm transition shell",
+        (40_000.0, 50_000.0),
+        (-1e-5, 1e-5),
+        (38.0, 40.0),
+    )
 
 
-def _rails() -> Part:
-    """Twin rounded webs taper smoothly into the profile-following saddle."""
-    with BuildPart() as rails:
-        for y in (-c.ARM_RAIL_Y, c.ARM_RAIL_Y):
-            for station, height in c.ARM_RAIL_SECTIONS:
-                with BuildSketch(Plane.YZ.offset(station)):
-                    with Locations((y, 0.0)):
-                        RectangleRounded(
-                            c.ARM_RAIL_WIDTH,
-                            height,
-                            min(c.ARM_RAIL_WIDTH / 2 - 0.1, height / 2 - 0.1),
-                            align=(Align.CENTER, Align.MIN),
-                        )
-            loft()
-    return rails.part
+def _root_blend() -> Part:
+    """Continue the U-shell through the shoulder, starting inside the root."""
+    sections = [
+        _shell_section(station, half_width, mouth_z, scale, z_offset)
+        for station, half_width, mouth_z, scale, z_offset in (c.ARM_ROOT_BLEND_SECTIONS)
+    ]
+    with BuildPart() as blend:
+        loft(sections=sections)
+    return _guard_solid(
+        blend.part,
+        "Stella arm connector-root shell blend",
+        (4_000.0, 6_000.0),
+        (0.01, 0.03),
+        (23.0, 24.0),
+    )
+
+
+def _profile_shell_root() -> Part:
+    """Return the frozen connector interface already blended into the U-shell."""
+    with BuildPart() as root_shell:
+        add(_root())
+        add(_root_blend())
+        add(_transition_shell())
+    return _guard_solid(
+        root_shell.part,
+        "Stella arm blended connector root",
+        (52_000.0, 58_000.0),
+        (-1e-5, 1e-5),
+        (40.0, 42.0),
+    )
 
 
 def _saddle() -> Part:
-    """Open trough supporting aluminium below the rim, never the diffuser."""
+    """Build the measured-profile trough, bearing bands and rounded mouth rims."""
+    saddle_start = c.ARM_SADDLE_START - c.SADDLE_JOIN_OVERLAP
+    saddle_depth = c.SADDLE_LENGTH + c.SADDLE_JOIN_OVERLAP
+    trough_section = _shell_section(
+        saddle_start,
+        c.SADDLE_OUTER_HALF_W,
+        c.SADDLE_MOUTH_Z,
+    )
     with BuildPart() as saddle:
-        outer_h = c.profile.HEIGHT + c.PROFILE_CLEAR + 2 * c.SADDLE_WALL
-        outer_w = c.profile.WIDTH + c.PROFILE_CLEAR + 2 * c.SADDLE_WALL
-        with BuildSketch(Plane.YZ.offset(c.ARM_SADDLE_START)):
-            with Locations((0.0, c.SADDLE_AXIS_Z)):
-                SlotOverall(outer_h, outer_w, rotation=90)
-            with Locations((0.0, c.SADDLE_MOUTH_Z)):
-                Rectangle(
-                    100.0, 100.0, align=(Align.CENTER, Align.MIN), mode=Mode.SUBTRACT
-                )
-            with Locations((0.0, 0.0)):
-                Rectangle(
-                    100.0, 100.0, align=(Align.CENTER, Align.MAX), mode=Mode.SUBTRACT
-                )
-        extrude(amount=c.SADDLE_LENGTH)
-        with BuildSketch(Plane.YZ.offset(c.ARM_SADDLE_START)):
-            with Locations((0.0, c.SADDLE_AXIS_Z)):
-                SlotOverall(
-                    c.profile.HEIGHT + c.PROFILE_CLEAR,
-                    c.profile.WIDTH + c.PROFILE_CLEAR,
-                    rotation=90,
-                )
-        extrude(amount=c.SADDLE_LENGTH, mode=Mode.SUBTRACT)
+        extrude(to_extrude=trough_section, amount=saddle_depth)
 
         relief_length = c.SADDLE_LENGTH - 2 * c.SADDLE_BAND_LENGTH
         if relief_length > 0:
@@ -296,6 +401,7 @@ def _saddle() -> Part:
                     )
             extrude(amount=relief_length, mode=Mode.SUBTRACT)
 
+        # Boolean axial lead-in at the exposed profile-entry end.
         with BuildSketch(
             Plane.YZ.offset(
                 c.ARM_SADDLE_START + c.SADDLE_LENGTH - c.SADDLE_EDGE_CHAMFER
@@ -315,17 +421,6 @@ def _saddle() -> Part:
                     rotation=90,
                 )
         loft(ruled=True, mode=Mode.SUBTRACT)
-        with BuildPart() as mouth:
-            with BuildSketch(Plane.YZ.offset(c.ARM_SADDLE_START)):
-                bore_half = (c.profile.WIDTH + c.PROFILE_CLEAR) / 2
-                for sign in (-1.0, 1.0):
-                    Polygon(
-                        (sign * bore_half, c.SADDLE_MOUTH_Z),
-                        (sign * (bore_half + c.SADDLE_EDGE_CHAMFER), c.SADDLE_MOUTH_Z),
-                        (sign * bore_half, c.SADDLE_MOUTH_Z - c.SADDLE_EDGE_CHAMFER),
-                    )
-            extrude(amount=c.SADDLE_LENGTH)
-        add(mouth.part, mode=Mode.SUBTRACT)
 
         with BuildSketch(Plane.XY.offset(c.KEEPER_LAND_BASE_Z)):
             with Locations(
@@ -356,7 +451,13 @@ def _saddle() -> Part:
                 align=(Align.CENTER, Align.CENTER, Align.MAX),
                 mode=Mode.SUBTRACT,
             )
-    return saddle.part
+    return _guard_solid(
+        saddle.part,
+        "Stella arm saddle",
+        (8_000.0, 12_000.0),
+        (-1e-5, 1e-5),
+        (20.7, 20.9),
+    )
 
 
 def seated(part: Part | None = None, angle: float = 90.0) -> Part:
@@ -378,25 +479,22 @@ def seated(part: Part | None = None, angle: float = 90.0) -> Part:
 
 
 def create() -> Part:
-    """Return one complete arm in its support-minimizing mouth-up print pose."""
-    rib = _rib()
-    with BuildPart() as supports:
-        add(_beam())
-        add(_rails())
-        for y in (-c.ARM_RAIL_Y, c.ARM_RAIL_Y):
-            add(as_part(Plane(origin=(0.0, y, 0.0)).location * rib))
-        add(_saddle())
-        add(_core_side_tool(), mode=Mode.SUBTRACT)
-        for tool in _final_root_access_tools():
-            add(tool, mode=Mode.SUBTRACT)
+    """Return one continuous profile-shell arm in its mouth-up ABS print pose."""
+    joined = _profile_shell_root()
 
     with BuildPart() as arm:
-        add(_root())
-        add(supports.part)
-    part = arm.part
-    if len(part.solids()) != 1 or not part.is_valid:
-        raise RuntimeError("Stella arm must be one valid connected solid")
-    part.label = "Stella complete profile arm — keeper deferred"
+        add(joined)
+        add(_saddle())
+        for tool in _final_root_access_tools():
+            add(tool, mode=Mode.SUBTRACT)
+    part = _guard_solid(
+        arm.part,
+        "Stella complete profile-shell arm",
+        (50_000.0, 80_000.0),
+        (-1e-5, 1e-5),
+        (40.0, 42.0),
+    )
+    part.label = "Stella continuous profile-shell arm — keeper deferred"
     part.color = Color(0.24, 0.27, 0.31)
     return part
 

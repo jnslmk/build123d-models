@@ -1,4 +1,4 @@
-"""Finished-core geometry and limited net-section screens, never a load rating."""
+"""Finished core/arm geometry and limited net-section screens, never a load rating."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from build123d import (
     Circle,
     Cylinder,
     Edge,
+    Face,
     GeomType,
     Locations,
     Mode,
@@ -22,6 +23,7 @@ from build123d import (
     Pos,
     RectangleRounded,
     Rot,
+    Shape,
     ShapeList,
     SlotOverall,
     Vector,
@@ -1016,13 +1018,6 @@ def _arm_profile(part: Part, r: Report) -> None:
         "open mouth leaves the diffuser structurally untouched",
         f"no arm material above z={c.SADDLE_MOUTH_Z:g} at profile centre",
     )
-    r.check(
-        r.solid_at(part, 34.0, c.ARM_RAIL_Y, 34.0)
-        and r.solid_at(part, 65.0, c.ARM_RAIL_Y, 24.0)
-        and not r.solid_at(part, 65.0, c.ARM_RAIL_Y, 32.0),
-        "rounded twin webs taper toward the profile instead of ending as towers",
-        "high root section blends to a lower saddle-side section",
-    )
     for y in (-c.KEEPER_INSERT_Y, c.KEEPER_INSERT_Y):
         pilot_z = (
             c.KEEPER_LAND_BASE_Z + c.KEEPER_LAND_HEIGHT - c.KEEPER_INSERT_DEPTH / 2
@@ -1039,6 +1034,90 @@ def _arm_profile(part: Part, r: Report) -> None:
             f"keeper land y={y:g}: raised blind pilot and surrounding pad exist",
             f"Ø{c.KEEPER_INSERT_PILOT_D:g} x {c.KEEPER_INSERT_DEPTH:g} mm pocket; "
             f"land z={c.KEEPER_LAND_BASE_Z:g}..{c.SADDLE_MOUTH_Z:g}",
+        )
+
+
+def _arm_shell_morph(part: Part, r: Report) -> None:
+    r.section("One continuous hollow profile-derived floor and flank shell")
+    inner_half_width = (c.profile.WIDTH + c.PROFILE_CLEAR) / 2
+    flank_y = inner_half_width + c.SHELL_RIM_RADIUS
+    stations = (
+        18.0,
+        36.0,
+        52.0,
+        65.0,
+        70.0,
+        c.ARM_SADDLE_START,
+        78.0,
+        102.0,
+    )
+    for station in stations:
+        floor_left = r.solid_at(part, station, -8.0, c.SADDLE_FLOOR / 2)
+        floor_right = r.solid_at(part, station, 8.0, c.SADDLE_FLOOR / 2)
+        cavity = r.solid_at(part, station, 0.0, 8.0)
+        left = r.solid_at(part, station, -flank_y, 18.0)
+        right = r.solid_at(part, station, flank_y, 18.0)
+        r.check(
+            floor_left and floor_right and not cavity and left and right,
+            f"shell x={station:g}: floor and both flanks surround an open cavity",
+            f"floor={floor_left}/{floor_right}, flanks={left}/{right}; "
+            f"cavity solid={cavity}",
+        )
+    for station in (36.0, 52.0, 65.0):
+        cross_section = section(
+            part,
+            section_by=Plane(
+                origin=(station, 0.0, 0.0),
+                x_dir=(0.0, 1.0, 0.0),
+                z_dir=(1.0, 0.0, 0.0),
+            ),
+            mode=Mode.PRIVATE,
+        )
+        cross_faces = [
+            shape
+            for shape in Shape.get_shape_list(cross_section, "Face")
+            if isinstance(shape, Face)
+        ]
+        face_count = len(cross_faces)
+        wire_count = sum(1 + len(face.inner_wires()) for face in cross_faces)
+        r.check(
+            face_count == 1 and wire_count == 1,
+            f"shell x={station:g}: one U-section; no independent support island",
+            f"{face_count} face(s), {wire_count} wire(s), "
+            f"area {cross_section.area:.3f} mm^2",
+        )
+
+    solid_shapes = [
+        shape
+        for shape in Shape.get_shape_list(part, "Solid")
+        if isinstance(shape, Solid)
+    ]
+    candidate = solid_shapes[0] if len(solid_shapes) == 1 else None
+    if candidate is None:
+        r.check(
+            False,
+            "shell planar-break survey has one finished solid",
+            f"{len(solid_shapes)} solid shape(s)",
+        )
+        return
+    finished_faces = [
+        shape
+        for shape in Shape.get_shape_list(candidate, "Face")
+        if isinstance(shape, Face)
+    ]
+
+    for station in (1.0, 14.0, 18.0):
+        planar_break_area = sum(
+            face.area
+            for face in finished_faces
+            if face.geom_type == GeomType.PLANE
+            and face.bounding_box().size.X < _EPS
+            and abs(face.bounding_box().center().X - station) < _EPS
+        )
+        r.check(
+            planar_break_area < 1.0,
+            f"shell x={station:g}: no legible transverse planar break at the root",
+            f"residual boolean seam area {planar_break_area:.3f} mm^2",
         )
 
 
@@ -1072,7 +1151,7 @@ def _arm_service(part: Part, r: Report) -> None:
 
 
 def _arm_sections(part: Part, r: Report) -> None:
-    r.section("Finished arm root/beam sections under retained limited-beam screen")
+    r.section("Finished profile-shell sections under retained limited-beam screen")
     for station in c.ARM_SECTION_X:
         _net_screen(
             part,
@@ -1091,12 +1170,12 @@ def _arm_edges(part: Part, r: Report) -> None:
     r.section("Edge-treatment and seam audit")
     survey = sharp_convex_edges(part)
     r.check(
-        len(survey.sharp) == 86 and len(survey.unclassifiable) == 6,
-        "edge survey matches the reviewed explicit exception set",
+        len(survey.sharp) == 48 and len(survey.unclassifiable) == 6,
+        "edge survey matches the stable explicit exception set",
         f"{len(survey.sharp)} sharp, {len(survey.unclassifiable)} unclassifiable; "
-        "exceptions are bed datums, flat bearing/section boundaries, raw heat-set "
-        "insert mouths and boolean seams; key, beam, rails, rib and saddle-entry "
-        "edges carry their modelled treatments",
+        "exceptions are finite bed datums, flat key/washer/keeper bearing "
+        "boundaries, raw heat-set insert mouths, the exposed saddle lead-in and "
+        "boolean/loft seams; the continuous shell rims are explicitly rounded",
     )
 
 
@@ -1112,11 +1191,21 @@ def check_arm(r: Report, part: Part | None = None) -> None:
         f"{len(part.solids())} solid(s), volume {_volume(part):.3f} mm^3",
     )
     r.check(
+        55_000.0 <= _volume(part) <= 70_000.0
+        and 100.0 <= bounds.size.X <= 115.0
+        and 50.0 <= bounds.size.Y <= 55.0
+        and 40.0 <= bounds.size.Z <= 42.0,
+        "arm volume and overall envelope remain physically bounded",
+        f"{bounds.size.X:.3f} x {bounds.size.Y:.3f} x {bounds.size.Z:.3f} mm; "
+        f"volume {_volume(part):.3f} mm^3",
+    )
+    r.check(
         abs(bounds.min.Z) <= _EPS,
-        "beam, ribs and saddle are seated on z=0",
+        "root, continuous shell and saddle are seated on z=0",
         f"min z={bounds.min.Z:.6f} mm; +Z print direction",
     )
     _arm_root(part, r)
+    _arm_shell_morph(part, r)
     _arm_sections(part, r)
     _arm_profile(part, r)
     _arm_service(part, r)
