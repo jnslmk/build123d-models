@@ -21,33 +21,37 @@
 | Request concerns | Read now | Read only when needed |
 | --- | --- | --- |
 | Any Stella iteration | This index; `../CONTEXT.md`; `stella-specification.md`; current `cad-contract.md` | `README.md` for public wording; `docs/design-notes.md` for previous-implementation rationale |
-| Functional organic-Y core: continuous web-section outline, core-side M3 seats and two-hole textile-cord suspension; electrical cables outside | Current `cad-contract.md`; `stella/config.py`; `stella/core.py`; `stella/checks.py::check_core` | `stella-analytical-basis.md` for historical candidate assumptions and current cord evidence; source may lag the active definition, as recorded in the contract |
+| Accepted functional organic-Y core | Accepted interface in current `cad-contract.md`; `stella/config.py`; `stella/core.py`; `stella/checks.py::check_core` | `stella-analytical-basis.md` for sizing history and explicit non-claims |
+| Current mating profile arm / arm-to-core connection | Current `cad-contract.md`; accepted core interface; ADR-0001; ADR-0002 | Previous `stella_arm.py` only as historical evidence; load `part-joints`, `fasteners-and-inserts`, `fdm-fits-and-clearances` and `build123d-geometry-ops` before geometry |
 | Previous round core, cable mouth, or sling slot | `stella_config.py`; `stella_core.py`; `checks.py::check_stella_parts` | `mount_config.py` for the existing cable envelope; these are not redesign defaults |
-| Previous arm tab, notch, ribs, or saddle | `stella_config.py`; `stella_arm.py`; `checks.py::check_stella_parts` | `part-joints` and `fasteners-and-inserts` when that interface is explicitly in scope |
-| Previous keeper geometry | `stella_keeper.py`; `checks.py::check_stella_parts` | `fasteners-and-inserts` for its bolts or clearances |
-| Previous vertex or double-tetrahedron placement | `assemblies/stella_octangula.py`, only for an explicit previous-assembly task | No redesigned assembly until the dependent slices are accepted; full-assembly proof is an integration/CI gate |
+| Previous arm tab, notch, ribs, or saddle | `stella_config.py`; `stella_arm.py`; `checks.py::check_stella_parts` | These are evidence, not redesign geometry; do not inherit the M5 joint, cable notch or ASA assumptions |
+| Previous keeper geometry | `stella_keeper.py`; `checks.py::check_stella_parts` | The redesigned keeper remains gated until the mating arm is accepted |
 | Edge treatment or a new geometry predicate | `build123d-geometry-ops`, then the target source/check | `fdm-fits-and-clearances` before changing a fit or cable-slot clearance |
 
 ## Tight edit loop
 
-For a part-level change, run that leaf's physical gate and render only the views
-named by the current contract:
+The accepted core proof command is:
 
 ```bash
 uv run check led_profiles.stella.core
-uv run view led_profiles.stella.core
-uv run render led_profiles.stella.core --view top --png
 ```
+
+The arm has no geometry or public registration while its boundary is pending.
+After authorization, its edit loop becomes:
+
+```bash
+uv run check led_profiles.stella.arm
+```
+
+Run only the views named by the current contract.
 
 The `stella.*` namespace is the redesign; underscore-named `stella_core`,
 `stella_arm`, `stella_keeper`, and the current assembly are the previous
 implementation. Keep those separate parts and assembly callers isolated from
-the redesign until their dependent slices are accepted. Core-side features
-belong to the functional core review defined in `cad-contract.md`, not an
-implicit later assembly slice. Do not inherit frozen dimensions, reservations
-or proof assumptions from the old blank body into new functional-core code.
-Run the full assembly only for an intentional integration review after accepted
-dependent slices, never as the normal core edit loop.
+the redesign until their dependent slices are accepted. Do not inherit frozen
+dimensions, reservations or proof assumptions from the old arm into the new
+profile-arm slice. Run the full assembly only for an intentional integration
+review after accepted dependent slices, never as the normal part edit loop.
 
 ## Contract hygiene
 

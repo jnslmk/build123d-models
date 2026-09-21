@@ -298,28 +298,27 @@ consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
 
-**Stella redesign (functional core implemented; human acceptance pending).**
+**Stella redesign (functional core accepted; profile arm next).**
 The purpose remains a modular, serviceable lamp frame with independently
 replaceable profiles. The [Stella specification](docs/stella-specification.md)
-owns accepted requirements; the [CAD contract](docs/cad-contract.md) records
-the current dimensions, proof and acceptance gate. Separate arms, keepers,
-offset cores and assemblies remain deferred.
+owns accepted requirements; the [CAD contract](docs/cad-contract.md) now owns
+the next mating-profile-arm definition. Keepers, offset cores and assemblies
+remain separately gated.
 
-The **`led_profiles.stella.core`** review candidate is **138.603 × 127 ×
-20 mm** in ABS print pose. One smooth organic-Y outline runs through its
-height, apart from three 28.25 × 28.25 × 3 mm keyed seat recesses and the
-0.6 mm outer edge treatments. The six blind insert pilots are Ø3.7 × 6 mm
-for the user's unidentified M3, Ø4 × 5 mm inserts; that pilot remains a
-coupon/installation assumption, not a manufacturer recipe.
+The accepted **`led_profiles.stella.core`** is **138.603 × 127 × 20 mm** in ABS
+print pose. One smooth organic-Y outline runs through its height, apart from
+three 28.25 × 28.25 × 3 mm keyed seat recesses and the 0.6 mm outer edge
+treatments. The six blind insert pilots are Ø3.7 × 6 mm for the user's
+unidentified M3, Ø4 × 5 mm inserts; that pilot remains a coupon/installation
+assumption, not a manufacturer recipe.
 
 There are no core electrical-cable notches. Two Ø8 suspension holes on 22 mm
 centres have R2 contact mouths for the provisional nominal-6 mm cord loop,
 leaving a 14 mm straight-throat bridge, 10 mm at the rounded mouths and
 screened 8 mm outer ligaments. The knot remains above the core and is not
-modelled or rated.
-The flat +Z print pose preserves the branch load paths, but the lower R2 mouths
-need local removable support and post-print smoothing/inspection; they are not
-claimed support-free.
+modelled or rated. The flat +Z print pose preserves the branch load paths, but
+the lower R2 mouths need local removable support and post-print
+smoothing/inspection; they are not claimed support-free.
 
 The implemented height is **8 mm above the 12 mm target**. Twelve millimetres
 fits the minimum 6 mm insert well + 3 mm retained floor + 3 mm keyed seat, but
@@ -327,7 +326,8 @@ the actual post-cut branch and suspension-section screens fail there. The
 19 mm trial still failed the outer-seat short-event screen and one suspension
 ligament; 20 mm passes the retained assumptions. This is an estimate/CAD gate,
 not an overhead rating, measured ABS creep capacity, insert-retention result,
-or cord/knot approval. No redesigned geometry has human acceptance.
+or cord/knot approval. The user accepted this geometry on 2026-09-21 after
+reviewing the interactive model and section views.
 
 ```bash
 uv run check led_profiles.stella.core

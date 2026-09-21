@@ -2,13 +2,13 @@
 
 > **Scope:** The next generation of Stella vertex connectors and their suspended
 > use. Existing round-core production geometry remains a separate implementation.
-> **Status:** Core amendment defined and implemented as a review candidate:
-> Round 1's “as recommended” confirmed the outline/cable changes; Round 2's
-> “A” selected a short closed cord loop through the two suspension holes.
-> Implementation dimensions and proof remain in the CAD contract. Geometry
-> acceptance is pending and no dependent slice is open.
+> **Status:** The functional core amendment was accepted on 2026-09-21 after
+> review of the implemented 20 mm candidate. Round 1's “as recommended”
+> confirmed the outline/cable changes; Round 2's “A” selected a short closed
+> cord loop through the two suspension holes. The next slice is the mating
+> profile arm and arm-to-core connection; its exact boundary is pending.
 > **Authoritative for:** User-accepted Stella requirements. The active
-> [CAD contract](cad-contract.md) owns the current functional-core review slice.
+> [CAD contract](cad-contract.md) owns the profile-arm definition slice.
 
 ## Purpose
 
@@ -54,13 +54,13 @@ their calculations and checks do not establish minima or proof for the revision.
 
 | Question | Why it remains open | Resolution path | Blocking effect |
 | --- | --- | --- | --- |
-| Load cases and limits | Existing static targets do not resolve node vectors, handling moments, unequal sharing, or safety engagement. | State conservative assumptions and calculation margins. | Core section and joint sizing. |
-| ABS and print basis | A four-week allowable for the actual printed joints is not established. | Record material, orientation, temperature, and creep assumptions. | Section, boss, and preload estimates. |
-| Core envelope, depth and seat proportions | The continuous web-section outline is accepted, but its depth and seat proportions are not. | Size the actual net sections with the core-side joints and two suspension holes; evaluate the contract's height target rather than inheriting old minima. | Functional-core geometry and section adequacy. |
-| M3 stack and insert installation | Insert envelope is known, but pilot, pocket depth, screw length, head, washer, and retention are not. | Derive the joint stack with exact hardware and installation evidence, together with core-side seat and insert-pocket sizing. | Core-side seat/pocket geometry and final arm-to-core joint. |
-| Two-hole suspension attachment | Closed-loop routing is accepted; the selected cord's allowances, contact geometry, knot/tail envelope and remaining ligaments still need sizing. | Use the contract's documented cord candidate and joining method; derive the route and actual net sections without treating catalogue cord strength as an attachment rating. | Functional-core suspension geometry and primary-attachment screening. |
-| External electrical-cable route | The core notches are removed, but connector choice, external bend path, protection and tool access sizing remain unresolved. | Preserve external side access at the revised core and prove complete routing with the later arm/assembly slices. | Local clearance screening now; complete routing remains unproven. |
-| Non-invasive profile capture | Axial retention, thermal growth, frame closure, and crossing clearance remain unproven. | Design and assess the arm/keeper interface. | Profile retention geometry. |
+| Load cases and limits | Existing static targets do not resolve node vectors, handling moments, unequal sharing, or safety engagement. | State conservative assumptions and calculation margins. | Arm/joint sizing and later assembly proof. |
+| ABS and print basis | A four-week allowable for the actual printed joints is not established. | Record material, orientation, temperature, and creep assumptions. | Arm sections, bosses and preload estimates. |
+| M3 stack and insert installation | The accepted core uses a provisional M3 × 12 / 7.5 mm arm / 0.5 mm washer stack and an estimated insert pilot; physical hardware remains unidentified. | Match the accepted interface, prove arm-side access and reach, then validate the real insert/pilot with a coupon. | Final arm-to-core joint and physical qualification. |
+| Suspension qualification | The accepted core fixes the two-hole geometry, but cord contact, knot/tail behaviour, movement, abrasion and capacity remain unqualified. | Retain the accepted geometry and resolve physical rigging outside the arm slice. | Physical suspended use, not arm CAD. |
+| External electrical-cable route | The core has no notches, but connector choice, protection and the complete arm-side bend/service path remain unresolved. | Prove side access around the accepted core and arm, then complete routing in assembly. | Arm envelope and later assembly proof. |
+| Arm and keeper boundary | The broad-seat/two-M3 architecture is accepted, but the arm's complete extent and arm-side keeper interface are not yet confirmed. | Confirm whether the current slice includes the complete open saddle and keeper lands while the removable keeper stays separate. | Profile-arm geometry authorization. |
+| Non-invasive profile capture | Axial retention, thermal growth, frame closure, and crossing clearance remain unproven. | Design and assess the arm/keeper interface without drilling or crushing the profile. | Profile retention geometry. |
 | Service sequence | Service intent is accepted; the actual order and tool paths are not. | Prove access during joint, arm/keeper, and cable slices. | Assembly and replacement approval. |
 
 ## Evidence and decision records
@@ -71,7 +71,7 @@ their calculations and checks do not establish minima or proof for the revision.
 | [Analytical basis](stella-analytical-basis.md) | Existing pose, illustrative load sensitivity, ABS limitations, and insert-host guidance. |
 | [ADR-0001](adr/0001-stella-unmodified-profiles.md) | Non-invasive profile boundary. |
 | [ADR-0002](adr/0002-stella-seated-m3-arm-joints.md) | Accepted broad-seat, two-M3 joint architecture. |
-| [CAD contract](cad-contract.md) | Current functional-core execution boundary, inputs, proof, and acceptance. |
+| [CAD contract](cad-contract.md) | Accepted core interface and current mating-profile-arm definition boundary. |
 
 ## Change protocol
 

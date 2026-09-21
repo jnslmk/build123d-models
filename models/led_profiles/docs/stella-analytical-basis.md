@@ -1,9 +1,11 @@
 # Stella analytical inputs
 
-Evidence gathered 2026-09-20 for the [Stella specification](stella-specification.md)
-and its current [CAD contract](cad-contract.md). This is source-backed input and
-illustrative arithmetic, not accepted geometry, a load rating, or physical
-validation. The agreed scope is estimates/CAD only.
+Evidence gathered from 2026-09-20 onward for the
+[Stella specification](stella-specification.md) and its current
+[CAD contract](cad-contract.md). This is source-backed input and illustrative
+arithmetic, not a load rating or physical validation. Where geometry has human
+acceptance, that status is stated explicitly; the agreed scope remains
+estimates/CAD only.
 
 ## Existing hanging pose and separate frames
 
@@ -431,10 +433,11 @@ instruction for that two-stopper arrangement was found.
 
 ## Implemented two-hole functional-core screen — 2026-09-21
 
-This section records the implemented review candidate for
+This section records the implemented and accepted
 `led_profiles.stella.core`. It supersedes the preceding candidate as current
-implementation evidence but does not erase that candidate's history. Geometry
-acceptance remains pending.
+core evidence but does not erase that candidate's history. On 2026-09-21 the
+user reviewed the interactive model and section sheet and replied
+**“Looks good, go ahead.”**
 
 ### Geometry and hardware state
 
