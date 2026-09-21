@@ -1436,9 +1436,10 @@ def create_endcap(spec: Endcap = DEFAULT) -> Part:
         # discipline as the strap mouths. The bed-terminating stubs at the
         # access mouths are held out of the roll -- see
         # ``screw_seam_fillet_edges``.
-        for radius in (SCREW_SEAM_FILLET, 0.15, 0.1):
-            if fillet_edge(bp, screw_seam_fillet_edges(bp, spec), radius):
-                break
+        # OCC refuses the 0.2 and 0.15 mm rungs on this seam set; 0.1 mm is
+        # the largest verified radius that applies without emitting noise.
+        if not fillet_edge(bp, screw_seam_fillet_edges(bp, spec), 0.1):
+            raise RuntimeError("screw seam fillet could not be applied")
 
         # Sits on top of the plain collar, so it never meets the lead-in above.
         with Locations((0, 0, GLAND_COLLAR)):
