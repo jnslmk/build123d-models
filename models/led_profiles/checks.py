@@ -60,6 +60,7 @@ from . import stella_core_offset as stella_core_offset_mod
 from .stand import config as sc
 from .stand import keeper as keeper_mod
 from .stand import leg as leg_mod
+from .stella.checks import check_arm as check_organic_stella_arm
 from .stella.checks import check_core as check_organic_stella_core
 from . import strain_relief as srm
 from . import strap as strap_mod
@@ -4799,6 +4800,7 @@ TARGET_CHECKS: dict[str, Callable[[Report], None]] = {
     "led_profiles.corner": check_corner,
     "led_profiles.strap": lambda r: check_strap(strap_mod.create_strap(), r),
     "led_profiles.stella.core": check_organic_stella_core,
+    "led_profiles.stella.arm": check_organic_stella_arm,
     "led_profiles.stella_arm": check_stella_parts,
     "led_profiles.stella_core": check_stella_parts,
     "led_profiles.stella_keeper": check_stella_parts,
