@@ -241,43 +241,19 @@ def _beam() -> Part:
 
 
 def _rails() -> Part:
-    """Two tall longitudinal webs carry bending while leaving the centre open."""
-    length = c.ARM_SADDLE_START - c.ARM_RAIL_START
+    """Twin rounded webs taper smoothly into the profile-following saddle."""
     with BuildPart() as rails:
-        with BuildSketch():
-            with Locations(
-                (c.ARM_RAIL_START, -c.ARM_RAIL_Y),
-                (c.ARM_RAIL_START, c.ARM_RAIL_Y),
-            ):
-                RectangleRounded(
-                    length,
-                    c.ARM_RAIL_WIDTH,
-                    2.0,
-                    align=(Align.MIN, Align.CENTER),
-                )
-        extrude(amount=c.ARM_RAIL_HEIGHT)
         for y in (-c.ARM_RAIL_Y, c.ARM_RAIL_Y):
-            centre = Plane(origin=(c.ARM_RAIL_START + length / 2, y, 0.0)).location
-            add(
-                bottom_chamfer_tool(
-                    length,
-                    c.ARM_RAIL_WIDTH,
-                    2.0,
-                    0.0,
-                    c.SADDLE_EDGE_CHAMFER,
-                ).moved(centre),
-                mode=Mode.SUBTRACT,
-            )
-            add(
-                top_chamfer_tool(
-                    length,
-                    c.ARM_RAIL_WIDTH,
-                    2.0,
-                    c.ARM_RAIL_HEIGHT,
-                    c.SADDLE_EDGE_CHAMFER,
-                ).moved(centre),
-                mode=Mode.SUBTRACT,
-            )
+            for station, height in c.ARM_RAIL_SECTIONS:
+                with BuildSketch(Plane.YZ.offset(station)):
+                    with Locations((y, 0.0)):
+                        RectangleRounded(
+                            c.ARM_RAIL_WIDTH,
+                            height,
+                            min(c.ARM_RAIL_WIDTH / 2 - 0.1, height / 2 - 0.1),
+                            align=(Align.CENTER, Align.MIN),
+                        )
+            loft()
     return rails.part
 
 
@@ -351,7 +327,7 @@ def _saddle() -> Part:
             extrude(amount=c.SADDLE_LENGTH)
         add(mouth.part, mode=Mode.SUBTRACT)
 
-        with BuildSketch(Plane.XY.offset(0.0)):
+        with BuildSketch(Plane.XY.offset(c.KEEPER_LAND_BASE_Z)):
             with Locations(
                 (c.KEEPER_STATION, -c.KEEPER_INSERT_Y),
                 (c.KEEPER_STATION, c.KEEPER_INSERT_Y),
@@ -363,8 +339,16 @@ def _saddle() -> Part:
                 )
         extrude(amount=c.KEEPER_LAND_HEIGHT)
         with Locations(
-            (c.KEEPER_STATION, -c.KEEPER_INSERT_Y, c.KEEPER_LAND_HEIGHT),
-            (c.KEEPER_STATION, c.KEEPER_INSERT_Y, c.KEEPER_LAND_HEIGHT),
+            (
+                c.KEEPER_STATION,
+                -c.KEEPER_INSERT_Y,
+                c.KEEPER_LAND_BASE_Z + c.KEEPER_LAND_HEIGHT,
+            ),
+            (
+                c.KEEPER_STATION,
+                c.KEEPER_INSERT_Y,
+                c.KEEPER_LAND_BASE_Z + c.KEEPER_LAND_HEIGHT,
+            ),
         ):
             Cylinder(
                 c.KEEPER_INSERT_PILOT_D / 2,

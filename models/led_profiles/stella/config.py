@@ -160,9 +160,7 @@ ARM_BEAM_WIDTH = 30.0
 ARM_BEAM_HEIGHT = 12.0
 ARM_BEAM_START = 12.0
 ARM_SADDLE_START = 66.0
-ARM_RAIL_START = 32.0
-ARM_RAIL_WIDTH = 9.0
-ARM_RAIL_HEIGHT = 40.0
+ARM_RAIL_WIDTH = 12.0
 ARM_RAIL_Y = 10.5
 
 # Open ABS saddle: SLIDING is 0.07 mm total at this material. It supports only
@@ -177,6 +175,15 @@ SADDLE_LENGTH = 36.0
 SADDLE_BAND_LENGTH = 12.0
 SADDLE_RELIEF = 0.6  # angular-compliance relief, not a mating fit.
 SADDLE_EDGE_CHAMFER = 0.8
+# Smooth twin-web transition: each section is (profile-axis station, height)
+# measured from the print bed. The smooth taper approaches the rounded saddle
+# silhouette instead of ending as a rectangular tower.
+ARM_RAIL_SECTIONS = (
+    (32.0, 40.0),
+    (43.0, 38.0),
+    (54.0, 34.0),
+    (ARM_SADDLE_START, 28.0),
+)
 
 # The future keeper will bridge the mouth and screw downward into these two
 # fixed arm lands. The same unidentified Ø4 × 5 mm M3 inventory is provisional;
@@ -184,6 +191,7 @@ SADDLE_EDGE_CHAMFER = 0.8
 KEEPER_LAND_LENGTH = 12.0
 KEEPER_LAND_PAD_WIDTH = 12.0
 KEEPER_LAND_HEIGHT = 8.0
+KEEPER_LAND_BASE_Z = SADDLE_MOUTH_Z - KEEPER_LAND_HEIGHT
 KEEPER_LAND_RADIUS = 3.0
 KEEPER_STATION = ARM_SADDLE_START + SADDLE_LENGTH / 2
 KEEPER_INSERT_Y = SADDLE_OUTER_HALF_W + 3.0

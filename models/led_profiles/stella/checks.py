@@ -1016,17 +1016,29 @@ def _arm_profile(part: Part, r: Report) -> None:
         "open mouth leaves the diffuser structurally untouched",
         f"no arm material above z={c.SADDLE_MOUTH_Z:g} at profile centre",
     )
+    r.check(
+        r.solid_at(part, 34.0, c.ARM_RAIL_Y, 34.0)
+        and r.solid_at(part, 65.0, c.ARM_RAIL_Y, 24.0)
+        and not r.solid_at(part, 65.0, c.ARM_RAIL_Y, 32.0),
+        "rounded twin webs taper toward the profile instead of ending as towers",
+        "high root section blends to a lower saddle-side section",
+    )
     for y in (-c.KEEPER_INSERT_Y, c.KEEPER_INSERT_Y):
+        pilot_z = (
+            c.KEEPER_LAND_BASE_Z + c.KEEPER_LAND_HEIGHT - c.KEEPER_INSERT_DEPTH / 2
+        )
+        pad_z = c.KEEPER_LAND_BASE_Z + c.KEEPER_LAND_HEIGHT / 2
         r.check(
-            not r.solid_at(
+            not r.solid_at(part, c.KEEPER_STATION, y, pilot_z)
+            and r.solid_at(
                 part,
                 c.KEEPER_STATION,
-                y,
-                c.KEEPER_LAND_HEIGHT - c.KEEPER_INSERT_DEPTH / 2,
-            )
-            and r.solid_at(part, c.KEEPER_STATION, y + (1 if y < 0 else -1) * 3, 4),
-            f"keeper land y={y:g}: blind pilot and surrounding pad exist",
-            f"Ø{c.KEEPER_INSERT_PILOT_D:g} x {c.KEEPER_INSERT_DEPTH:g} mm provisional pocket",
+                y + (1 if y < 0 else -1) * 3,
+                pad_z,
+            ),
+            f"keeper land y={y:g}: raised blind pilot and surrounding pad exist",
+            f"Ø{c.KEEPER_INSERT_PILOT_D:g} x {c.KEEPER_INSERT_DEPTH:g} mm pocket; "
+            f"land z={c.KEEPER_LAND_BASE_Z:g}..{c.SADDLE_MOUTH_Z:g}",
         )
 
 
@@ -1079,7 +1091,7 @@ def _arm_edges(part: Part, r: Report) -> None:
     r.section("Edge-treatment and seam audit")
     survey = sharp_convex_edges(part)
     r.check(
-        len(survey.sharp) == 88 and len(survey.unclassifiable) == 6,
+        len(survey.sharp) == 86 and len(survey.unclassifiable) == 6,
         "edge survey matches the reviewed explicit exception set",
         f"{len(survey.sharp)} sharp, {len(survey.unclassifiable)} unclassifiable; "
         "exceptions are bed datums, flat bearing/section boundaries, raw heat-set "

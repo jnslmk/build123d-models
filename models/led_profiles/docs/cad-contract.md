@@ -5,8 +5,10 @@
 > The removable keeper is deferred to the next separately gated slice.
 > **Accepted upstream anchor:** `led_profiles.stella.core`, accepted by the user
 > on 2026-09-21 with “Looks good, go ahead” after review of the 20 mm candidate.
-> **Status:** The core interface is frozen and the user has explicitly selected
-> and authorized this complete-arm boundary for geometry implementation.
+> **Status:** The core interface is frozen. The user authorized the complete-arm
+> boundary, then confirmed a same-slice amendment: round and taper the structural
+> transition to follow the profile and vertically center the keeper lands beneath
+> the future keeper.
 
 ## References
 
@@ -55,9 +57,9 @@ would reopen the accepted core rather than silently adjusting the arm.
   the structural beam/ribs seated on `z=0`. Assembly transforms, not the public
   part, place the sloped arm onto the core.
 - **In scope:** Arm key, two M3 clearance paths and head/washer/driver access,
-  structural transition and ribs, one open saddle, the arm-side half of the
-  future keeper joint, external cable/connector clearance, edge treatment and
-  arm-only checks.
+  structural transition and ribs with a rounded profile-following envelope, one
+  open saddle, vertically centered arm-side keeper attachment lands, external
+  cable/connector clearance, edge treatment and arm-only checks.
 - **Deferred interfaces:** The removable keeper itself, offset cores, the second
   tetrahedron, the complete electrical route, primary suspension hardware and
   full assemblies remain separately gated.
@@ -67,7 +69,7 @@ would reopen the accepted core rather than silently adjusting the arm.
 | Requirement | Consequence for this slice |
 | --- | --- |
 | `STELLA-JOINT-01` | Match the accepted broad key and clamp with two M3 screws into the core inserts; bearing faces and shoulders, not screw shanks, carry shear and rotation. |
-| `STELLA-PROFILE-01` | Support the aluminium profile without drilling it, crushing its 0.5 mm wall or loading the diffuser. |
+| `STELLA-PROFILE-01` | Support the aluminium profile without drilling it, crushing its 0.5 mm wall or loading the diffuser; use a rounded, tapered arm transition and vertically centered keeper lands beneath the future keeper rather than a block-like support. |
 | `STELLA-CABLE-01` | Keep the electrical cable outside the core and preserve side-loading access for an already-terminated cable. |
 | `STELLA-USE-01` | Use ABS and the indoor, at-most-28-day assumptions; do not inherit the previous ASA arm's allowables. |
 | `STELLA-SERVICE-01` | Keep fasteners, cable and future keeper accessible while the surrounding structure independently supports the lamp. |
@@ -143,9 +145,10 @@ would reopen the accepted core rather than silently adjusting the arm.
 - **Views produced:** Arm-only isometric, top, side and profile-end PNGs; one
   arm seated in one accepted core branch; root fastener and root/rib sections;
   saddle/profile section; external service corridor.
-- **What the views let the human judge:** Root bulk, transition into the beam,
-  relationship to the accepted organic core, profile support, future keeper
-  lands, cable access and print orientation.
+- **What the views let the human judge:** Root bulk, the rounded tapered
+  transition into the profile-following saddle, relationship to the accepted
+  organic core, profile support, vertically centered future keeper lands, cable
+  access and print orientation.
 - **Artifacts:** `exports/led_profiles.stella.arm-review_*.png`.
 
 ## Acceptance gate
@@ -158,9 +161,15 @@ would reopen the accepted core rather than silently adjusting the arm.
 - **Boundary decision:** After core acceptance, the user selected **complete arm,
   keeper deferred**: the core-side key, two-M3 connection, transition and beam,
   open saddle, keeper lands and external service clearances are one arm slice.
-- **Implemented candidate:** 101.488 × 52.17 × 40.933 mm, 57,909.851 mm³ in
-  print pose. The separate keeper remains absent.
-- **Current-slice acceptance signal:** Pending human review of this implemented
-  arm, its physical gate and the evidence above.
+- **First implemented candidate:** 101.488 × 52.17 × 40.933 mm,
+  57,909.851 mm³ in print pose. Human review rejected its block-like transition
+  and low keeper lands.
+- **Confirmed amendment:** Round and taper the transition to follow the profile
+  and move both keeper lands into the vertical center beneath the future keeper.
+- **Amended candidate:** 101.488 × 52.17 × 40.933 mm, 59,883.470 mm³ in print
+  pose. Smooth lofted twin webs taper from the root toward the saddle; both
+  keeper lands now occupy z=12.8–20.8 mm immediately below the future keeper.
+- **Current-slice acceptance signal:** Pending human review of the amended arm,
+  its physical gate and refreshed evidence.
 - **Geometry authorization:** Explicitly granted with the boundary selection.
 - **Next slice after arm acceptance:** The separate removable profile keeper.
