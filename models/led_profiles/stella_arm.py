@@ -3,8 +3,9 @@
 A short saddle starts ``CRADLE_START`` from the mathematical vertex so the lamp
 keeps its endcap and gland. Two triangular ribs print from the bed to a flat
 sloped tab; one M5 clearance hole passes through that tab, and two tapered keys
-enter the round core to carry shear. The open centre between the ribs leaves the
-M5 nut reachable from the back.
+enter the round core to carry shear. A rounded notch opens through the tab's
+inner edge for the profile cable, while the open centre between the ribs leaves
+the M5 nut reachable from the back.
 
 The saddle has one low through-bolt ear and takes one separate drop-on keeper.
 Print pose is authored directly: saddle mouth up, beam and ribs on z=0.
@@ -19,6 +20,7 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
+    Circle,
     Color,
     Cone,
     Cylinder,
@@ -112,26 +114,74 @@ def _key(point: tuple[float, float, float]) -> Part:
     return bp.part
 
 
+def _cable_notch_dimensions(
+    bolt_point: tuple[float, float, float],
+) -> tuple[float, float]:
+    """Centre and diameter of a round, edge-open cable notch in the tab."""
+    z_delta = m.TUBE_AXIS_Z - bolt_point[2]
+    face_positions = []
+    for depth in (0.0, s.TAB_T):
+        x_delta = (depth - z_delta * INTO_ARM[2]) / INTO_ARM[0]
+        face_positions.append(x_delta * FACE_TANGENT[0] + z_delta * FACE_TANGENT[2])
+    projected_width = s.CABLE_SLOT_W / INTO_ARM[0]
+    centre = sum(face_positions) / 2
+    diameter = abs(face_positions[1] - face_positions[0]) + projected_width
+    return centre, diameter
+
+
 def _tab() -> Part:
     """Flat keyed tab with one M5 through-hole and an open rear fastener seat."""
     bolt_point = _face_point(s.BOLT_FACE_X)
     front = Plane(origin=bolt_point, x_dir=(0.0, 1.0, 0.0), z_dir=INTO_ARM)
+    notch_centre, notch_diameter = _cable_notch_dimensions(bolt_point)
+    depth_insets = (
+        (0.0, s.FLANGE_CHAMFER),
+        (s.FLANGE_CHAMFER, 0.0),
+        (s.TAB_T - s.FLANGE_CHAMFER, 0.0),
+        (s.TAB_T, s.FLANGE_CHAMFER),
+    )
     with BuildPart() as bp:
-        with BuildSketch(front):
-            RectangleRounded(s.TAB_W, s.TAB_H, s.TAB_CORNER_R)
-        extrude(amount=s.TAB_T)
-        for depth in (0.0, s.TAB_T):
-            perimeter = []
-            for edge in bp.edges():
-                centre = edge.center()
-                edge_depth = (
-                    (centre.X - bolt_point[0]) * INTO_ARM[0]
-                    + (centre.Y - bolt_point[1]) * INTO_ARM[1]
-                    + (centre.Z - bolt_point[2]) * INTO_ARM[2]
+        for depth, inset in depth_insets:
+            with BuildSketch(front.offset(depth)):
+                RectangleRounded(
+                    s.TAB_W - 2 * inset,
+                    s.TAB_H - 2 * inset,
+                    s.TAB_CORNER_R - inset,
                 )
-                if abs(edge_depth - depth) < 0.01:
-                    perimeter.append(edge)
-            chamfer_edge(bp, perimeter, s.FLANGE_CHAMFER)
+        loft(ruled=True)
+        with BuildPart() as cable_notch:
+            for depth, inset in depth_insets:
+                with BuildSketch(front.offset(depth)):
+                    with Locations((0.0, notch_centre)):
+                        Circle(notch_diameter / 2 + inset)
+            loft()
+        add(cable_notch.part, mode=Mode.SUBTRACT)
+
+        def is_notch_mouth(edge) -> bool:
+            tangent = edge.tangent_at(0.5)
+            alignment = abs(
+                tangent.X * INTO_ARM[0]
+                + tangent.Y * INTO_ARM[1]
+                + tangent.Z * INTO_ARM[2]
+            )
+            mouth_tangent = abs(edge.center().Y)
+            return (
+                alignment > 0.99
+                and notch_diameter / 4 < mouth_tangent < notch_diameter / 2
+            )
+
+        notch_mouth_centres = [
+            edge.center() for edge in bp.edges() if is_notch_mouth(edge)
+        ]
+        for centre in notch_mouth_centres:
+            for fillet_radius in (s.FLANGE_CHAMFER, s.FLANGE_CHAMFER / 2):
+                notch_mouths = [edge for edge in bp.edges() if is_notch_mouth(edge)]
+                notch_mouth = min(
+                    notch_mouths,
+                    key=lambda edge: (edge.center() - centre).length,
+                )
+                if fillet_edge(bp, [notch_mouth], fillet_radius):
+                    break
 
         hole_origin = _offset(bolt_point, CORE_NORMAL, 1.0)
         hole_plane = Plane(

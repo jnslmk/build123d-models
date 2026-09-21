@@ -60,6 +60,7 @@ from . import stella_core_offset as stella_core_offset_mod
 from .stand import config as sc
 from .stand import keeper as keeper_mod
 from .stand import leg as leg_mod
+from .stella.checks import check_core as check_organic_stella_core
 from . import strain_relief as srm
 from . import strap as strap_mod
 from .assembly import create_bare
@@ -3799,6 +3800,25 @@ def check_stella_parts(r: Report) -> None:
                 f"{printed_name} clears the {bought_name}",
                 f"{overlap:.3f} mm^3 shared",
             )
+    near_cable = next(
+        part
+        for part in gland_mod.seated(length=c.LENGTH, cable=True)
+        if part.label.startswith("cable (") and "(near)" in part.label
+    )
+    arm_cable = as_part(
+        Pos(
+            stella_cfg.CRADLE_START,
+            0.0,
+            mc.TUBE_UNDER_Z,
+        )
+        * near_cable
+    )
+    cable_overlap = _shared_volume(arm, arm_cable)
+    r.check(
+        cable_overlap < 0.01,
+        "arm: profile cable clears the edge-open tab notch",
+        f"{cable_overlap:.3f} mm^3 shared",
+    )
 
     for name, part, offset_value in (
         ("base", base, 0.0),
@@ -3806,8 +3826,55 @@ def check_stella_parts(r: Report) -> None:
     ):
         bolts = stella_core_mod.bolt_centers(offset_value)
         keys = stella_core_mod.key_centers(offset_value)
+        radius = stella_cfg.core_outline_radius(offset_value)
+        passages = stella_core_mod.cable_passage_axes(offset_value)
         # These fixed construction lists are inputs, not geometry assertions.
         # The gates below inspect the completed solid and posed fasteners instead.
+        for index, (bottom, top, angle) in enumerate(passages):
+            axis_clear = True
+            for z in (0.2, stella_cfg.CORE_T / 2, stella_cfg.CORE_T - 0.2):
+                fraction = z / stella_cfg.CORE_T
+                x = bottom[0] + (top[0] - bottom[0]) * fraction
+                y = bottom[1] + (top[1] - bottom[1]) * fraction
+                axis_clear &= not r.solid_at(part, x, y, z)
+            r.check(
+                axis_clear,
+                f"{name} core cable {index}: oblique profile-cable axis is clear",
+            )
+
+            mid_x = (bottom[0] + top[0]) / 2
+            mid_y = (bottom[1] + top[1]) / 2
+            mid_radius = (
+                stella_cfg.cable_axis_radius(offset_value, 0.0)
+                + stella_cfg.cable_axis_radius(offset_value, stella_cfg.CORE_T)
+            ) / 2
+            tangent_run = sqrt(max(radius**2 - mid_radius**2, 0.0)) + 0.5
+            tangent_x = cos(radians(angle))
+            tangent_y = sin(radians(angle))
+            side_open = all(
+                not r.solid_at(
+                    part,
+                    mid_x + tangent_x * tangent_run * fraction,
+                    mid_y + tangent_y * tangent_run * fraction,
+                    stella_cfg.CORE_T / 2,
+                )
+                for fraction in (0.0, 0.25, 0.5, 0.75, 1.0)
+            )
+            r.check(
+                side_open,
+                f"{name} core cable {index}: passage opens to the rim for "
+                "side-loading past the fitted connector",
+            )
+            closed_side = stella_cfg.CABLE_SLOT_W / 2 + 1.0
+            r.check(
+                r.solid_at(
+                    part,
+                    mid_x - tangent_x * closed_side,
+                    mid_y - tangent_y * closed_side,
+                    stella_cfg.CORE_T / 2,
+                ),
+                f"{name} core cable {index}: opposite side remains structural",
+            )
         for index, (x, y) in enumerate(bolts):
             r.check(
                 not r.solid_at(part, x, y, stella_cfg.CORE_T / 2),
@@ -4731,6 +4798,7 @@ TARGET_CHECKS: dict[str, Callable[[Report], None]] = {
     "led_profiles.strain_relief": _check_strain_relief_model,
     "led_profiles.corner": check_corner,
     "led_profiles.strap": lambda r: check_strap(strap_mod.create_strap(), r),
+    "led_profiles.stella.core": check_organic_stella_core,
     "led_profiles.stella_arm": check_stella_parts,
     "led_profiles.stella_core": check_stella_parts,
     "led_profiles.stella_keeper": check_stella_parts,
@@ -4780,6 +4848,7 @@ def run() -> Report:
     check_strap(strap_mod.create_strap(), r)
     check_corner(r)
     check_stella_parts(r)
+    check_organic_stella_core(r)
     check_stand(r)
     check_feet(r)
     check_assemblies(r)

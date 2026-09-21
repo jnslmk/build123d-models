@@ -24,8 +24,6 @@ EDGE_OFFSET = CROSSING_GAP
 # Arm-to-core joint. A flat tab sits on two printable ribs at the tetrahedral
 # slope; one M5 through-bolt clamps it to the round core while two shallow keys
 # carry shear and prevent rotation.
-FLANGE_RUN = 18.0
-FLANGE_H = sqrt(2) * FLANGE_RUN
 RIB_W = 5.0
 TAB_W = 28.0
 TAB_H = 20.0
@@ -36,25 +34,22 @@ RIB_EDGE_FILLET = 1.5
 BEAM_W = 20.0
 BEAM_T = m.TUBE_UNDER_Z
 
-# The Stella uses one short saddle and one keeper instead of the shared 60 mm
-# cradle's two straps.
-SADDLE_LEN = 36.0
-KEEPER_STATION = SADDLE_LEN / 2
-BEAM_END = CRADLE_START + m.BAND_LEN
+# The core is thick enough to carry the joint, but every profile cable crosses
+# it obliquely. Each cable passage is therefore the full swept projection
+# through CORE_T and opens tangentially at the rim: the cable slides in from the
+# side, so its fitted Ø21 mm SP16 connector never has to pass through the plate.
+CORE_T = 10.0
+CORE_EDGE_CHAMFER = 0.8
+CORE_MIN_WALL = 8.0
+CORE_TAB_EDGE = 2.0
+CABLE_SLOT_CLEAR = fits.for_material(fits.FREE, MATERIAL)  # free fit, ASA baseline
+CABLE_SLOT_W = m.CABLE_OD + CABLE_SLOT_CLEAR
+CABLE_AXIS_BASE_R = m.TUBE_AXIS_Z * sqrt(3 / 2)
+CABLE_JOINT_WALL = 2.0  # not a fit: two printed perimeters beside each key pocket
+CABLE_MOUTH_FILLET = 1.0
 
-BOLT_SIZE = "M5"
-BOLT_NOMINAL_D = 5.0
-BOLT_CLEAR_D = 5.75  # M5 normal clearance + FDM correction
-BOLT_FACE_X = FLANGE_RUN - 3.0
-BOLT_LEAD_IN = 0.6
-BOLT_HEAD_D = 8.5  # ISO 4762 M5 socket head
-BOLT_HEAD_H = 5.0
-BOLT_DRIVER_D = 10.0
-BOLT_DRIVER_LEN = 20.0
-BOLT_NUT_D = 9.25  # ISO 4032 M5 hex nut, across corners
-BOLT_NUT_H = 4.0
-BOLT_LENGTH = 25.0
-
+# Two tapered keys flank the bolt and carry shear. Their radial depth, rather
+# than the smaller bolt radius, is what sets the joint clear of the cable slot.
 KEY_Y = 8.0
 KEY_W = 5.0
 KEY_D = 8.0
@@ -63,10 +58,35 @@ KEY_LEAD_IN = 0.6
 KEY_FIT = fits.for_material(fits.FREE, MATERIAL)  # free fit, ASA baseline
 KEY_DEPTH_RELIEF = 0.2  # not a fit: lets the tab face seat before the key bottoms
 
-CORE_T = 10.0
-CORE_EDGE_CHAMFER = 0.8
-CORE_MIN_WALL = 8.0
-CORE_TAB_EDGE = 2.0
+BOLT_SIZE = "M5"
+BOLT_NOMINAL_D = 5.0
+BOLT_CLEAR_D = 5.75  # M5 normal clearance + FDM correction
+BOLT_LEAD_IN = 0.6
+BOLT_HEAD_D = 8.5  # ISO 4762 M5 socket head
+BOLT_HEAD_H = 5.0
+BOLT_DRIVER_D = 10.0
+BOLT_DRIVER_LEN = 20.0
+BOLT_NUT_D = 9.25  # ISO 4032 M5 hex nut, across corners
+BOLT_NUT_H = 4.0
+BOLT_LENGTH = 25.0
+# At the tab's rear face the oblique cable has moved TAB_T / sqrt(2) farther
+# out than at the core face; that worst section sets the joint radius.
+BOLT_FACE_X = (
+    CABLE_AXIS_BASE_R
+    + TAB_T / sqrt(2)
+    + CABLE_SLOT_W / 2
+    + CABLE_JOINT_WALL
+    + (KEY_D + KEY_FIT) / 2
+) / sqrt(3)
+BOLT_END_MARGIN = 3.0  # not a fit: tab/rib material beyond the joint centre
+FLANGE_RUN = BOLT_FACE_X + BOLT_END_MARGIN
+FLANGE_H = sqrt(2) * FLANGE_RUN
+
+# The Stella uses one short saddle and one keeper instead of the shared 60 mm
+# cradle's two straps.
+SADDLE_LEN = 36.0
+KEEPER_STATION = SADDLE_LEN / 2
+BEAM_END = CRADLE_START + m.BAND_LEN
 
 # The round core carries the sling in its centre rather than growing a side lobe.
 SLING_SLOT_W = 20.0
@@ -109,6 +129,12 @@ SUSPENSION_POINTS = 4
 DESIGN_FACTOR = 5.0
 DESIGN_HUB_LOAD_N = 250.0
 ASA_SUSTAINED_STRESS_MPA = 10.0
+
+
+def cable_axis_radius(offset: float, z: float) -> float:
+    """Profile-cable axis radius where it crosses core-local height ``z``."""
+    radial_endpoint = offset * sqrt(2 / 3)
+    return radial_endpoint + CABLE_AXIS_BASE_R - z / sqrt(2)
 
 
 def core_hole_radius(offset: float) -> float:

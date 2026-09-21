@@ -370,14 +370,26 @@ than modify the bought tube.
 | `stand.py` | `create_stand_hub()` | vertical cradle, offset gland well, side exit, three leg pivots |
 | `feet.py` | `create_eye_foot()`, `create_wall_foot()` | eye is a **through-bolt**, not an insert |
 | `stella_config.py` | — | one-bolt keyed hub and one-keeper saddle dimensions |
-| `stella_core.py` | `create_core()` | round three-arm hub with six blind key pockets and a central sling slot |
-| `stella_arm.py` | `create_arm()` | ribbed keyed tab, 36 mm saddle and through-bolt crossbar |
+| `stella_core.py` | `create_core()` | round three-arm hub with six blind key pockets, three edge-open cable passages and a central sling slot |
+| `stella_arm.py` | `create_arm()` | ribbed keyed tab with an edge-open cable notch, 36 mm saddle and through-bolt crossbar |
 | `stella_keeper.py` | `create_keeper()` | 10 mm profile keeper, two M4 through-bolts with exposed nuts |
+
+**Stella revision boundary (2026-09-20):** the following records the existing
+implementation, not the final specification. The user has withdrawn the
+circular-core requirement and reopened structural design and arm-to-core
+hardware selection. [The current CAD contract](cad-contract.md) owns those
+decisions; neither the round outline nor the elimination of inserts below is
+a constraint on the redesign.
 
 The Stella is the deliberate exception to the shared strap pattern. Its short
 saddle takes one slim keeper, while one M5 through-bolt clamps each arm to the
 round core and two tapered FREE-fit keys carry shear. This removes heat-set
-inserts and captive-nut pockets from both Stella joints.
+inserts and captive-nut pockets from both Stella joints. The three profile
+cables cross the core obliquely, so each passage follows that swept axis and
+opens tangentially at the rim. Matching rounded notches open through the inner
+edges of the arm tabs: an already-terminated cable slides into both printed
+parts sideways instead of forcing its Ø21 mm SP16 connector through a closed
+hole.
 
 Two departures from the sketch above, both found while building:
 

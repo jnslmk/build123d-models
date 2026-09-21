@@ -1,15 +1,15 @@
 """Round vertex core for the modular stella-octangula connector.
 
-Three M5 through-bolts clamp three arm tabs to one circular plate. Two shallow
-keys per arm sit in free-fit pockets and carry in-plane shear, so a single bolt
-can clamp each arm without also having to locate it. The central 20 x 10 mm slot
-accepts a soft sling. The core prints flat, so both the sling and key loads stay
-in the layer plane.
+Three M5 through-bolts clamp keyed arm tabs to one circular plate. Three
+tangentially edge-open passages accept the profile cables laterally, so their
+fitted SP16 connectors never have to pass through the core. The central
+20 x 10 mm slot accepts a soft sling. The core prints flat, keeping sling and
+key loads in the layer plane.
 """
 
 from __future__ import annotations
 
-from math import cos, radians, sin
+from math import cos, radians, sin, sqrt
 
 from build123d import (
     Align,
@@ -23,14 +23,17 @@ from build123d import (
     Mode,
     Part,
     Plane,
+    Rectangle,
     RectangleRounded,
+    Rotation,
+    Sketch,
     SlotOverall,
     add,
     extrude,
     loft,
 )
 
-from models.lib.edges import chamfer_edge
+from models.lib.edges import as_part, chamfer_edge, fillet_edge
 
 from . import stella_config as s
 
@@ -65,6 +68,102 @@ def eye_center(offset: float) -> tuple[float, float]:
     """The sling slot stays at the centre of either round core."""
     del offset
     return 0.0, 0.0
+
+
+def cable_passage_axes(
+    offset: float,
+) -> list[tuple[tuple[float, float], tuple[float, float], float]]:
+    """Cable-axis endpoints on the core's bottom and top faces."""
+    bottom_radius = s.cable_axis_radius(offset, 0.0)
+    top_radius = s.cable_axis_radius(offset, s.CORE_T)
+    return [
+        (
+            _rotated_point(0.0, bottom_radius, angle),
+            _rotated_point(0.0, top_radius, angle),
+            angle,
+        )
+        for angle in (0.0, 120.0, 240.0)
+    ]
+
+
+def _cable_passage_profile(
+    offset: float,
+    core_radius: float,
+    expansion: float = 0.0,
+) -> Sketch:
+    """Swept cable footprint plus its tangential side-loading path."""
+    bottom_radius = s.cable_axis_radius(offset, 0.0)
+    top_radius = s.cable_axis_radius(offset, s.CORE_T)
+    width = s.CABLE_SLOT_W + 2 * expansion
+    radial_span = abs(bottom_radius - top_radius) + width
+    radial_mid = (bottom_radius + top_radius) / 2
+    with BuildSketch() as profile:
+        with Locations((0.0, -radial_mid)):
+            SlotOverall(radial_span, width, rotation=90.0)
+        with Locations((-expansion, -radial_mid)):
+            Rectangle(
+                core_radius + 2.0 + 2 * expansion,
+                radial_span,
+                align=(Align.MIN, Align.CENTER),
+            )
+    return profile.sketch
+
+
+def _cable_passage_tool(
+    offset: float,
+    core_radius: float,
+    angle: float,
+) -> Part:
+    """Straight through-tool for one edge-open profile-cable passage."""
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY.offset(-1.0)):
+            add(_cable_passage_profile(offset, core_radius))
+        extrude(amount=s.CORE_T + 2.0)
+    return as_part(Rotation(0.0, 0.0, angle) * tool.part)
+
+
+def _cable_passage_lead_in(
+    offset: float,
+    core_radius: float,
+    angle: float,
+    z: float,
+    top: bool,
+) -> Part:
+    """Boolean lead-in around one passage without an OCC edge operation."""
+    z_wide = z if not top else z + s.CORE_EDGE_CHAMFER
+    z_narrow = z + s.CORE_EDGE_CHAMFER if not top else z
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XY.offset(z_wide)):
+            add(
+                _cable_passage_profile(
+                    offset,
+                    core_radius,
+                    s.CORE_EDGE_CHAMFER,
+                )
+            )
+        with BuildSketch(Plane.XY.offset(z_narrow)):
+            add(_cable_passage_profile(offset, core_radius))
+        loft(ruled=True)
+    return as_part(Rotation(0.0, 0.0, angle) * tool.part)
+
+
+def _cable_mouth_centers(
+    offset: float,
+    core_radius: float,
+) -> list[tuple[float, float]]:
+    """Vertical rim edges where the three side-loading passages open."""
+    bottom_radius = s.cable_axis_radius(offset, 0.0)
+    top_radius = s.cable_axis_radius(offset, s.CORE_T)
+    radial_bounds = (
+        top_radius - s.CABLE_SLOT_W / 2,
+        bottom_radius + s.CABLE_SLOT_W / 2,
+    )
+    points: list[tuple[float, float]] = []
+    for angle in (0.0, 120.0, 240.0):
+        for radial in radial_bounds:
+            tangent = sqrt(core_radius**2 - radial**2)
+            points.append(_rotated_point(tangent, radial, angle))
+    return points
 
 
 def _slot_lead_in(z: float, top: bool) -> Part:
@@ -109,7 +208,7 @@ def _key_mouth_tool(x: float, y: float, angle: float) -> Part:
 
 
 def create_core(offset: float = 0.0) -> Part:
-    """One circular core; ``offset`` selects the outward crossing layer."""
+    """One side-loadable cable core; ``offset`` selects the crossing layer."""
     centres = bolt_centers(offset)
     radius = s.core_outline_radius(offset)
     pocket_depth = s.KEY_PROTRUSION + s.KEY_DEPTH_RELIEF
@@ -128,6 +227,39 @@ def create_core(offset: float = 0.0) -> Part:
             bp.edges().filter_by_position(Axis.Z, -0.01, 0.01),
             s.CORE_EDGE_CHAMFER,
         )
+        for _bottom, _top, angle in cable_passage_axes(offset):
+            add(
+                _cable_passage_tool(offset, radius, angle),
+                mode=Mode.SUBTRACT,
+            )
+            add(
+                _cable_passage_lead_in(
+                    offset,
+                    radius,
+                    angle,
+                    0.0,
+                    top=False,
+                ),
+                mode=Mode.SUBTRACT,
+            )
+            add(
+                _cable_passage_lead_in(
+                    offset,
+                    radius,
+                    angle,
+                    s.CORE_T - s.CORE_EDGE_CHAMFER,
+                    top=True,
+                ),
+                mode=Mode.SUBTRACT,
+            )
+        for mouth_x, mouth_y in _cable_mouth_centers(offset, radius):
+            vertical_edges = bp.edges().filter_by(Axis.Z)
+            mouth_edge = min(
+                vertical_edges,
+                key=lambda edge: (edge.center().X - mouth_x) ** 2
+                + (edge.center().Y - mouth_y) ** 2,
+            )
+            fillet_edge(bp, [mouth_edge], s.CABLE_MOUTH_FILLET)
 
         with Locations(*[(x, y, -1.0) for x, y in centres]):
             Cylinder(
@@ -188,4 +320,11 @@ def create() -> Part:
     return create_core(0.0)
 
 
-__all__ = ["bolt_centers", "create", "create_core", "eye_center", "key_centers"]
+__all__ = [
+    "bolt_centers",
+    "cable_passage_axes",
+    "create",
+    "create_core",
+    "eye_center",
+    "key_centers",
+]
