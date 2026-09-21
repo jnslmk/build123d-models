@@ -3742,6 +3742,19 @@ def check_stella_parts(r: Report) -> None:
         f"{nut_fouling:.3f} mm^3 obstructed",
     )
 
+    # The low web must extend past each triangular rib's x-end so their
+    # connection is a substantial fused overlap, not the former 1 mm kiss.
+    reinforced_web_point = (
+        stella_cfg.FLANGE_RUN + 0.5,
+        stella_cfg.TAB_W / 2 - 1.0,
+        stella_cfg.BEAM_T / 2,
+    )
+    r.check(
+        r.solid_at(arm, *reinforced_web_point),
+        "arm: full-width web materially extends beyond each support rib",
+        f"material witness at {reinforced_web_point}",
+    )
+
     station = stella_cfg.CRADLE_START + stella_cfg.KEEPER_STATION
     for side in (-1.0, 1.0):
         r.check(

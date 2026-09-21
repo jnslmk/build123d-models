@@ -371,9 +371,10 @@ uv run render led_profiles.stella.core --view top --png
 The existing Stella connector is a four-piece hub: one round
 core and three identical cradle arms. One M5 × 25 through-bolt and exposed nut
 clamp each arm to the core; two tapered FREE-fit keys carry shear and prevent
-rotation. Each arm has a 36 mm saddle and one 10 mm keeper retained by two
-M4 × 16 through-bolts with exposed nuts, replacing the former two-strap
-interface.
+rotation. Each arm's low connecting web now spans the complete 28 mm tab width,
+giving the profile-side beam substantial overlap with both sloped tab-support
+ribs. Each arm has a 36 mm saddle and one 10 mm keeper retained by two M4 × 16
+through-bolts with exposed nuts, replacing the former two-strap interface.
 
 Each profile cable crosses the core through its own oblique FREE-fit passage.
 The passage opens tangentially at the rim and the matching arm-tab notch opens

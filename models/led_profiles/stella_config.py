@@ -31,7 +31,7 @@ TAB_T = 6.0
 TAB_CORNER_R = 2.0
 FLANGE_CHAMFER = 0.8
 RIB_EDGE_FILLET = 1.5
-BEAM_W = 20.0
+BEAM_W = TAB_W  # continuous full-width web overlaps the tab-support ribs.
 BEAM_T = m.TUBE_UNDER_Z
 
 # The core is thick enough to carry the joint, but every profile cable crosses
