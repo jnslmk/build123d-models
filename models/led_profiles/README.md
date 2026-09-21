@@ -212,6 +212,9 @@ interference fit, so the cradle uses `for_material(SLIDING, "asa")` = 0.07.
 The family is unsealed and makes no IP claim: there are no gaskets or sealed
 joints, and the cradle, stand and corner pockets have solid floors. Use A2
 stainless hardware throughout and shelter the complete assembly from rain.
+The new Stella core described below is an explicit exception: its accepted
+material is ABS. That redesign does not change the material or interfaces of
+these existing mounting parts.
 
 | part | size | hardware |
 |---|---|---|
@@ -295,18 +298,42 @@ consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
 
-**Stella redesign (accepted definition, 2026-09-20).** The
-[Stella specification](docs/stella-specification.md) is the durable source of
-the accepted connector, profile-retention, cable-access, suspension, material,
-service, and evidence boundaries. It supersedes the circular-core intent but
-does not alter the existing production geometry.
+**Stella redesign (functional core implemented; human acceptance pending).**
+The purpose remains a modular, serviceable lamp frame with independently
+replaceable profiles. The [Stella specification](docs/stella-specification.md)
+owns accepted requirements; the [CAD contract](docs/cad-contract.md) records
+the current dimensions, proof and acceptance gate. Separate arms, keepers,
+offset cores and assemblies remain deferred.
 
-The first modelling slice is the **unshifted core body alone**. Its active
-[CAD contract](docs/cad-contract.md) owns dimensional sizing, reservations,
-core-only proof, and human acceptance; the
-[analytical basis](docs/stella-analytical-basis.md) records supporting evidence
-and its limitations. Arm/keeper, cable, sling, offset-core, and full-assembly
-geometry remain later, separately gated slices.
+The **`led_profiles.stella.core`** review candidate is **138.603 × 127 ×
+20 mm** in ABS print pose. One smooth organic-Y outline runs through its
+height, apart from three 28.25 × 28.25 × 3 mm keyed seat recesses and the
+0.6 mm outer edge treatments. The six blind insert pilots are Ø3.7 × 6 mm
+for the user's unidentified M3, Ø4 × 5 mm inserts; that pilot remains a
+coupon/installation assumption, not a manufacturer recipe.
+
+There are no core electrical-cable notches. Two Ø8 suspension holes on 22 mm
+centres have R2 contact mouths for the provisional nominal-6 mm cord loop,
+leaving a 14 mm straight-throat bridge, 10 mm at the rounded mouths and
+screened 8 mm outer ligaments. The knot remains above the core and is not
+modelled or rated.
+The flat +Z print pose preserves the branch load paths, but the lower R2 mouths
+need local removable support and post-print smoothing/inspection; they are not
+claimed support-free.
+
+The implemented height is **8 mm above the 12 mm target**. Twelve millimetres
+fits the minimum 6 mm insert well + 3 mm retained floor + 3 mm keyed seat, but
+the actual post-cut branch and suspension-section screens fail there. The
+19 mm trial still failed the outer-seat short-event screen and one suspension
+ligament; 20 mm passes the retained assumptions. This is an estimate/CAD gate,
+not an overhead rating, measured ABS creep capacity, insert-retention result,
+or cord/knot approval. No redesigned geometry has human acceptance.
+
+```bash
+uv run check led_profiles.stella.core
+uv run view led_profiles.stella.core
+uv run render led_profiles.stella.core --view top --png
+```
 
 **Existing implementation—not the redesign:**
 
@@ -555,8 +582,9 @@ Only external connections required: **24 V, GND, DATA**.
       nothing stands in line with the gland at all.
 - [x] Suspension eye and wall feet
 - [ ] Stella octangula — [redesign specification](docs/stella-specification.md)
-      accepted; core sizing and revised geometry pending in the
-      [CAD contract](docs/cad-contract.md)
+      core definition amended; revised geometry and dependent parts remain
+      pending. [Current definition/proof gate](docs/cad-contract.md);
+      no redesigned geometry has been accepted.
 - [ ] PCB mount inside the endcap
 - [ ] PCB (ESP32 Mini + power distribution + LED output)
 - [ ] Mounting hardware

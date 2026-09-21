@@ -20,11 +20,12 @@
 
 | Request concerns | Read now | Read only when needed |
 | --- | --- | --- |
-| Any Stella iteration | This index; `../CONTEXT.md`; `stella-specification.md`; current `cad-contract.md`; `stella_config.py` | `README.md` for public wording; `docs/design-notes.md` for rationale |
-| Core body, cable mouth, or sling slot | `stella_core.py`; `checks.py::check_stella_parts` | `mount_config.py` when the cable envelope or material changes |
-| Arm tab, notch, ribs, or saddle | `stella_arm.py`; `checks.py::check_stella_parts` | `part-joints` for a core/arm joint change; `fasteners-and-inserts` for M3 geometry |
-| Keeper geometry | `stella_keeper.py`; `checks.py::check_stella_parts` | `fasteners-and-inserts` for its bolts or clearances |
-| Vertex or double-tetrahedron placement | `assemblies/stella_octangula.py`, after the affected part passes its slice gate | Full-assembly proof is an integration/CI gate |
+| Any Stella iteration | This index; `../CONTEXT.md`; `stella-specification.md`; current `cad-contract.md` | `README.md` for public wording; `docs/design-notes.md` for previous-implementation rationale |
+| Functional organic-Y core: continuous web-section outline, core-side M3 seats and two-hole textile-cord suspension; electrical cables outside | Current `cad-contract.md`; `stella/config.py`; `stella/core.py`; `stella/checks.py::check_core` | `stella-analytical-basis.md` for historical candidate assumptions and current cord evidence; source may lag the active definition, as recorded in the contract |
+| Previous round core, cable mouth, or sling slot | `stella_config.py`; `stella_core.py`; `checks.py::check_stella_parts` | `mount_config.py` for the existing cable envelope; these are not redesign defaults |
+| Previous arm tab, notch, ribs, or saddle | `stella_config.py`; `stella_arm.py`; `checks.py::check_stella_parts` | `part-joints` and `fasteners-and-inserts` when that interface is explicitly in scope |
+| Previous keeper geometry | `stella_keeper.py`; `checks.py::check_stella_parts` | `fasteners-and-inserts` for its bolts or clearances |
+| Previous vertex or double-tetrahedron placement | `assemblies/stella_octangula.py`, only for an explicit previous-assembly task | No redesigned assembly until the dependent slices are accepted; full-assembly proof is an integration/CI gate |
 | Edge treatment or a new geometry predicate | `build123d-geometry-ops`, then the target source/check | `fdm-fits-and-clearances` before changing a fit or cable-slot clearance |
 
 ## Tight edit loop
@@ -33,13 +34,20 @@ For a part-level change, run that leaf's physical gate and render only the views
 named by the current contract:
 
 ```bash
-uv run check led_profiles.stella_core
-uv run render led_profiles.stella_core --png
+uv run check led_profiles.stella.core
+uv run view led_profiles.stella.core
+uv run render led_profiles.stella.core --view top --png
 ```
 
-Run the arm leaf when the arm changes. Use the full assembly only for an
-intentional integration review after accepted part slices; it is not the normal
-interactive loop.
+The `stella.*` namespace is the redesign; underscore-named `stella_core`,
+`stella_arm`, `stella_keeper`, and the current assembly are the previous
+implementation. Keep those separate parts and assembly callers isolated from
+the redesign until their dependent slices are accepted. Core-side features
+belong to the functional core review defined in `cad-contract.md`, not an
+implicit later assembly slice. Do not inherit frozen dimensions, reservations
+or proof assumptions from the old blank body into new functional-core code.
+Run the full assembly only for an intentional integration review after accepted
+dependent slices, never as the normal core edit loop.
 
 ## Contract hygiene
 

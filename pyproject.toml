@@ -63,6 +63,7 @@ packages = [
     "models.door_latch",
     "models.led_profiles",
     "models.led_profiles.stand",
+    "models.led_profiles.stella",
     "models.led_profiles.assemblies",
     "models.led_profiles.previz",
     "models.lens_cap",
