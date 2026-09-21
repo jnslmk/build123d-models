@@ -535,6 +535,41 @@ individual isometric, top, side, insert-floor-section and
 suspension-bridge-section PNGs with the same filename stem. These show shape;
 the checks above own hidden-geometry proof.
 
+## Complete profile-arm screen — 2026-09-21
+
+The authorized `led_profiles.stella.arm` candidate is **101.488 × 52.17 ×
+40.933 mm** and **57,909.851 mm³** in its mouth-up ABS print pose. It contains
+the accepted nominal 28 × 28 × 3 mm key without a second fit allowance, a
+48 × 48 mm shoulder plate, a 7.5 mm screw stack, two finished driver corridors,
+twin root webs, a 30 × 12 mm low beam and two 9 × 40 mm structural rails.
+
+The first 24 × 8 mm beam trial failed the sustained screen at three stations and
+the short-event screen at all five. Adding only 7 × 32 mm rails still failed
+the short-event root and mid-beam stations. The implemented rail/beam/root
+combination passes after every M3 and driver cut. The controlling short-event
+result is at **x=18 mm: 11.796 MPa ≤ 13.365 MPa**; the controlling sustained
+result is also x=18: **2.662 MPa ≤ 5.346 MPa**. These are actual OCC-integrated
+sections under the retained limited-beam assumptions, not FEA or a rating.
+
+The saddle uses **0.07 mm total ABS SLIDING clearance**, two **12 mm** bearing
+bands and a 0.6 mm relieved middle. Its mouth stops at the aluminium rim, so the
+diffuser remains outside the structural contact. Two keeper lands contain
+provisional Ø3.7 × 6 mm pockets for the same unidentified M3 insert inventory;
+the later keeper must use these lands without changing the accepted arm.
+
+The M3 × 12 / 0.5 mm washer / 7.5 mm arm stack leaves **4 mm nominal
+engagement**, 1 mm unused insert and 2 mm to the blind-well bottom. Both Ø7
+washer witnesses and Ø8 × 50 mm driver envelopes clear in the finished arm.
+This proves geometric access only; pull-out, torque-out, preload and real
+hardware remain unqualified.
+
+`uv run check led_profiles.stella.arm` passes the connected-solid, print-pose,
+key/core collision, coaxial fastener, bearing, driver, net-section, profile,
+keeper-land and side-service predicates. During implementation the same gate
+rejected a blocked inner M3 axis, obstructed driver paths, an arm/core collision
+and undersized root/beam sections. Review evidence is
+`exports/led_profiles.stella.arm-review_*.png`.
+
 [abs]: https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/abs-asa/polylite-tm-abs
 [spirol]: https://www.spirol.com/assets/files/ins-threaded-inserts-design-guide-us.pdf
 [markforged]: https://markforged.com/resources/blog/heat-set-inserts

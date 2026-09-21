@@ -5,10 +5,11 @@
 > **Status:** The functional core amendment was accepted on 2026-09-21 after
 > review of the implemented 20 mm candidate. Round 1's “as recommended”
 > confirmed the outline/cable changes; Round 2's “A” selected a short closed
-> cord loop through the two suspension holes. The next slice is the mating
-> profile arm and arm-to-core connection; its exact boundary is pending.
+> cord loop through the two suspension holes. The authorized next slice is one
+> complete mating profile arm through its open saddle and arm-side keeper lands;
+> the removable keeper remains separately gated.
 > **Authoritative for:** User-accepted Stella requirements. The active
-> [CAD contract](cad-contract.md) owns the profile-arm definition slice.
+> [CAD contract](cad-contract.md) owns the profile-arm implementation slice.
 
 ## Purpose
 
@@ -59,7 +60,7 @@ their calculations and checks do not establish minima or proof for the revision.
 | M3 stack and insert installation | The accepted core uses a provisional M3 × 12 / 7.5 mm arm / 0.5 mm washer stack and an estimated insert pilot; physical hardware remains unidentified. | Match the accepted interface, prove arm-side access and reach, then validate the real insert/pilot with a coupon. | Final arm-to-core joint and physical qualification. |
 | Suspension qualification | The accepted core fixes the two-hole geometry, but cord contact, knot/tail behaviour, movement, abrasion and capacity remain unqualified. | Retain the accepted geometry and resolve physical rigging outside the arm slice. | Physical suspended use, not arm CAD. |
 | External electrical-cable route | The core has no notches, but connector choice, protection and the complete arm-side bend/service path remain unresolved. | Prove side access around the accepted core and arm, then complete routing in assembly. | Arm envelope and later assembly proof. |
-| Arm and keeper boundary | The broad-seat/two-M3 architecture is accepted, but the arm's complete extent and arm-side keeper interface are not yet confirmed. | Confirm whether the current slice includes the complete open saddle and keeper lands while the removable keeper stays separate. | Profile-arm geometry authorization. |
+| Arm and keeper boundary | The authorized arm slice includes the accepted core-side key, two-M3 connection, structural transition and beam, one open profile saddle, arm-side keeper lands and external service clearances. The removable keeper is deferred to the next separately gated slice. | Implement and review the complete arm before defining keeper geometry. | Arm geometry is authorized; keeper geometry remains blocked pending arm acceptance. |
 | Non-invasive profile capture | Axial retention, thermal growth, frame closure, and crossing clearance remain unproven. | Design and assess the arm/keeper interface without drilling or crushing the profile. | Profile retention geometry. |
 | Service sequence | Service intent is accepted; the actual order and tool paths are not. | Prove access during joint, arm/keeper, and cable slices. | Assembly and replacement approval. |
 

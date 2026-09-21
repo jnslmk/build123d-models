@@ -1,11 +1,12 @@
 # CAD contract — Stella mating profile arm
 
-> **Current slice:** One unshifted mating profile arm and its arm-to-core
-> connection — definition boundary pending confirmation.
+> **Current slice:** One complete mating profile arm, from the accepted core-side
+> key through one open profile saddle and its arm-side keeper attachment lands.
+> The removable keeper is deferred to the next separately gated slice.
 > **Accepted upstream anchor:** `led_profiles.stella.core`, accepted by the user
 > on 2026-09-21 with “Looks good, go ahead” after review of the 20 mm candidate.
-> **Status:** The core implementation and its interface are frozen for dependent
-> work. This contract proposes the next anchor; no arm geometry exists yet.
+> **Status:** The core interface is frozen and the user has explicitly selected
+> and authorized this complete-arm boundary for geometry implementation.
 
 ## References
 
@@ -46,17 +47,17 @@ would reopen the accepted core rather than silently adjusting the arm.
   `led_profiles.stella.arm`.
 - **Anchor part:** One complete arm from the accepted keyed core seat to one
   open profile saddle, including the arm-side keeper attachment lands but not
-  the separate keeper. This boundary is the proposal awaiting confirmation.
+  the separate keeper. The user confirmed this boundary after core acceptance.
 - **Purpose:** Transfer one profile member into the accepted vertex core through
   broad bearing faces and two clamping screws while preserving non-invasive
   profile support, external cable access and later lamp replacement.
-- **Proposed print pose:** Profile axis horizontal, saddle mouth upward, and the
-  structural beam/ribs seated on `z=0`. Assembly transforms, not the public
+- **Print pose to validate:** Profile axis horizontal, saddle mouth upward, and
+  the structural beam/ribs seated on `z=0`. Assembly transforms, not the public
   part, place the sloped arm onto the core.
-- **In scope after confirmation:** Arm key, two M3 clearance paths and
-  head/washer/driver access, structural transition and ribs, one open saddle,
-  the arm-side half of the future keeper joint, external cable/connector
-  clearance, edge treatment and arm-only checks.
+- **In scope:** Arm key, two M3 clearance paths and head/washer/driver access,
+  structural transition and ribs, one open saddle, the arm-side half of the
+  future keeper joint, external cable/connector clearance, edge treatment and
+  arm-only checks.
 - **Deferred interfaces:** The removable keeper itself, offset cores, the second
   tetrahedron, the complete electrical route, primary suspension hardware and
   full assemblies remain separately gated.
@@ -90,8 +91,7 @@ would reopen the accepted core rather than silently adjusting the arm.
 
 | Question | Resolution path | Blocking effect |
 | --- | --- | --- |
-| Slice boundary | Confirm a complete arm with arm-side keeper lands while the separate keeper remains deferred, rather than a root-only coupon or combined arm/keeper slice. | Geometry authorization |
-| Print orientation | Compare the proposed mouth-up pose against support demand at the sloped key and strength across the root transition. | Root/rib form and checks |
+| Print orientation | Validate the confirmed mouth-up pose against support demand at the sloped key and strength across the root transition. | Root/rib form and checks |
 | Root-to-beam structure | Size actual post-cut net sections for axial member load, core-normal reaction, handling moment and screw-head bearing; avoid copying the previous M5 arm. | Arm thickness, ribs and transition |
 | Profile saddle | Derive clearance and bearing support from the measured profile while keeping load off the diffuser and avoiding wall crush. | Saddle geometry |
 | Keeper-side interface | Choose lands and fastener or keyed features that a later removable keeper can use without changing the accepted arm body. | Arm completion before keeper work |
@@ -120,33 +120,33 @@ would reopen the accepted core rather than silently adjusting the arm.
 | Edge treatment and physical gates | `build123d-geometry-ops` | The sloped root and internal checks need isolated edge operations and point-sampled proof. |
 | Human-gated dependency order | `cad-iteration` | The arm becomes the accepted anchor before the separate keeper or assembly. |
 
-## Verifiable predicates after geometry authorization
+## Verifiable predicates for the authorized geometry
 
-- [ ] One valid connected arm solid in its declared +Z print pose, seated on
-  `z=0`, with no avoidable support demand.
-- [ ] The nominal 28 × 28 mm key and two screw axes seat in the accepted core
+- [x] One valid connected arm solid in its declared +Z print pose, seated on
+  `z=0`; the 54.7° key and web faces remain self-supporting in the mouth-up pose.
+- [x] The nominal 28 × 28 mm key and two screw axes seat in the accepted core
   without collision or duplicated clearance.
-- [ ] Both screws have through clearance, washer/head bearing, driver approach,
-  nominal engagement and no bottoming.
-- [ ] Actual root/beam sections pass the documented sustained and short-event
-  screens after every hole and relief is cut.
-- [ ] The measured profile envelope has supported bearing surfaces and clearance
-  without diffuser contact or thin-wall interference.
-- [ ] External cable, bend, connector and hand/tool corridors remain open beside
-  one seated arm and the accepted core.
-- [ ] Edge survey contains only intentional seams; functional lead-ins and
-  exposed print edges are treated.
+- [x] Both screws have through clearance, washer/head bearing, Ø8 × 50 mm driver
+  approach, 4 mm nominal engagement and 2 mm to the blind-well bottom.
+- [x] Actual finished root/beam sections pass the retained sustained and
+  short-event limited-beam screens after holes and reliefs.
+- [x] The measured profile envelope has two 12 mm bearing bands at the saddle
+  ends, ABS SLIDING clearance and no diffuser contact.
+- [x] External cable, connector and Ø40 hand corridors remain open beside one
+  seated arm and the accepted core; the 26.8 mm bend radius remains an assembly
+  routing constraint rather than a closed arm passage.
+- [x] The edge survey is pinned to the reviewed exception set: bed datums, flat
+  bearing/section boundaries, raw insert mouths and boolean seams.
 
 ## Visual review
 
-- **Views to show:** Arm-only isometric, top, side and profile-end views; one arm
-  seated in one accepted core branch; root fastener section; root/rib section;
-  saddle/profile section; external cable/service corridor.
+- **Views produced:** Arm-only isometric, top, side and profile-end PNGs; one
+  arm seated in one accepted core branch; root fastener and root/rib sections;
+  saddle/profile section; external service corridor.
 - **What the views let the human judge:** Root bulk, transition into the beam,
   relationship to the accepted organic core, profile support, future keeper
   lands, cable access and print orientation.
-- **Artifact:** To be named when the boundary above is confirmed and geometry is
-  implemented.
+- **Artifacts:** `exports/led_profiles.stella.arm-review_*.png`.
 
 ## Acceptance gate
 
@@ -155,10 +155,12 @@ would reopen the accepted core rather than silently adjusting the arm.
 - **Core proof retained:** `uv run check led_profiles.stella.core` passed before
   commit `fff2f9c`; deliberate notch, blocked-bore and thin-floor defects were
   rejected. Ruff and ty passed.
-- **Human feedback requested now:** Confirm whether this slice should deliver a
-  complete arm through its open profile saddle and arm-side keeper lands, with
-  the removable keeper itself still deferred.
-- **Current-slice acceptance signal:** Pending explicit boundary confirmation.
-- **Geometry authorization:** Pending that confirmation; no arm source or public
-  registration exists yet.
+- **Boundary decision:** After core acceptance, the user selected **complete arm,
+  keeper deferred**: the core-side key, two-M3 connection, transition and beam,
+  open saddle, keeper lands and external service clearances are one arm slice.
+- **Implemented candidate:** 101.488 × 52.17 × 40.933 mm, 57,909.851 mm³ in
+  print pose. The separate keeper remains absent.
+- **Current-slice acceptance signal:** Pending human review of this implemented
+  arm, its physical gate and the evidence above.
+- **Geometry authorization:** Explicitly granted with the boundary selection.
 - **Next slice after arm acceptance:** The separate removable profile keeper.

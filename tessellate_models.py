@@ -73,6 +73,7 @@ MODELS = [
     "led_profiles.corner",
     "led_profiles.strap",
     "led_profiles.stella.core",
+    "led_profiles.stella.arm",
     "led_profiles.stella_arm",
     "led_profiles.stella_core",
     "led_profiles.stella_keeper",

@@ -132,3 +132,69 @@ ABS_EVENT_MPA = ABS_REFERENCE_Z_MPA * PROCESS_FACTOR * TEMPERATURE_FACTOR
 ABS_SUSTAINED_MPA = ABS_EVENT_MPA * DURATION_FACTOR
 LOCAL_STRESS_FACTOR = 1.5  # Assumed notch multiplier, not a resolved stress field.
 PRELOAD_N = 80.0  # Illustrative clamp preload per insert; no torque prescription.
+
+# Complete profile-arm slice. The seat already owns this joint's FREE-class ABS
+# allowance; the arm key stays nominal so the fit is not counted twice.
+ARM_KEY_DEPTH = SEAT_DEPTH
+ARM_BACKPLATE_DEPTH = ARM_STACK - ARM_KEY_DEPTH
+ARM_BACKPLATE_LENGTH = 48.0
+ARM_BACKPLATE_WIDTH = 48.0
+ARM_BACKPLATE_RADIUS = 6.0
+ARM_KEY_LEAD = 0.6
+ARM_HOLE_LEAD = 0.5
+DRIVER_PATH_CLEARANCE = 0.5  # functional radial margin around the assumed driver.
+
+# Print frame: +X follows the profile, +Y spans its width, +Z is the diffuser
+# direction. The assembled core-normal/member geometry fixes the sloped root.
+ARM_CORE_NORMAL = (-sqrt(2 / 3), 0.0, 1 / sqrt(3))
+ARM_INWARD_NORMAL = (
+    -ARM_CORE_NORMAL[0],
+    -ARM_CORE_NORMAL[1],
+    -ARM_CORE_NORMAL[2],
+)
+ARM_FACE_TANGENT = (1 / sqrt(3), 0.0, sqrt(2 / 3))
+ARM_ROOT_FACE_X = 14.0
+ARM_ROOT_FACE_Z = sqrt(2) * ARM_ROOT_FACE_X + 2.0
+ARM_RIB_WIDTH = 12.0
+ARM_BEAM_WIDTH = 30.0
+ARM_BEAM_HEIGHT = 12.0
+ARM_BEAM_START = 12.0
+ARM_SADDLE_START = 66.0
+ARM_RAIL_START = 32.0
+ARM_RAIL_WIDTH = 9.0
+ARM_RAIL_HEIGHT = 40.0
+ARM_RAIL_Y = 10.5
+
+# Open ABS saddle: SLIDING is 0.07 mm total at this material. It supports only
+# the aluminium below its rim; the diffuser remains entirely above the mouth.
+PROFILE_CLEAR = fits.for_material(fits.SLIDING, MATERIAL)  # SLIDING, ABS; total gap.
+SADDLE_WALL = 4.0
+SADDLE_FLOOR = SADDLE_WALL
+SADDLE_AXIS_Z = SADDLE_FLOOR + profile.HEIGHT / 2
+SADDLE_MOUTH_Z = SADDLE_FLOOR + profile.RIM_Z
+SADDLE_OUTER_HALF_W = (profile.WIDTH + PROFILE_CLEAR) / 2 + SADDLE_WALL
+SADDLE_LENGTH = 36.0
+SADDLE_BAND_LENGTH = 12.0
+SADDLE_RELIEF = 0.6  # angular-compliance relief, not a mating fit.
+SADDLE_EDGE_CHAMFER = 0.8
+
+# The future keeper will bridge the mouth and screw downward into these two
+# fixed arm lands. The same unidentified Ø4 × 5 mm M3 inventory is provisional;
+# the pilot remains a coupon requirement, exactly as on the accepted core.
+KEEPER_LAND_LENGTH = 12.0
+KEEPER_LAND_PAD_WIDTH = 12.0
+KEEPER_LAND_HEIGHT = 8.0
+KEEPER_LAND_RADIUS = 3.0
+KEEPER_STATION = ARM_SADDLE_START + SADDLE_LENGTH / 2
+KEEPER_INSERT_Y = SADDLE_OUTER_HALF_W + 3.0
+KEEPER_INSERT_PILOT_D = INSERT_PILOT_D
+KEEPER_INSERT_DEPTH = INSERT_DEPTH
+
+# Arm-local external service corridors. They are functional envelopes, not fits.
+CABLE_ROUTE_Y = KEEPER_INSERT_Y + KEEPER_LAND_PAD_WIDTH / 2 + CABLE_ENVELOPE_D / 2 + 2.0
+CONNECTOR_ROUTE_Y = KEEPER_INSERT_Y + KEEPER_LAND_PAD_WIDTH / 2 + CONNECTOR_D / 2 + 3.0
+HAND_ROUTE_Y = KEEPER_INSERT_Y + KEEPER_LAND_PAD_WIDTH / 2 + COUPLING_HAND_D / 2 + 3.0
+
+# Root/beam section stations in the print frame. These are section screens of
+# the finished arm and not nominal blank reservations.
+ARM_SECTION_X = (18.0, 26.0, 36.0, 52.0, ARM_SADDLE_START - 1.0)

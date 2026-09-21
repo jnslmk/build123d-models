@@ -6,10 +6,12 @@ import sys
 from math import cos, hypot, pi, radians, sin, sqrt
 
 from build123d import (
+    Axis,
     Align,
     Box,
     BuildPart,
     BuildSketch,
+    Circle,
     Cylinder,
     Edge,
     GeomType,
@@ -21,6 +23,8 @@ from build123d import (
     RectangleRounded,
     Rot,
     ShapeList,
+    SlotOverall,
+    Vector,
     Solid,
     add,
     extrude,
@@ -39,7 +43,7 @@ from models.lib.checks import (
 from models.lib.edges import as_part
 
 from . import config as c
-from . import core
+from . import arm, core
 
 # Numerical proof tolerances, not manufacturing clearances.
 _VOLUME_TOL = 1e-4
@@ -860,6 +864,263 @@ def check_core(r: Report, part: Part | None = None) -> None:
     _sling(part, r)
     _sections(part, r)
     _edges(part, r)
+
+
+def _x_cylinder(x: float, length: float, y: float, z: float, diameter: float) -> Part:
+    with BuildPart() as tool:
+        with BuildSketch(Plane.YZ.offset(x)):
+            with Locations((y, z)):
+                Circle(diameter / 2)
+        extrude(amount=length)
+    return tool.part
+
+
+def _arm_root(part: Part, r: Report) -> None:
+    r.section("Accepted key, coaxial M3 stack, bearing and unrestricted driver access")
+    assembled = arm.seated(part)
+    accepted_core = core.create()
+    collision = _volume(assembled.intersect(accepted_core))
+    r.check(
+        collision <= _VOLUME_TOL,
+        "nominal key seats without duplicating the core-owned clearance",
+        f"arm/core collision {collision:.6f} mm^3; key {c.ARM_KEY_WIDTH:g} x "
+        f"{c.ARM_KEY_LENGTH:g} x {c.ARM_KEY_DEPTH:g} mm",
+    )
+    r.check(
+        len((assembled + accepted_core).solids()) == 1,
+        "key shoulder contacts the accepted core as one connected assembly",
+        "zero-volume bearing contact, not a screw-shank shear path",
+    )
+    for radial in c.INSERT_RADII:
+        bore = _cylinder(
+            c.ARM_CLEAR_D / 2,
+            c.SEAT_Z - c.INSERT_DEPTH,
+            c.CORE_H + c.ARM_BACKPLATE_DEPTH + 2,
+        )
+        bore = as_part(Pos(*_xy(90.0, radial), 0) * bore)
+        obstruction = _volume((assembled + accepted_core).intersect(bore))
+        r.check(
+            obstruction <= _VOLUME_TOL,
+            f"M3 axis r={radial:g}: accepted core pilot and arm clearance are coaxial",
+            f"Ø{c.ARM_CLEAR_D:g} through-path obstruction {obstruction:.6f} mm^3",
+        )
+
+    centre = (c.ARM_ROOT_FACE_X, 0.0, c.ARM_ROOT_FACE_Z)
+    direction = Axis(Vector(0, 0, 0), Vector(*c.ARM_INWARD_NORMAL))
+    expected_annulus = (
+        pi * ((c.WASHER_D / 2) ** 2 - (c.ARM_CLEAR_D / 2) ** 2) * _BEARING_LAYER
+    )
+    for offset in (-9.0, 9.0):
+        axis_point = (
+            centre[0] + c.ARM_FACE_TANGENT[0] * offset,
+            centre[1] + c.ARM_FACE_TANGENT[1] * offset,
+            centre[2] + c.ARM_FACE_TANGENT[2] * offset,
+        )
+        back = (
+            axis_point[0] + c.ARM_INWARD_NORMAL[0] * c.ARM_BACKPLATE_DEPTH,
+            axis_point[1] + c.ARM_INWARD_NORMAL[1] * c.ARM_BACKPLATE_DEPTH,
+            axis_point[2] + c.ARM_INWARD_NORMAL[2] * c.ARM_BACKPLATE_DEPTH,
+        )
+        bearing_plane = Plane(origin=back, z_dir=c.ARM_CORE_NORMAL)
+        washer = as_part(
+            bearing_plane.location
+            * Cylinder(
+                c.WASHER_D / 2,
+                _BEARING_LAYER,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.PRIVATE,
+            )
+        )
+        hole = as_part(
+            bearing_plane.location
+            * Cylinder(
+                c.ARM_CLEAR_D / 2,
+                _BEARING_LAYER,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.PRIVATE,
+            )
+        )
+        bearing = _volume(part.intersect(washer)) - _volume(part.intersect(hole))
+        r.check(
+            bearing >= 0.9 * expected_annulus,
+            f"M3 offset {offset:g}: washer has broad printed bearing",
+            f"bearing witness {bearing:.3f} >= {0.9 * expected_annulus:.3f} mm^3",
+        )
+        foul = fastener_clearance(
+            part,
+            back,
+            c.HEAD_D,
+            c.HEAD_H,
+            direction=direction,
+            driver_d=c.DRIVER_D,
+            driver_len=c.DRIVER_LENGTH,
+        )
+        r.check(
+            foul <= _VOLUME_TOL,
+            f"M3 offset {offset:g}: head and Ø{c.DRIVER_D:g} driver approach clear",
+            f"arm material in tool envelope {foul:.6f} mm^3",
+        )
+
+    engagement = c.SCREW_LENGTH - c.ARM_STACK - c.WASHER_T
+    r.check(
+        abs(engagement - 4.0) <= _EPS
+        and engagement <= c.INSERT_LENGTH
+        and engagement + (c.INSERT_DEPTH - c.INSERT_LENGTH) < c.INSERT_DEPTH,
+        "M3 x 12 stack gives engagement without blind-well bottoming",
+        f"{engagement:g} mm engagement, {c.INSERT_LENGTH - engagement:g} mm unused insert, "
+        f"{c.INSERT_DEPTH - engagement:g} mm to well bottom",
+    )
+
+
+def _arm_profile(part: Part, r: Report) -> None:
+    r.section("Open saddle bearing, diffuser isolation and keeper-ready lands")
+    profile = _x_cylinder(0, 0.1, 0, 0, 1)  # replaced below by the exact stadium
+    with BuildPart() as envelope:
+        with BuildSketch(Plane.YZ.offset(c.ARM_SADDLE_START)):
+            with Locations((0.0, c.SADDLE_AXIS_Z)):
+                SlotOverall(
+                    c.profile.HEIGHT + c.PROFILE_CLEAR,
+                    c.profile.WIDTH + c.PROFILE_CLEAR,
+                    rotation=90,
+                )
+        extrude(amount=c.SADDLE_LENGTH)
+    profile = envelope.part
+    collision = _volume(part.intersect(profile))
+    r.check(
+        collision <= _VOLUME_TOL,
+        "SLIDING-fit aluminium envelope clears the complete saddle",
+        f"collision {collision:.6f} mm^3; ABS total clearance {c.PROFILE_CLEAR:g} mm",
+    )
+    for x in (
+        c.ARM_SADDLE_START + c.SADDLE_BAND_LENGTH / 2,
+        c.ARM_SADDLE_START + c.SADDLE_LENGTH - c.SADDLE_BAND_LENGTH / 2,
+    ):
+        r.check(
+            r.solid_at(part, x, 0.0, c.SADDLE_FLOOR / 2)
+            and r.solid_at(
+                part,
+                x,
+                c.profile.WIDTH / 2 + c.PROFILE_CLEAR / 2 + c.SADDLE_WALL / 2,
+                c.SADDLE_AXIS_Z,
+            ),
+            f"saddle band x={x:g}: floor and aluminium-side bearing remain",
+            "profile is supported below its rim without squeezing the 0.5 mm wall",
+        )
+    r.check(
+        not r.solid_at(
+            part,
+            c.KEEPER_STATION,
+            0.0,
+            c.SADDLE_MOUTH_Z + 0.5,
+        ),
+        "open mouth leaves the diffuser structurally untouched",
+        f"no arm material above z={c.SADDLE_MOUTH_Z:g} at profile centre",
+    )
+    for y in (-c.KEEPER_INSERT_Y, c.KEEPER_INSERT_Y):
+        r.check(
+            not r.solid_at(
+                part,
+                c.KEEPER_STATION,
+                y,
+                c.KEEPER_LAND_HEIGHT - c.KEEPER_INSERT_DEPTH / 2,
+            )
+            and r.solid_at(part, c.KEEPER_STATION, y + (1 if y < 0 else -1) * 3, 4),
+            f"keeper land y={y:g}: blind pilot and surrounding pad exist",
+            f"Ø{c.KEEPER_INSERT_PILOT_D:g} x {c.KEEPER_INSERT_DEPTH:g} mm provisional pocket",
+        )
+
+
+def _arm_service(part: Part, r: Report) -> None:
+    r.section("Side-loaded cable, bend, connector and hand corridors")
+    for name, y, diameter in (
+        ("sleeved cable", c.CABLE_ROUTE_Y, c.CABLE_ENVELOPE_D),
+        ("terminated connector", c.CONNECTOR_ROUTE_Y, c.CONNECTOR_D),
+        ("coupling hand", c.HAND_ROUTE_Y, c.COUPLING_HAND_D),
+    ):
+        corridor = _x_cylinder(
+            0.0,
+            c.ARM_SADDLE_START + c.SADDLE_LENGTH,
+            y,
+            c.SADDLE_AXIS_Z,
+            diameter,
+        )
+        local_foul = _volume(part.intersect(corridor))
+        assembled_foul = _volume(
+            (arm.seated(part) + core.create()).intersect(arm.seated(corridor))
+        )
+        r.check(
+            local_foul <= _VOLUME_TOL and assembled_foul <= _VOLUME_TOL,
+            f"{name} can side-load beside one seated arm and accepted core",
+            f"local/assembled fouling {local_foul:.6f}/{assembled_foul:.6f} mm^3",
+        )
+    r.lines.append(
+        f"  Fixed-install cable bend radius remains {c.CABLE_BEND_R:g} mm; "
+        "the arm reserves an open side corridor rather than a closed threading hole."
+    )
+
+
+def _arm_sections(part: Part, r: Report) -> None:
+    r.section("Finished arm root/beam sections under retained limited-beam screen")
+    for station in c.ARM_SECTION_X:
+        _net_screen(
+            part,
+            r,
+            f"arm section x={station:g}",
+            station,
+            c.MEMBER_STATIC_N / sqrt(3),
+            c.MEMBER_STATIC_N * sqrt(2 / 3),
+            c.SADDLE_AXIS_Z,
+            c.ARM_SADDLE_START + c.SADDLE_LENGTH / 2,
+            c.HANDLING_MOMENT_NMM,
+        )
+
+
+def _arm_edges(part: Part, r: Report) -> None:
+    r.section("Edge-treatment and seam audit")
+    survey = sharp_convex_edges(part)
+    r.check(
+        len(survey.sharp) == 88 and len(survey.unclassifiable) == 6,
+        "edge survey matches the reviewed explicit exception set",
+        f"{len(survey.sharp)} sharp, {len(survey.unclassifiable)} unclassifiable; "
+        "exceptions are bed datums, flat bearing/section boundaries, raw heat-set "
+        "insert mouths and boolean seams; key, beam, rails, rib and saddle-entry "
+        "edges carry their modelled treatments",
+    )
+
+
+def check_arm(r: Report, part: Part | None = None) -> None:
+    """Check the authorized complete arm without implying physical qualification."""
+    if part is None:
+        part = arm.create()
+    bounds = part.bounding_box()
+    r.section("One valid connected arm in mouth-up ABS print pose")
+    r.check(
+        len(part.solids()) == 1 and part.is_valid,
+        "arm is one valid connected solid",
+        f"{len(part.solids())} solid(s), volume {_volume(part):.3f} mm^3",
+    )
+    r.check(
+        abs(bounds.min.Z) <= _EPS,
+        "beam, ribs and saddle are seated on z=0",
+        f"min z={bounds.min.Z:.6f} mm; +Z print direction",
+    )
+    _arm_root(part, r)
+    _arm_sections(part, r)
+    _arm_profile(part, r)
+    _arm_service(part, r)
+    _arm_edges(part, r)
+
+
+def handles_model(name: str) -> bool:
+    return name == "led_profiles.stella.arm"
+
+
+def run_model(name: str) -> Report | None:
+    if not handles_model(name):
+        return None
+    r = Report()
+    check_arm(r)
+    return r
 
 
 def run() -> Report:

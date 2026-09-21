@@ -36,8 +36,8 @@ The accepted core proof command is:
 uv run check led_profiles.stella.core
 ```
 
-The arm has no geometry or public registration while its boundary is pending.
-After authorization, its edit loop becomes:
+The complete-arm boundary is authorized while the removable keeper remains
+deferred. Its edit loop is:
 
 ```bash
 uv run check led_profiles.stella.arm

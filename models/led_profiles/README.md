@@ -298,12 +298,12 @@ consequence of staying coplanar — `docs/design-notes.md` §2 has the
 derivation. The tripod is studio-class, not load-bearing: ~0.85 N of push at
 the top topples it (`docs/design-notes.md` §4).
 
-**Stella redesign (functional core accepted; profile arm next).**
+**Stella redesign (functional core accepted; profile arm awaiting acceptance).**
 The purpose remains a modular, serviceable lamp frame with independently
 replaceable profiles. The [Stella specification](docs/stella-specification.md)
-owns accepted requirements; the [CAD contract](docs/cad-contract.md) now owns
-the next mating-profile-arm definition. Keepers, offset cores and assemblies
-remain separately gated.
+owns accepted requirements; the [CAD contract](docs/cad-contract.md) owns the
+implemented complete-arm review slice. The removable keeper, offset cores and
+assemblies remain separately gated.
 
 The accepted **`led_profiles.stella.core`** is **138.603 × 127 × 20 mm** in ABS
 print pose. One smooth organic-Y outline runs through its height, apart from
@@ -328,6 +328,26 @@ ligament; 20 mm passes the retained assumptions. This is an estimate/CAD gate,
 not an overhead rating, measured ABS creep capacity, insert-retention result,
 or cord/knot approval. The user accepted this geometry on 2026-09-21 after
 reviewing the interactive model and section views.
+
+The review candidate **`led_profiles.stella.arm`** is one complete ABS arm in
+mouth-up print pose: the exact nominal 28 × 28 × 3 mm core key, a 48 mm shoulder
+plate, two M3 clearance paths, twin root webs and 40 mm structural rails, a
+36 mm open saddle with two 12 mm profile-bearing bands, and two arm-side keeper
+lands. The profile uses the ABS SLIDING total clearance (0.07 mm), enters through
+treated axial/drop-in mouths and remains below its diffuser rim. The keeper is
+not modelled. External Ø6.7 mm cable, Ø21 connector and Ø40 service corridors
+side-load beside a seated arm; their geometry is clearance evidence, not cable
+retention or a completed assembly route.
+
+The arm is **101.488 × 52.17 × 40.933 mm** in print pose. Finished-section
+screens pass the same explicitly limited force/material assumptions used by the
+accepted core, but insert retention, preload relaxation, printed-ABS creep,
+profile retention and suspended use remain unqualified.
+
+```bash
+uv run check led_profiles.stella.arm
+uv run show led_profiles.stella.arm
+```
 
 ```bash
 uv run check led_profiles.stella.core
