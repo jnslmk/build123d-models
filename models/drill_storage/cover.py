@@ -20,8 +20,9 @@ from __future__ import annotations
 
 from build123d import Part
 
-from .box import COVER_COLOR, create_cover
-from .sets import DrillSet
+from .box import CAP_H, COVER_COLOR, STACK_SOCKET_DEPTH, cover_height_for, create_cover
+from . import config as c
+from .sets import COVER_TIP_CLEARANCE, DrillSet
 
 
 def create_cover_for(drill_set: DrillSet) -> Part:
@@ -32,4 +33,19 @@ def create_cover_for(drill_set: DrillSet) -> Part:
     return cover
 
 
-__all__ = ["create_cover_for"]
+def create_stackable_cover_for(drill_set: DrillSet) -> Part:
+    """The same collar fit, with a supported Gridfinity-foot seat in the top."""
+    cover_h = cover_height_for(
+        drill_set.max_len,
+        headroom=COVER_TIP_CLEARANCE,
+        bore_floor_z=c.GUIDE_FLOOR_Z,
+        foot_top=c.SHELL_FOOT_TOP,
+        cap_h=CAP_H + STACK_SOCKET_DEPTH,
+    )
+    cover = create_cover(drill_set.label, cover_h=cover_h, stackable=True)
+    cover.label = f"cover_stackable_{drill_set.name}"
+    cover.color = COVER_COLOR
+    return cover
+
+
+__all__ = ["create_cover_for", "create_stackable_cover_for"]

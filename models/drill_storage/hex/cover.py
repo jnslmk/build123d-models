@@ -42,7 +42,12 @@ from ..box import (
     MOUTH_CH,
     SNAP_PROTRUSION,
     SNAP_Z,
+    STACK_SOCKET_DEPTH,
+    STACK_TOP_CH,
     TOP_FILLET,
+    add_stacking_support,
+    cut_stacking_socket,
+    rim_chamfer_tool,
     snap_bead_ring,
 )
 from . import config as c
@@ -82,6 +87,7 @@ def create_cover(
     label_z: float,
     label_horizontal: bool = False,
     snap_protrusion: float = SNAP_PROTRUSION,
+    stackable: bool = False,
 ) -> Part:
     """A rounded-square cover with a pillow top and an engraved label.
 
@@ -105,22 +111,29 @@ def create_cover(
         with BuildSketch():
             RectangleRounded(c.COVER_W, c.COVER_W, c.CORNER_R)
         extrude(amount=cover_h)
-        # Round the top over into a pillow.
-        fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
-        # Chamfer the bottom outer edge so the open rim seats flush on the flat
-        # base shoulder rather than overhanging the body edge (the cover is a
-        # touch wider than the body). Doubles as elephant-foot relief, since the
-        # cover prints open-end-down.
+        if stackable:
+            add(
+                rim_chamfer_tool(c.COVER_W, c.CORNER_R, cover_h, STACK_TOP_CH),
+                mode=Mode.SUBTRACT,
+            )
+        else:
+            fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
+        # The use-pose bottom edge is the open rim: break it so it seats flat
+        # on the base shoulder and is comfortable to handle. After flipping to
+        # print pose it faces upward, not toward the bed.
         chamfer(cover.edges().group_by(Axis.Z)[0], COVER_SEAT_CH)
 
         # Hollow: a single uniform bore (no step), open bottom to the solid cap.
         with BuildSketch():
             RectangleRounded(inner_w, inner_w, INNER_R)
-        extrude(amount=cover_h - CAP_H, mode=Mode.SUBTRACT)
+        cap_h = CAP_H + (STACK_SOCKET_DEPTH if stackable else 0)
+        extrude(amount=cover_h - cap_h, mode=Mode.SUBTRACT)
+        if stackable:
+            cut_stacking_socket(cover_h)
         # Small internal fillet where the bore ceiling meets the walls: relieves
         # stress at the cap join and eases the overhang printed under the cap.
         ceiling = cover.edges().filter_by_position(
-            Axis.Z, cover_h - CAP_H, cover_h - CAP_H
+            Axis.Z, cover_h - cap_h, cover_h - cap_h
         )
         if ceiling:
             fillet(ceiling, CAP_FILLET)
@@ -166,9 +179,9 @@ def create_cover(
         )
         if mouth:
             chamfer_edge(cover, mouth, c.LABEL_CHAMFER)
-    # Print orientation: flip the cover upside down (pillow top on the bed, open
-    # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
-    return reseat_on_bed(cover.part, flip=True)
+    # The integral support lies under the foot socket in print pose.
+    part = reseat_on_bed(cover.part, flip=True)
+    return add_stacking_support(part) if stackable else part
 
 
 __all__ = ["create_cover", "label_fit"]

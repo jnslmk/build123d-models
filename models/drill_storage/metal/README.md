@@ -9,6 +9,7 @@ uv run show drill_storage.metal            # assembled, drills standing in it
 uv run export drill_storage.metal.base    # ASA
 uv run export drill_storage.metal.insert   # TPU
 uv run export drill_storage.metal.cover    # PETG
+uv run export drill_storage.metal.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.metal
 ```
 
@@ -25,6 +26,13 @@ until `box.CAP_H` came down from 2.0 to 1.0: the cap is part of the height the
 quantiser rounds up from, and this set had been sitting 1 mm over a unit
 boundary. Nothing else about the joint moved, so a 123 mm cover from the old
 build still closes on this base; it just leaves 8 mm of air over the tips.
+
+**Stackable cover: 123 mm** (147 mm / 21U assembled). The supported top socket
+locates another holder's 1×1 Gridfinity foot while the extra unit preserves
+clearance over the 132 mm twist drill. The original 116 mm cover still fits
+the same base. Print the stackable cover mouth-up and remove its built-in
+breakaway lattice before stacking; see the
+[stackable-cover specification](../docs/stackable-cover-specification.md).
 
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended
 `TAP` on the walls rather than a bare size, since it is not a drill. The step

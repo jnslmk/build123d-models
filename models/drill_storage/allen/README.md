@@ -18,6 +18,7 @@ uv run show drill_storage.allen                # the box, all eight keys standin
 uv run export drill_storage.allen.base         # rigid, foot down, cavity up
 uv run export drill_storage.allen.insert       # TPU, flat down, bores up
 uv run export drill_storage.allen.cover        # translucent, pillow top down
+uv run export drill_storage.allen.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.allen
 ```
 
@@ -43,6 +44,12 @@ floor at z = 9, and stand 29 mm proud, which is how you pinch them out. The
 hole was 15 mm deep before, standing the keys 35 mm proud; sinking them the
 extra 6 mm buys a whole Gridfinity unit back on the cover (9U, not 10U) and
 still leaves 4.6 mm of solid body between the bores and the foot.
+
+**Stackable cover: 52 mm** (70 mm / 10U assembled). It retains the collar snap
+fit but has a 2.5 mm foot socket and a built-in, breakaway grid under the
+socket for top-down printing. Remove the grid before stacking another 1×1
+holder. The original smooth cover remains 45 mm and support-free. See the
+[stackable-cover specification](../docs/stackable-cover-specification.md).
 
 The sibling set, `drill_storage.hex`, is the 16-piece 25 mm driver-bit box —
 same boxes, shaved clearances to fit a literal 4x4 grid — see

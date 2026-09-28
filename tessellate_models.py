@@ -16,7 +16,7 @@ def _drill_set_roster() -> list[str]:
     return [
         f"drill_storage.{name}{suffix}"
         for name in DRILL_SET_NAMES
-        for suffix in ("", ".base", ".insert", ".cover")
+        for suffix in ("", ".base", ".insert", ".cover", ".cover_stackable")
     ]
 
 
@@ -54,10 +54,12 @@ MODELS = [
     "drill_storage.allen.base",
     "drill_storage.allen.insert",
     "drill_storage.allen.cover",
+    "drill_storage.allen.cover_stackable",
     "drill_storage.hex",
     "drill_storage.hex.bits.base",
     "drill_storage.hex.bits.insert",
     "drill_storage.hex.bits.cover",
+    "drill_storage.hex.bits.cover_stackable",
     # The lamp system: the whole stick, the three ways it gets mounted, and
     # each printed part on its own in print pose.
     "led_profiles",

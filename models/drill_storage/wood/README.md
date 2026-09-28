@@ -9,6 +9,7 @@ uv run show drill_storage.wood            # assembled, drills standing in it
 uv run export drill_storage.wood.base    # ASA
 uv run export drill_storage.wood.insert   # TPU
 uv run export drill_storage.wood.cover    # PETG
+uv run export drill_storage.wood.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.wood
 ```
 
@@ -21,6 +22,12 @@ uv run check drill_storage.wood
 **Cover: 109 mm**, for a 133 mm (19U) assembled envelope. The 121 mm 10 mm drill
 picks it and clears the cap by about 3 mm; a longer drill would cost a whole
 Gridfinity unit.
+
+**Stackable cover: 109 mm** (19U assembled). Same snap fit and tool clearance,
+with a 2.5 mm-deep seat for another 1×1 foot on top. Print mouth-up with the
+built-in lattice under the socket, then break it out before stacking. The
+smooth cover above remains the support-free option; see the
+[stackable-cover specification](../docs/stackable-cover-specification.md).
 
 The countersink is packed by its 10 mm head — which stands above the tray rather
 than dropping into it — and bored as a hex socket for its 6.3 mm shank. It swaps

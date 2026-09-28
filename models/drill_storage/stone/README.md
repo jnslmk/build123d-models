@@ -9,6 +9,7 @@ uv run show drill_storage.stone            # assembled, bits standing in it
 uv run export drill_storage.stone.base    # ASA
 uv run export drill_storage.stone.insert   # TPU
 uv run export drill_storage.stone.cover    # PETG
+uv run export drill_storage.stone.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.stone
 ```
 
@@ -20,6 +21,12 @@ uv run check drill_storage.stone
 
 **Cover: 137 mm**, for a 161 mm (23U) assembled envelope — the tallest of the
 three, despite the shortest drill list, because a 12 mm masonry bit runs 150 mm.
+
+**Stackable cover: 137 mm** (161 mm / 23U assembled), the same assembled height
+as the smooth cover; its spare headroom accommodates the 2.5 mm foot socket.
+Print mouth-up, break out the integrated support lattice and remove the four
+attachment nibs before stacking. See the
+[stackable-cover specification](../docs/stackable-cover-specification.md).
 
 ## Bores are cut to the shank, which is ground below nominal
 

@@ -63,6 +63,7 @@ from ..box import (
     SNAP_GROOVE_ROOF,
     SNAP_PROTRUSION,
     SNAP_Z,
+    STACK_SOCKET_DEPTH,
     TOP_FILLET,
     WALL_LABEL_SIZE,
     cover_height_for,
@@ -228,9 +229,7 @@ CAVITY_H = BASE_TOTAL_H - CAVITY_FLOOR_Z  # 6.8, the family's own
 # and, since the cartridge groove is chamfered and no longer symmetric about
 # BEAD_Z, the same 0.6 mm of full-thickness wall lip to lip.
 GROOVE_SEPARATION = BEAD_Z - (BASE_FOOT_TOP + SNAP_Z)
-GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (
-    BASE_FOOT_TOP + SNAP_Z + SNAP_GROOVE_ROOF
-)
+GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (BASE_FOOT_TOP + SNAP_Z + SNAP_GROOVE_ROOF)
 
 # --- The ALLEN wall legend ----------------------------------------------------
 # Re-fitted to the shortened body exactly as the old one-material base fitted
@@ -431,7 +430,7 @@ def guide_h(name: str) -> float:
     return CAVITY_FLOOR_Z - guide_floor_z(name)
 
 
-def cover_h_for(bit_len: float, floor_z: float) -> float:
+def cover_h_for(bit_len: float, floor_z: float, *, stackable: bool = False) -> float:
     """The cover for a bit length, quantised to a whole Gridfinity unit.
 
     ``floor_z`` is the box's own ``guide_floor_z(name)`` and is deliberately
@@ -444,6 +443,7 @@ def cover_h_for(bit_len: float, floor_z: float) -> float:
         headroom=COVER_TIP_CLEARANCE,
         bore_floor_z=floor_z,
         foot_top=BASE_FOOT_TOP,
+        cap_h=CAP_H + (STACK_SOCKET_DEPTH if stackable else 0),
     )
 
 

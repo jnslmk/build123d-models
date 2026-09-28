@@ -13,6 +13,7 @@ uv run show drill_storage.allen         # 8-piece 50 mm hex-key box
 uv run show drill_storage.hex           # 16-piece 1/4" hex-shank driver bits
 uv run export drill_storage.wood.base  # STL + STEP for the slicer
 uv run check drill_storage.wood         # geometry assertions for one set
+uv run export drill_storage.wood.cover_stackable  # alternate stackable PETG lid
 ```
 
 ## Layout
@@ -27,6 +28,7 @@ uv run check drill_storage.wood         # geometry assertions for one set
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per drill set: the assembled scene, plus `base`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
+| `cover_stackable.py` (in each set package) | Alternate PETG cover with a Gridfinity foot socket and built-in removable print support. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 
 Adding a set is a `DrillSet` in `sets.py` and a package copied from
@@ -80,9 +82,26 @@ That record, and what came before it, is in
 re-cutting one: it is about 7 cm³ and an hour, against 20 cm³ and most of a day
 for a base.
 
+## Stackable cover option
+
+Each of the five sets also offers `<set>.cover_stackable`: a separate cover that
+snaps onto the same collar as the smooth cover and seats the lower 2.5 mm of
+another 1×1 Gridfinity foot. It preserves the 41.5 mm side-by-side footprint.
+The socket has a sliding PETG fit and a lead-in; the stacked foot's upper bevel
+remains visible above the lid. Keep the smooth cover if stacking is not needed.
+
+The stackable lid prints **socket-down, mouth-up**, with a shallow breakaway
+lattice included under the socket ceiling. Remove the lattice and its four
+small attachment nibs after printing, before stacking a holder. The extra
+socket depth is included when sizing the roof, so the assembled height still
+lands on a 7 mm Gridfinity unit without sacrificing tip clearance; some sets
+grow by one unit. See [the accepted stackable-cover specification](docs/stackable-cover-specification.md)
+and [the current CAD contract](docs/stackable-cover-cad-contract.md).
+
 ## Printing
 
-No supports anywhere. Every part comes off `create()` in its print pose.
+The existing smooth parts need no supports. Every part comes off `create()` in
+its print pose; stackable covers include their own removable support lattice.
 
 - **Base — ASA**, foot down, cavity up. 36 mm tall. ASA wants an enclosure; a
   42 mm footprint is not fussy, but a draught will still lift the foot's corners.

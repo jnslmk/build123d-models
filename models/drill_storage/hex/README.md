@@ -11,6 +11,7 @@ uv run show drill_storage.hex                # the BITS box, all 16 bits standin
 uv run export drill_storage.hex.bits.base    # 1x1, foot down, cavity up
 uv run export drill_storage.hex.bits.insert  # TPU, flat down, bores up
 uv run export drill_storage.hex.bits.cover   # translucent, pillow top down
+uv run export drill_storage.hex.bits.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.hex
 ```
 
@@ -35,6 +36,13 @@ number are in [`config.py`](config.py).
 proud, which is how you pinch them out. The ALLEN box sinks its keys deeper
 (21 mm) on the same base; `config.guide_floor_z` is the one place that says
 which box gets which.
+
+**Stackable cover: 31 mm** (49 mm / 7U assembled). The same eased snap bead
+fits the existing BITS collar, with a socket for the lower 2.5 mm of another
+1×1 Gridfinity foot. A built-in breakaway lattice supports its ceiling during
+top-down printing; remove it before stacking. The original 24 mm smooth cover
+remains support-free. See the
+[stackable-cover specification](../docs/stackable-cover-specification.md).
 
 **Cover snap**: eased for this box alone — `BITS_SNAP_PROTRUSION` (0.35 mm)
 against the family's 0.45, so the bead engages 0.15 mm rather than 0.25 once the

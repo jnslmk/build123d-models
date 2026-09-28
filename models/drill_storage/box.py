@@ -43,6 +43,7 @@ from build123d import (
     Axis,
     BuildPart,
     BuildSketch,
+    Box,
     Color,
     Cone,
     Cylinder,
@@ -63,6 +64,7 @@ from build123d import (
     sweep,
 )
 
+from ..lib import fits
 from ..lib.edges import chamfer_edge, reseat_on_bed
 
 # --- Gridfinity standard ------------------------------------------------------
@@ -74,6 +76,81 @@ FOOT_C1 = 0.7  # bottom chamfer (45 deg)
 FOOT_STRAIGHT = 1.8  # vertical section
 FOOT_C3 = 1.9  # top chamfer (45 deg)
 BASE_H = FOOT_C1 + FOOT_STRAIGHT + FOOT_C3  # 4.4 mm foot profile
+
+# Stackable covers preserve the smooth cover's collar joint and outside size.
+STACK_SOCKET_DEPTH = FOOT_C1 + FOOT_STRAIGHT
+STACK_FIT = fits.SLIDING  # sliding fit, PETG baseline; diametral
+STACK_LEAD_IN = 0.3  # functional funnel for the foot entering the socket
+STACK_TOP_CH = 0.4  # outer rim bevel, leaving >1 mm beside the socket
+
+
+def cut_stacking_socket(top_z: float) -> None:
+    """Subtract the lower foot profile from a cover's top inside a BuildPart."""
+    bottom_w = PAD - 2 * (FOOT_C1 + FOOT_C3)
+    mid_w = PAD - 2 * FOOT_C3
+    bottom_r = CORNER_R - FOOT_C1 - FOOT_C3
+    mid_r = CORNER_R - FOOT_C3
+    with BuildSketch(Plane.XY.offset(top_z - STACK_SOCKET_DEPTH)) as bottom:
+        RectangleRounded(
+            bottom_w + STACK_FIT, bottom_w + STACK_FIT, bottom_r + STACK_FIT / 2
+        )
+    with BuildSketch(Plane.XY.offset(top_z - FOOT_STRAIGHT)) as mid:
+        RectangleRounded(mid_w + STACK_FIT, mid_w + STACK_FIT, mid_r + STACK_FIT / 2)
+    with BuildSketch(Plane.XY.offset(top_z - STACK_LEAD_IN)) as neck:
+        RectangleRounded(mid_w + STACK_FIT, mid_w + STACK_FIT, mid_r + STACK_FIT / 2)
+    with BuildSketch(Plane.XY.offset(top_z + 0.05)) as mouth:
+        RectangleRounded(
+            mid_w + STACK_FIT + 2 * STACK_LEAD_IN,
+            mid_w + STACK_FIT + 2 * STACK_LEAD_IN,
+            mid_r + STACK_FIT / 2 + STACK_LEAD_IN,
+        )
+    loft(
+        sections=[bottom.sketch, mid.sketch, neck.sketch, mouth.sketch],
+        ruled=True,
+        mode=Mode.SUBTRACT,
+    )
+
+
+def add_stacking_support(print_pose: Part) -> Part:
+    """Fuse a removable lattice beneath the socket ceiling in print pose.
+
+    The socket opens on the bed; its ~37 mm floor would otherwise bridge in
+    mid-air. A 5 mm grid ends one layer below that ceiling and four small nibs
+    attach it for a single-solid print. Snip the nibs and pull out the grid.
+    """
+    pitch = 5.0
+    rib = 0.8
+    span = 6 * pitch + 2 * rib
+    gap = 0.2  # one print layer of separation from the finished socket floor
+    with BuildPart() as supported:
+        add(print_pose)
+        for step in range(-3, 4):
+            with Locations((step * pitch, 0, 0)):
+                Box(
+                    rib,
+                    span,
+                    STACK_SOCKET_DEPTH - gap,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+            with Locations((0, step * pitch, 0)):
+                Box(
+                    span,
+                    rib,
+                    STACK_SOCKET_DEPTH - gap,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+        for x in (-2 * pitch, 2 * pitch):
+            for y in (-2 * pitch, 2 * pitch):
+                with Locations((x, y, STACK_SOCKET_DEPTH - gap)):
+                    Box(
+                        0.6,
+                        0.6,
+                        gap + 0.02,
+                        align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    )
+    return supported.part
+
+
 HEIGHT_UNIT = 7.0  # Gridfinity Z unit
 
 # --- Cover --------------------------------------------------------------------
@@ -330,6 +407,7 @@ def cover_height_for(
     headroom: float = DRILL_HEADROOM,
     bore_floor_z: float = BORE_FLOOR_Z,
     foot_top: float = FOOT_TOP,
+    cap_h: float = CAP_H,
 ) -> float:
     """Cover height whose *assembled* envelope is the smallest whole Gridfinity Z
     unit that still encloses a drill of ``max_drill_len`` standing on the bore
@@ -343,7 +421,7 @@ def cover_height_for(
     pass its own floor. ``foot_top`` is the shoulder the cover seats on -- pass
     it too whenever ``create_base`` gets a non-default one.
     """
-    cover_top_min = bore_floor_z + max_drill_len + headroom + CAP_H
+    cover_top_min = bore_floor_z + max_drill_len + headroom + cap_h
     total_assembled_h = math.ceil(cover_top_min / HEIGHT_UNIT) * HEIGHT_UNIT
     return total_assembled_h - foot_top
 
@@ -1047,6 +1125,7 @@ def create_cover(
     label_size: float = LABEL_SIZE,
     label_z: float = LABEL_Z,
     label_horizontal: bool = False,
+    stackable: bool = False,
 ) -> Part:
     """A tall rounded-square cover with a pillow top and an engraved label.
 
@@ -1064,27 +1143,38 @@ def create_cover(
     it a quarter so it reads across the face instead -- on a short cover that is
     the only way to get a decent glyph size, since the face is then wider than it
     is tall.
+    ``stackable`` gives the cover a foot socket, extra material behind its
+    floor and an integral, removable print support under the socket.
+
     """
     with BuildPart() as cover:
         with BuildSketch():
             RectangleRounded(COVER_W, COVER_W, CORNER_R)
         extrude(amount=cover_h)
-        # Round the top over into a pillow.
-        fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
-        # Chamfer the bottom outer edge so the open rim seats flush on the flat
-        # base shoulder rather than overhanging the body edge (the cover is a
-        # touch wider than the body). Doubles as elephant-foot relief, since the
-        # cover prints open-end-down.
+        if stackable:
+            add(
+                rim_chamfer_tool(COVER_W, CORNER_R, cover_h, STACK_TOP_CH),
+                mode=Mode.SUBTRACT,
+            )
+        else:
+            # Smooth covers keep their original pillow.
+            fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
+        # The use-pose bottom edge is the open rim: break it so it seats flat
+        # on the base shoulder and is comfortable to handle. After flipping to
+        # print pose it faces upward, not toward the bed.
         chamfer(cover.edges().group_by(Axis.Z)[0], COVER_SEAT_CH)
 
         # Hollow: a single uniform bore (no step), open bottom to the solid cap.
         with BuildSketch():
             RectangleRounded(INNER_W, INNER_W, INNER_R)
-        extrude(amount=cover_h - CAP_H, mode=Mode.SUBTRACT)
+        cap_h = CAP_H + (STACK_SOCKET_DEPTH if stackable else 0)
+        extrude(amount=cover_h - cap_h, mode=Mode.SUBTRACT)
+        if stackable:
+            cut_stacking_socket(cover_h)
         # Small internal fillet where the bore ceiling meets the walls: relieves
         # stress at the cap join and eases the overhang printed under the cap.
         ceiling = cover.edges().filter_by_position(
-            Axis.Z, cover_h - CAP_H, cover_h - CAP_H
+            Axis.Z, cover_h - cap_h, cover_h - cap_h
         )
         if ceiling:
             fillet(ceiling, CAP_FILLET)
@@ -1155,6 +1245,6 @@ def create_cover(
             # chamfer leaves the builder corrupted, and this is the last
             # operation before the part is returned.
             chamfer_edge(cover, mouth, LABEL_CHAMFER)
-    # Print orientation: flip the cover upside down (pillow top on the bed, open
-    # mouth up) and re-seat on z=0 so it exports in the pose it prints in.
-    return reseat_on_bed(cover.part, flip=True)
+    # Both return mouth-up in print pose; only stackable variants carry support.
+    part = reseat_on_bed(cover.part, flip=True)
+    return add_stacking_support(part) if stackable else part
