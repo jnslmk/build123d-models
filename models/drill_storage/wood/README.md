@@ -4,6 +4,18 @@ Gridfinity storage for a **brad-point wood drill set**: eleven drills, 2 – 10 
 (2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10), plus a 10 mm countersink on a 6.3 mm hex
 shank.
 
+The separate **1×3×5U sideways holder** has an ASA rear guide on one foot and
+a PETG side-opening cover carrying the long bed and other two feet. Slide the
+cover along the drill axes **only after lifting the whole holder off its
+baseplate**. The short dovetail is a hand-removable friction fit, not a positive
+latch; keep it horizontal while opening. There is no TPU shank-gripping insert.
+Print the cover foot-down with slicer supports under its overhanging rear
+tongue and long roof; remove the supports before sliding it onto the guide.
+Fit and retention still need a physical print trial. See the
+[sideways-holder specification](../docs/sideways-specification.md) and
+[current cover contract](../docs/sideways-cad-contract.md). The upright
+base, cartridge and covers below remain unchanged.
+
 ```bash
 uv run show drill_storage.wood            # assembled, drills standing in it
 uv run export drill_storage.wood.base    # ASA
@@ -11,6 +23,11 @@ uv run export drill_storage.wood.insert   # TPU
 uv run export drill_storage.wood.cover    # PETG
 uv run export drill_storage.wood.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.wood
+uv run export drill_storage.wood.sideways.base    # ASA rear guide
+uv run export drill_storage.wood.sideways.cover   # PETG foot-bearing cover
+uv run view drill_storage.wood.sideways           # assembled inspection scene
+uv run show drill_storage.wood.sideways.preview   # exposed horizontal drills
+uv run check drill_storage.wood.sideways.cover
 ```
 
 | part | model | material | print pose |

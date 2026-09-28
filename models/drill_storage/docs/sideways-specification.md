@@ -1,0 +1,9 @@
+# Sideways wood and metal drill storage
+
+- **SD-1 — Separate variants:** Derive new Gridfinity holders for the complete `sets.WOOD` and `sets.METAL` tool lists; leave the existing upright holders and their parts unchanged. Source: user request and purpose/delta confirmation, 2026-09-28.
+- **SD-2 — Horizontal tools:** Store the drill bits with their long axes horizontal, turned 90° from the existing upright holders. The holders must be printable in their Gridfinity foot-down pose. Source: user request and confirmation, 2026-09-28.
+- **SD-3 — Smallest feasible envelope:** Target one cell across by three cells along and 5U high; use four cells along only if three cannot fit the complete tool set, and 6U high only if 5U cannot fit it. Gridfinity pitch is 42 mm and a height unit is 7 mm. Source: user request and confirmation, 2026-09-28; `box.py`.
+- **SD-4 — Side-opening cover:** The new holders should resemble the existing drill holders laid on their sides: the cover opens laterally rather than lifting upward. Preserve a removable side-opening cover and access to the bits when it is removed. Source: user clarification, 2026-09-28.
+- **SD-5 — Cover owns forward feet:** The exposed long platform and its two wood / three metal forward Gridfinity feet belong to the removable cover, not the fixed rear guide. The rear guide remains on its own single-cell foot. The assembled holder must be lifted out of the baseplate before the cover is pulled sideways; feet engaged in neighbouring baseplate cells cannot slide laterally. Source: user-highlighted image, explicit acceptance of the off-baseplate opening sequence, 2026-09-28.
+
+The foot-down supporting body and horizontal tool layout are the current anchor. The existing upright ASA guide/TPU shank-grip/PETG cover geometry cannot simply be rotated while preserving its foot-down print pose; design the mating side-opening cover after the body is reviewed and accepted.

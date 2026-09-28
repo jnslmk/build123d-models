@@ -4,6 +4,18 @@ Gridfinity storage for an **HSS twist drill set**: ten drills on jobber lengths,
 1 – 10 mm (1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10), plus an M6 hex-shank tap and a
 4 – 20 mm step drill on a 6.3 mm hex shank.
 
+The separate **1×4×5U sideways holder** has an ASA rear guide on one foot and
+a PETG side-opening cover carrying the long bed and other three feet. Slide
+the cover along the drill axes **only after lifting the whole holder off its
+baseplate**. The short dovetail is a hand-removable friction fit, not a
+positive latch; keep it horizontal while opening. There is no TPU
+shank-gripping insert. Print the cover foot-down with slicer supports under
+its overhanging rear tongue and long roof; remove the supports before sliding
+it onto the guide. Fit and retention still need a physical print trial. See
+the [sideways-holder specification](../docs/sideways-specification.md) and
+[current cover contract](../docs/sideways-cad-contract.md). The upright
+base, cartridge and covers below remain unchanged.
+
 ```bash
 uv run show drill_storage.metal            # assembled, drills standing in it
 uv run export drill_storage.metal.base    # ASA
@@ -11,6 +23,11 @@ uv run export drill_storage.metal.insert   # TPU
 uv run export drill_storage.metal.cover    # PETG
 uv run export drill_storage.metal.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.metal
+uv run export drill_storage.metal.sideways.base    # ASA rear guide
+uv run export drill_storage.metal.sideways.cover   # PETG foot-bearing cover
+uv run view drill_storage.metal.sideways           # assembled inspection scene
+uv run show drill_storage.metal.sideways.preview   # exposed horizontal drills
+uv run check drill_storage.metal.sideways.cover
 ```
 
 | part | model | material | print pose |
