@@ -49,6 +49,10 @@ NOT_A_MODEL = {
         "geometry assertion entry point imports create() to inspect the aid; "
         "it is only reachable through uv run check, not a printable view."
     ),
+    "drill_storage.dremel.checks": (
+        "assembly geometry gate imports create() to inspect the seated Dremel "
+        "parts; it is a check helper, not a printable or display model."
+    ),
 }
 
 
