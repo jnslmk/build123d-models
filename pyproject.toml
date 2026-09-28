@@ -55,6 +55,7 @@ packages = [
     "models.cable_spool",
     "models.drill_storage",
     "models.drill_storage.allen",
+    "models.drill_storage.bin",
     "models.drill_storage.hex",
     "models.drill_storage.hex.bits",
     "models.drill_storage.metal",

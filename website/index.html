@@ -646,38 +646,65 @@ function fmtNum(v) {
 function buildForm(params) {
   el.params.innerHTML = '';
   el.noparams.hidden = params.length > 0;
-  for (const p of params) {
+  for (const [index, p] of params.entries()) {
     const row = document.createElement('div'); row.className = 'prow';
     const top = document.createElement('div'); top.className = 'top';
     const lab = document.createElement('label'); lab.textContent = p.label || p.name;
-    const num = document.createElement('input');
-    num.type = 'number'; num.dataset.name = p.name;
-    num.min = p.min; num.max = p.max; num.step = p.step; num.value = p.default;
-    num.addEventListener('input', scheduleRegen);
-    // The range input this replaced bounded the value by construction. A bare
-    // number field does not: a typed 999 builds a part the model has clamped
-    // back into range, beside a box still reading 999. So snap it on `change`
-    // -- not on `input`, or typing "1" on the way to "12" gets fought.
-    num.addEventListener('change', () => {
-      const v = parseFloat(num.value);
-      if (Number.isNaN(v)) num.value = p.default;
-      else if (v < p.min) num.value = p.min;
-      else if (v > p.max) num.value = p.max;
-      scheduleRegen();
-    });
-    top.append(lab, num);
-    const hint = document.createElement('div'); hint.className = 'hint';
-    // The slider used to show the limits just by existing. State them.
-    hint.textContent = `${fmtNum(p.min)} to ${fmtNum(p.max)}`;
-    row.append(top, hint);
+    const controlId = `model-param-${index}`;
+    lab.htmlFor = controlId;
+    row.append(top);
+    let control;
+    if (p.type === 'boolean') {
+      control = document.createElement('input');
+      control.type = 'checkbox';
+      control.checked = p.default;
+      control.addEventListener('change', scheduleRegen);
+    } else if (p.type === 'choice') {
+      control = document.createElement('select');
+      for (const value of p.options) {
+        const option = document.createElement('option');
+        option.value = value; option.textContent = value;
+        control.append(option);
+      }
+      control.value = p.default;
+      control.addEventListener('change', scheduleRegen);
+    } else {
+      control = document.createElement('input');
+      control.type = 'number';
+      control.min = p.min; control.max = p.max; control.step = p.step; control.value = p.default;
+      control.addEventListener('input', scheduleRegen);
+      // The range input this replaced bounded the value by construction. A bare
+      // number field does not: a typed 999 builds a part the model has clamped
+      // back into range, beside a box still reading 999. So snap it on `change`
+      // -- not on `input`, or typing "1" on the way to "12" gets fought.
+      control.addEventListener('change', () => {
+        const v = parseFloat(control.value);
+        if (Number.isNaN(v)) control.value = p.default;
+        else if (v < p.min) control.value = p.min;
+        else if (v > p.max) control.value = p.max;
+        scheduleRegen();
+      });
+      const hint = document.createElement('div'); hint.className = 'hint';
+      // The slider used to show the limits just by existing. State them.
+      hint.textContent = `${fmtNum(p.min)} to ${fmtNum(p.max)}`;
+      row.append(hint);
+    }
+    control.id = controlId; control.dataset.name = p.name;
+    top.append(lab, control);
     el.params.append(row);
   }
 }
 function readParams() {
   const p = {};
-  for (const num of el.params.querySelectorAll('input[type=number]')) {
-    const v = parseFloat(num.value);
-    if (!Number.isNaN(v)) p[num.dataset.name] = v;
+  for (const control of el.params.querySelectorAll('input[data-name], select[data-name]')) {
+    if (control.type === 'checkbox') {
+      p[control.dataset.name] = control.checked;
+    } else if (control.tagName === 'SELECT') {
+      p[control.dataset.name] = control.value;
+    } else {
+      const v = parseFloat(control.value);
+      if (!Number.isNaN(v)) p[control.dataset.name] = v;
+    }
   }
   return p;
 }

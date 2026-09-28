@@ -14,6 +14,9 @@ uv run show drill_storage.hex           # 16-piece 1/4" hex-shank driver bits
 uv run export drill_storage.wood.base  # STL + STEP for the slicer
 uv run check drill_storage.wood         # geometry assertions for one set
 uv run export drill_storage.wood.cover_stackable  # alternate stackable PETG lid
+uv run show drill_storage.bin           # bin with lid seated, inspection scene
+uv run export drill_storage.bin.base    # empty PETG bin, foot-down
+uv run export drill_storage.bin.lid     # lift-off stackable PETG lid, socket-down
 ```
 
 ## Layout
@@ -30,6 +33,7 @@ uv run export drill_storage.wood.cover_stackable  # alternate stackable PETG lid
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per drill set: the assembled scene, plus `base`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
 | `cover_stackable.py` (in each set package) | Alternate PETG cover with a Gridfinity foot socket and built-in removable print support. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
+| [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
 
 Adding a set is a `DrillSet` in `sets.py` and a package copied from
 `wood/`. Nothing in the geometry has to know about it.
@@ -81,6 +85,44 @@ That record, and what came before it, is in
 [`docs/design-notes.md`](docs/design-notes.md). Print a cartridge before
 re-cutting one: it is about 7 cm³ and an hour, against 20 cm³ and most of a day
 for a base.
+
+## General-purpose bin and stackable lid
+
+`drill_storage.bin.base` is a separate PETG container with half-cell X/Y sizes
+and body height in 7 mm units. Its wall defaults to 1 mm (two 0.4 mm
+perimeters with a small reserve). The bin defaults to an open cavity; optional
+features include hollow or solid feet, half-grid foot placement, magnet
+pockets, dividers, label tabs and scoops. The controls correspond to the
+[Gridfinity Bin Generator](https://sitnikov.github.io/gridfinity-bin-generator/)
+options; this body uses this repository's Gridfinity foot and independently built
+PETG geometry. Its 0.6 mm flat landing strip supports the separate
+`drill_storage.bin.lid` with a locating skirt. The lid lifts off rather than
+snapping shut; it is not sealed. It receives matching full or half Gridfinity
+feet in a 2.5 mm socket on its exposed face. See the
+[empty-bin specification](docs/empty-bin-specification.md), the
+[accepted body contract](docs/empty-bin-cad-contract.md), and the
+[current lid contract](docs/lid-cad-contract.md).
+
+`grid_x` and `grid_y` accept half-cell increments. `half_grid_base` replaces
+full feet with half-cell feet; otherwise `half_grid_right` and `half_grid_top`
+choose which edge gets a partial foot. `ultra_light_base` hollows and braces
+the feet. Magnet pockets are cut in full-cell feet only (requesting magnets
+with `half_grid_base` is rejected); `magnet_diameter` is nominal and receives
+a PETG sliding-fit allowance. `dividers_x/y` partition the cavity when
+`dividers` is on. `labels`, `label_for_each_section`, `label_position`,
+`label_width/depth`, and `ultra_light_labels` control inward label tabs.
+`scoops` and `scoop_radius` add curved retrieval ramps at each Y section's
+floor. Labels and scoops are off by default; they consume interior space.
+
+`lid_height` is the **whole print-part height in millimetres**, default 6.5 mm:
+2.5 mm socket depth, 1 mm roof above it, and a 3 mm plug skirt below the
+bin rim. Raising it thickens the roof; it does not deepen the skirt and foul
+labels or dividers. The 1 mm body wall and lid skirt have a PETG sliding fit.
+Interior fixtures stop 3.6 mm below the rim to leave room for the skirt.
+The lid is printed **top-down, skirt up**. Each socket includes its own
+breakaway lattice; remove it and the four small attachment nibs before
+stacking. `drill_storage.bin` shows the closed two-part scene **after**
+support removal; export the two leaf models separately to print them.
 
 ## Stackable cover option
 
