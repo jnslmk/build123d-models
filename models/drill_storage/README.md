@@ -17,6 +17,7 @@ uv run export drill_storage.wood.cover_stackable  # alternate stackable PETG lid
 uv run show drill_storage.bin           # bin with lid seated, inspection scene
 uv run export drill_storage.bin.base    # empty PETG bin, foot-down
 uv run export drill_storage.bin.lid     # lift-off stackable PETG lid, socket-down
+uv run export drill_storage.dremel     # 1×2 PETG Dremel shank rack, feet down
 ```
 
 ## Layout
@@ -34,6 +35,7 @@ uv run export drill_storage.bin.lid     # lift-off stackable PETG lid, socket-do
 | `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket and built-in removable print support. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
+| [`dremel/`](dremel/) | Independent 1×2 PETG holder with upright blind bores for 2.5 mm Dremel-tool shanks. |
 
 Adding a set is a `DrillSet` in `sets.py` and a package copied from
 `wood/`. Nothing in the geometry has to know about it.
@@ -140,6 +142,18 @@ unsupported ~37 mm bridge on your printer. The bin base is displayed black
 and the lid translucent, matching the other drill-storage sets; STL carries
 geometry only, not color. `drill_storage.bin` shows the closed two-part scene
 after support removal; export the two leaf models separately to print them.
+
+## Dremel tool holder
+
+`drill_storage.dremel` is a separate, single-piece 1×2 Gridfinity PETG rack.
+Its 55 open, blind bores accept nominal 2.5 mm shanks with a PETG free-fit
+allowance. They reach 13 mm below the 3U (21 mm) top, leaving a solid floor
+above the feet. Tools up to 50 mm long stand above the rack; this is open
+storage, not a protective or transport cover. Adjacent tool heads may limit
+which positions can be filled simultaneously. See the
+[Dremel specification](docs/dremel-specification.md) and
+[current CAD contract](docs/dremel-cad-contract.md). A printed sample is needed
+to calibrate bore fit on a particular printer.
 
 ## Stackable cover option
 

@@ -58,6 +58,7 @@ MODELS = [
     "drill_storage.bin",
     "drill_storage.bin.base",
     "drill_storage.bin.lid",
+    "drill_storage.dremel",
     "drill_storage.hex",
     "drill_storage.hex.bits.base",
     "drill_storage.hex.bits.insert",
