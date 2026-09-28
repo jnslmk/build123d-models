@@ -66,6 +66,33 @@ def run_for(drills: DrillSet, part) -> Report:
         and not is_solid_at(part, 0, -length / 2 + GRID + 1, BASE_H / 2),
         "one rear foot and a cover collar, no forward bed or foot",
     )
+    # A single planar skin from behind the rear radius through the cover joint
+    # rules out both the old butt-jointed extension and its lower-edge stripe.
+    rear = -length / 2
+    report.check(
+        all(
+            any(
+                abs(face.bounding_box().min.X - side) < 1e-5
+                and abs(face.bounding_box().max.X - side) < 1e-5
+                and face.bounding_box().min.Y <= rear + CORNER_R + 1e-5
+                and face.bounding_box().max.Y >= rear + GRID - FRONT_CORNER_R - 1e-5
+                and face.bounding_box().min.Z <= BASE_H + 1e-5
+                and face.bounding_box().max.Z >= height - 0.2 - 1e-5
+                and all(
+                    face.is_inside(Vector(side, rear + offset, z))
+                    for offset, z in (
+                        (22.9, 20),
+                        (27, BASE_H + 0.2),
+                        (27, 20),
+                        (39, 20),
+                    )
+                )
+                for face in part.faces()
+            )
+            for side in (-PAD / 2, PAD / 2)
+        ),
+        "flush continuous ASA side and lower bed edge through the collar joint",
+    )
     rear_y = -length / 2 + PAD / 2
     foot = gridfinity_foot()
     report.check(

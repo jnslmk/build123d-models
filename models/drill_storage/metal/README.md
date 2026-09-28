@@ -18,6 +18,8 @@ a positive latch. Lift the assembled holder off its baseplate before pulling
 the foot-bearing cover sideways; keep it horizontal while opening. Print the
 ASA base and PETG cover foot-down, with slicer supports under the ASA rear roof
 and collar overhang and the PETG long roof. Remove supports before assembly.
+The ASA guide's exposed side and lower bed edge stay flush across the cartridge
+seat and into the cover joint; the sliding cover clearance remains inside.
 Four full-depth top receivers seat another holder's feet at a 5U stacking
 pitch. The 42 mm thin-lipped receivers, adjacent-cell clearance, TPU grip,
 cartridge catch and cover retention still require a physical print trial.

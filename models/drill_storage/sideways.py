@@ -229,8 +229,8 @@ def _cut_guide(x: float, z: float, radius: float, rear: float) -> None:
 
 
 def _guide_block(rear: float, height: float):
-    """Foot-matched rear corners and tighter, intact bore-mouth corners."""
-    length = BACK_WALL + GUIDE_DEPTH
+    """Continuous foot-width shell, rounded at the rear and cover-facing ends."""
+    length = GRID
     sections = []
     for z, inset in (
         (BASE_H, 0.0),
@@ -240,8 +240,8 @@ def _guide_block(rear: float, height: float):
         with BuildSketch(Plane.XY.offset(z)) as profile:
             with Locations((0, rear + length / 2)):
                 RectangleRounded(PAD - 2 * inset, length - 2 * inset, CORNER_R - inset)
-            with Locations((0, rear + length - 2)):
-                RectangleRounded(PAD - 2 * inset, 4 - 2 * inset, FRONT_CORNER_R - inset)
+            with Locations((0, rear + length - 4)):
+                RectangleRounded(PAD - 2 * inset, 8 - 2 * inset, FRONT_CORNER_R - inset)
         sections.append(profile.sketch)
     with BuildPart() as guide:
         loft(sections=sections, ruled=True)
@@ -306,35 +306,27 @@ def create_base_for(drills: DrillSet):
         # The front corners leave intact mouth walls even for the tiny bits at
         # the X extremes; the rear retains the Gridfinity pad's 4 mm radius.
         add(_guide_block(rear, height))
-        # The first-cell roof and walls still support the rear receiver; the
-        # collar bridges them to the cover mouth. Support the roof in the slicer.
-        extension = GRID - BACK_WALL - GUIDE_DEPTH
-        for x in (-(PAD - 1) / 2, (PAD - 1) / 2):
+        # One continuous outer skin replaces the butt-jointed guide and thin
+        # extension walls. Open the forward span down to the bed, preserving
+        # the 1 mm side walls and roof that carry the rear stacking receiver.
+        cavity_start = rear + BACK_WALL + GUIDE_DEPTH
+        with Locations((0, (cavity_start + rear + GRID) / 2, BASE_H + BED_THICKNESS)):
+            Box(
+                PAD - 2,
+                GRID - BACK_WALL - GUIDE_DEPTH + 0.02,
+                height - 1 - BASE_H - BED_THICKNESS,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+        add(stacking_receiver(foot_y, height))
+        # Hidden ties fuse the narrowed collar to the full-width shell across
+        # its small clearance without splitting the exposed outer face.
+        for sign in (-1, 1):
             with Locations(
-                (x, rear + GRID - extension / 2 - 0.5, BASE_H + BED_THICKNESS)
+                (sign * (PAD / 2 - 1.1), rear + GRID - 1.5, BASE_H + BED_THICKNESS + 1)
             ):
                 Box(
                     1,
-                    extension + 1,
-                    height - 1 - BASE_H - BED_THICKNESS,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                )
-        with Locations((0, rear + GRID - extension / 2, height - 1)):
-            Box(
-                PAD,
-                extension,
-                1,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-            )
-        add(stacking_receiver(foot_y, height))
-        # Short shoulders bridge the 0.11 mm step between the full-width guide
-        # walls and its narrowed cover collar, without entering any bit path.
-        for sign in (-1, 1):
-            with Locations(
-                (sign * (PAD / 2 - 0.85), rear + GRID - 1.5, BASE_H + BED_THICKNESS + 1)
-            ):
-                Box(
-                    1.7,
                     3,
                     height - BASE_H - BED_THICKNESS - 2,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
