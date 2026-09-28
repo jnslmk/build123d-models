@@ -2,13 +2,16 @@
 
 from typing import Any
 
-from build123d import Color, Compound, Pos, Rotation
+from build123d import Compound, Pos, Rotation
 
 from models.lib.edges import as_part
 from . import base, config, lid
 
 IS_ASSEMBLY = True
-PARAMS = [*base.PARAMS, lid.PARAMS[-1]]
+PARAMS = [
+    *base.PARAMS,
+    next(param for param in lid.PARAMS if param["name"] == "lid_height"),
+]
 
 
 def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Compound:
@@ -17,7 +20,6 @@ def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Com
     `base.create()` and `lid.create()` remain the separately downloadable parts.
     """
     body = base.create(**bin_options)
-    body.color = Color(0.62, 0.64, 0.67)
     lid_options = {
         name: bin_options[name]
         for name in (
@@ -42,5 +44,5 @@ def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Com
         * Rotation(180, 0, 0)
         * cover
     )
-    cover.color = Color(0.90, 0.92, 0.92)
+    cover.color = config.LID_COLOR
     return Compound(children=[body, cover], label="empty Gridfinity bin with lid")

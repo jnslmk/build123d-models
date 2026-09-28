@@ -1,6 +1,9 @@
 """Parametric empty-bin controls and the shared dimensional budget."""
 
+from build123d import Color
+
 from models.drill_storage.box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD
+from models.drill_storage.tools import COVER_GLASS
 from models.lib import fits
 
 WALL = 1.0  # PETG: two 0.4 mm perimeters, 0.2 mm reserve for slicer variance
@@ -12,6 +15,8 @@ LID_ROOF = 1.0  # five solid 0.2 mm layers above the receiving socket
 LID_SKIRT_MIN = 3.0  # lift-off locating engagement inside the body wall
 LID_MIN_HEIGHT = LID_SOCKET_DEPTH + LID_ROOF + LID_SKIRT_MIN  # 6.5 mm overall
 FEATURE_HEADROOM = LID_SKIRT_MIN + 0.6  # clearance below the seated locating skirt
+BASE_COLOR = Color(0.1, 0.1, 0.1)  # same black as drill_storage.hex.config.BASE_COLOR
+LID_COLOR = COVER_GLASS  # translucent PETG, shared with the other drill covers
 
 
 def _number(

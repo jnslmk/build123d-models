@@ -54,6 +54,12 @@ PARAMS = [
         "step": 0.5,
         "default": c.LID_MIN_HEIGHT,
     },
+    {
+        "name": "support",
+        "label": "Include breakaway socket supports",
+        "type": "boolean",
+        "default": True,
+    },
 ]
 IS_ASSEMBLY = False
 
@@ -193,4 +199,6 @@ def create(
                         x,
                         y,
                     )
-    return lid.part
+    part = lid.part
+    part.color = c.LID_COLOR
+    return part

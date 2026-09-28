@@ -248,4 +248,6 @@ def create(
                     scoops=scoops,
                     scoop_radius=scoop_radius,
                 )
-    return bin_part.part
+    part = bin_part.part
+    part.color = c.BASE_COLOR
+    return part

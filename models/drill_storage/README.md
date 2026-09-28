@@ -119,10 +119,14 @@ floor. Labels and scoops are off by default; they consume interior space.
 bin rim. Raising it thickens the roof; it does not deepen the skirt and foul
 labels or dividers. The 1 mm body wall and lid skirt have a PETG sliding fit.
 Interior fixtures stop 3.6 mm below the rim to leave room for the skirt.
-The lid is printed **top-down, skirt up**. Each socket includes its own
-breakaway lattice; remove it and the four small attachment nibs before
-stacking. `drill_storage.bin` shows the closed two-part scene **after**
-support removal; export the two leaf models separately to print them.
+The lid is printed **top-down, skirt up**. Its `support` checkbox defaults
+to on, adding a breakaway lattice beneath each socket. Remove each lattice
+and its four small attachment nibs before stacking. Turn `support` off to
+export a clean socket if using slicer supports or after verifying the
+unsupported ~37 mm bridge on your printer. The bin base is displayed black
+and the lid translucent, matching the other drill-storage sets; STL carries
+geometry only, not color. `drill_storage.bin` shows the closed two-part scene
+after support removal; export the two leaf models separately to print them.
 
 ## Stackable cover option
 
