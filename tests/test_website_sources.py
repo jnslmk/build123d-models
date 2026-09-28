@@ -39,7 +39,9 @@ class WebsiteSourceAssetsTests(unittest.TestCase):
                 self.assertIn(item["source"], paths)
                 self.assertIn("models/__init__.py", paths)
             self.assertNotEqual(models[0]["sources"], models[1]["sources"])
-            all_sources = json.loads((Path(tmp) / manifest["editSources"]).read_text())
+            edit_sources = manifest["editSources"]
+            assert isinstance(edit_sources, str)
+            all_sources = json.loads((Path(tmp) / edit_sources).read_text())
             self.assertIn("models/lens_cap/__init__.py", all_sources)
             self.assertIn("models/led_profiles/stand/__init__.py", all_sources)
 

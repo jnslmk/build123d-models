@@ -390,9 +390,9 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 "() => document.querySelector('#vstatus').textContent.includes('built in')"
                             )
                             self.assertGreaterEqual(len(manifest_requests), 2)
-                            self.assertIn(
-                                "HTTP 404", page.locator("#log").text_content()
-                            )
+                            log_text = page.locator("#log").text_content()
+                            assert log_text is not None
+                            self.assertIn("HTTP 404", log_text)
                             self.assertEqual(
                                 page.locator("#runtime").inner_text(), "Python: ready"
                             )
@@ -467,14 +467,13 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             page.evaluate("window.releaseSourceRefresh()")
                             page.wait_for_function("() => window.sourceRefreshConsumed")
                             page.wait_for_timeout(300)
-                            self.assertIn(
-                                "hidden",
-                                page.locator("#vstatus").get_attribute("class"),
-                            )
-                            self.assertNotIn(
-                                "source asset missing",
-                                page.locator("#vstatus").text_content(),
-                            )
+                            status = page.locator("#vstatus")
+                            status_class = status.get_attribute("class")
+                            assert status_class is not None
+                            self.assertIn("hidden", status_class)
+                            status_text = status.text_content()
+                            assert status_text is not None
+                            self.assertNotIn("source asset missing", status_text)
                             self.assertEqual(
                                 page.locator("#runtime").inner_text(), "Python: ready"
                             )
@@ -598,10 +597,11 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             page.evaluate("""window.fakeWorker.onmessage({data: {
                                 type: 'status', text: 'Loading old model sources…',
                             }})""")
-                            self.assertIn(
-                                "hidden",
-                                page.locator("#vstatus").get_attribute("class"),
+                            status_class = page.locator("#vstatus").get_attribute(
+                                "class"
                             )
+                            assert status_class is not None
+                            self.assertIn("hidden", status_class)
                             page.evaluate("window.deliverError(0)")
                             self.assertEqual(
                                 page.evaluate("window.sourceRefreshRequests"), 0
@@ -609,10 +609,11 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             self.assertEqual(
                                 page.evaluate("window.generatedJobs.length"), 1
                             )
-                            self.assertIn(
-                                "hidden",
-                                page.locator("#vstatus").get_attribute("class"),
+                            status_class = page.locator("#vstatus").get_attribute(
+                                "class"
                             )
+                            assert status_class is not None
+                            self.assertIn("hidden", status_class)
                             self.assertTrue(page.locator("#btn-stl").is_disabled())
 
                             # A refresh started before the switch must not revive the old job.
@@ -640,10 +641,11 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 page.evaluate("window.generatedJobs.length"), 2
                             )
                             self.assertTrue(page.locator("#btn-stl").is_disabled())
-                            self.assertIn(
-                                "hidden",
-                                page.locator("#vstatus").get_attribute("class"),
+                            status_class = page.locator("#vstatus").get_attribute(
+                                "class"
                             )
+                            assert status_class is not None
+                            self.assertIn("hidden", status_class)
 
                             page.locator('input[data-name="width"]').fill("13")
                             page.wait_for_function(
