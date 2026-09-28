@@ -3,11 +3,11 @@
 from itertools import combinations
 from math import hypot, sqrt
 
-from build123d import Pos
+from build123d import CenterOf, Pos, Vector
 from models.lib.checks import Report, is_solid_at
 
 from . import config as c
-from .box import BASE_H, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
+from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
 from .sets import DrillSet
 from .sideways import (
     BACK_WALL,
@@ -16,6 +16,7 @@ from .sideways import (
     RAIL_X,
     create_preview_for,
     layout_for,
+    tool_map_glyphs,
 )
 
 # Wall budgets are independent of the frozen optimiser's objective: a bit must
@@ -24,6 +25,20 @@ MIN_TOOL_GAP = 1.4  # 1 mm reserved + 0.4 mm diametral running clearance
 SIDE_WALL = 1.2  # three 0.4 mm ASA perimeters
 FLOOR_WALL = 1.2
 TOP_WALL = 1.2
+
+
+def _ink_point(face):
+    """Find material in each letter face, including rings with hollow centres."""
+    centre = face.center(CenterOf.MASS)
+    if face.is_inside(centre):
+        return centre
+    box = face.bounding_box()
+    for ix in range(1, int(box.size.X / 0.2)):
+        for iz in range(1, int(box.size.Y / 0.2)):
+            point = Vector(box.min.X + ix * 0.2, box.min.Y + iz * 0.2, 0)
+            if face.is_inside(point):
+                return point
+    return None
 
 
 def run_for(drills: DrillSet, part) -> Report:
@@ -112,6 +127,49 @@ def run_for(drills: DrillSet, part) -> Report:
         gap >= MIN_TOOL_GAP,
         "tightest tool-body gap",
         f"{a}/{b}: {gap:.2f} mm (minimum {MIN_TOOL_GAP:.2f} mm)",
+    )
+    # Every character must be recessed into the back wall, not merely placed
+    # in the layout. Its solid backing must survive behind the engraving.
+    legends = list(tool_map_glyphs(drills))
+    rear = -length / 2
+    flat_half = PAD / 2 - CORNER_R
+    rectangles = []
+    for key, x, z, glyph in legends:
+        bounds = glyph.bounding_box()
+        rectangle = (
+            x + bounds.min.X,
+            x + bounds.max.X,
+            z + bounds.min.Y,
+            z + bounds.max.Y,
+        )
+        rectangles.append(rectangle)
+        ink = [_ink_point(face) for face in glyph.faces()]
+        report.check(
+            key in tools
+            and bounds.size.Y >= 3.0
+            and rectangle[0] > -flat_half
+            and rectangle[1] < flat_half
+            and rectangle[2] > BASE_H
+            and rectangle[3] < height
+            and bool(ink)
+            and all(
+                point is not None
+                and not is_solid_at(part, x + point.X, rear + 0.4, z + point.Y)
+                and is_solid_at(part, x + point.X, rear + 1.2, z + point.Y)
+                for point in ink
+            ),
+            f"{key} back-wall label is legible, engraved and backed by ASA",
+        )
+    report.check(
+        len(legends) == len(tools)
+        and all(
+            a[1] + 0.2 <= b[0]
+            or b[1] + 0.2 <= a[0]
+            or a[3] + 0.2 <= b[2]
+            or b[3] + 0.2 <= a[2]
+            for a, b in combinations(rectangles, 2)
+        ),
+        "tool-map glyphs have separate printable footprints",
     )
     return report
 

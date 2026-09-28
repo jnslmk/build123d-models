@@ -87,7 +87,10 @@ RAIL_END = 40.0
 RAIL_TOP = BASE_H + BED_THICKNESS + 1.5
 
 LABEL_SIZE = 6.0  # bold capitals have ~4.5 mm actual glyph height
-LABEL_DEPTH = 0.5  # stays within the 1 mm PETG wall and 2 mm ASA back wall
+LABEL_DEPTH = 0.5  # stays within the 1 mm PETG cover wall
+TOOL_LABEL_SIZE = 4.2  # bold digits render just over 3 mm tall
+TOOL_LABEL_DEPTH = 0.8  # leaves 1.2 mm of the ASA guide's 2 mm back wall
+TOOL_LABEL_MARGIN = 0.4  # flat rear face ends at PAD/2 - CORNER_R
 
 
 def stacking_receiver(y: float, top_z: float):
@@ -103,6 +106,35 @@ def engrave_set_name(label: str, plane: Plane) -> None:
     with BuildSketch(plane) as lettering:
         Text(label.upper(), font_size=LABEL_SIZE, font_style=FontStyle.BOLD)
     extrude(to_extrude=lettering.sketch, amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
+
+
+def tool_map_glyphs(drills: DrillSet):
+    """Position each size against its guide on the solid rear-face map."""
+    _cells, positions = layout_for(drills)
+    flat_half = PAD / 2 - CORNER_R - TOOL_LABEL_MARGIN
+    for key, (hole_x, z) in positions.items():
+        with BuildSketch() as lettering:
+            Text(key, font_size=TOOL_LABEL_SIZE, font_style=FontStyle.BOLD)
+        glyph = lettering.sketch
+        bounds = glyph.bounding_box()
+        # METAL 1.5 otherwise touches the adjacent 6 label after the 6 is
+        # clamped away from the rounded corner.
+        shift = 1.3 if drills.name == "metal" and key == "1.5" else 0.0
+        x = min(
+            flat_half - bounds.max.X, max(-flat_half - bounds.min.X, hole_x + shift)
+        )
+        yield key, x, z, glyph
+
+
+def engrave_tool_map(rear: float, glyphs) -> None:
+    """Cut sizes into the rear face, leaving the crowded guide mouths intact."""
+    plane = Plane(origin=(0, rear, 0), x_dir=(1, 0, 0), z_dir=(0, -1, 0))
+    for _key, x, z, glyph in glyphs:
+        extrude(
+            to_extrude=plane.location * Pos(x, z, 0) * glyph,
+            amount=-TOOL_LABEL_DEPTH,
+            mode=Mode.SUBTRACT,
+        )
 
 
 def layout_for(drills: DrillSet) -> tuple[int, dict[str, tuple[float, float]]]:
@@ -171,6 +203,7 @@ def create_base_for(drills: DrillSet):
     length = cells * GRID - (GRID - PAD)
     height = 5 * HEIGHT_UNIT
     rear = -length / 2
+    glyphs = tuple(tool_map_glyphs(drills))
     foot_y = rear + PAD / 2
     with BuildPart() as holder:
         add(as_part(Pos(0, foot_y, 0) * gridfinity_foot()))
@@ -219,14 +252,7 @@ def create_base_for(drills: DrillSet):
         for tool in drills.hex_tools:
             x, z = positions[tool.key]
             _cut_guide(x, z, (tool.across_flats + c.GUIDE_FIT) / 3**0.5, rear)
-        engrave_set_name(
-            drills.label,
-            Plane(
-                origin=(0, rear, height / 2),
-                x_dir=(1, 0, 0),
-                z_dir=(0, -1, 0),
-            ),
-        )
+        engrave_tool_map(rear, glyphs)
     return holder.part
 
 

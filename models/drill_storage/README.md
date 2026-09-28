@@ -4,9 +4,11 @@ Gridfinity drill holders, one per tool set. The original upright holders have
 a rigid **ASA base** that guides, a compliant **TPU cartridge** that grips,
 and a tall labelled **PETG cover** that snaps over the collar. Separate
 sideways wood and metal holders use a single-foot ASA guide and a foot-bearing,
-side-removable PETG cover instead. Both halves have engraved set names and
-full-depth top sockets aligned with their feet for a 5U stacking pitch; their
-fit, thin lips and stack strength are pending a print trial.
+side-removable PETG cover instead. WOOD / METAL is engraved on each cover;
+individual sizes and CSK / TAP / STEP are mapped on the ASA guide's rear face,
+opposite its densely packed mouths. Full-depth top sockets align with all feet
+for a 5U stacking pitch; their fit, thin lips and stack strength are pending
+a print trial.
 
 ```bash
 uv run show drill_storage               # the family: three bases, three covers
@@ -43,7 +45,7 @@ uv run export drill_storage.dremel.cover   # PETG cover, pillow-down
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
 | [`dremel/`](dremel/) | Independent 1×2 three-part Dremel variant: ASA base, TPU insert and labelled PETG cover, plus the closed inspection scene. |
-| `sideways.py` / `sideways_cover.py` / `sideways_checks.py` | Shared horizontal wood/metal guides, foot-bearing covers, engraved labels and one 4.4 mm stacking receiver per cell. Each `sideways` package is the assembled scene, with separate `sideways.base` and `sideways.cover` prints and an open `sideways.preview`; see the [sideways specification](docs/sideways-specification.md) and [current CAD contract](docs/sideways-cad-contract.md). |
+| `sideways.py` / `sideways_cover.py` / `sideways_checks.py` | Shared horizontal wood/metal guides, foot-bearing covers, rear-face tool maps and one 4.4 mm stacking receiver per cell. Each `sideways` package is the assembled scene, with separate `sideways.base` and `sideways.cover` prints and an open `sideways.preview`; see the [sideways specification](docs/sideways-specification.md) and [current CAD contract](docs/sideways-cad-contract.md). |
 
 Adding a set is a `DrillSet` in `sets.py` and a package copied from
 `wood/`. Nothing in the geometry has to know about it.

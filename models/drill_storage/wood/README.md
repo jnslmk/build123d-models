@@ -5,9 +5,12 @@ Gridfinity storage for a **brad-point wood drill set**: eleven drills, 2 – 10 
 shank.
 
 The separate **1×3×5U sideways holder** has an ASA rear guide on one foot and
-a PETG side-opening cover carrying the long bed and other two feet. Both halves
-have an engraved WOOD label; together their three full-depth top sockets accept
-another holder's feet at a 5U stacking pitch. The receiving lips rise 4.4 mm
+a PETG side-opening cover carrying the long bed and other two feet. The PETG
+cover says WOOD; the ASA guide's rear face maps each drill size (and CSK for
+the countersink) to its bore position. The mouths are too tightly packed for
+legible printing around them, so read the map from the opposite end of the
+guide. Together the halves' three full-depth top sockets accept another
+holder's feet at a 5U stacking pitch. The receiving lips rise 4.4 mm
 above the 5U body and reach the full 42 mm grid width; their thin mouths and
 zero nominal gap to neighbouring cells need a printed fit and strength trial
 before loading a stack. Slide the cover along the drill axes **only after
@@ -32,6 +35,7 @@ uv run export drill_storage.wood.sideways.base    # ASA rear guide
 uv run export drill_storage.wood.sideways.cover   # PETG foot-bearing cover
 uv run view drill_storage.wood.sideways           # assembled inspection scene
 uv run show drill_storage.wood.sideways.preview   # exposed horizontal drills
+uv run check drill_storage.wood.sideways.base
 uv run check drill_storage.wood.sideways.cover
 ```
 

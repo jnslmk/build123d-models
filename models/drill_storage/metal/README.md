@@ -5,13 +5,16 @@ Gridfinity storage for an **HSS twist drill set**: ten drills on jobber lengths,
 4 – 20 mm step drill on a 6.3 mm hex shank.
 
 The separate **1×4×5U sideways holder** has an ASA rear guide on one foot and
-a PETG side-opening cover carrying the long bed and other three feet. Both
-halves have an engraved METAL label; together their four full-depth top sockets
-accept another holder's feet at a 5U stacking pitch. The receiving lips rise
-4.4 mm above the 5U body and reach the full 42 mm grid width; their thin
-mouths and zero nominal gap to neighbouring cells need a printed fit and
-strength trial before loading a stack. Slide the cover along the drill axes
-**only after lifting the whole holder off its baseplate**. The short dovetail
+a PETG side-opening cover carrying the long bed and other three feet. The PETG
+cover says METAL; the ASA guide's rear face maps each drill size plus TAP and
+STEP to its bore position. The mouths are too tightly packed for legible
+printing around them, so read the map from the opposite end of the guide.
+Together the halves' four full-depth top sockets accept another holder's feet
+at a 5U stacking pitch. The receiving lips rise 4.4 mm above the 5U body
+and reach the full 42 mm grid width; their thin mouths and zero nominal gap
+to neighbouring cells need a printed fit and strength trial before loading a
+stack. Slide the cover along the drill axes **only after lifting the whole
+holder off its baseplate**. The short dovetail
 is a hand-removable friction fit, not a positive latch; keep it horizontal
 while opening. There is no TPU shank-gripping insert. Print both parts
 foot-down with slicer supports under the ASA rear roof extension and PETG
@@ -32,6 +35,7 @@ uv run export drill_storage.metal.sideways.base    # ASA rear guide
 uv run export drill_storage.metal.sideways.cover   # PETG foot-bearing cover
 uv run view drill_storage.metal.sideways           # assembled inspection scene
 uv run show drill_storage.metal.sideways.preview   # exposed horizontal drills
+uv run check drill_storage.metal.sideways.base
 uv run check drill_storage.metal.sideways.cover
 ```
 
