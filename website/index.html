@@ -887,18 +887,19 @@ function firstModel(node) {
 // a naming layer has no manifest entry to take a label from.
 const pretty = (seg) => seg.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-// Switching one level keeps the levels below it when they exist: wood/shell ->
-// metal/shell, not metal. That is the whole point of chip rows over a flat
-// list -- comparing the same part across variants is one click, not a hunt.
-// Falls back up the path (hex has no `shell`), then down into the subtree.
-function chooseAt(depth, seg) {
-  const segs = current.name.split('.');
-  const next = [...segs.slice(0, depth), seg, ...segs.slice(depth + 1)];
-  for (let end = next.length; end > depth; end--) {
-    const node = nodeAt(next.slice(0, end).join('.'));
-    if (node && node.model) return selectModel(node.model.name);
+// Switching one level keeps the levels below it when they exist: wood/base ->
+// metal/base, not metal. Start from the clicked node's full path, not the
+// visible row number: naming-only levels such as hex/bits have no chip row.
+// Fall back to the clicked model (or the first model below a naming layer).
+function chooseNode(node) {
+  if (!node) return;
+  const segs = node.path.split('.');
+  const next = [...segs, ...current.name.split('.').slice(segs.length)];
+  for (let end = next.length; end >= segs.length; end--) {
+    const target = nodeAt(next.slice(0, end).join('.'));
+    if (target && target.model) return selectModel(target.model.name);
   }
-  const m = firstModel(nodeAt(next.slice(0, depth + 1).join('.')));
+  const m = firstModel(node);
   if (m) selectModel(m.name);
 }
 
@@ -908,7 +909,7 @@ function chooseAt(depth, seg) {
 // `drill_storage.wood.base` -- but `drill_storage` would be unreachable
 // without this, the family select having no change event to fire when the
 // family is the one already chosen.
-function chip(node, depth, self) {
+function chip(node, self) {
   const b = document.createElement('button');
   b.className = 'chip';
   b.textContent = self ? 'Overview' : pretty(node.seg);
@@ -925,7 +926,7 @@ function chip(node, depth, self) {
     tag.title = 'assembly view — no STL/STEP download';
     b.append(tag);
   }
-  b.addEventListener('click', () => (self ? selectModel(node.model.name) : chooseAt(depth, node.seg)));
+  b.addEventListener('click', () => (self ? selectModel(node.model.name) : chooseNode(node)));
   return b;
 }
 
@@ -968,8 +969,8 @@ function renderPicker() {
         lvl.append(cap);
       }
       const row = document.createElement('div'); row.className = 'pk-row';
-      if (depth === 1 && node.model) row.append(chip(node, depth, true));
-      for (const child of node.children.values()) row.append(chip(child, depth));
+      if (depth === 1 && node.model) row.append(chip(node, true));
+      for (const child of node.children.values()) row.append(chip(child, false));
       lvl.append(row);
       el.picker.append(lvl);
     }
@@ -993,7 +994,7 @@ function stepSibling(dir) {
   if (!parent) return;
   const keys = [...parent.children.keys()];
   const i = keys.indexOf(segs[depth]);
-  chooseAt(depth, keys[(i + dir + keys.length) % keys.length]);
+  chooseNode(parent.children.get(keys[(i + dir + keys.length) % keys.length]));
 }
 addEventListener('keydown', (e) => {
   if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -1064,7 +1065,7 @@ function selectModel(name) {
 // ---------------------------------------------------------------------------
 // Buttons
 // ---------------------------------------------------------------------------
-el.family.addEventListener('change', () => chooseAt(0, el.family.value));
+el.family.addEventListener('change', () => chooseNode(nodeAt(el.family.value)));
 el.btnRun.addEventListener('click', () => {
   sendJob({ model: current.name, payload: { source: currentSource() } });
 });

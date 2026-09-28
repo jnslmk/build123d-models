@@ -7,6 +7,10 @@ Collection of 3D printable models built with [build123d](https://github.com/gumy
 
 **Live 3D viewer:** https://jnslmk.github.io/build123d-models/
 
+On the site, choose a model family and then a scene or printable part from its
+chips. Naming-only levels such as Drill Storage → Hex → Bits appear as captions;
+select Base, Insert, or Cover beneath them to open the individual parts.
+
 ## Setup
 
 ```bash
