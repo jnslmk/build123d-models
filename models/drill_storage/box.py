@@ -1144,6 +1144,7 @@ def create_cover(
     label_z: float = LABEL_Z,
     label_horizontal: bool = False,
     stackable: bool = False,
+    support: bool = True,
 ) -> Part:
     """A tall rounded-square cover with a pillow top and an engraved label.
 
@@ -1260,6 +1261,6 @@ def create_cover(
             # chamfer leaves the builder corrupted, and this is the last
             # operation before the part is returned.
             chamfer_edge(cover, mouth, LABEL_CHAMFER)
-    # Both return mouth-up in print pose; only stackable variants carry support.
+    # Both return mouth-up in print pose; support is optional on stackable covers.
     part = reseat_on_bed(cover.part, flip=True)
-    return add_stacking_support(part) if stackable else part
+    return add_stacking_support(part) if stackable and support else part

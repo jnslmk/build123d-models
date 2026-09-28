@@ -10,8 +10,8 @@
 
 - Name: 1×1 stackable cover family.
 - Anchor part: the shared stackable PETG cover, reviewed as `drill_storage.wood.cover_stackable`; the other four labels/heights use that same receiving geometry.
-- Purpose and print pose: accept an upper holder's Gridfinity foot while keeping the original cover-to-base interface; print top down, mouth up, with integral removable support under the socket.
-- In scope: five stackable cover entries, one shared foot receiver and support, compatibility/clearance proof, visual review.
+- Purpose and print pose: accept an upper holder's Gridfinity foot while keeping the original cover-to-base interface; print top down, mouth up, with optional integral removable support under the socket (enabled by default).
+- In scope: five stackable cover entries, one shared foot receiver and optional support, compatibility/clearance proof, visual review.
 - Deferred interfaces: no new base, cartridge, connector, or fastener.
 
 ## Applicable specification constraints
@@ -20,7 +20,7 @@
 | --- | --- |
 | SC-1 | Full 4.4 mm foot profile enters a 4.4 mm-deep socket; lip sits at 7U + 4.4 mm and next foot's body seats at 7U. Only stackable lip widens from 41.5 to 42 mm. |
 | SC-2 | Original bases and smooth covers retain their envelope and snap joints; the lip mouth's sub-perimeter wall is a user-accepted experimental exception, not proven printable. |
-| SC-3 | Integral support spans the deeper socket floor in print pose and can be removed for stacking. |
+| SC-3 | Integral support spans the deeper socket floor in print pose when enabled and can be removed for stacking; disabling support yields the unchanged cover/socket without sacrificial geometry. |
 
 ## Evidence-backed dimensions
 
@@ -55,7 +55,7 @@
 
 - [ ] Full foot seats to the socket floor without overlap, and the assembled stack pitch equals a whole 7 mm multiple — targeted `stackable_checks.check_cover` geometric gate; physical fit still pending.
 - [ ] Solid cap and tool-tip clearance remain under the full-depth socket — five targeted cover gates.
-- [ ] Support bridges the deeper socket floor in print pose and exposes the seat when removed — geometry gate, physical breakaway pending.
+- [ ] Default support bridges the deeper socket floor in print pose and exposes the seat when removed; disabling it leaves the cover/socket unchanged — geometry gate, physical breakaway and unsupported bridge pending.
 - [ ] Only stackable lip reaches 42 mm; original smooth cover/base remain 41.5 mm, with snap interface unchanged — geometry gate and parent validation pending.
 
 ## Visual review

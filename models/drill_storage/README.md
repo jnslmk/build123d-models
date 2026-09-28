@@ -156,9 +156,12 @@ Do not load a stack until a printed fit/durability and neighbouring-holder
 trial succeeds. Keep the original smooth cover for a 41.5 mm envelope and
 support-free printing.
 
-The stackable cover prints **socket-down, mouth-up**, with a breakaway lattice
-included under its full-depth socket floor. Remove the lattice and all four
-attachment nibs before seating another holder. The cap and longest-tool
+The stackable cover prints **socket-down, mouth-up**. Each of the five leaf
+models has an on-by-default `support` checkbox that adds a breakaway lattice
+under its full-depth socket floor. Turn it off for a clean socket if using
+slicer supports or after verifying the unsupported bridge on your printer.
+When enabled, remove the lattice and all four attachment nibs before seating
+another holder. The cap and longest-tool
 clearance remain budgeted below the receiver. See
 [the stackable-cover specification](docs/stackable-cover-specification.md) and
 [the current CAD contract](docs/stackable-cover-cad-contract.md).

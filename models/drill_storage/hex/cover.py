@@ -87,6 +87,7 @@ def create_cover(
     label_horizontal: bool = False,
     snap_protrusion: float = SNAP_PROTRUSION,
     stackable: bool = False,
+    support: bool = True,
 ) -> Part:
     """A rounded-square cover with a pillow top and an engraved label.
 
@@ -175,9 +176,9 @@ def create_cover(
         )
         if mouth:
             chamfer_edge(cover, mouth, c.LABEL_CHAMFER)
-    # The integral support lies under the foot socket in print pose.
+    # The optional integral support lies under the foot socket in print pose.
     part = reseat_on_bed(cover.part, flip=True)
-    return add_stacking_support(part) if stackable else part
+    return add_stacking_support(part) if stackable and support else part
 
 
 __all__ = ["create_cover", "label_fit"]

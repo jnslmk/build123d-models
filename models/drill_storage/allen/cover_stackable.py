@@ -4,14 +4,24 @@ from build123d import Part
 
 from ..hex import config as c
 from ..hex.cover import create_cover, label_fit
+from ..cover import SUPPORT_PARAM
 from ..stackable_checks import check_cover
 
+PARAMS = [SUPPORT_PARAM]
+IS_ASSEMBLY = False
 
-def create() -> Part:
+
+def create(support: bool = True) -> Part:
     cover_h = c.cover_h_for(c.ALLEN_BIT_LEN, c.guide_floor_z("allen"), stackable=True)
     size, label_z, horizontal = label_fit(cover_h, "ALLEN")
     cover = create_cover(
-        "ALLEN", cover_h, size, label_z, label_horizontal=horizontal, stackable=True
+        "ALLEN",
+        cover_h,
+        size,
+        label_z,
+        label_horizontal=horizontal,
+        stackable=True,
+        support=support,
     )
     cover.label = "cover_stackable_allen"
     cover.color = c.COVER_COLOR

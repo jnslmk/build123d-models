@@ -5,12 +5,15 @@ from .. import config as c
 
 from ..sets import COVER_TIP_CLEARANCE
 from ..stackable_checks import check_cover
-from ..cover import create_stackable_cover_for
+from ..cover import SUPPORT_PARAM, create_stackable_cover_for
 from ..sets import WOOD
 
+PARAMS = [SUPPORT_PARAM]
+IS_ASSEMBLY = False
 
-def create() -> Part:
-    return create_stackable_cover_for(WOOD)
+
+def create(support: bool = True) -> Part:
+    return create_stackable_cover_for(WOOD, support=support)
 
 
 def check():

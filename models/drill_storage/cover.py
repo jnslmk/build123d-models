@@ -31,6 +31,13 @@ from .box import (
 from . import config as c
 from .sets import COVER_TIP_CLEARANCE, DrillSet
 
+SUPPORT_PARAM = {
+    "name": "support",
+    "label": "Include breakaway socket supports",
+    "type": "boolean",
+    "default": True,
+}
+
 
 def create_cover_for(drill_set: DrillSet) -> Part:
     """The cover for one ``sets.DrillSet``, labelled and coloured."""
@@ -40,8 +47,8 @@ def create_cover_for(drill_set: DrillSet) -> Part:
     return cover
 
 
-def create_stackable_cover_for(drill_set: DrillSet) -> Part:
-    """The same collar fit, with a supported Gridfinity-foot seat in the top."""
+def create_stackable_cover_for(drill_set: DrillSet, support: bool = True) -> Part:
+    """The same collar fit, with an optionally supported Gridfinity-foot seat."""
     cover_h = cover_height_for(
         drill_set.max_len,
         headroom=COVER_TIP_CLEARANCE,
@@ -50,7 +57,9 @@ def create_stackable_cover_for(drill_set: DrillSet) -> Part:
         cap_h=CAP_H + STACK_SOCKET_DEPTH,
         stack_lip_h=BASE_H,
     )
-    cover = create_cover(drill_set.label, cover_h=cover_h, stackable=True)
+    cover = create_cover(
+        drill_set.label, cover_h=cover_h, stackable=True, support=support
+    )
     cover.label = f"cover_stackable_{drill_set.name}"
     cover.color = COVER_COLOR
     return cover

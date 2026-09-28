@@ -5,9 +5,13 @@ from build123d import Part
 from .. import config as c
 from ..cover import create_cover, label_fit
 from ...stackable_checks import check_cover
+from ...cover import SUPPORT_PARAM
+
+PARAMS = [SUPPORT_PARAM]
+IS_ASSEMBLY = False
 
 
-def create() -> Part:
+def create(support: bool = True) -> Part:
     cover_h = c.cover_h_for(c.BITS_BIT_LEN, c.guide_floor_z("bits"), stackable=True)
     size, label_z, horizontal = label_fit(cover_h, "BITS")
     cover = create_cover(
@@ -18,6 +22,7 @@ def create() -> Part:
         label_horizontal=horizontal,
         snap_protrusion=c.cover_snap_protrusion("bits"),
         stackable=True,
+        support=support,
     )
     cover.label = "cover_stackable_bits"
     cover.color = c.COVER_COLOR
