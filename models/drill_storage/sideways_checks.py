@@ -11,9 +11,15 @@ from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
 from .sets import DrillSet
 from .sideways import (
     BACK_WALL,
+    BED_THICKNESS,
     COLLAR_END,
     COLLAR_CLEAR,
     COLLAR_LEAD,
+    DETENT_BEAD,
+    DETENT_GROOVE,
+    DETENT_W,
+    DETENT_X,
+    DETENT_Y,
     EDGE_CHAMFER,
     FRONT_CORNER_R,
     GUIDE_DEPTH,
@@ -380,12 +386,35 @@ def run_cover_for(drills: DrillSet, cover) -> Report:
         and is_solid_at(cover, mouth_x, shell_rear + MOUTH_LEAD + 0.1, 20),
         "both sides of the collar joint have an entry lead-in",
     )
+    # The bead sits clear inside the seated groove; moving the cover 1 mm
+    # forward drives it into the collar floor before it can withdraw.
+    detent_y = rear + DETENT_Y
+    detent_x = DETENT_X + DETENT_W / 2
+    detent_floor = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2
+    engagement = DETENT_BEAD - COLLAR_CLEAR / 2
+    report.check(
+        not is_solid_at(base, detent_x, detent_y, detent_floor + 0.25)
+        and is_solid_at(base, detent_x, detent_y, detent_floor + DETENT_GROOVE + 0.75)
+        and not is_solid_at(
+            base, detent_x, detent_y, detent_floor + DETENT_GROOVE + 0.85
+        )
+        and is_solid_at(cover, detent_x, detent_y, BASE_H + BED_THICKNESS + 0.2)
+        and is_solid_at(cover, detent_x, detent_y - 0.5, BASE_H + BED_THICKNESS + 0.15)
+        and not is_solid_at(
+            cover, detent_x, detent_y + 0.35, BASE_H + BED_THICKNESS + 0.15
+        )
+        and base.intersect(cover).volume < 1e-5
+        and base.intersect(Pos(0, 1, 0) * cover).volume > 0
+        and engagement > 0.1,
+        "backed ASA groove seats PETG bead with axial retention",
+        f"{engagement:.2f} mm nominal engagement, 0.8 mm groove backing",
+    )
     report.check(
         all(
             base.intersect(Pos(0, offset, 0) * cover).volume < 1e-5
-            for offset in (1, 2, 3, 5, 10, 15, 18)
+            for offset in (5, 10, 15, 18)
         ),
-        "cover withdraws axially after lifting the assembly off its baseplate",
+        "cover clears collar after releasing detent off the baseplate",
     )
     for tool in preview.children[2:]:
         overlap = cover.intersect(tool).volume

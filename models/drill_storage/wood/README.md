@@ -12,12 +12,14 @@ grip land in each TPU through-bore holds the shank; the ASA bores guide freely.
 The keyed TPU bead seats in a shallow ASA pocket. Print the cartridge flat,
 with its relieved face on the bed and its grip lands upward.
 
-The cover slides **over a broad ASA collar** in the direction of the drill
-axes, replacing the former dovetail rail and sleeve. Its fit is sliding, not
-a positive latch. Lift the assembled holder off its baseplate before pulling
-the foot-bearing cover sideways; keep it horizontal while opening. Print the
-ASA base and PETG cover foot-down, with slicer supports under the ASA rear roof
-and collar overhang and the PETG long roof. Remove supports before assembly.
+The cover slides **over a broad ASA collar** along the drill axes. A short
+ramped bead in its PETG bed clicks into a backed groove under the ASA collar,
+holding the cover in place while allowing hand removal. Lift the assembled
+holder off its baseplate before pulling the foot-bearing cover sideways; keep
+it horizontal while opening. Print the ASA base and PETG cover foot-down,
+with slicer supports under the ASA rear roof and collar overhang and the PETG
+long roof. Clear the detent groove of supports before assembly.
+
 The ASA guide's exposed side and lower bed edge stay flush across the cartridge
 seat and into the cover joint; the sliding cover clearance remains inside.
 Three full-depth top receivers seat another holder's feet at a 5U stacking

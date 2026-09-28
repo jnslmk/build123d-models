@@ -18,6 +18,7 @@ from build123d import (
     Mode,
     Plane,
     Pos,
+    Polygon,
     RectangleRounded,
     Rotation,
     Sphere,
@@ -98,12 +99,63 @@ COLLAR_WALL = 0.8  # two ASA perimeters; tool-clearance scallops are cut below
 COLLAR_CLEAR = fits.SLIDING  # sliding fit, PETG cover over ASA collar
 COLLAR_ROOF = 1.0
 COLLAR_LEAD = 0.3  # 45-degree male lead-in at the cover entry
-
+# The 4 mm axial collar cannot carry the upright holder's full perimeter ring:
+# its scalloped 0.8 mm walls would be erased by a groove. A short floor catch
+# uses the open space between the wood and metal tool paths instead.
+DETENT_X = 2.0
+DETENT_W = 8.0
+DETENT_Y = GRID + 2.5
+DETENT_BEAD = 0.30  # PETG: 0.19 mm engagement beyond the 0.11 mm radial gap
+DETENT_GROOVE = 0.36  # ASA: added floor backing keeps 0.8 mm behind the groove
+DETENT_LEAD = 1.1  # gentle insertion ramp facing the cover's open mouth (-Y)
+DETENT_BACK = 0.5  # shorter retention face towards the closed end (+Y)
+DETENT_FLAT = 0.15  # printable flat instead of a knife-edge bead
 LABEL_SIZE = 12.0  # bold WOOD/METAL capitals render ~9 mm tall on the cover
 LABEL_DEPTH = 0.5  # stays within the 1 mm PETG cover wall
 TOOL_LABEL_SIZE = 4.2  # bold digits render just over 3 mm tall
 TOOL_LABEL_DEPTH = 0.8  # leaves 1.2 mm of the ASA guide's 2 mm back wall
 TOOL_LABEL_MARGIN = 0.4  # flat rear face ends at PAD/2 - CORNER_R
+
+
+def cover_detent(rear: float, *, groove: bool):
+    """Matching axial bead/groove on the bed-facing collar and cover floor."""
+    y = rear + DETENT_Y
+    # Embed the bead's root into the PETG bed so the fuse has a real overlap.
+    root = 0 if groove else 0.05
+    z = BASE_H + BED_THICKNESS + (COLLAR_CLEAR / 2 if groove else -root)
+    depth = DETENT_GROOVE if groove else DETENT_BEAD + root
+    # On insertion (-Y), the bead's negative-Y face meets the collar first.
+    # The short positive-Y face is the retention barrier during withdrawal.
+    with BuildPart() as catch:
+        with BuildSketch(Plane.YZ.offset(DETENT_X)):
+            Polygon(
+                (y - DETENT_LEAD - (0.1 if groove else 0), z),
+                (y - DETENT_FLAT / 2, z + depth),
+                (y + DETENT_FLAT / 2, z + depth),
+                (y + DETENT_BACK + (0.1 if groove else 0), z),
+                align=None,
+            )
+        extrude(amount=DETENT_W)
+    return catch.part
+
+
+def _detent_backing(rear: float):
+    """Reinforce the ASA floor under the groove without raw top edges."""
+    y = rear + DETENT_Y + (DETENT_BACK - DETENT_LEAD) / 2
+    z = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2 + COLLAR_WALL - 0.1
+    sections = []
+    for height, inset in ((0, 0), (DETENT_GROOVE - 0.1, 0), (DETENT_GROOVE + 0.1, 0.2)):
+        with BuildSketch(Plane.XY.offset(z + height)) as profile:
+            with Locations((DETENT_X + DETENT_W / 2, y)):
+                RectangleRounded(
+                    DETENT_W + 0.4 - 2 * inset,
+                    DETENT_LEAD + DETENT_BACK + 1.0 - 2 * inset,
+                    0.25 - inset,
+                )
+        sections.append(profile.sketch)
+    with BuildPart() as backing:
+        loft(sections=sections, ruled=True)
+    return backing.part
 
 
 def stacking_receiver(y: float, top_z: float):
@@ -332,6 +384,10 @@ def create_base_for(drills: DrillSet):
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                 )
         add(_cover_collar(rear, height, drills, positions))
+        # Back the floor groove with two full ASA perimeters. This pad sits
+        # between the tool paths, with a chamfered top for support removal.
+        add(_detent_backing(rear))
+        add(cover_detent(rear, groove=True), mode=Mode.SUBTRACT)
         add(_insert_seat(rear, height), mode=Mode.SUBTRACT)
         front_y = rear + BACK_WALL + GUIDE_DEPTH
         catch_y = front_y - INSERT_DEPTH / 2
