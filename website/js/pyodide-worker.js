@@ -50,7 +50,7 @@ micropip.add_mock_package("cadquery-ocp-novtk", "7.9.3.0")
 # Keep the browser CAD release on the available OCCT 7.9 WASM stack. Newer
 # build123d releases require OCCT 8 and newer typing-extensions than Pyodide ships.
 print("installing build123d ...")
-await micropip.install(["build123d==0.11.1", "sqlite3"])
+await micropip.install("build123d==0.11.1")
 # Standard hardware (bd_warehouse.thread's IsoThread, in led_profiles.endcap).
 # Pure Python on top of build123d, so it installs straight from PyPI -- but it
 # has to be here, not just in pyproject.toml: the endcap is imported by the
@@ -131,7 +131,7 @@ async function boot() {
   status("Booting Python WebAssembly runtime…");
   pyodide = await loadPyodide({ stdout: log, stderr: log });
   status("Installing numpy / micropip…");
-  await pyodide.loadPackage(["micropip", "numpy", "sqlite3", "typing-extensions"]);
+  await pyodide.loadPackage(["micropip", "numpy", "typing-extensions"]);
   status("Downloading build123d + OpenCASCADE WASM (~40 MB, cached after)…");
   await pyodide.runPythonAsync(SETUP);
 
