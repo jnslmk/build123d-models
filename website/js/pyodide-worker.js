@@ -13,6 +13,7 @@
 //   {type:"result", id, model, stl(ArrayBuffer), step(ArrayBuffer|null),
 //                   cadMs, wallMs, cached}
 //   {type:"error", id?, message}
+// Protocol (main -> worker):
 //   {type:"init", sourcesUrl}                            // absolute manifest URL from page
 //   {type:"generate", id, model, sourcePath, params}     // param build (cacheable)
 //   {type:"generate", id, model, sourcePath, source}     // live code edit, never cached
@@ -56,11 +57,8 @@ await micropip.install(["build123d==0.11.1", "sqlite3"])
 # led_profiles package's own __init__, so without it every model in that
 # package fails to import in the browser while still building fine locally.
 #
-# The cap is pyproject.toml's, for pyproject.toml's reason, and it matters more
-# here than it does there: 0.3.0 requires build123d>=0.11.1, so an unpinned
-# install would ask micropip to pull build123d forward from whatever version it
-# just resolved against this OCP.wasm build -- an upgrade nothing in the runtime
-# is pinned to survive. Lift the two caps together or not at all.
+# Keep the same bd_warehouse cap as the native project. Pinning build123d above
+# prevents the resolver from silently upgrading the browser's OCCT stack.
 print("installing bd_warehouse (standard threads/fasteners) ...")
 await micropip.install("bd_warehouse>=0.2.0,<0.3.0")
 
