@@ -13,9 +13,9 @@
 //   {type:"result", id, model, stl(ArrayBuffer), step(ArrayBuffer|null),
 //                   cadMs, wallMs, cached}
 //   {type:"error", id?, message}
-// Protocol (main -> worker):
-//   {type:"generate", id, model, sourcePath, params}    // param build (cacheable)
-//   {type:"generate", id, model, sourcePath, source}    // live code edit, never cached
+//   {type:"init", sourcesUrl}                            // absolute manifest URL from page
+//   {type:"generate", id, model, sourcePath, params}     // param build (cacheable)
+//   {type:"generate", id, model, sourcePath, source}     // live code edit, never cached
 //
 // `model` is a module path under `models` (`led_profiles.stand`), and
 // `sourcePath` is where that module's file actually lives -- the manifest's own
@@ -28,6 +28,8 @@ importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.0a3/full/pyodide.js");
 
 let pyodide = null;
 const cache = new Map(); // JSON({model,params}) -> {stl:Uint8Array, glb:Uint8Array|null}
+let resolveSourcesUrl;
+const sourcesUrl = new Promise((resolve) => { resolveSourcesUrl = resolve; });
 
 const status = (text) => self.postMessage({ type: "status", text });
 const log = (text) => self.postMessage({ type: "log", text });
@@ -44,8 +46,10 @@ micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": "from lib3
 print("installing OpenCASCADE WASM (cadquery-ocp, the big one) ...")
 await micropip.install("cadquery-ocp")
 micropip.add_mock_package("cadquery-ocp-novtk", "7.9.3.0")
+# Keep the browser CAD release on the available OCCT 7.9 WASM stack. Newer
+# build123d releases require OCCT 8 and newer typing-extensions than Pyodide ships.
 print("installing build123d ...")
-await micropip.install(["build123d", "sqlite3"])
+await micropip.install(["build123d==0.11.1", "sqlite3"])
 # Standard hardware (bd_warehouse.thread's IsoThread, in led_profiles.endcap).
 # Pure Python on top of build123d, so it installs straight from PyPI -- but it
 # has to be here, not just in pyproject.toml: the endcap is imported by the
@@ -134,7 +138,9 @@ async function boot() {
   await pyodide.runPythonAsync(SETUP);
 
   status("Loading model sources…");
-  const sources = await (await fetch("../py-sources.json")).json();
+  // The page supplies the URL: workers can be loaded through a blob URL, whose
+  // path cannot resolve a project-relative asset (notably under GitHub Pages).
+  const sources = await (await fetch(await sourcesUrl)).json();
   pyodide.FS.mkdirTree("/models");
   for (const [path, text] of Object.entries(sources)) {
     // path is like "models/lens_cap.py"; write it at the FS root so "import models.x" works
@@ -155,6 +161,7 @@ const bootPromise = boot().catch((e) =>
 
 self.onmessage = async (ev) => {
   const msg = ev.data;
+  if (msg.type === "init") { resolveSourcesUrl(msg.sourcesUrl); return; }
   if (msg.type !== "generate") return;
   await bootPromise;
   if (!pyodide) return;

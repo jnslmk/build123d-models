@@ -112,6 +112,13 @@ The full specification — the promotion rule, naming, where shared geometry goe
 how a model gets registered, and the places the tree still deviates — is in
 [AGENTS.md](AGENTS.md#model-structure).
 
+The site's optional live rebuilds run in a Pyodide worker, not in the CI export
+environment. Its `website/js/pyodide-worker.js` pins build123d 0.11.1 to the
+available OCCT 7.9 WASM wheel; when upgrading that stack, verify runtime boot
+**and** a parameter rebuild in the browser before deploying. The page passes
+the worker an absolute `py-sources.json` URL so it also works under the Pages
+project path.
+
 ## CI/CD
 
 <!-- Trigger rebuild: Pages reset attempt #3 -->

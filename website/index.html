@@ -735,6 +735,7 @@ function startRuntime() {
   try { localStorage.setItem(LS_RUNTIME, 'on'); } catch { /* private mode */ }
   worker = new Worker('./js/pyodide-worker.js');
   worker.onmessage = onWorkerMessage;
+  worker.postMessage({ type: 'init', sourcesUrl: new URL('./py-sources.json', document.baseURI).href });
 }
 function showOptIn() { el.optin.hidden = false; }
 function hideOptIn() { el.optin.hidden = true; }
