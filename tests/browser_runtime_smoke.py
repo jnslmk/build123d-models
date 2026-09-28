@@ -53,15 +53,7 @@ def _stage_page(
             }
         )
     if with_worker:
-        (root / "js").mkdir()
-        (root / "js" / "pyodide-worker.js").write_bytes(
-            (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
-        )
-        (root / "browser-wheels").mkdir()
-        wheel = "build123d-0.11.1-py3-none-any.whl"
-        (root / "browser-wheels" / wheel).write_bytes(
-            (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
-        )
+        website.stage_browser_runtime(root)
     assets = {"models": models}
     website._write_source_assets(assets, root)
     (root / "models-manifest.json").write_text(json.dumps(assets))
@@ -71,16 +63,9 @@ def _stage_page(
 class BrowserRuntimeSmoke(unittest.TestCase):
     def test_pyodide_boots_and_rebuilds_lens_cap_with_new_diameter(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "js").mkdir()
-            (root / "js" / "pyodide-worker.js").write_bytes(
-                (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
-            )
-            (root / "browser-wheels").mkdir()
-            wheel = "build123d-0.11.1-py3-none-any.whl"
-            (root / "browser-wheels" / wheel).write_bytes(
-                (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
-            )
+            root = Path(directory) / "build123d-models"
+            root.mkdir()
+            website.stage_browser_runtime(root)
             # Stage only the selected model's closure for parameter rebuilds.
             assets = {
                 "models": [
@@ -94,6 +79,13 @@ class BrowserRuntimeSmoke(unittest.TestCase):
             variant[own_source] = variant[own_source].replace(
                 "WALL_THICKNESS = 1.2", "WALL_THICKNESS = 1.6"
             )
+            variant[own_source] = (
+                "from importlib.metadata import version\n"
+                "assert version('build123d') == '0.11.1'\n"
+                "assert version('cadquery-ocp') == '7.9.3.0'\n"
+                "assert version('bd-warehouse') == '0.2.0'\n"
+                "assert version('scipy') == '1.14.1'\n" + variant[own_source]
+            )
             (root / "model-sources" / "lens_cap-variant.json").write_text(
                 json.dumps(variant)
             )
@@ -103,7 +95,7 @@ class BrowserRuntimeSmoke(unittest.TestCase):
             )
 
             handler = functools.partial(
-                http.server.SimpleHTTPRequestHandler, directory=str(root)
+                http.server.SimpleHTTPRequestHandler, directory=directory
             )
             with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -117,12 +109,19 @@ class BrowserRuntimeSmoke(unittest.TestCase):
                                 os.environ.get("BROWSER_SMOKE_TIMEOUT_MS", "720000")
                             )
                             page.set_default_timeout(timeout_ms + 60_000)
-                            page.goto(f"http://127.0.0.1:{server.server_port}/")
+                            page.goto(
+                                f"http://127.0.0.1:{server.server_port}/build123d-models/"
+                            )
                             # Promise rejects for boot errors, failed imports, worker crashes,
                             # generation errors and timeouts; it never accepts a cached STL.
                             result = page.evaluate(
                                 """async (timeoutMs) => {
-                                const worker = new Worker('./js/pyodide-worker.js');
+                                const blob = URL.createObjectURL(new Blob([
+                                    'importScripts(' + JSON.stringify(
+                                        new URL('./js/pyodide-worker.js', document.baseURI).href
+                                    ) + ');'
+                                ], {type: 'text/javascript'}));
+                                const worker = new Worker(blob);
                                 const assets = await (await fetch('models-manifest.json')).json();
                                 const sourcesUrl = new URL(assets.models[0].sources, document.baseURI).href;
                                 const editSourcesUrl = new URL(assets.editSources, document.baseURI).href;
@@ -202,6 +201,7 @@ class BrowserRuntimeSmoke(unittest.TestCase):
                                 } finally {
                                     clearTimeout(timer);
                                     worker.terminate();
+                                    URL.revokeObjectURL(blob);
                                 }
                             }""",
                                 timeout_ms,

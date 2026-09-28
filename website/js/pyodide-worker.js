@@ -24,6 +24,7 @@
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.0a3/full/pyodide.js");
 
 let pyodide = null;
+let runtimeLock = null;
 const cache = new Map(); // JSON({model,params,sourcesUrl}) -> generated mesh buffers
 let resolveBaseUrl;
 const baseUrl = new Promise((resolve) => { resolveBaseUrl = resolve; });
@@ -33,33 +34,13 @@ const writtenSources = new Map(); // Python FS path -> most recently written tex
 const status = (text) => self.postMessage({ type: "status", text });
 const log = (text) => self.postMessage({ type: "log", text });
 
-// Install OpenCASCADE (the big one) + build123d from the OCP.wasm index, then
-// stub out ocp_vscode so any model that `from ocp_vscode import show` at module
-// top level imports cleanly in the headless runtime.
+// The site lock contains the Pyodide catalog plus resolved OCP.wasm/PyPI
+// wheels. loadPackage checks their SHA-256 digests and follows pinned depends.
+// Only the editor requests scikit-learn; parameter builds never transfer it.
+// Keep the import alias for lib3mf and the headless viewer shim.
 const SETUP = `
 import micropip
-micropip.set_index_urls(["https://yeicor.github.io/OCP.wasm", "https://pypi.org/simple"])
-print("installing lib3mf ...")
-await micropip.install("lib3mf")
 micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": "from lib3mf import *"})
-print("installing OpenCASCADE WASM (cadquery-ocp, the big one) ...")
-await micropip.install("cadquery-ocp")
-micropip.add_mock_package("cadquery-ocp-novtk", "7.9.3.0")
-# Keep the browser CAD release on the available OCCT 7.9 WASM stack. This
-# verified upstream 0.11.1 wheel only moves DBSCAN imports into their call
-# sites and omits scikit-learn from its eager dependency metadata (not SciPy).
-print("installing build123d ...")
-await micropip.install(BUILD123D_WHEEL_URL)
-# Standard hardware (bd_warehouse.thread's IsoThread, in led_profiles.endcap).
-# Pure Python on top of build123d, so it installs straight from PyPI -- but it
-# has to be here, not just in pyproject.toml: the endcap is imported by the
-# led_profiles package's own __init__, so without it every model in that
-# package fails to import in the browser while still building fine locally.
-#
-# Keep the same bd_warehouse cap as the native project. Pinning build123d above
-# prevents the resolver from silently upgrading the browser's OCCT stack.
-print("installing bd_warehouse (standard threads/fasteners) ...")
-await micropip.install("bd_warehouse>=0.2.0,<0.3.0")
 
 import sys, types
 _stub = types.ModuleType("ocp_vscode")
@@ -124,16 +105,37 @@ _run(MODEL, PARAMS_JSON, RELOAD)
 `;
 
 async function boot() {
+  // Workers can originate from blobs and the site may be served below a
+  // GitHub Pages project path. Neither the blob nor the CDN is our asset root.
+  const site = await baseUrl;
+  const response = await fetch(new URL("runtime-lock.json", site));
+  if (!response.ok) throw new Error(`runtime lock: HTTP ${response.status}`);
+  runtimeLock = await response.json();
+  if (runtimeLock.info.version !== "0.28.0a3") {
+    throw new Error(`Unexpected lock version ${runtimeLock.info.version}`);
+  }
+  // Pyodide resolves relative lock entries against its CDN indexURL, not
+  // lockFileURL. Materialize the single local wheel against the page origin.
+  const localWheel = runtimeLock.packages.build123d;
+  if (localWheel.file_name !== "browser-wheels/build123d-0.11.1-py3-none-any.whl") {
+    throw new Error("Unexpected local build123d wheel path in runtime lock");
+  }
+  localWheel.file_name = new URL(localWheel.file_name, site).href;
+  const lockUrl = URL.createObjectURL(new Blob([JSON.stringify(runtimeLock)], { type: "application/json" }));
   status("Booting Python WebAssembly runtime…");
-  pyodide = await loadPyodide({ stdout: log, stderr: log });
-  status("Installing numpy / micropip…");
-  await pyodide.loadPackage(["micropip", "numpy", "typing-extensions"]);
-  // Workers may be created from blobs; resolve relative to the page's site URL.
-  pyodide.globals.set(
-    "BUILD123D_WHEEL_URL",
-    new URL("browser-wheels/build123d-0.11.1-py3-none-any.whl", await baseUrl).href
-  );
-  status("Downloading build123d + OpenCASCADE WASM (~40 MB, cached after)…");
+  try {
+    pyodide = await loadPyodide({ stdout: log, stderr: log, lockFileURL: lockUrl });
+  } finally {
+    URL.revokeObjectURL(lockUrl);
+  }
+  if (pyodide.version !== runtimeLock.info.version) {
+    throw new Error(`Unexpected Pyodide version ${pyodide.version}`);
+  }
+  status("Loading integrity-pinned build123d + OpenCASCADE WASM…");
+  await loadLocked([
+    "micropip", "numpy", "typing-extensions", "lib3mf",
+    "cadquery-ocp", "build123d", "bd-warehouse",
+  ]);
   await pyodide.runPythonAsync(SETUP);
 
   pyodide.FS.mkdirTree("/models");
@@ -142,6 +144,35 @@ async function boot() {
   log("runtime ready ✔");
   self.postMessage({ type: "ready" });
 }
+async function loadLocked(names) {
+  const errors = [];
+  await pyodide.loadPackage(names, {
+    checkIntegrity: true,
+    errorCallback: (message) => { errors.push(message); log(message); },
+  });
+  if (errors.length) throw new Error(`Locked package loading failed: ${errors.join("; ")}`);
+  assertLoaded(names);
+}
+
+function assertLoaded(roots) {
+  // Pyodide reports installed names from wheel metadata (bd_warehouse,
+  // Pygments), while the lock uses normalized distribution names.
+  const installed = new Set(Object.keys(pyodide.loadedPackages)
+    .map((name) => name.toLowerCase().replace(/[-_.]/g, "")));
+  const todo = [...roots];
+  const seen = new Set();
+  while (todo.length) {
+    const name = todo.pop();
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const entry = runtimeLock.packages[name];
+    if (!entry || !installed.has(name.toLowerCase().replace(/[-_.]/g, ""))) {
+      throw new Error(`Locked wheel ${name} was not installed`);
+    }
+    todo.push(...entry.depends);
+  }
+}
+
 
 let bootFailed = false;
 const bootPromise = boot().catch((e) => {
@@ -214,7 +245,7 @@ self.onmessage = async (ev) => {
     // parameter-only rebuilds never request it.
     if (isEdit) {
       status("Installing scikit-learn for edited source…");
-      await pyodide.loadPackage("scikit-learn");
+      await loadLocked(["scikit-learn"]);
     }
     status("Loading model sources…");
     const sources = await loadSources(isEdit ? msg.editSourcesUrl : msg.sourcesUrl);

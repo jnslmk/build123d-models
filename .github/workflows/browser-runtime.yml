@@ -35,8 +35,13 @@ jobs:
       - name: Install headless Chromium and system dependencies
         run: uv run --with playwright==1.58.0 python -m playwright install --with-deps chromium
 
-      # Both tests stage the worker, browser wheel, and website._py_sources()
-      # outside the checkout. The smoke verifies changed model geometry; the
-      # dependency test verifies lazy fetches and real edited-source APIs.
-      - name: Rebuild browser model and verify lazy dependencies
-        run: uv run --with playwright==1.58.0 python -m unittest tests.browser_runtime_smoke tests.browser_lazy_dependency
+      # Resolve without using the committed runtime lock: drift in an upstream
+      # wheel, URL, or transitive dependency fails before a browser deployment.
+      - name: Verify wheel graph against fresh browser resolution
+        run: uv run --with playwright==1.58.0 python tests/browser_runtime_lock.py
+
+      # These fixtures stage the same worker, local wheel, and lock as Pages.
+      # Cover blob workers under project paths, actual geometry, lazy sklearn,
+      # and rejection of a wheel whose bytes no longer match the lock.
+      - name: Rebuild browser model and verify locked dependencies
+        run: uv run --with playwright==1.58.0 python -m unittest tests.browser_runtime_smoke tests.browser_lazy_dependency tests.browser_runtime_lock

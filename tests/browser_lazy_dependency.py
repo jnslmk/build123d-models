@@ -27,6 +27,10 @@ from sklearn.cluster import DBSCAN
 
 def create():
     assert version('build123d') == '0.11.1'
+    assert version('cadquery-ocp') == '7.9.3.0'
+    assert version('bd-warehouse') == '0.2.0'
+    assert version('scipy') == '1.14.1'
+    assert version('scikit-learn') == '1.6.1'
     assert profile.WIDTH == 26.1
     assert DBSCAN.__module__ == 'sklearn.cluster._dbscan'
     assert list(DBSCAN(eps=1, min_samples=2).fit([[0], [0.5], [10]]).labels_) == [0, 0, -1]
@@ -41,15 +45,7 @@ class BrowserLazyDependency(unittest.TestCase):
     def test_default_then_edited_detect_primitives(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "js").mkdir()
-            (root / "js" / "pyodide-worker.js").write_bytes(
-                (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
-            )
-            (root / "browser-wheels").mkdir()
-            wheel = "build123d-0.11.1-py3-none-any.whl"
-            (root / "browser-wheels" / wheel).write_bytes(
-                (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
-            )
+            website.stage_browser_runtime(root)
             assets = {
                 "models": [
                     {"name": "lens_cap", "source": "models/lens_cap/__init__.py"}

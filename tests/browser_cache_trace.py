@@ -15,6 +15,7 @@ import http.server
 import json
 import math
 import sys
+import subprocess
 import tempfile
 import threading
 from pathlib import Path
@@ -313,21 +314,22 @@ def summarize(phase: str, result: dict, rows: list[dict]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout-ms", type=int, default=720_000)
+    parser.add_argument(
+        "--baseline-ref", help="read the original worker from this git revision"
+    )
     args = parser.parse_args()
     if args.timeout_ms <= 0:
         parser.error("timeout must be positive")
     with tempfile.TemporaryDirectory(prefix="browser-cache-trace-") as directory:
         root = Path(directory)
         site = root / "site"
-        (site / "js").mkdir(parents=True)
-        (site / "js" / "pyodide-worker.js").write_bytes(
-            (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
-        )
-        (site / "browser-wheels").mkdir()
-        wheel = "build123d-0.11.1-py3-none-any.whl"
-        (site / "browser-wheels" / wheel).write_bytes(
-            (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
-        )
+        website.stage_browser_runtime(site)
+        if args.baseline_ref:
+            worker = subprocess.check_output(
+                ["git", "show", f"{args.baseline_ref}:website/js/pyodide-worker.js"],
+                cwd=ROOT,
+            )
+            (site / "js" / "pyodide-worker.js").write_bytes(worker)
         assets = {
             "models": [{"name": "lens_cap", "source": "models/lens_cap/__init__.py"}]
         }
@@ -373,7 +375,16 @@ def main() -> int:
                             phases.append(
                                 summarize(phase, result, trace.phase_rows(phase))
                             )
-                        print(json.dumps({"trace": phases}, indent=2), flush=True)
+                        print(
+                            json.dumps(
+                                {
+                                    "worker": args.baseline_ref or "locked",
+                                    "trace": phases,
+                                },
+                                indent=2,
+                            ),
+                            flush=True,
+                        )
                     finally:
                         context.close()
             finally:

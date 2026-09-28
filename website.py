@@ -13,7 +13,9 @@ the local preview matches GitHub Pages exactly. It writes:
                                         parameter rebuilds and a full-tree asset
                                         for arbitrary edited Python imports.
 
-It also copies CI-rendered ``exports/<name>.stl|.step|.png`` to ``website/exports/``.
+It validates the checked-in ``website/runtime-lock.json`` and local build123d
+wheel before copying CI-rendered ``exports/<name>.stl|.step|.png`` into
+``website/exports/``. The entire ``website/`` directory is the Pages artifact.
 """
 
 import functools
@@ -335,8 +337,30 @@ def _manifest() -> dict:
     return {"models": models}
 
 
+def stage_browser_runtime(output_dir: Path) -> None:
+    """Stage the worker and its locked local assets for isolated browser fixtures."""
+    for path in (
+        "js/pyodide-worker.js",
+        "runtime-lock.json",
+        "browser-wheels/build123d-0.11.1-py3-none-any.whl",
+    ):
+        destination = output_dir / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(WEBSITE_DIR / path, destination)
+
+
 def build_web_bundle() -> None:
     """Emit metadata, source files, documentation, and render assets for the site."""
+    lock = json.loads((WEBSITE_DIR / "runtime-lock.json").read_text())
+    wheel = lock["packages"]["build123d"]
+    local_wheel = WEBSITE_DIR / wheel["file_name"]
+    if (
+        not local_wheel.is_file()
+        or hashlib.sha256(local_wheel.read_bytes()).hexdigest() != wheel["sha256"]
+    ):
+        raise ValueError(
+            "browser build123d wheel is missing or differs from runtime-lock.json"
+        )
     WEBSITE_EXPORTS.mkdir(parents=True, exist_ok=True)
     manifest = _manifest()
     _write_source_assets(manifest, WEBSITE_DIR)

@@ -69,15 +69,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        (root / "js").mkdir()
-        (root / "js" / "pyodide-worker.js").write_bytes(
-            (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
-        )
-        (root / "browser-wheels").mkdir()
-        wheel = "build123d-0.11.1-py3-none-any.whl"
-        (root / "browser-wheels" / wheel).write_bytes(
-            (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
-        )
+        website.stage_browser_runtime(root)
         assets = {"models": manifest}
         website._write_source_assets(assets, root)
         (root / "index.html").write_text(

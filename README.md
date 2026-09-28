@@ -130,13 +130,48 @@ If a deploy removes an older hashed asset while a tab stays open, a missing
 source triggers a fresh manifest lookup and retries with the published URL;
 other HTTP failures stay visible in the Code panel or runtime log.
 
-Renovate tracks the worker's Pyodide runtime and its build123d pin separately
-from `pyproject.toml`; the other browser Python installs float within their
-declared constraints. The build123d pin is tied to the available OCCT WASM
-wheel, so a Renovate PR is a compatibility proposal, not an automatic upgrade:
-verify runtime boot **and** a parameter rebuild in the browser before merging.
-The page passes absolute source asset and site-base URLs to the worker so it
-also works under the Pages project path.
+The worker installs the complete compatible wheel closure from
+[`website/runtime-lock.json`](website/runtime-lock.json), including Pyodide
+0.28.0a3's built-in NumPy/SciPy, the OCCT 7.9 WASM wheels, the locally adapted
+build123d 0.11.1 wheel, and bd_warehouse. Every wheel records its exact version,
+download URL, transitive dependencies and SHA-256; Pyodide verifies integrity
+when loading the lock. `scikit-learn` is in the Pyodide catalog but loads **only**
+for edited source (including `detect_primitives`), never parameter rebuilds.
+The lock's local wheel URL is resolved against the page's absolute site base
+before loading, including blob workers under a GitHub Pages project path. Remote
+wheel hosts must permit browser CORS; failed downloads and hash mismatches fail
+the worker rather than continuing with a partial environment.
+
+To propose a browser dependency update, first update the explicitly pinned
+Pyodide and/or browser build123d wheel and its upstream SHA in
+`website/browser-wheels/build_wheel.py`; then run
+`uv run --with playwright==1.58.0 python tests/browser_runtime_lock.py --update`.
+This performs a fresh real-browser micropip resolution, verifies the local
+wheel hash and rewrites the lock with portable absolute CDN/OCP/PyPI URLs.
+Review **all** version, URL, and hash changes, including transitive wheels;
+run without `--update` to compare a fresh resolve against the committed graph.
+Finally run the dedicated browser CI smoke for parameter rebuild and edited
+Python. A resolver change must not silently change the runtime wheel graph:
+the CI lock comparison detects upstream drift until the lock is deliberately
+updated and reviewed. Native `pyproject.toml` is not the browser lock.
+Use `uv run --with playwright==1.58.0 python tests/browser_cache_trace.py`
+for single-sample cold/warm boot measurements in fresh, isolated Chromium
+profiles (each warm run creates a new worker in the same profile).
+
+One comparable local Chromium trace (2026-09-28, `lens_cap` rebuilt at 70 mm
+then 71 mm in a fresh worker sharing the profile cache) measured worker
+creation → `ready` as follows:
+
+| Worker | Cold boot | Warm boot |
+| --- | ---: | ---: |
+| Original resolver (`9837501`) | 25.438 s | 24.045 s |
+| Locked loader | 22.239 s | 21.339 s |
+
+These are **single samples**, not a performance guarantee. The cold and warm
+contexts use separate clean profiles for each worker variant; warm still pays
+for Python/WASM initialization but reuses browser HTTP cache. No byte-savings
+claim follows from these timings; changing request schedules and network
+conditions can change transfer totals independently.
 
 ## CI/CD
 
