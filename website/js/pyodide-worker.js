@@ -47,10 +47,11 @@ micropip.add_mock_package("py-lib3mf", "2.4.1", modules={"py_lib3mf": "from lib3
 print("installing OpenCASCADE WASM (cadquery-ocp, the big one) ...")
 await micropip.install("cadquery-ocp")
 micropip.add_mock_package("cadquery-ocp-novtk", "7.9.3.0")
-# Keep the browser CAD release on the available OCCT 7.9 WASM stack. Newer
-# build123d releases require OCCT 8 and newer typing-extensions than Pyodide ships.
+# Keep the browser CAD release on the available OCCT 7.9 WASM stack. This
+# verified upstream 0.11.1 wheel only moves DBSCAN imports into their call
+# sites and omits scikit-learn from its eager dependency metadata (not SciPy).
 print("installing build123d ...")
-await micropip.install("build123d==0.11.1")
+await micropip.install(BUILD123D_WHEEL_URL)
 # Standard hardware (bd_warehouse.thread's IsoThread, in led_profiles.endcap).
 # Pure Python on top of build123d, so it installs straight from PyPI -- but it
 # has to be here, not just in pyproject.toml: the endcap is imported by the
@@ -132,6 +133,11 @@ async function boot() {
   pyodide = await loadPyodide({ stdout: log, stderr: log });
   status("Installing numpy / micropip…");
   await pyodide.loadPackage(["micropip", "numpy", "typing-extensions"]);
+  // Use the manifest URL, not the worker URL: workers can be loaded from blobs.
+  pyodide.globals.set(
+    "BUILD123D_WHEEL_URL",
+    new URL("browser-wheels/build123d-0.11.1-py3-none-any.whl", await sourcesUrl).href
+  );
   status("Downloading build123d + OpenCASCADE WASM (~40 MB, cached after)…");
   await pyodide.runPythonAsync(SETUP);
 
@@ -184,7 +190,15 @@ self.onmessage = async (ev) => {
     return;
   }
 
+
   try {
+    // Live edits may invoke any build123d API, including detect_primitives.
+    // Install the real Pyodide scikit-learn package before importing edited code;
+    // parameter-only rebuilds never request it.
+    if (isEdit) {
+      status("Installing scikit-learn for edited source…");
+      await pyodide.loadPackage("scikit-learn");
+    }
     pyodide.globals.set("MODEL", msg.model);
     pyodide.globals.set("PARAMS_JSON", isEdit ? "" : JSON.stringify(params));
     pyodide.globals.set("SOURCE", isEdit ? msg.source : null);

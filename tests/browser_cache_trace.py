@@ -321,6 +321,11 @@ def main() -> int:
         (site / "js" / "pyodide-worker.js").write_bytes(
             (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
         )
+        (site / "browser-wheels").mkdir()
+        wheel = "build123d-0.11.1-py3-none-any.whl"
+        (site / "browser-wheels" / wheel).write_bytes(
+            (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
+        )
         (site / "py-sources.json").write_text(json.dumps(website._py_sources()))
         (site / "index.html").write_text(
             "<!doctype html><title>Browser cache trace</title>"

@@ -35,8 +35,8 @@ jobs:
       - name: Install headless Chromium and system dependencies
         run: uv run --with playwright==1.58.0 python -m playwright install --with-deps chromium
 
-      # The test stages the site's worker and website._py_sources() bundle in a
-      # temporary HTTP root. It boots real Pyodide + WASM packages in Chromium,
-      # generates a non-default lens cap, and verifies its binary STL dimensions.
-      - name: Boot browser Python and rebuild model
-        run: uv run --with playwright==1.58.0 python -m unittest tests.browser_runtime_smoke
+      # Both tests stage the worker, browser wheel, and website._py_sources()
+      # outside the checkout. The smoke verifies changed model geometry; the
+      # dependency test verifies lazy fetches and real edited-source APIs.
+      - name: Rebuild browser model and verify lazy dependencies
+        run: uv run --with playwright==1.58.0 python -m unittest tests.browser_runtime_smoke tests.browser_lazy_dependency

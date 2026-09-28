@@ -30,6 +30,11 @@ class BrowserRuntimeSmoke(unittest.TestCase):
             (root / "js" / "pyodide-worker.js").write_bytes(
                 (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
             )
+            (root / "browser-wheels").mkdir()
+            wheel = "build123d-0.11.1-py3-none-any.whl"
+            (root / "browser-wheels" / wheel).write_bytes(
+                (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
+            )
             # website.build_web_bundle() writes this same dictionary to the site.
             # Stage it outside the checkout so this test never modifies site assets.
             (root / "py-sources.json").write_text(json.dumps(website._py_sources()))

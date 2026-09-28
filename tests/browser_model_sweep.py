@@ -79,6 +79,11 @@ def main() -> int:
         (root / "js" / "pyodide-worker.js").write_bytes(
             (website.WEBSITE_DIR / "js" / "pyodide-worker.js").read_bytes()
         )
+        (root / "browser-wheels").mkdir()
+        wheel = "build123d-0.11.1-py3-none-any.whl"
+        (root / "browser-wheels" / wheel).write_bytes(
+            (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
+        )
         (root / "py-sources.json").write_text(json.dumps(sources))
         (root / "index.html").write_text(
             "<!doctype html><title>Browser model sweep</title>"
