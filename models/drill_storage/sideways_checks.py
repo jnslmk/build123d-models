@@ -3,7 +3,7 @@
 from itertools import combinations
 from math import hypot, sqrt
 
-from build123d import CenterOf, Pos, Vector
+from build123d import BuildSketch, CenterOf, FontStyle, Pos, Text, Vector
 from models.lib.checks import Report, is_solid_at
 
 from . import config as c
@@ -13,11 +13,13 @@ from .sideways import (
     BACK_WALL,
     EDGE_CHAMFER,
     FRONT_CORNER_R,
+    LABEL_SIZE,
     RAIL_X,
     create_preview_for,
     layout_for,
     tool_map_glyphs,
 )
+from .sideways_cover import SEAM
 
 # Wall budgets are independent of the frozen optimiser's objective: a bit must
 # clear the next bit by this much even at the widest point of its body.
@@ -219,6 +221,34 @@ def run_cover_for(drills: DrillSet, cover) -> Report:
         and is_solid_at(cover, 0, front - 0.5, 20)
         and is_solid_at(cover, 0, rear + GRID + 4, BASE_H + 0.8),
         "roof, hollow interior, closed nose and forward bed",
+    )
+    # The larger cover name must stay on its flat wall and leave material
+    # behind every letter; the nominal font size alone is not the glyph size.
+    with BuildSketch() as lettering:
+        Text(drills.label.upper(), font_size=LABEL_SIZE, font_style=FontStyle.BOLD)
+    name = lettering.sketch
+    bounds = name.bounding_box()
+    shell_rear = rear + GRID + SEAM
+    label_y = (shell_rear + front) / 2
+    ink = [_ink_point(face) for face in name.faces()]
+    report.check(
+        bounds.size.Y >= 8
+        and label_y + bounds.min.X > shell_rear + FRONT_CORNER_R + 0.5
+        and label_y + bounds.max.X < front - CORNER_R - 0.5
+        and 5 * HEIGHT_UNIT / 2 + bounds.min.Y > BASE_H + 2
+        and 5 * HEIGHT_UNIT / 2 + bounds.max.Y < 5 * HEIGHT_UNIT - 1
+        and bool(ink)
+        and all(
+            point is not None
+            and not is_solid_at(
+                cover, PAD / 2 - 0.25, label_y + point.X, 5 * HEIGHT_UNIT / 2 + point.Y
+            )
+            and is_solid_at(
+                cover, PAD / 2 - 0.8, label_y + point.X, 5 * HEIGHT_UNIT / 2 + point.Y
+            )
+            for point in ink
+        ),
+        "enlarged cover name is legible, recessed and backed by PETG",
     )
     report.check(
         is_solid_at(base, RAIL_X, rear + 30, BASE_H + 2.4)

@@ -86,7 +86,7 @@ RAIL_START = 26.0  # relative to the full holder's rear
 RAIL_END = 40.0
 RAIL_TOP = BASE_H + BED_THICKNESS + 1.5
 
-LABEL_SIZE = 6.0  # bold capitals have ~4.5 mm actual glyph height
+LABEL_SIZE = 12.0  # bold WOOD/METAL capitals render ~9 mm tall on the cover
 LABEL_DEPTH = 0.5  # stays within the 1 mm PETG cover wall
 TOOL_LABEL_SIZE = 4.2  # bold digits render just over 3 mm tall
 TOOL_LABEL_DEPTH = 0.8  # leaves 1.2 mm of the ASA guide's 2 mm back wall
