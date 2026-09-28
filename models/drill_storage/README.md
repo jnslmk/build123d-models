@@ -17,7 +17,10 @@ uv run export drill_storage.wood.cover_stackable  # alternate stackable PETG lid
 uv run show drill_storage.bin           # bin with lid seated, inspection scene
 uv run export drill_storage.bin.base    # empty PETG bin, foot-down
 uv run export drill_storage.bin.lid     # lift-off stackable PETG lid, socket-down
-uv run export drill_storage.dremel     # 1×2 PETG Dremel shank rack, feet down
+uv run view drill_storage.dremel        # closed 1×2 inspection scene
+uv run export drill_storage.dremel.base    # ASA guide base, foot-down
+uv run export drill_storage.dremel.insert  # TPU grip cartridge, land-up
+uv run export drill_storage.dremel.cover   # PETG cover, pillow-down
 ```
 
 ## Layout
@@ -35,7 +38,7 @@ uv run export drill_storage.dremel     # 1×2 PETG Dremel shank rack, feet down
 | `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket and built-in removable print support. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
-| [`dremel/`](dremel/) | Independent 1×2 PETG holder with upright blind bores for 2.5 mm Dremel-tool shanks. |
+| [`dremel/`](dremel/) | Independent 1×2 three-part Dremel variant: ASA base, TPU insert and labelled PETG cover, plus the closed inspection scene. |
 
 Adding a set is a `DrillSet` in `sets.py` and a package copied from
 `wood/`. Nothing in the geometry has to know about it.
@@ -145,15 +148,27 @@ after support removal; export the two leaf models separately to print them.
 
 ## Dremel tool holder
 
-`drill_storage.dremel` is a separate, single-piece 1×2 Gridfinity PETG rack.
-Its 55 open, blind bores accept nominal 2.5 mm shanks with a PETG free-fit
-allowance. They reach 13 mm below the 3U (21 mm) top, leaving a solid floor
-above the feet. Tools up to 50 mm long stand above the rack; this is open
-storage, not a protective or transport cover. Adjacent tool heads may limit
-which positions can be filled simultaneously. See the
-[Dremel specification](docs/dremel-specification.md) and
-[current CAD contract](docs/dremel-cad-contract.md). A printed sample is needed
-to calibrate bore fit on a particular printer.
+`drill_storage.dremel` is a closed inspection scene of three separately
+printable parts: a rigid ASA guide base, a removable TPU grip insert, and a
+translucent PETG cover for tools up to 50 mm long. It is not an STL print job;
+export the `.base`, `.insert`, and `.cover` leaf models separately.
+
+The 1×2 base has two Gridfinity feet, a flat cover seat at z=24, and 55
+compensated free-fit guides ending on an ASA floor at z=8. The 8 mm TPU
+cartridge has matching through-bores, each with a short gripping land and a
+relieved upper section. Its outward retention bead snaps into the base's
+inner groove; the cartridge can be lifted from its proud rim.
+
+The labelled PETG cover snaps over the base's rectangular collar and sits
+flush with the full-width body. Its assembled top is 10U (70 mm), giving
+10 mm clearance above a 50 mm tool standing on the guide floor. It prints
+pillow-top down with its open mouth up; the inverted print-pose lettering
+reads upright when the cover is seated. All three parts require individual
+prints in their specified materials. Tool heads wider than the 7 mm pitch
+can prevent filling every one of the 55 positions simultaneously. Printed
+TPU grip and cover snap effort/durability remain to be calibrated.
+See the [Dremel specification](docs/dremel-specification.md) and
+[CAD contract](docs/dremel-cad-contract.md).
 
 ## Stackable cover option
 
