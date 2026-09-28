@@ -52,8 +52,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libcairo2-dev pkg-config python3-dev
 
+      # The browser smoke test is type-checked here even though its Chromium
+      # runtime runs in a separate job. Install only the Python package, not
+      # the browser binaries; keep its pin aligned with browser-runtime.yml.
       - name: Install Python dependencies
-        run: uv sync --frozen --no-group viewer
+        run: |
+          uv sync --frozen --no-group viewer
+          uv pip install playwright==1.58.0
 
       - name: Lint
         run: uv run ruff check .
