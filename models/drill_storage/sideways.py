@@ -6,11 +6,14 @@ The frozen X/Z layouts reserve every tool's full outside envelope.
 """
 
 from build123d import (
+    Align,
+    Box,
     BuildPart,
     BuildSketch,
     Compound,
     Cone,
     Cylinder,
+    FontStyle,
     Locations,
     Mode,
     Plane,
@@ -18,13 +21,23 @@ from build123d import (
     Pos,
     RectangleRounded,
     Rotation,
+    Text,
     add,
     extrude,
     loft,
 )
 from models.lib.edges import as_part, top_chamfer_tool
 from . import config as c
-from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
+from .box import (
+    BASE_H,
+    CORNER_R,
+    GRID,
+    HEIGHT_UNIT,
+    PAD,
+    add_stacking_lip,
+    cut_stacking_socket,
+    gridfinity_foot,
+)
 from .sets import DrillSet, StepDrill
 from .tools import STEEL, create_drill, create_hex_tool, create_step_drill
 
@@ -72,6 +85,24 @@ RAIL_X = 4.0
 RAIL_START = 26.0  # relative to the full holder's rear
 RAIL_END = 40.0
 RAIL_TOP = BASE_H + BED_THICKNESS + 1.5
+
+LABEL_SIZE = 6.0  # bold capitals have ~4.5 mm actual glyph height
+LABEL_DEPTH = 0.5  # stays within the 1 mm PETG wall and 2 mm ASA back wall
+
+
+def stacking_receiver(y: float, top_z: float):
+    """Full-foot socket ring; its host's intact roof forms the socket floor."""
+    with BuildPart() as receiver:
+        add_stacking_lip(top_z + BASE_H)
+        cut_stacking_socket(top_z + BASE_H)
+    return as_part(Pos(0, y, 0) * receiver.part)
+
+
+def engrave_set_name(label: str, plane: Plane) -> None:
+    """Cut readable, bold lettering into an outward-facing solid wall."""
+    with BuildSketch(plane) as lettering:
+        Text(label.upper(), font_size=LABEL_SIZE, font_style=FontStyle.BOLD)
+    extrude(to_extrude=lettering.sketch, amount=-LABEL_DEPTH, mode=Mode.SUBTRACT)
 
 
 def layout_for(drills: DrillSet) -> tuple[int, dict[str, tuple[float, float]]]:
@@ -159,6 +190,28 @@ def create_base_for(drills: DrillSet):
         # The front corners leave intact mouth walls even for the tiny bits at
         # the X extremes; the rear retains the Gridfinity pad's 4 mm radius.
         add(_guide_block(rear, height))
+        # Extend the rear guide as a hollow first cell: side walls protect
+        # projecting shanks but keep the axial mouths and low rail unobstructed.
+        # Support the 19 mm roof span in the slicer for this ASA print.
+        extension = GRID - BACK_WALL - GUIDE_DEPTH
+        for x in (-(PAD - 1) / 2, (PAD - 1) / 2):
+            with Locations(
+                (x, rear + GRID - extension / 2 - 0.5, BASE_H + BED_THICKNESS)
+            ):
+                Box(
+                    1,
+                    extension + 1,
+                    height - 1 - BASE_H - BED_THICKNESS,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+        with Locations((0, rear + GRID - extension / 2, height - 1)):
+            Box(
+                PAD,
+                extension,
+                1,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+            )
+        add(stacking_receiver(foot_y, height))
         add(_cover_rail(rear))
         for drill in drills.drills:
             x, z = positions[f"{drill.nominal:g}"]
@@ -166,16 +219,24 @@ def create_base_for(drills: DrillSet):
         for tool in drills.hex_tools:
             x, z = positions[tool.key]
             _cut_guide(x, z, (tool.across_flats + c.GUIDE_FIT) / 3**0.5, rear)
+        engrave_set_name(
+            drills.label,
+            Plane(
+                origin=(0, rear, height / 2),
+                x_dir=(1, 0, 0),
+                z_dir=(0, -1, 0),
+            ),
+        )
     return holder.part
 
 
 def create_preview_for(drills: DrillSet) -> Compound:
     """Show the anchor with the whole tool set posed; no cover is inferred."""
-    _cells, positions = layout_for(drills)
+    cells, positions = layout_for(drills)
     base = create_base_for(drills)
     base.label = f"{drills.name}_sideways_asa"
     base.color = c.SHELL_COLOR
-    rear = base.bounding_box().min.Y + BACK_WALL
+    rear = -(cells * GRID - (GRID - PAD)) / 2 + BACK_WALL
     tools = []
     for drill in drills.drills:
         key = f"{drill.nominal:g}"

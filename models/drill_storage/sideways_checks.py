@@ -7,7 +7,7 @@ from build123d import Pos
 from models.lib.checks import Report, is_solid_at
 
 from . import config as c
-from .box import BASE_H, GRID, HEIGHT_UNIT, PAD
+from .box import BASE_H, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
 from .sets import DrillSet
 from .sideways import (
     BACK_WALL,
@@ -36,12 +36,20 @@ def run_for(drills: DrillSet, part) -> Report:
     report.check(
         len(part.solids()) == 1
         and abs(b.min.Z) < 1e-5
-        and abs(b.max.Z - height) < 1e-5
-        and abs(b.size.X - PAD) < 1e-5
-        and abs(b.size.Y - PAD) < 1e-5
-        and abs(b.min.Y + length / 2) < 1e-5
+        and abs(b.max.Z - (height + BASE_H)) < 1e-5
+        and abs(b.size.X - GRID) < 1e-5
+        and abs(b.size.Y - (GRID + (GRID - PAD) / 2)) < 1e-5
+        and abs(b.min.Y + length / 2 + (GRID - PAD) / 2) < 1e-5
         and not is_solid_at(part, 0, -length / 2 + GRID + 1, BASE_H / 2),
         "one rear foot only, no forward bed or foot",
+    )
+    rear_y = -length / 2 + PAD / 2
+    foot = gridfinity_foot()
+    report.check(
+        part.intersect(Pos(0, rear_y, height) * foot).volume < 1e-5
+        and is_solid_at(part, 0, rear_y, height - 0.5)
+        and not is_solid_at(part, 0, rear_y, height + 0.5),
+        "rear socket seats a complete foot on a solid 5U roof",
     )
     tools = {
         **{f"{d.nominal:g}": (d.nominal / 2, d.length) for d in drills.drills},
@@ -122,15 +130,30 @@ def run_cover_for(drills: DrillSet, cover) -> Report:
     report.check(
         len(cover.solids()) == 1
         and abs(box.min.Z) < 1e-5
-        and abs(box.max.Z - 5 * HEIGHT_UNIT) < 1e-5
-        and abs(box.size.X - PAD) < 1e-5
-        and abs(box.max.Y - front) < 1e-5
+        and abs(box.max.Z - (5 * HEIGHT_UNIT + BASE_H)) < 1e-5
+        and abs(box.size.X - GRID) < 1e-5
+        and abs(box.max.Y - (front + (GRID - PAD) / 2)) < 1e-5
         and not is_solid_at(cover, 0, rear + GRID / 2, BASE_H / 2)
         and all(
             is_solid_at(cover, 0, rear + (i + 0.5) * GRID, BASE_H / 2)
             for i in range(1, cells)
         ),
         "one cover solid with only the forward Gridfinity feet",
+    )
+    foot = gridfinity_foot()
+    report.check(
+        all(
+            cover.intersect(
+                Pos(0, rear + PAD / 2 + i * GRID, 5 * HEIGHT_UNIT) * foot
+            ).volume
+            < 1e-5
+            and is_solid_at(cover, 0, rear + PAD / 2 + i * GRID, 5 * HEIGHT_UNIT - 0.5)
+            and not is_solid_at(
+                cover, 0, rear + PAD / 2 + i * GRID, 5 * HEIGHT_UNIT + 0.5
+            )
+            for i in range(1, cells)
+        ),
+        "all forward sockets seat full feet on intact 5U roofs",
     )
     report.check(
         is_solid_at(cover, 0, front - 4, 5 * HEIGHT_UNIT - 0.5)

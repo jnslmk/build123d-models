@@ -5,16 +5,21 @@ Gridfinity storage for a **brad-point wood drill set**: eleven drills, 2 – 10 
 shank.
 
 The separate **1×3×5U sideways holder** has an ASA rear guide on one foot and
-a PETG side-opening cover carrying the long bed and other two feet. Slide the
-cover along the drill axes **only after lifting the whole holder off its
-baseplate**. The short dovetail is a hand-removable friction fit, not a positive
-latch; keep it horizontal while opening. There is no TPU shank-gripping insert.
-Print the cover foot-down with slicer supports under its overhanging rear
-tongue and long roof; remove the supports before sliding it onto the guide.
-Fit and retention still need a physical print trial. See the
+a PETG side-opening cover carrying the long bed and other two feet. Both halves
+have an engraved WOOD label; together their three full-depth top sockets accept
+another holder's feet at a 5U stacking pitch. The receiving lips rise 4.4 mm
+above the 5U body and reach the full 42 mm grid width; their thin mouths and
+zero nominal gap to neighbouring cells need a printed fit and strength trial
+before loading a stack. Slide the cover along the drill axes **only after
+lifting the whole holder off its baseplate**. The short dovetail is a
+hand-removable friction fit, not a positive latch; keep it horizontal while
+opening. There is no TPU shank-gripping insert. Print both parts foot-down with
+slicer supports under the ASA rear roof extension and PETG overhanging tongue
+and long roof; remove supports before sliding the parts together. Fit and
+retention still need a physical print trial. See the
 [sideways-holder specification](../docs/sideways-specification.md) and
-[current cover contract](../docs/sideways-cad-contract.md). The upright
-base, cartridge and covers below remain unchanged.
+[current CAD contract](../docs/sideways-cad-contract.md). The upright base,
+cartridge and covers below remain unchanged.
 
 ```bash
 uv run show drill_storage.wood            # assembled, drills standing in it

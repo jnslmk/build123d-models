@@ -25,7 +25,9 @@ from .sideways import (
     FRONT_CORNER_R,
     GUIDE_DEPTH,
     RAIL_X,
+    engrave_set_name,
     layout_for,
+    stacking_receiver,
 )
 
 WALL = 1.0  # PETG: two perimeters plus slicer reserve
@@ -46,7 +48,7 @@ def create_cover_for(drills: DrillSet):
     rear = -length / 2
     front = length / 2
     height = 5 * HEIGHT_UNIT
-    shell_rear = rear + BACK_WALL + GUIDE_DEPTH + SEAM
+    shell_rear = rear + GRID + SEAM  # leave the rear socket and roof on the ASA half
     shell_length = front - shell_rear
     bed_rear = rear + GRID
     bed_length = front - bed_rear
@@ -93,6 +95,10 @@ def create_cover_for(drills: DrillSet):
             with Locations((0, shell_rear + 1.9)):
                 RectangleRounded(PAD - 2 * WALL, 4.1, FRONT_CORNER_R)
         extrude(amount=height - ROOF - bed_top + 0.02, mode=Mode.SUBTRACT)
+        # Each forward foot has its own 4.4 mm receiver above the 5U roof.
+        # Its floor remains the original roof, so no socket cuts into the bits.
+        for index in range(1, cells):
+            add(stacking_receiver(rear + PAD / 2 + index * GRID, height))
 
         # PETG sleeve over the guide's ASA rail. Two-perimeter cheeks and a
         # located friction fit constrain X/Z; the blind end limits insertion.
@@ -127,4 +133,12 @@ def create_cover_for(drills: DrillSet):
                 TONGUE_HEIGHT + SLIDING / 2 + 0.1,
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
             )
+        engrave_set_name(
+            drills.label,
+            Plane(
+                origin=(PAD / 2, (shell_rear + front) / 2, height / 2),
+                x_dir=(0, 1, 0),
+                z_dir=(1, 0, 0),
+            ),
+        )
     return cover.part
