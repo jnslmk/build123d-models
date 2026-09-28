@@ -31,7 +31,7 @@ uv run export drill_storage.bin.lid     # lift-off stackable PETG lid, socket-do
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per drill set: the assembled scene, plus `base`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
-| `cover_stackable.py` (in each set package) | Alternate PETG cover with a Gridfinity foot socket and built-in removable print support. |
+| `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket and built-in removable print support. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
 
@@ -130,24 +130,31 @@ after support removal; export the two leaf models separately to print them.
 
 ## Stackable cover option
 
-Each of the five sets also offers `<set>.cover_stackable`: a separate cover that
-snaps onto the same collar as the smooth cover and seats the lower 2.5 mm of
-another 1×1 Gridfinity foot. It preserves the 41.5 mm side-by-side footprint.
-The socket has a sliding PETG fit and a lead-in; the stacked foot's upper bevel
-remains visible above the lid. Keep the smooth cover if stacking is not needed.
+Each of the five tool sets also offers `<set>.cover_stackable`: a separate PETG
+cover snapping onto the original collar while receiving the **entire 4.4 mm**
+of another holder's 1×1 foot. The unchanged base, smooth cover and main cover
+wall remain 41.5 mm wide; only the stackable cover's top lip widens by 0.25 mm
+per side to the drawing's 42 mm grid pitch. Its assembled top is at
+7U + 4.4 mm, so the fully seated foot gives exactly 7U stack pitch. The lip
+mouth has PETG sliding clearance but only about **0.14 mm nominal wall per
+side**: this is a user-accepted experimental exception, not proven printable,
+durable, or free of adjacent-cell interference under print tolerances.
+Do not load a stack until a printed fit/durability and neighbouring-holder
+trial succeeds. Keep the original smooth cover for a 41.5 mm envelope and
+support-free printing.
 
-The stackable lid prints **socket-down, mouth-up**, with a shallow breakaway
-lattice included under the socket ceiling. Remove the lattice and its four
-small attachment nibs after printing, before stacking a holder. The extra
-socket depth is included when sizing the roof, so the assembled height still
-lands on a 7 mm Gridfinity unit without sacrificing tip clearance; some sets
-grow by one unit. See [the accepted stackable-cover specification](docs/stackable-cover-specification.md)
-and [the current CAD contract](docs/stackable-cover-cad-contract.md).
+The stackable cover prints **socket-down, mouth-up**, with a breakaway lattice
+included under its full-depth socket floor. Remove the lattice and all four
+attachment nibs before seating another holder. The cap and longest-tool
+clearance remain budgeted below the receiver. See
+[the stackable-cover specification](docs/stackable-cover-specification.md) and
+[the current CAD contract](docs/stackable-cover-cad-contract.md).
 
 ## Printing
 
 The existing smooth parts need no supports. Every part comes off `create()` in
-its print pose; stackable covers include their own removable support lattice.
+its print pose; stackable covers include an experimental thin lip and removable
+support lattice requiring a slicer and print trial.
 
 - **Base — ASA**, foot down, cavity up. 36 mm tall. ASA wants an enclosure; a
   42 mm footprint is not fussy, but a draught will still lift the foot's corners.
@@ -156,11 +163,12 @@ its print pose; stackable covers include their own removable support lattice.
   the grip land *is* a perimeter, and its diameter is the whole fit.
 - **Cover — PETG**, pillow top on the bed, mouth up.
 
-Cover heights are quantised: `cover_height_for()` picks the smallest whole
-Gridfinity Z unit (7 mm) that still swallows the longest tool standing on the
-base floor, so the assembled holder always sits on a unit boundary — 19U for
-wood, 20U for metal, 23U for stone. **The covers are interchangeable**, because
-every base keeps the same seat height; a taller one simply leaves more air.
+Smooth-cover heights are quantised: `cover_height_for()` selects the smallest
+whole Gridfinity Z unit (7 mm) that clears the longest tool, giving assembled
+smooth heights of 19U wood, 20U metal and 23U stone. Stackable tops instead
+reach a 7U + 4.4 mm datum and recess an upper foot by 4.4 mm. Covers remain
+interchangeable across bases with the same collar/seat; a taller one leaves
+more air.
 
 ## Assembly
 

@@ -43,11 +43,10 @@ from ..box import (
     SNAP_PROTRUSION,
     SNAP_Z,
     STACK_SOCKET_DEPTH,
-    STACK_TOP_CH,
     TOP_FILLET,
+    add_stacking_lip,
     add_stacking_support,
     cut_stacking_socket,
-    rim_chamfer_tool,
     snap_bead_ring,
 )
 from . import config as c
@@ -112,10 +111,7 @@ def create_cover(
             RectangleRounded(c.COVER_W, c.COVER_W, c.CORNER_R)
         extrude(amount=cover_h)
         if stackable:
-            add(
-                rim_chamfer_tool(c.COVER_W, c.CORNER_R, cover_h, STACK_TOP_CH),
-                mode=Mode.SUBTRACT,
-            )
+            add_stacking_lip(cover_h)
         else:
             fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
         # The use-pose bottom edge is the open rim: break it so it seats flat

@@ -20,7 +20,14 @@ from __future__ import annotations
 
 from build123d import Part
 
-from .box import CAP_H, COVER_COLOR, STACK_SOCKET_DEPTH, cover_height_for, create_cover
+from .box import (
+    BASE_H,
+    CAP_H,
+    COVER_COLOR,
+    STACK_SOCKET_DEPTH,
+    cover_height_for,
+    create_cover,
+)
 from . import config as c
 from .sets import COVER_TIP_CLEARANCE, DrillSet
 
@@ -41,6 +48,7 @@ def create_stackable_cover_for(drill_set: DrillSet) -> Part:
         bore_floor_z=c.GUIDE_FLOOR_Z,
         foot_top=c.SHELL_FOOT_TOP,
         cap_h=CAP_H + STACK_SOCKET_DEPTH,
+        stack_lip_h=BASE_H,
     )
     cover = create_cover(drill_set.label, cover_h=cover_h, stackable=True)
     cover.label = f"cover_stackable_{drill_set.name}"

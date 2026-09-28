@@ -37,11 +37,14 @@ proud, which is how you pinch them out. The ALLEN box sinks its keys deeper
 (21 mm) on the same base; `config.guide_floor_z` is the one place that says
 which box gets which.
 
-**Stackable cover: 31 mm** (49 mm / 7U assembled). The same eased snap bead
-fits the existing BITS collar, with a socket for the lower 2.5 mm of another
-1×1 Gridfinity foot. A built-in breakaway lattice supports its ceiling during
-top-down printing; remove it before stacking. The original 24 mm smooth cover
-remains support-free. See the
+**Stackable cover: 28.4 mm** (46.4 mm = 6U + 4.4 mm assembled).
+The same eased snap bead fits the existing BITS collar, with a full-depth
+socket seating the entire 4.4 mm of another unchanged 1×1 Gridfinity foot
+for a 6U stack pitch. A built-in breakaway lattice supports its ceiling
+during top-down printing; remove the lattice and nibs before stacking.
+The experimental 42 mm lip mouth (~0.14 mm nominal wall, zero nominal
+gap to neighbouring cells) needs a physical print and fit trial. The
+original 24 mm smooth cover remains support-free. See the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
 **Cover snap**: eased for this box alone — `BITS_SNAP_PROTRUSION` (0.35 mm)

@@ -3,7 +3,7 @@
 ## References
 
 - Context: `../README.md`, `../box.py`, `../hex/README.md`.
-- Specification: [stackable-cover-specification.md](stackable-cover-specification.md), SC-1–SC-3.
+- Specification: [stackable-cover-specification.md](stackable-cover-specification.md), revised SC-1–SC-3.
 - Supporting evidence: `box.gridfinity_foot`, `box.cover_height_for`, existing cover geometry and fit constants.
 
 ## Current slice
@@ -18,26 +18,29 @@
 
 | Requirement | Consequence |
 | --- | --- |
-| SC-1 | Recess tracks the shared foot's lower bevel and straight band with a named PETG sliding fit, within the 41.5 mm envelope. |
-| SC-2 | Existing public cover geometry remains unchanged; solve each new cover height with the thicker top and existing quantisation. |
-| SC-3 | Integral support must span the socket's ceiling during print and be removable without obstructing the final seat. |
+| SC-1 | Full 4.4 mm foot profile enters a 4.4 mm-deep socket; lip sits at 7U + 4.4 mm and next foot's body seats at 7U. Only stackable lip widens from 41.5 to 42 mm. |
+| SC-2 | Original bases and smooth covers retain their envelope and snap joints; the lip mouth's sub-perimeter wall is a user-accepted experimental exception, not proven printable. |
+| SC-3 | Integral support spans the deeper socket floor in print pose and can be removed for stacking. |
 
 ## Evidence-backed dimensions
 
 | Dimension | Value | Source |
 | --- | --- | --- |
-| 1×1 outer envelope | 41.5 mm | `box.PAD` |
-| Foot lower bevel / vertical band / upper bevel | 0.7 / 1.8 / 1.9 mm | `box.FOOT_C1`, `FOOT_STRAIGHT`, `FOOT_C3` |
-| Foot mid-width | 37.7 mm | `box.PAD - 2 * box.FOOT_C3` |
-| PETG socket clearance | `fits.SLIDING` diametral | `models.lib.fits` |
-| Socket depth | 2.5 mm | lower bevel + straight band, leaving upper bevel proud |
+| Original 1×1 pad, body and smooth cover | 41.5 mm | `box.PAD`, unchanged |
+| Stackable lip envelope | 42 mm, +0.25 mm per side | Gridfinity draft drawing; user-authorized exception at the lip only |
+| Foot lower bevel / straight band / upper bevel | 0.7 / 1.8 / 1.9 mm | `box.FOOT_C1`, `FOOT_STRAIGHT`, `FOOT_C3` |
+| Full foot seat and added lip height | 4.4 mm | `box.BASE_H`; drawing's 2U = 14 + 4.4 mm |
+| PETG socket clearance | `fits.SLIDING`, 0.22 mm diametral | `models.lib.fits` |
+| Narrowest nominal lip wall | (42 − 41.5 − 0.22)/2 = 0.14 mm | Full-width foot shoulder and user-accepted thin-lip exception |
 | Minimum solid cover ceiling | 1.0 mm | `box.CAP_H` |
 
 ## Open technical definitions
 
 | Question | Resolution path | Blocking effect |
 | --- | --- | --- |
-| Breakaway support interface and removal effort | Geometry check and printed coupon for final calibration | Physical handling is unproven until printed |
+| Will a 0.14 mm nominal lip wall survive PETG slicing, first-layer spread and repeated stacking? | Inspect slicer toolpath and print a fit/durability coupon with the actual machine | Cannot call this physically printable or load-bearing before testing |
+| Will nominally 42 mm lips coexist in adjacent cells without touching? | Print and measure neighbouring holders in the intended grid | No tolerance budget remains inside 42 mm pitch |
+| Breakaway support interface and removal effort | Cut the four nibs on a physical print and verify socket remains intact | Handling is unproven until printed |
 
 ## Service and assembly constraints
 
@@ -50,19 +53,19 @@
 
 ## Verifiable predicates
 
-- [x] Foot fits inside the socket without intersection and locates radially before the body bears on the rim — `stackable_checks.check_cover` seats `gridfinity_foot()` after simulated lattice removal; collision volume zero in all five sets.
-- [x] Enough cap remains under the socket and the longest tool clears it — 1 mm solid ceiling, tested against each set's tool-tip height (1.5–5.5 mm clearance across the five).
-- [x] Support reaches the ceiling during printing and removes without leaving geometry across the receiving surface — one solid with four nibs; section probe and simulated removal show lattice below the floor and uninterrupted material behind it. Breakaway force requires a print.
-- [x] Covers stay within the footprint, print on z=0 and preserve the snap interface — 41.5 mm bounding box, exact shared bore/bead, targeted stackable-cover gates.
+- [ ] Full foot seats to the socket floor without overlap, and the assembled stack pitch equals a whole 7 mm multiple — targeted `stackable_checks.check_cover` geometric gate; physical fit still pending.
+- [ ] Solid cap and tool-tip clearance remain under the full-depth socket — five targeted cover gates.
+- [ ] Support bridges the deeper socket floor in print pose and exposes the seat when removed — geometry gate, physical breakaway pending.
+- [ ] Only stackable lip reaches 42 mm; original smooth cover/base remain 41.5 mm, with snap interface unchanged — geometry gate and parent validation pending.
 
 ## Visual review
 
-- Views: wood stackable cover isometric, socket-down bottom projection, and live 3D artifact.
-- Human review: stacking seat, support removal access, and unchanged outer silhouette.
-- Artifact: `exports/drill_storage.wood.cover_stackable.html`, `exports/drill_storage.wood.cover_stackable_bottom.png`.
+- Views: stackable-cover isometric, socket-down projection, side section revealing the entire 4.4 mm foot/lip engagement, and neighbouring-holder view for the 42 mm lip.
+- Human review: thin lip, full foot seat, support removal access and unchanged original cover/base silhouettes.
+- Prior 2.5 mm-seat artifacts (`exports/drill_storage.wood.cover_stackable.html` and `_bottom.png`) are superseded; regenerate views after physical gates.
 
 ## Acceptance gate
 
-- Human feedback requested on the stackable cover family after presentation.
-- Acceptance signal: pending; user confirmed the variant purpose and integral support strategy, not the finished geometry.
-- Next slice: any change to the base or a separately retained accessory requires a new accepted slice.
+- Human confirmation: draft-spec thin 42 mm lip accepted as an experiment, despite the ~0.14 mm nominal wall and lost neighbouring-cell tolerance.
+- Physical acceptance signal: pending printed fit, support removal, durability and adjacent-cell trial.
+- Next slice: any alteration to the original base, foot, snap, or a separately retained accessory requires a new accepted slice.

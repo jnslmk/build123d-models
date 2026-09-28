@@ -27,12 +27,14 @@ quantiser rounds up from, and this set had been sitting 1 mm over a unit
 boundary. Nothing else about the joint moved, so a 123 mm cover from the old
 build still closes on this base; it just leaves 8 mm of air over the tips.
 
-**Stackable cover: 123 mm** (147 mm / 21U assembled). The supported top socket
-locates another holder's 1×1 Gridfinity foot while the extra unit preserves
-clearance over the 132 mm twist drill. The original 116 mm cover still fits
-the same base. Print the stackable cover mouth-up and remove its built-in
-breakaway lattice before stacking; see the
-[stackable-cover specification](../docs/stackable-cover-specification.md).
+**Stackable cover: 120.4 mm** (144.4 mm = 20U + 4.4 mm assembled). The
+full-depth foot socket and 42 mm experimental lip locate an unchanged 1×1
+foot at a 20U stack pitch while retaining clearance over the 132 mm twist
+drill and the same collar snap. The original 116 mm smooth cover still fits
+that base. Print the stackable cover mouth-up and remove its built-in
+breakaway lattice and nibs before stacking. The ~0.14 mm nominal lip mouth
+wall and zero nominal gap to an adjacent 42 mm cell require a physical trial;
+see the [stackable-cover specification](../docs/stackable-cover-specification.md).
 
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended
 `TAP` on the walls rather than a bare size, since it is not a drill. The step

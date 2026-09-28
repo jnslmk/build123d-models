@@ -23,10 +23,14 @@ uv run check drill_storage.wood
 picks it and clears the cap by about 3 mm; a longer drill would cost a whole
 Gridfinity unit.
 
-**Stackable cover: 109 mm** (19U assembled). Same snap fit and tool clearance,
-with a 2.5 mm-deep seat for another 1×1 foot on top. Print mouth-up with the
-built-in lattice under the socket, then break it out before stacking. The
-smooth cover above remains the support-free option; see the
+**Stackable cover: 113.4 mm** (137.4 mm = 19U + 4.4 mm assembled).
+Its experimental 42 mm-wide lip seats the whole 4.4 mm of the unchanged
+1×1 foot for a 19U stacking pitch, retaining the snap and drill clearance.
+Print mouth-up with the built-in lattice under the socket, then break it out
+and remove the four nibs before stacking. The lip mouth's ~0.14 mm nominal
+wall and zero nominal gap to an adjacent 42 mm cell require a printed fit
+and durability trial. The smooth 109 mm cover remains the support-free,
+41.5 mm-wide option; see the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
 The countersink is packed by its 10 mm head — which stands above the tray rather

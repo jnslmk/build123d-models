@@ -444,6 +444,7 @@ def cover_h_for(bit_len: float, floor_z: float, *, stackable: bool = False) -> f
         bore_floor_z=floor_z,
         foot_top=BASE_FOOT_TOP,
         cap_h=CAP_H + (STACK_SOCKET_DEPTH if stackable else 0),
+        stack_lip_h=BASE_H if stackable else 0.0,
     )
 
 

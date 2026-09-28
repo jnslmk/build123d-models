@@ -4,12 +4,14 @@ from build123d import Align, Box, BuildPart, Mode, Part, Pos, Rotation, add
 
 from ..lib.checks import Report, is_solid_at
 from .box import (
+    BASE_H,
     CAP_H,
+    FOOT_C3,
     HEIGHT_UNIT,
     PAD,
-    FOOT_C3,
-    STACK_SOCKET_DEPTH,
     STACK_FIT,
+    STACK_LIP_W,
+    STACK_SOCKET_DEPTH,
     gridfinity_foot,
 )
 
@@ -24,20 +26,39 @@ def check_cover(
     h = bb.size.Z
     r.check(
         abs(bb.min.Z) < 0.02
-        and abs(bb.size.X - PAD) < 0.02
-        and abs(bb.size.Y - PAD) < 0.02,
-        "print pose is on the bed and inside the 1x1 footprint",
-        f"z={bb.min.Z:.3f}, width={bb.size.X:.2f} x {bb.size.Y:.2f}",
+        and abs(bb.size.X - STACK_LIP_W) < 0.02
+        and abs(bb.size.Y - STACK_LIP_W) < 0.02,
+        "print pose is on the bed and lip uses the draft's 42 mm footprint",
+        f"z={bb.min.Z:.3f}, lip={bb.size.X:.2f} x {bb.size.Y:.2f}; body={PAD:.2f}",
     )
+    # Bounding-box width alone would also accept a uniformly widened cover.
+    # Probe all four exterior flats just below the 4.4 mm lip in print pose.
+    body_z = STACK_SOCKET_DEPTH + CAP_H + 0.2
+    axes = ((1, 0), (-1, 0), (0, 1), (0, -1))
     r.check(
-        abs((foot_top + h) % HEIGHT_UNIT) < 0.02,
-        "assembled cover height is a whole Gridfinity unit",
-        f"{foot_top + h:.2f} mm",
+        all(
+            is_solid_at(cover, dx * (PAD / 2 - 0.05), dy * (PAD / 2 - 0.05), body_z)
+            for dx, dy in axes
+        )
+        and all(
+            not is_solid_at(cover, dx * (PAD / 2 + 0.05), dy * (PAD / 2 + 0.05), body_z)
+            for dx, dy in axes
+        ),
+        "cover body below the lip retains the original 41.5 mm width",
+        f"body section z={body_z:.2f} in print pose, lip depth={STACK_SOCKET_DEPTH:.2f}",
     )
+    stack_pitch = foot_top + h - STACK_SOCKET_DEPTH
     r.check(
-        foot_top + h - STACK_SOCKET_DEPTH - CAP_H - tool_tip_z >= tip_clear - 0.02,
+        abs((stack_pitch / HEIGHT_UNIT) - round(stack_pitch / HEIGHT_UNIT)) < 0.003
+        and abs(STACK_SOCKET_DEPTH - BASE_H) < 0.02,
+        "full-foot seating gives a whole-7-mm-unit stack pitch",
+        f"top={foot_top + h:.2f}, seat={STACK_SOCKET_DEPTH:.2f}, pitch={stack_pitch:.2f} mm",
+    )
+    ceiling_z = foot_top + h - STACK_SOCKET_DEPTH - CAP_H
+    r.check(
+        ceiling_z - tool_tip_z >= tip_clear - 0.02,
         "longest tool clears the solid ceiling below the stacking socket",
-        f"tip at {tool_tip_z:.2f}, ceiling at {foot_top + h - STACK_SOCKET_DEPTH - CAP_H:.2f}",
+        f"tip at {tool_tip_z:.2f}, ceiling at {ceiling_z:.2f}",
     )
     # The support is a single solid with the cover, but a tool can enter below
     # the lattice ribs and the center void remains removable after nib cutting.
@@ -67,15 +88,22 @@ def check_cover(
         "removal exposes the socket floor with a solid cap beneath it",
         f"socket floor z={STACK_SOCKET_DEPTH:.2f} in print pose; cap={CAP_H:.2f}",
     )
-    # On a flat side, the straight section of the foot has 0.11 mm of radial
-    # PETG sliding clearance. Probe each side of the actual socket wall,
-    # below the mouth funnel but above the lower bevel.
+    # Verify the straight band and the draft's experimental thin mouth wall;
+    # nominal containment does not establish printed durability or fit.
     wall_x = (PAD - 2 * FOOT_C3 + STACK_FIT) / 2
     r.check(
-        not is_solid_at(clean, wall_x - 0.05, 0, 0.8)
-        and is_solid_at(clean, wall_x + 0.05, 0, 0.8),
-        "socket wall locates the foot on a calibrated sliding fit",
+        not is_solid_at(clean, wall_x - 0.05, 0, 2.5)
+        and is_solid_at(clean, wall_x + 0.05, 0, 2.5),
+        "socket straight band locates the foot on a PETG sliding fit",
         f"flat-side wall at x={wall_x:.2f}, gap={STACK_FIT / 2:.2f} mm radial",
+    )
+    mouth_x = (PAD + STACK_FIT) / 2
+    r.check(
+        not is_solid_at(clean, mouth_x - 0.05, 0, 0.02)
+        and is_solid_at(clean, mouth_x + 0.05, 0, 0.02)
+        and not is_solid_at(clean, STACK_LIP_W / 2 + 0.05, 0, 0.02),
+        "full-width foot enters the thin experimental lip mouth",
+        f"nominal lip wall={(STACK_LIP_W - PAD - STACK_FIT) / 2:.2f} mm per side",
     )
     upright = Pos(0, 0, h) * Rotation(180, 0, 0) * clean
     foot = Pos(0, 0, h - STACK_SOCKET_DEPTH) * gridfinity_foot()

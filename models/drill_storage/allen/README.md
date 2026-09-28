@@ -45,10 +45,13 @@ hole was 15 mm deep before, standing the keys 35 mm proud; sinking them the
 extra 6 mm buys a whole Gridfinity unit back on the cover (9U, not 10U) and
 still leaves 4.6 mm of solid body between the bores and the foot.
 
-**Stackable cover: 52 mm** (70 mm / 10U assembled). It retains the collar snap
-fit but has a 2.5 mm foot socket and a built-in, breakaway grid under the
-socket for top-down printing. Remove the grid before stacking another 1×1
-holder. The original smooth cover remains 45 mm and support-free. See the
+**Stackable cover: 49.4 mm** (67.4 mm = 9U + 4.4 mm assembled). It
+retains the collar snap fit but has a 4.4 mm full-foot socket and a built-in,
+breakaway grid under the socket for top-down printing. The unchanged 1×1
+foot seats for a 9U stack pitch. Remove the grid and nibs before stacking;
+the experimental 42 mm lip mouth (~0.14 mm nominal wall, zero nominal gap
+between neighbouring cells) needs a physical print trial. The original
+smooth cover remains 45 mm and support-free. See the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
 The sibling set, `drill_storage.hex`, is the 16-piece 25 mm driver-bit box —

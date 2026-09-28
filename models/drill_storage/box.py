@@ -77,35 +77,53 @@ FOOT_STRAIGHT = 1.8  # vertical section
 FOOT_C3 = 1.9  # top chamfer (45 deg)
 BASE_H = FOOT_C1 + FOOT_STRAIGHT + FOOT_C3  # 4.4 mm foot profile
 
-# Stackable covers preserve the smooth cover's collar joint and outside size.
-STACK_SOCKET_DEPTH = FOOT_C1 + FOOT_STRAIGHT
+# Stackable covers alone use the drawing's outward-offset lip: the shared
+# 41.5 mm base and the smooth cover remain unchanged. This 42 mm lip spends the
+# entire neighbouring-cell gap. At its mouth the PETG sliding fit leaves only
+# (42 - 41.5 - 0.22) / 2 = 0.14 mm per side: an explicitly experimental
+# exception to the normal printable-wall minimum, not a proven FDM feature.
+STACK_SOCKET_DEPTH = BASE_H
+STACK_LIP_W = GRID
+STACK_LIP_R = CORNER_R + (STACK_LIP_W - PAD) / 2
 STACK_FIT = fits.SLIDING  # sliding fit, PETG baseline; diametral
-STACK_LEAD_IN = 0.3  # functional funnel for the foot entering the socket
-STACK_TOP_CH = 0.4  # outer rim bevel, leaving >1 mm beside the socket
+
+
+def add_stacking_lip(top_z: float) -> None:
+    """Add the draft-spec outer lip around the full foot seat inside a BuildPart."""
+    with BuildSketch(Plane.XY.offset(top_z - BASE_H)) as lip:
+        RectangleRounded(STACK_LIP_W, STACK_LIP_W, STACK_LIP_R)
+    extrude(to_extrude=lip.sketch, amount=BASE_H)
 
 
 def cut_stacking_socket(top_z: float) -> None:
-    """Subtract the lower foot profile from a cover's top inside a BuildPart."""
+    """Subtract the complete 4.4 mm foot profile inside a BuildPart.
+
+    The upper 1.9 mm bevel is itself the lead-in; an additional mouth chamfer
+    would erase the intentionally thin experimental lip.
+    """
     bottom_w = PAD - 2 * (FOOT_C1 + FOOT_C3)
     mid_w = PAD - 2 * FOOT_C3
     bottom_r = CORNER_R - FOOT_C1 - FOOT_C3
     mid_r = CORNER_R - FOOT_C3
-    with BuildSketch(Plane.XY.offset(top_z - STACK_SOCKET_DEPTH)) as bottom:
+    with BuildSketch(Plane.XY.offset(top_z - BASE_H)) as bottom:
         RectangleRounded(
             bottom_w + STACK_FIT, bottom_w + STACK_FIT, bottom_r + STACK_FIT / 2
         )
-    with BuildSketch(Plane.XY.offset(top_z - FOOT_STRAIGHT)) as mid:
+    with BuildSketch(Plane.XY.offset(top_z - BASE_H + FOOT_C1)) as mid:
         RectangleRounded(mid_w + STACK_FIT, mid_w + STACK_FIT, mid_r + STACK_FIT / 2)
-    with BuildSketch(Plane.XY.offset(top_z - STACK_LEAD_IN)) as neck:
+    with BuildSketch(Plane.XY.offset(top_z - FOOT_C3)) as shoulder:
         RectangleRounded(mid_w + STACK_FIT, mid_w + STACK_FIT, mid_r + STACK_FIT / 2)
-    with BuildSketch(Plane.XY.offset(top_z + 0.05)) as mouth:
+    # Extend the 45-degree bevel just past the lip face so the opening at
+    # top_z retains the full 0.22 mm diametral fit, not a truncated profile.
+    overcut = 0.05
+    with BuildSketch(Plane.XY.offset(top_z + overcut)) as mouth:
         RectangleRounded(
-            mid_w + STACK_FIT + 2 * STACK_LEAD_IN,
-            mid_w + STACK_FIT + 2 * STACK_LEAD_IN,
-            mid_r + STACK_FIT / 2 + STACK_LEAD_IN,
+            PAD + STACK_FIT + 2 * overcut,
+            PAD + STACK_FIT + 2 * overcut,
+            CORNER_R + STACK_FIT / 2 + overcut,
         )
     loft(
-        sections=[bottom.sketch, mid.sketch, neck.sketch, mouth.sketch],
+        sections=[bottom.sketch, mid.sketch, shoulder.sketch, mouth.sketch],
         ruled=True,
         mode=Mode.SUBTRACT,
     )
@@ -114,9 +132,10 @@ def cut_stacking_socket(top_z: float) -> None:
 def add_stacking_support(print_pose: Part) -> Part:
     """Fuse a removable lattice beneath the socket ceiling in print pose.
 
-    The socket opens on the bed; its ~37 mm floor would otherwise bridge in
-    mid-air. A 5 mm grid ends one layer below that ceiling and four small nibs
-    attach it for a single-solid print. Snip the nibs and pull out the grid.
+    The full-depth socket opens on the bed; its ~36 mm floor would otherwise
+    bridge in mid-air. A 5 mm grid ends one layer below that ceiling and four
+    small nibs attach it for a single-solid print. Snip the nibs and pull out
+    the grid; the fragile mouth requires a physical print trial.
     """
     pitch = 5.0
     rib = 0.8
@@ -408,21 +427,20 @@ def cover_height_for(
     bore_floor_z: float = BORE_FLOOR_Z,
     foot_top: float = FOOT_TOP,
     cap_h: float = CAP_H,
+    stack_lip_h: float = 0.0,
 ) -> float:
-    """Cover height whose *assembled* envelope is the smallest whole Gridfinity Z
-    unit that still encloses a drill of ``max_drill_len`` standing on the bore
-    floor, plus ``headroom`` under the cap. This is the "just fits, not longer"
-    rule: the total assembled height quantises up to the next 7 mm unit, so a
-    drill any longer would need one more unit.
+    """Size a cover for its tool and quantise the assembled top to 7U + lip.
 
-    ``bore_floor_z`` is where the bit's tail rests. It defaults to the standard
-    ``BORE_FLOOR_Z``, but a base with shallower bores (short bits, sunk only far
-    enough to leave a grip proud of the collar) stands its tools higher and must
-    pass its own floor. ``foot_top`` is the shoulder the cover seats on -- pass
-    it too whenever ``create_base`` gets a non-default one.
+    ``stack_lip_h=0`` keeps the original smooth-cover unit boundary. For a
+    stackable cover pass ``BASE_H``: its lip sits 4.4 mm above the unit datum,
+    while the next holder's full 4.4 mm foot enters the socket to give 7U pitch.
+    ``bore_floor_z`` and ``foot_top`` are the actual tool floor and cover seat.
     """
     cover_top_min = bore_floor_z + max_drill_len + headroom + cap_h
-    total_assembled_h = math.ceil(cover_top_min / HEIGHT_UNIT) * HEIGHT_UNIT
+    total_assembled_h = (
+        math.ceil((cover_top_min - stack_lip_h) / HEIGHT_UNIT) * HEIGHT_UNIT
+        + stack_lip_h
+    )
     return total_assembled_h - foot_top
 
 
@@ -1152,10 +1170,7 @@ def create_cover(
             RectangleRounded(COVER_W, COVER_W, CORNER_R)
         extrude(amount=cover_h)
         if stackable:
-            add(
-                rim_chamfer_tool(COVER_W, CORNER_R, cover_h, STACK_TOP_CH),
-                mode=Mode.SUBTRACT,
-            )
+            add_stacking_lip(cover_h)
         else:
             # Smooth covers keep their original pillow.
             fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
