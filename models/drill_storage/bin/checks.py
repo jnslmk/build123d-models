@@ -4,8 +4,9 @@ from typing import Any
 
 from build123d import Pos
 
-from models.lib.checks import Report, is_solid_at
-from . import config as c, create as seated, lid
+from models.lib.edges import as_part
+from models.lib.checks import Report, is_solid_at, sharp_convex_edges
+from . import base, config as c, create as seated, lid
 from .foot import cell_layout
 
 
@@ -49,6 +50,7 @@ def run() -> Report:
         report.section(name)
         scene = seated(**options)
         body, closed_lid = scene.solids()
+        body_part = as_part(body)
         printed = lid.create(
             **{
                 key: value
@@ -73,6 +75,37 @@ def run() -> Report:
             "lattice is joined to one print-pose lid",
             f"solids={len(printed.solids())}, z={print_box.min.Z:.3f}",
         )
+        if not options:
+            report.check(
+                len(body.solids()) == 1 and abs(body.bounding_box().min.Z) < 0.01,
+                "bin has one connected solid seated on the print bed",
+            )
+            report.check(
+                is_solid_at(body_part, 5, -16, 0.5)
+                and not is_solid_at(body_part, 5, -16, 1.5)
+                and not is_solid_at(body_part, 5, -16, 5)
+                and is_solid_at(body_part, 5, 0, 5),
+                "closed 1 mm foot plates open into the cavity with a cell seam",
+                "per-cell floor at z=1, raised seam between the two feet",
+            )
+            # The two square foot-to-body shoulders preserve the Gridfinity
+            # transition. No other exposed edge may be left raw.
+            survey = sharp_convex_edges(
+                body_part,
+                allow=(
+                    (
+                        lambda edge: abs(abs(edge.center().X) - c.PAD / 2) < 0.01
+                        and abs(edge.center().Z - c.BASE_H) < 0.01,
+                        "foot-to-body shoulders retain the Gridfinity transition",
+                    ),
+                ),
+            )
+            report.check(
+                not survey.sharp and not survey.unclassifiable,
+                "floor and rim have no untreated convex edges",
+                f"sharp={len(survey.sharp)}, unclassifiable={len(survey.unclassifiable)}; "
+                "2 square outer foot shoulders intentionally excepted",
+            )
         joint_overlap = _overlap(body, closed_lid)
         report.check(
             joint_overlap < 0.01,
@@ -119,6 +152,17 @@ def run() -> Report:
             "removed lattice exposes socket beneath solid roof",
             "sample at first socket centre",
         )
+    report.section("base variants")
+    thicker = base.create(bottom_thickness=2)
+    report.check(
+        is_solid_at(thicker, 5, -16, 1.5) and not is_solid_at(thicker, 5, -16, 2.5),
+        "bottom thickness thickens the print-bed plate without filling the cavity",
+    )
+    solid = base.create(ultra_light_base=False)
+    report.check(
+        is_solid_at(solid, 5, -16, 0.5) and is_solid_at(solid, 5, -16, 5),
+        "solid-base option retains a solid floor",
+    )
     return report
 
 

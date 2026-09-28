@@ -90,12 +90,17 @@ for a base.
 
 `drill_storage.bin.base` is a separate PETG container with half-cell X/Y sizes
 and body height in 7 mm units. Its wall defaults to 1 mm (two 0.4 mm
-perimeters with a small reserve). The bin defaults to an open cavity; optional
-features include hollow or solid feet, half-grid foot placement, magnet
-pockets, dividers, label tabs and scoops. The controls correspond to the
-[Gridfinity Bin Generator](https://sitnikov.github.io/gridfinity-bin-generator/)
-options; this body uses this repository's Gridfinity foot and independently built
-PETG geometry. Its 0.6 mm flat landing strip supports the separate
+perimeters with a small reserve). The 1×2×3U default has a closed 1 mm plate
+under each foot and a hollow rising into the open cavity: the foot boundaries
+form a shallow raised seam on the interior floor, rather than exposed
+underside ribs or a continuous floor above the feet. `bottom_thickness=0`
+uses the wall thickness; a larger value thickens the print-bed plates. There
+are no mouse-ear brims. Optional features include solid feet, half-grid foot
+placement, magnet pockets, dividers, label tabs and scoops. The controls and
+default base profile follow the
+[Gridfinity Bin Generator](https://sitnikov.github.io/gridfinity-bin-generator/);
+this body retains this repository's Gridfinity foot envelope and independently
+built PETG geometry. Its 0.6 mm flat landing strip supports the separate
 `drill_storage.bin.lid` with a locating skirt. The lid lifts off rather than
 snapping shut; it is not sealed. It receives matching full or half Gridfinity
 feet in a 2.5 mm socket on its exposed face. See the
@@ -105,14 +110,22 @@ feet in a 2.5 mm socket on its exposed face. See the
 
 `grid_x` and `grid_y` accept half-cell increments. `half_grid_base` replaces
 full feet with half-cell feet; otherwise `half_grid_right` and `half_grid_top`
-choose which edge gets a partial foot. `ultra_light_base` hollows and braces
-the feet. Magnet pockets are cut in full-cell feet only (requesting magnets
-with `half_grid_base` is rejected); `magnet_diameter` is nominal and receives
-a PETG sliding-fit allowance. `dividers_x/y` partition the cavity when
-`dividers` is on. `labels`, `label_for_each_section`, `label_position`,
+choose which edge gets a partial foot. `ultra_light_base` opens the closed
+feet into the storage cavity; disabling it makes the feet and raised floor
+solid. Magnet pockets are cut in full-cell feet only (requesting magnets
+with `half_grid_base` is rejected); `magnet_diameter` defaults to 6.15 mm
+nominal and receives a PETG sliding-fit allowance. The divider switch is on
+by default but both `dividers_x/y` are zero, leaving the default cavity
+undivided. `labels`, `label_for_each_section`, `label_position`,
 `label_width/depth`, and `ultra_light_labels` control inward label tabs.
 `scoops` and `scoop_radius` add curved retrieval ramps at each Y section's
 floor. Labels and scoops are off by default; they consume interior space.
+
+Lightweight label ribs use the generator's default density of one support
+about every 13 mm. Optional dividers and scoops stay above the stackable
+lid's foot socket clearance; unlike the default empty bin, their first
+layers can bridge an open foot cavity. Check those variants in the slicer
+or use a solid base if a continuous backing is needed.
 
 `lid_height` is the **whole print-part height in millimetres**, default 6.5 mm:
 2.5 mm socket depth, 1 mm roof above it, and a 3 mm plug skirt below the

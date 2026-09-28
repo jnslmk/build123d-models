@@ -25,7 +25,7 @@ PARAMS = c.PARAMS
 IS_ASSEMBLY = False
 
 
-def _foot(size_x: float, size_y: float, wall: float, hollow: bool):
+def _foot(size_x: float, size_y: float):
     """Full or half-grid foot with the drill family's standard bevel profile."""
     from models.drill_storage.box import FOOT_C1, FOOT_C3, FOOT_STRAIGHT
 
@@ -43,38 +43,57 @@ def _foot(size_x: float, size_y: float, wall: float, hollow: bool):
                 )
             sections.append(profile.sketch)
         loft(sections=sections, ruled=True)
-        if hollow:
-            # The hollow runs under the floor, with cross ribs shortening the
-            # unsupported bridge to less than half a 1x1 cell.
-            with BuildSketch(Plane.XY.offset(-0.05)) as opening:
-                RectangleRounded(
-                    size_x - 2 * (FOOT_C1 + FOOT_C3 + wall),
-                    size_y - 2 * (FOOT_C1 + FOOT_C3 + wall),
-                    max(0.4, c.CORNER_R - FOOT_C1 - FOOT_C3 - wall),
-                )
-            with BuildSketch(Plane.XY.offset(c.BASE_H)) as ceiling:
-                RectangleRounded(
-                    size_x - 2 * wall, size_y - 2 * wall, max(0.4, c.CORNER_R - wall)
-                )
-            loft(
-                sections=[opening.sketch, ceiling.sketch],
-                ruled=True,
-                mode=Mode.SUBTRACT,
-            )
-            with Locations((0, 0, 0)):
-                Box(
-                    wall,
-                    size_y - 2 * (FOOT_C1 + FOOT_C3),
-                    c.BASE_H,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                )
-                Box(
-                    size_x - 2 * (FOOT_C1 + FOOT_C3),
-                    wall,
-                    c.BASE_H,
-                    align=(Align.CENTER, Align.CENTER, Align.MIN),
-                )
     return foot.part
+
+
+def _foot_cavity(
+    size_x: float,
+    size_y: float,
+    wall: float,
+    bottom: float,
+    seams: tuple[bool, bool, bool, bool],
+):
+    """Open the foot above a bed plate; soften only its interior cell seams."""
+    from models.drill_storage.box import FOOT_C1, FOOT_C3, FOOT_STRAIGHT
+
+    transition = FOOT_C1 + FOOT_STRAIGHT
+
+    def inset_at(z: float) -> float:
+        if z < FOOT_C1:
+            return FOOT_C3 + FOOT_C1 - z
+        if z < transition:
+            return FOOT_C3
+        if z < c.BASE_H:
+            return c.BASE_H - z
+        return 0.0
+
+    with BuildPart() as cavity:
+        sections = []
+        floor_z = c.BASE_H + wall
+        levels = (
+            bottom,
+            *(z for z in (FOOT_C1, transition, c.BASE_H) if z > bottom),
+            floor_z - c.FLOOR_SEAM_CHAMFER,
+            floor_z,
+            floor_z + 0.05,
+        )
+        for z in levels:
+            inset = inset_at(z) + wall
+            # Bevel only internal cell boundaries, never the outer side walls.
+            seam_bevel = max(
+                0, min(c.FLOOR_SEAM_CHAMFER, z - floor_z + c.FLOOR_SEAM_CHAMFER)
+            )
+            x_low, x_high, y_low, y_high = (seam_bevel if seam else 0 for seam in seams)
+            with BuildSketch(Plane.XY.offset(z)) as profile:
+                with Locations(((x_high - x_low) / 2, (y_high - y_low) / 2)):
+                    RectangleRounded(
+                        size_x - 2 * inset + x_low + x_high,
+                        size_y - 2 * inset + y_low + y_high,
+                        max(0.4, c.CORNER_R - inset),
+                    )
+            sections.append(profile.sketch)
+        loft(sections=sections, ruled=True)
+    return cavity.part
 
 
 def create(
@@ -86,20 +105,21 @@ def create(
     half_grid_top: bool = True,
     wall_thickness: float = c.WALL,
     ultra_light_base: bool = True,
+    bottom_thickness: float = 0,
     ultra_light_labels: bool = True,
     magnets: bool = False,
-    magnet_diameter: float = 6,
+    magnet_diameter: float = 6.15,
     magnet_depth: float = 2.2,
-    dividers: bool = False,
+    dividers: bool = True,
     dividers_x: int = 0,
-    dividers_y: int = 1,
+    dividers_y: int = 0,
     labels: bool = False,
     label_for_each_section: bool = True,
     label_position: LabelPosition = "Full",
     label_width: float = 30,
     label_depth: float = 13,
     scoops: bool = False,
-    scoop_radius: float = 15,
+    scoop_radius: float = 30,
 ):
     """Create the printable bin body. Optional features are independent switches."""
     if any(value < 0.5 or value * 2 != round(value * 2) for value in (grid_x, grid_y)):
@@ -108,6 +128,8 @@ def create(
         raise ValueError("height_u must be a whole number of at least two units")
     if wall_thickness < 1 or wall_thickness > 4:
         raise ValueError("wall_thickness must be between 1 and 4 mm")
+    if bottom_thickness < 0 or bottom_thickness > 4:
+        raise ValueError("bottom_thickness must be between 0 and 4 mm")
     if any(value < 0 or value != int(value) for value in (dividers_x, dividers_y)):
         raise ValueError("divider counts must be nonnegative integers")
     if label_position not in ("Full", "Left", "Center", "Right"):
@@ -138,12 +160,29 @@ def create(
         (cell_x, cell_y): _foot(
             cell_x * c.GRID - (c.GRID - c.PAD),
             cell_y * c.GRID - (c.GRID - c.PAD),
-            wall,
-            ultra_light_base,
         )
         for cell_x in {size for size, _ in x_cells}
         for cell_y in {size for size, _ in y_cells}
     }
+    cavity_keys = [
+        (cell_x, cell_y, ix > 0, ix < len(x_cells) - 1, iy > 0, iy < len(y_cells) - 1)
+        for ix, (cell_x, _) in enumerate(x_cells)
+        for iy, (cell_y, _) in enumerate(y_cells)
+    ]
+    cavities = (
+        {
+            key: _foot_cavity(
+                key[0] * c.GRID - (c.GRID - c.PAD),
+                key[1] * c.GRID - (c.GRID - c.PAD),
+                wall,
+                max(wall, bottom_thickness),
+                key[2:],
+            )
+            for key in set(cavity_keys)
+        }
+        if ultra_light_base
+        else {}
+    )
     with BuildPart() as bin_part:
         for cell_x, x_center in x_cells:
             for cell_y, y_center in y_cells:
@@ -160,6 +199,21 @@ def create(
                 width - 2 * wall, depth - 2 * wall, max(0.4, c.CORNER_R - wall)
             )
         extrude(amount=height - floor_z + 1, mode=Mode.SUBTRACT)
+        for ix, (cell_x, x_center) in enumerate(x_cells):
+            for iy, (cell_y, y_center) in enumerate(y_cells):
+                if ultra_light_base:
+                    key = (
+                        cell_x,
+                        cell_y,
+                        ix > 0,
+                        ix < len(x_cells) - 1,
+                        iy > 0,
+                        iy < len(y_cells) - 1,
+                    )
+                    add(
+                        as_part(Pos(x_center, y_center, 0) * cavities[key]),
+                        mode=Mode.SUBTRACT,
+                    )
         with BuildSketch(Plane.XY.offset(height - c.MOUTH_CHAMFER)) as mouth_bottom:
             RectangleRounded(
                 width - 2 * wall, depth - 2 * wall, max(0.4, c.CORNER_R - wall)
