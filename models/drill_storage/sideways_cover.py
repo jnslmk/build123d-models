@@ -1,14 +1,11 @@
 """Foot-down, side-removable PETG shell, bed and forward Gridfinity feet."""
 
 from build123d import (
-    Align,
-    Box,
     BuildPart,
     BuildSketch,
     Locations,
     Mode,
     Plane,
-    Polygon,
     Pos,
     RectangleRounded,
     add,
@@ -16,15 +13,12 @@ from build123d import (
     loft,
 )
 from models.lib.edges import as_part
-from models.lib.fits import SLIDING, SNUG
+from models.lib.fits import SLIDING
 from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
 from .sets import DrillSet
 from .sideways import (
-    BACK_WALL,
     BED_THICKNESS,
     FRONT_CORNER_R,
-    GUIDE_DEPTH,
-    RAIL_X,
     engrave_set_name,
     layout_for,
     stacking_receiver,
@@ -33,16 +27,11 @@ from .sideways import (
 WALL = 1.0  # PETG: two perimeters plus slicer reserve
 SEAM = SLIDING  # axial running clearance between guide face and cover
 ROOF = 1.0
-JOINT_FIT = SNUG  # PETG-on-ASA hand-removable friction fit; calibrate on prints
-TONGUE_WIDTH = 4.9  # 0.8 mm cheeks at the widened groove
-TONGUE_HEIGHT = 2.5
-TONGUE_START = BACK_WALL + GUIDE_DEPTH + 0.5
-TONGUE_END = GRID + 1.5
-GROOVE_END = GRID - 0.5
+MOUTH_LEAD = 0.2  # matching 45-degree PETG entry bevel for the ASA collar
 
 
 def create_cover_for(drills: DrillSet):
-    """Return the cover in foot-down print pose; slicer supports its roof and tongue."""
+    """Return the foot-down cover; slicer supports its long roof."""
     cells, _positions = layout_for(drills)
     length = cells * GRID - (GRID - PAD)
     rear = -length / 2
@@ -95,44 +84,30 @@ def create_cover_for(drills: DrillSet):
             with Locations((0, shell_rear + 1.9)):
                 RectangleRounded(PAD - 2 * WALL, 4.1, FRONT_CORNER_R)
         extrude(amount=height - ROOF - bed_top + 0.02, mode=Mode.SUBTRACT)
+        # Flare the inside of the open shell, leaving 0.8 mm PETG at the
+        # narrowest entry rim; the male ASA collar has its own lead-in.
+        with BuildPart() as mouth:
+            middle_z = (bed_top - 0.02 + height - ROOF) / 2
+            cavity_h = height - ROOF - bed_top + 0.02
+            with BuildSketch(Plane.XZ.offset(-(shell_rear - 0.16))):
+                with Locations((0, middle_z)):
+                    RectangleRounded(
+                        PAD - 2 * WALL + 2 * MOUTH_LEAD,
+                        cavity_h + 2 * MOUTH_LEAD,
+                        0.4,
+                    )
+            with BuildSketch(Plane.XZ.offset(-(shell_rear + MOUTH_LEAD))):
+                with Locations((0, middle_z)):
+                    RectangleRounded(PAD - 2 * WALL, cavity_h, 0.2)
+            loft(ruled=True)
+        add(mouth.part, mode=Mode.SUBTRACT)
         # Each forward foot has its own 4.4 mm receiver above the 5U roof.
         # Its floor remains the original roof, so no socket cuts into the bits.
         for index in range(1, cells):
             add(stacking_receiver(rear + PAD / 2 + index * GRID, height))
 
-        # PETG sleeve over the guide's ASA rail. Two-perimeter cheeks and a
-        # located friction fit constrain X/Z; the blind end limits insertion.
-        tongue_rear = rear + TONGUE_START
-        tongue_front = rear + TONGUE_END
-        with Locations(
-            (RAIL_X, (tongue_rear + tongue_front) / 2, bed_top + SLIDING / 2)
-        ):
-            Box(
-                TONGUE_WIDTH,
-                tongue_front - tongue_rear,
-                TONGUE_HEIGHT,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-            )
-        with BuildSketch(Plane.XZ.offset(-(tongue_rear - 0.01))):
-            Polygon(
-                (RAIL_X - 1.0 - JOINT_FIT / 2, bed_top - 0.1),
-                (RAIL_X + 1.0 + JOINT_FIT / 2, bed_top - 0.1),
-                (RAIL_X + 1.6 + JOINT_FIT / 2, bed_top + 0.9),
-                (RAIL_X + 1.6 + JOINT_FIT / 2, bed_top + 1.7),
-                (RAIL_X - 1.6 - JOINT_FIT / 2, bed_top + 1.7),
-                (RAIL_X - 1.6 - JOINT_FIT / 2, bed_top + 0.9),
-                align=None,
-            )
-        extrude(amount=-(rear + GROOVE_END - tongue_rear + 0.01), mode=Mode.SUBTRACT)
-        # Bond the overhanging sleeve to the deck; its underside running gap
-        # otherwise leaves it as a separate solid.
-        with Locations((RAIL_X, rear + (GROOVE_END + TONGUE_END) / 2, bed_top - 0.1)):
-            Box(
-                TONGUE_WIDTH,
-                TONGUE_END - GROOVE_END,
-                TONGUE_HEIGHT + SLIDING / 2 + 0.1,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-            )
+        # The ASA guide's wide, relieved collar enters the open end of this
+        # shell. The existing cavity locates it without a separate rail/sleeve.
         engrave_set_name(
             drills.label,
             Plane(

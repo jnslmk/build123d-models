@@ -1,4 +1,4 @@
-"""Horizontal metal holder: assembled scene with separate printable base and cover."""
+"""Horizontal metal holder: ASA/TPU/PETG inspection scene, not a print job."""
 
 from ...sets import METAL
 from ...sideways import create_closed_for

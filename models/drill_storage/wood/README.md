@@ -4,25 +4,26 @@ Gridfinity storage for a **brad-point wood drill set**: eleven drills, 2 – 10 
 (2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10), plus a 10 mm countersink on a 6.3 mm hex
 shank.
 
-The separate **1×3×5U sideways holder** has an ASA rear guide on one foot and
-a PETG side-opening cover carrying the long bed and other two feet. The PETG
-cover says WOOD; the ASA guide's rear face maps each drill size (and CSK for
-the countersink) to its bore position. The mouths are too tightly packed for
-legible printing around them, so read the map from the opposite end of the
-guide. Together the halves' three full-depth top sockets accept another
-holder's feet at a 5U stacking pitch. The receiving lips rise 4.4 mm
-above the 5U body and reach the full 42 mm grid width; their thin mouths and
-zero nominal gap to neighbouring cells need a printed fit and strength trial
-before loading a stack. Slide the cover along the drill axes **only after
-lifting the whole holder off its baseplate**. The short dovetail is a
-hand-removable friction fit, not a positive latch; keep it horizontal while
-opening. There is no TPU shank-gripping insert. Print both parts foot-down with
-slicer supports under the ASA rear roof extension and PETG overhanging tongue
-and long roof; remove supports before sliding the parts together. Fit and
-retention still need a physical print trial. See the
-[sideways-holder specification](../docs/sideways-specification.md) and
-[current CAD contract](../docs/sideways-cad-contract.md). The upright base,
-cartridge and covers below remain unchanged.
+The separate **1×3×5U sideways holder** has three prints: an ASA guide on the
+rear foot, a removable TPU shank-gripping cartridge, and a PETG side-opening
+cover carrying the long bed and two forward feet. WOOD is engraved on the cover;
+the ASA back wall maps every drill size and CSK to its guide position. A short
+grip land in each TPU through-bore holds the shank; the ASA bores guide freely.
+The keyed TPU bead seats in a shallow ASA pocket. Print the cartridge flat,
+with its relieved face on the bed and its grip lands upward.
+
+The cover slides **over a broad ASA collar** in the direction of the drill
+axes, replacing the former dovetail rail and sleeve. Its fit is sliding, not
+a positive latch. Lift the assembled holder off its baseplate before pulling
+the foot-bearing cover sideways; keep it horizontal while opening. Print the
+ASA base and PETG cover foot-down, with slicer supports under the ASA rear roof
+and collar overhang and the PETG long roof. Remove supports before assembly.
+Three full-depth top receivers seat another holder's feet at a 5U stacking
+pitch. The 42 mm thin-lipped receivers, adjacent-cell clearance, TPU grip,
+cartridge catch and cover retention still require a physical print trial.
+See the [sideways-holder specification](../docs/sideways-specification.md) and
+[current CAD contract](../docs/sideways-cad-contract.md). The upright parts
+below remain unchanged.
 
 ```bash
 uv run show drill_storage.wood            # assembled, drills standing in it
@@ -32,10 +33,12 @@ uv run export drill_storage.wood.cover    # PETG
 uv run export drill_storage.wood.cover_stackable  # PETG stacking alternative
 uv run check drill_storage.wood
 uv run export drill_storage.wood.sideways.base    # ASA rear guide
+uv run export drill_storage.wood.sideways.insert  # TPU grip cartridge
 uv run export drill_storage.wood.sideways.cover   # PETG foot-bearing cover
 uv run view drill_storage.wood.sideways           # assembled inspection scene
 uv run show drill_storage.wood.sideways.preview   # exposed horizontal drills
 uv run check drill_storage.wood.sideways.base
+uv run check drill_storage.wood.sideways.insert
 uv run check drill_storage.wood.sideways.cover
 ```
 

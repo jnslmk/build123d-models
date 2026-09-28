@@ -1,4 +1,4 @@
-"""Metal sideways guide with horizontally posed bits; not a print job."""
+"""Metal sideways guide with seated TPU cartridge and exposed bits."""
 
 from ...sets import METAL
 from ...sideways import create_preview_for

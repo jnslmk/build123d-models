@@ -1,4 +1,4 @@
-"""Wood sideways guide with horizontally posed bits; not a print job."""
+"""Wood sideways guide with seated TPU cartridge and exposed bits."""
 
 from ...sets import WOOD
 from ...sideways import create_preview_for

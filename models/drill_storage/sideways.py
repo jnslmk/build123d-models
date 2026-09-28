@@ -1,7 +1,7 @@
 """Foot-down horizontal drill guides and their tool layout.
 
-The rear ASA guide supports the shanks along Y. The PETG side-opening cover
-owns the forward bed and feet, and slides on the guide's short dovetail rail.
+The ASA guide supports shanks along Y and seats a removable TPU cartridge at
+its mouths. The foot-bearing PETG cover slides over the guide's forward collar.
 The frozen X/Z layouts reserve every tool's full outside envelope.
 """
 
@@ -17,16 +17,17 @@ from build123d import (
     Locations,
     Mode,
     Plane,
-    Polygon,
     Pos,
     RectangleRounded,
     Rotation,
+    Sphere,
     Text,
     add,
     extrude,
     loft,
 )
 from models.lib.edges import as_part, top_chamfer_tool
+from models.lib import fits
 from . import config as c
 from .box import (
     BASE_H,
@@ -81,10 +82,22 @@ EDGE_CHAMFER = 0.4
 GUIDE_TOP_CHAMFER = 0.2
 FRONT_CORNER_R = 0.25
 
-RAIL_X = 4.0
-RAIL_START = 26.0  # relative to the full holder's rear
-RAIL_END = 40.0
-RAIL_TOP = BASE_H + BED_THICKNESS + 1.5
+# The front-facing cartridge recess leaves at least 1 mm ASA around the
+# insert. The 0.2 mm entry bevel preserves 0.8 mm at its narrowest rim.
+INSERT_DEPTH = c.CART_H
+INSERT_WALL = 1.0
+INSERT_LEAD = 0.2
+INSERT_CORNER_R = 1.0
+INSERT_CATCH_R = 0.65  # one rounded TPU key/catch in a shallow ASA dimple
+INSERT_CATCH_OFFSET = 0.0  # pocket leaves 0.35 mm at the thinnest ASA point
+
+
+COLLAR_START = GRID - 3.0  # overlap with the rear guide's first-cell walls
+COLLAR_END = GRID + 4.0  # male reach into the hollow PETG cover
+COLLAR_WALL = 0.8  # two ASA perimeters; tool-clearance scallops are cut below
+COLLAR_CLEAR = fits.SLIDING  # sliding fit, PETG cover over ASA collar
+COLLAR_ROOF = 1.0
+COLLAR_LEAD = 0.3  # 45-degree male lead-in at the cover entry
 
 LABEL_SIZE = 12.0  # bold WOOD/METAL capitals render ~9 mm tall on the cover
 LABEL_DEPTH = 0.5  # stays within the 1 mm PETG cover wall
@@ -146,21 +159,59 @@ def layout_for(drills: DrillSet) -> tuple[int, dict[str, tuple[float, float]]]:
     raise ValueError(f"no horizontal holder layout for {drills.name}")
 
 
-def _cover_rail(rear: float):
-    """A low, printable dovetail above the rear foot, clear of both tool sets."""
-    with BuildPart() as rail:
-        with BuildSketch(Plane.XZ.offset(-(rear + RAIL_END))):
-            Polygon(
-                (RAIL_X - 1.0, BASE_H + BED_THICKNESS),
-                (RAIL_X + 1.0, BASE_H + BED_THICKNESS),
-                (RAIL_X + 1.6, RAIL_TOP - 0.6),
-                (RAIL_X + 1.6, RAIL_TOP),
-                (RAIL_X - 1.6, RAIL_TOP),
-                (RAIL_X - 1.6, RAIL_TOP - 0.6),
-                align=None,
-            )
-        extrude(amount=RAIL_END - RAIL_START)
-    return rail.part
+def _cover_collar(rear: float, height: float, drills: DrillSet, positions):
+    """Wide male rim inside the cover mouth, relieved around the tool paths."""
+    outer_w = PAD - 2.0 - COLLAR_CLEAR
+    bottom = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2
+    top = height - COLLAR_ROOF - COLLAR_CLEAR / 2
+    with BuildPart() as collar:
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END - COLLAR_LEAD))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(outer_w, top - bottom, 1.0)
+        extrude(amount=COLLAR_END - COLLAR_START - COLLAR_LEAD)
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(
+                    outer_w - 2 * COLLAR_LEAD,
+                    top - bottom - 2 * COLLAR_LEAD,
+                    1.0 - COLLAR_LEAD,
+                )
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END - COLLAR_LEAD))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(outer_w, top - bottom, 1.0)
+        loft(ruled=True)
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END + 0.01))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(
+                    outer_w - 2 * COLLAR_WALL,
+                    top - bottom - 2 * COLLAR_WALL,
+                    0.2,
+                )
+        extrude(amount=COLLAR_END - COLLAR_START + 0.02, mode=Mode.SUBTRACT)
+        # Adjacent shanks have only a small margin at the guide's outside
+        # corners; scallop the collar rather than narrowing their free path.
+        for drill in drills.drills:
+            x, z = positions[f"{drill.nominal:g}"]
+            with Locations((x, rear + (COLLAR_START + COLLAR_END) / 2, z)):
+                Cylinder(
+                    (drills.cut_d(drill) + c.GUIDE_FIT) / 2,
+                    COLLAR_END - COLLAR_START + 0.2,
+                    rotation=(90, 0, 0),
+                    mode=Mode.SUBTRACT,
+                )
+        for tool in drills.hex_tools:
+            x, z = positions[tool.key]
+            with Locations((x, rear + (COLLAR_START + COLLAR_END) / 2, z)):
+                Cylinder(
+                    max(
+                        tool.head_d / 2 + COLLAR_CLEAR,
+                        (tool.across_flats + c.GUIDE_FIT) / 3**0.5,
+                    ),
+                    COLLAR_END - COLLAR_START + 0.2,
+                    rotation=(90, 0, 0),
+                    mode=Mode.SUBTRACT,
+                )
+    return collar.part
 
 
 def _cut_guide(x: float, z: float, radius: float, rear: float) -> None:
@@ -197,6 +248,38 @@ def _guide_block(rear: float, height: float):
     return guide.part
 
 
+def _insert_seat(rear: float, height: float):
+    """Subtractive cartridge pocket, open toward the horizontal bit mouths."""
+    front = rear + BACK_WALL + GUIDE_DEPTH
+    floor = BASE_H + INSERT_WALL
+    roof = height - INSERT_WALL
+    with BuildPart() as seat:
+        with BuildSketch(Plane.XZ.offset(-(front + 0.01))):
+            with Locations((0, (floor + roof) / 2)):
+                RectangleRounded(
+                    PAD - 2 * (INSERT_WALL - INSERT_LEAD),
+                    roof - floor + 2 * INSERT_LEAD,
+                    INSERT_CORNER_R + INSERT_LEAD,
+                )
+        with BuildSketch(Plane.XZ.offset(-(front - INSERT_LEAD))):
+            with Locations((0, (floor + roof) / 2)):
+                RectangleRounded(
+                    PAD - 2 * INSERT_WALL,
+                    roof - floor,
+                    INSERT_CORNER_R,
+                )
+        loft(ruled=True)
+        with BuildSketch(Plane.XZ.offset(-(front - INSERT_LEAD))):
+            with Locations((0, (floor + roof) / 2)):
+                RectangleRounded(
+                    PAD - 2 * INSERT_WALL,
+                    roof - floor,
+                    INSERT_CORNER_R,
+                )
+        extrude(amount=INSERT_DEPTH - INSERT_LEAD)
+    return seat.part
+
+
 def create_base_for(drills: DrillSet):
     """Print just the rear ASA guide and its single Gridfinity foot."""
     cells, positions = layout_for(drills)
@@ -223,9 +306,8 @@ def create_base_for(drills: DrillSet):
         # The front corners leave intact mouth walls even for the tiny bits at
         # the X extremes; the rear retains the Gridfinity pad's 4 mm radius.
         add(_guide_block(rear, height))
-        # Extend the rear guide as a hollow first cell: side walls protect
-        # projecting shanks but keep the axial mouths and low rail unobstructed.
-        # Support the 19 mm roof span in the slicer for this ASA print.
+        # The first-cell roof and walls still support the rear receiver; the
+        # collar bridges them to the cover mouth. Support the roof in the slicer.
         extension = GRID - BACK_WALL - GUIDE_DEPTH
         for x in (-(PAD - 1) / 2, (PAD - 1) / 2):
             with Locations(
@@ -245,7 +327,31 @@ def create_base_for(drills: DrillSet):
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
             )
         add(stacking_receiver(foot_y, height))
-        add(_cover_rail(rear))
+        # Short shoulders bridge the 0.11 mm step between the full-width guide
+        # walls and its narrowed cover collar, without entering any bit path.
+        for sign in (-1, 1):
+            with Locations(
+                (sign * (PAD / 2 - 0.85), rear + GRID - 1.5, BASE_H + BED_THICKNESS + 1)
+            ):
+                Box(
+                    1.7,
+                    3,
+                    height - BASE_H - BED_THICKNESS - 2,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+        add(_cover_collar(rear, height, drills, positions))
+        add(_insert_seat(rear, height), mode=Mode.SUBTRACT)
+        front_y = rear + BACK_WALL + GUIDE_DEPTH
+        catch_y = front_y - INSERT_DEPTH / 2
+        catch_z = (BASE_H + height) / 2
+        with Locations(
+            (
+                -(PAD / 2 - INSERT_WALL + INSERT_CATCH_OFFSET),
+                catch_y,
+                catch_z - 2,
+            )
+        ):
+            Sphere(INSERT_CATCH_R, mode=Mode.SUBTRACT)
         for drill in drills.drills:
             x, z = positions[f"{drill.nominal:g}"]
             _cut_guide(x, z, (drills.cut_d(drill) + c.GUIDE_FIT) / 2, rear)
@@ -257,7 +363,7 @@ def create_base_for(drills: DrillSet):
 
 
 def create_preview_for(drills: DrillSet) -> Compound:
-    """Show the anchor with the whole tool set posed; no cover is inferred."""
+    """Show the seated TPU insert and the whole horizontal tool set without cover."""
     cells, positions = layout_for(drills)
     base = create_base_for(drills)
     base.label = f"{drills.name}_sideways_asa"
@@ -287,7 +393,12 @@ def create_preview_for(drills: DrillSet) -> Compound:
         bit.color = STEEL
         x, z = positions[spec.key]
         tools.append(Pos(x, rear, z) * Rotation(-90, 0, 0) * bit)
-    return Compound(label=f"{drills.name} sideways anchor", children=[base, *tools])
+    from .sideways_insert import seated_insert_for
+
+    return Compound(
+        label=f"{drills.name} sideways open holder",
+        children=[base, seated_insert_for(drills), *tools],
+    )
 
 
 def create_closed_for(drills: DrillSet) -> Compound:

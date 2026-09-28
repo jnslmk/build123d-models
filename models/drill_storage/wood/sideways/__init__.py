@@ -1,4 +1,4 @@
-"""Horizontal wood holder: assembled scene with separate printable base and cover."""
+"""Horizontal wood holder: ASA/TPU/PETG inspection scene, not a print job."""
 
 from ...sets import WOOD
 from ...sideways import create_closed_for

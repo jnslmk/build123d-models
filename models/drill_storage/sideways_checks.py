@@ -11,15 +11,20 @@ from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
 from .sets import DrillSet
 from .sideways import (
     BACK_WALL,
+    COLLAR_END,
+    COLLAR_CLEAR,
+    COLLAR_LEAD,
     EDGE_CHAMFER,
     FRONT_CORNER_R,
+    GUIDE_DEPTH,
+    INSERT_DEPTH,
     LABEL_SIZE,
-    RAIL_X,
     create_preview_for,
     layout_for,
     tool_map_glyphs,
 )
-from .sideways_cover import SEAM
+from .sideways_insert import INSERT_FIT, INSERT_H, seated_insert_for
+from .sideways_cover import MOUTH_LEAD, SEAM, WALL
 
 # Wall budgets are independent of the frozen optimiser's objective: a bit must
 # clear the next bit by this much even at the widest point of its body.
@@ -51,14 +56,15 @@ def run_for(drills: DrillSet, part) -> Report:
     report.section(f"Sideways {drills.name}: tool envelopes and print pose")
     b = part.bounding_box()
     report.check(
-        len(part.solids()) == 1
+        part.is_valid
+        and len(part.solids()) == 1
         and abs(b.min.Z) < 1e-5
         and abs(b.max.Z - (height + BASE_H)) < 1e-5
         and abs(b.size.X - GRID) < 1e-5
-        and abs(b.size.Y - (GRID + (GRID - PAD) / 2)) < 1e-5
+        and abs(b.size.Y - (COLLAR_END + (GRID - PAD) / 2)) < 1e-5
         and abs(b.min.Y + length / 2 + (GRID - PAD) / 2) < 1e-5
         and not is_solid_at(part, 0, -length / 2 + GRID + 1, BASE_H / 2),
-        "one rear foot only, no forward bed or foot",
+        "one rear foot and a cover collar, no forward bed or foot",
     )
     rear_y = -length / 2 + PAD / 2
     foot = gridfinity_foot()
@@ -67,6 +73,16 @@ def run_for(drills: DrillSet, part) -> Report:
         and is_solid_at(part, 0, rear_y, height - 0.5)
         and not is_solid_at(part, 0, rear_y, height + 0.5),
         "rear socket seats a complete foot on a solid 5U roof",
+    )
+    pocket_front = -length / 2 + BACK_WALL + GUIDE_DEPTH
+    pocket_mid = pocket_front - INSERT_DEPTH / 2
+    report.check(
+        not is_solid_at(part, 0, pocket_mid, 20)
+        and is_solid_at(part, PAD / 2 - 0.5, pocket_mid, 20)
+        and is_solid_at(part, 0, pocket_mid, BASE_H + 0.5)
+        and is_solid_at(part, 0, pocket_mid, height - 0.5)
+        and is_solid_at(part, 0, pocket_front - INSERT_DEPTH - 0.5, height - 2),
+        "front-facing TPU seat retains ASA side, floor, roof and back walls",
     )
     tools = {
         **{f"{d.nominal:g}": (d.nominal / 2, d.length) for d in drills.drills},
@@ -91,6 +107,10 @@ def run_for(drills: DrillSet, part) -> Report:
         report.check(
             not is_solid_at(part, x, -length / 2 + 12, z),
             f"{key} ASA guide is open",
+        )
+        report.check(
+            not is_solid_at(part, x, pocket_mid, z),
+            f"{key} through-path is open in the cartridge seat",
         )
     mouth_radii = {
         **{
@@ -176,6 +196,67 @@ def run_for(drills: DrillSet, part) -> Report:
     return report
 
 
+def run_insert_for(drills: DrillSet, insert) -> Report:
+    """Check grip versus relief, wall budget, and seating in the ASA guide."""
+    from .sideways import create_base_for
+
+    report = Report()
+    _cells, positions = layout_for(drills)
+    bottom = BASE_H + 1.0
+    centre_z = (BASE_H + 5 * HEIGHT_UNIT) / 2
+    half_width = (PAD - 2.0 - INSERT_FIT) / 2
+    half_height = (5 * HEIGHT_UNIT - 1.0 - bottom - INSERT_FIT) / 2
+    box = insert.bounding_box()
+    report.section(f"Sideways {drills.name}: printable TPU cartridge")
+    report.check(
+        insert.is_valid
+        and len(insert.solids()) == 1
+        and abs(box.min.Z) < 1e-5
+        and abs(box.max.Z - INSERT_H) < 1e-5
+        and box.min.X > -PAD / 2
+        and box.max.X < PAD / 2,
+        "one valid flat-bed TPU print including its keyed catch",
+    )
+    for drill in drills.drills:
+        key = f"{drill.nominal:g}"
+        x, z = positions[key]
+        y = centre_z - z
+        d = drills.cut_d(drill)
+        land = c.land_bore_r(d)
+        relief = (d + c.RELIEF_FIT) / 2
+        probe_r = (land + relief) / 2
+        report.check(
+            half_width - abs(x) - land >= 0.6
+            and half_height - abs(y) - land >= 0.6
+            and not is_solid_at(insert, x, y, 1.0)
+            and is_solid_at(insert, x + probe_r, y, INSERT_H - 1)
+            and not is_solid_at(insert, x + probe_r, y, 1.0),
+            f"{key} has a supported short TPU grip land and relieved bore",
+        )
+    for tool in drills.hex_tools:
+        x, z = positions[tool.key]
+        y = centre_z - z
+        land = (tool.across_flats + c.HEX_LAND_FIT) / sqrt(3)
+        relief = (tool.across_flats + c.RELIEF_FIT) / sqrt(3)
+        probe_r = (land + relief) / 2
+        report.check(
+            half_width - abs(x) - land >= 0.6
+            and half_height - abs(y) - land >= 0.6
+            and not is_solid_at(insert, x, y, 1.0)
+            and is_solid_at(insert, x + probe_r, y, INSERT_H - 1)
+            and not is_solid_at(insert, x + probe_r, y, 1.0),
+            f"{tool.key} has a hex grip land and relieved bore",
+        )
+    base = create_base_for(drills)
+    seated = seated_insert_for(drills)
+    report.check(
+        base.intersect(seated).volume < 1e-5
+        and base.intersect(Pos(0, 2, 0) * seated).volume > 0,
+        "keyed TPU catch seats without collision and resists axial withdrawal",
+    )
+    return report
+
+
 def run_cover_for(drills: DrillSet, cover) -> Report:
     """Check both printable halves and real posed-bit interference."""
     report = Report()
@@ -188,7 +269,8 @@ def run_cover_for(drills: DrillSet, cover) -> Report:
     report.section(f"Sideways {drills.name}: seated PETG cover")
     box = cover.bounding_box()
     report.check(
-        len(cover.solids()) == 1
+        cover.is_valid
+        and len(cover.solids()) == 1
         and abs(box.min.Z) < 1e-5
         and abs(box.max.Z - (5 * HEIGHT_UNIT + BASE_H)) < 1e-5
         and abs(box.size.X - GRID) < 1e-5
@@ -250,25 +332,39 @@ def run_cover_for(drills: DrillSet, cover) -> Report:
         ),
         "enlarged cover name is legible, recessed and backed by PETG",
     )
+    collar_y = rear + GRID + 2
     report.check(
-        is_solid_at(base, RAIL_X, rear + 30, BASE_H + 2.4)
-        and not is_solid_at(cover, RAIL_X, rear + 30, BASE_H + 2.4)
-        and is_solid_at(cover, RAIL_X + 2, rear + 30, BASE_H + 2.4)
-        and base.intersect(cover).volume < 1e-5,
-        "ASA rail captured in PETG sleeve without seated overlap",
+        is_solid_at(base, 19.4, collar_y, 20)
+        and not is_solid_at(cover, 19.4, collar_y, 20)
+        and is_solid_at(cover, PAD / 2 - 0.5, collar_y, 20)
+        and base.intersect(cover).volume < 1e-5
+        and base.intersect(preview.children[1]).volume < 1e-5
+        and cover.intersect(preview.children[1]).volume < 1e-5,
+        "ASA collar slides inside PETG mouth with seated TPU cartridge",
+    )
+    male_outer_x = (PAD - 2 * WALL - COLLAR_CLEAR) / 2
+    mouth_x = (PAD - 2 * WALL) / 2 + MOUTH_LEAD / 4
+    report.check(
+        is_solid_at(base, male_outer_x - COLLAR_LEAD / 3, rear + COLLAR_END - 0.5, 20)
+        and not is_solid_at(
+            base, male_outer_x - COLLAR_LEAD / 3, rear + COLLAR_END - 0.1, 20
+        )
+        and not is_solid_at(cover, mouth_x, shell_rear + 0.01, 20)
+        and is_solid_at(cover, mouth_x, shell_rear + MOUTH_LEAD + 0.1, 20),
+        "both sides of the collar joint have an entry lead-in",
     )
     report.check(
         all(
             base.intersect(Pos(0, offset, 0) * cover).volume < 1e-5
-            for offset in (5, 10, 15, 18)
+            for offset in (1, 2, 3, 5, 10, 15, 18)
         ),
-        "cover slides sideways off the rail after lifting off the baseplate",
+        "cover withdraws axially after lifting the assembly off its baseplate",
     )
-    for tool in preview.children[1:]:
+    for tool in preview.children[2:]:
         overlap = cover.intersect(tool).volume
         report.check(
-            overlap < 1e-5,
-            f"{tool.label} clears closed PETG cover",
-            f"overlap {overlap:.4f} mm³",
+            overlap < 1e-5 and base.intersect(tool).volume < 1e-5,
+            f"{tool.label} clears closed PETG cover and ASA guide",
+            f"cover overlap {overlap:.4f} mm³",
         )
     return report
