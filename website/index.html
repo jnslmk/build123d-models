@@ -146,10 +146,10 @@
 
   #edit .ehead { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2a2f37; background: #171b21; }
   #edit .ehead .t { font-size: 12px; color: #9aa4b2; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, monospace; }
-  #edit .cm { flex: 1; overflow: hidden; min-height: 0; }
+  #edit .cm { flex: 1; overflow: hidden; min-height: 0; position: relative; }
   .cm-editor { height: 100%; }
   .cm-scroller { font: 13px/1.5 ui-monospace, "SF Mono", monospace; }
-  #cm-loading { padding: 14px; font-size: 12px; color: #8b93a1; }
+  #cm-loading { position: absolute; inset: 0; z-index: 1; padding: 14px; font-size: 12px; color: #8b93a1; background: #0f1216; }
 
   /* Rendered model notes use the same tight, utilitarian surface as the source
      panel: readable prose, but no separate “documentation app” visual system. */
@@ -416,7 +416,7 @@ const LS_RUNTIME = 'b123d.runtime';   // 'on' once the visitor has opted in
 const LS_GRID = 'b123d.grid';         // 'off' once the visitor has hidden the ground grid
 
 let manifest = null;         // { models: [...] }
-let sources = {};            // { "models/lens_cap.py": "<text>" }
+let sources = {};            // fetched editor source texts, keyed by source path
 let current = null;          // current model manifest entry
 let tree = null;             // the dotted names as a tree — see buildTree()
 let firstFrameForModel = true;
@@ -425,14 +425,101 @@ let lastStl = null;          // Uint8Array from the worker (live geometry)
 let lastGlb = null;          // ArrayBuffer from the worker (colour render), or null
 let lastStep = null;         // ArrayBuffer from the worker, or null
 
-// ---------------------------------------------------------------------------
-// Code panel — hidden by default, and CodeMirror is only fetched when it opens.
-// Until then `editorText` is the source of truth for what the panel would show,
-// so selectModel() can run long before (or without) the editor ever existing.
+// Code panel — source and CodeMirror load only after Code opens. Until then
+// editorText records what the editor would show on the next opening.
 // ---------------------------------------------------------------------------
 let editor = null;
 let editorLoading = null;
 let editorText = '';
+let sourceLoaded = false;
+let sourceSelection = 0;
+const sourceRequests = new Map();
+
+async function refreshPublishedSources(name, stalePath, edited, stillCurrent) {
+  const response = await fetch('models-manifest.json', { cache: 'no-store' });
+  if (!response.ok) throw new Error(`model manifest: HTTP ${response.status}`);
+  const latest = await response.json();
+  if (!stillCurrent()) return false;
+  const item = latest.models.find((model) => model.name === name);
+  if (!item) throw new Error(`model ${name} is no longer published`);
+  const freshPath = edited ? latest.editSources : item.sources;
+  if (!freshPath || freshPath === stalePath) return false;
+  if (edited && current?.name === name && current.source !== item.source) {
+    throw new Error('model source path changed; reopen Code before running the edit');
+  }
+  manifest = latest;
+  if (current?.name === name) {
+    current = item;
+    el.editFile.textContent = item.source;
+  }
+  return true;
+}
+
+async function loadEditorSource() {
+  if (!current) return;
+  const selection = sourceSelection;
+  if (sourceLoaded) {
+    try {
+      await ensureEditor();
+      if (selection !== sourceSelection) return;
+      el.btnRun.disabled = false;
+      el.cmLoading.hidden = true;
+      el.cm.style.pointerEvents = '';
+    } catch { /* ensureEditor displays the error; reopening retries */ }
+    return;
+  }
+  const item = current;
+  el.btnRun.disabled = true;
+  el.cmLoading.hidden = false;
+  el.cmLoading.textContent = 'loading source…';
+  el.cm.style.pointerEvents = 'none';
+  try {
+    if (!sourceRequests.has(item.sources)) {
+      const request = (async () => {
+        const response = await fetch(item.sources);
+        if (!response.ok) {
+          const error = new Error(`source asset ${item.sources}: HTTP ${response.status}`);
+          error.httpStatus = response.status;
+          throw error;
+        }
+        const files = await response.json();
+        const text = files[item.source];
+        if (typeof text !== 'string') throw new Error(`source asset missing ${item.source}`);
+        return text;
+      })();
+      sourceRequests.set(item.sources, request);
+      request.catch(() => sourceRequests.delete(item.sources));
+    }
+    const text = await sourceRequests.get(item.sources);
+    if (selection !== sourceSelection) return;
+    sources[item.source] = text;
+    setEditorText(text);
+    sourceLoaded = true;
+    await ensureEditor();
+    if (selection !== sourceSelection) return;
+    el.btnRun.disabled = false;
+    el.cmLoading.hidden = true;
+    el.cm.style.pointerEvents = '';
+  } catch (error) {
+    if (selection !== sourceSelection) return;
+    if (error.httpStatus === 404) {
+      try {
+        if (await refreshPublishedSources(
+          item.name, item.sources, false,
+          () => selection === sourceSelection && current?.name === item.name
+        )) {
+          if (selection === sourceSelection && current?.name === item.name) loadEditorSource();
+          return;
+        }
+      } catch (refreshError) {
+        error = refreshError;
+      }
+      if (selection !== sourceSelection) return;
+    }
+    el.cmLoading.textContent = (sourceLoaded ? 'could not load the editor: ' : 'could not load source: ') + error;
+    log('source: ' + error);
+  }
+}
 
 function currentSource() { return editor ? editor.state.doc.toString() : editorText; }
 function setEditorText(text) {
@@ -450,7 +537,6 @@ async function ensureEditor() {
       import('https://esm.sh/@codemirror/theme-one-dark@6.1.2'),
     ]);
     const { EditorView, basicSetup } = cm;
-    el.cmLoading.hidden = true;
     editor = new EditorView({
       parent: el.cm,
       doc: editorText,
@@ -469,8 +555,8 @@ async function ensureEditor() {
   return editorLoading;
 }
 function markDirty() {
-  if (!current) return;
-  const pristine = sources[current.source] || '';
+  if (!current || !sourceLoaded) return;
+  const pristine = sources[current.source];
   const nowDirty = currentSource() !== pristine;
   if (nowDirty === editorDirty) return;
   editorDirty = nowDirty;
@@ -501,7 +587,7 @@ function showDetail(panel) {
   el.tabEdit.setAttribute('aria-selected', String(code));
   el.tabAbout.setAttribute('aria-selected', String(about));
 
-  if (code) ensureEditor().catch(() => {});
+  if (code) loadEditorSource();
   if (about) loadDocumentation();
 }
 el.btnModel.addEventListener('click', () => showDetail('model'));
@@ -719,7 +805,7 @@ let worker = null;
 let runtimeState = 'off';    // off | booting | ready | error
 let optInJob = null;         // the job that triggered the opt-in card
 let optInDismissed = false;  // "Not now" — don't re-prompt on every slider nudge
-let reqId = 0, busy = false, pending = null;
+let reqId = 0, busy = false, pending = null, activeJob = null;
 
 function setRuntimePill() {
   const text = { off: 'Python: off', booting: 'Python: booting…', ready: 'Python: ready', error: 'Python: failed' }[runtimeState];
@@ -735,7 +821,7 @@ function startRuntime() {
   try { localStorage.setItem(LS_RUNTIME, 'on'); } catch { /* private mode */ }
   worker = new Worker('./js/pyodide-worker.js');
   worker.onmessage = onWorkerMessage;
-  worker.postMessage({ type: 'init', sourcesUrl: new URL('./py-sources.json', document.baseURI).href });
+  worker.postMessage({ type: 'init', baseUrl: new URL('./', document.baseURI).href });
 }
 function showOptIn() { el.optin.hidden = false; }
 function hideOptIn() { el.optin.hidden = true; }
@@ -774,20 +860,25 @@ function onWorkerMessage(ev) {
   // Boot progress goes to the viewer overlay, never the pill: the overlay is a
   // full-width block that wraps, whereas the pill sits in the bar's flex row
   // where a long string is what pushed the page into horizontal scroll.
-  if (m.type === 'status') { setVStatus(m.text); log(m.text); }
+  if (m.type === 'status') {
+    if (!activeJob || activeJob.selection === sourceSelection) setVStatus(m.text);
+    log(m.text);
+  }
   else if (m.type === 'log') { log(m.text); }
   else if (m.type === 'ready') {
     runtimeState = 'ready'; setRuntimePill();
     log('runtime ready — change a parameter or edit the code to rebuild live');
-    // Drop the last boot message ("Loading model sources…"): the pill already
-    // says ready, and an auto-started runtime has no queued job to overwrite it.
-    // drainPending() repaints the overlay itself when a job is waiting.
     setVStatus('');
     drainPending();
   }
   else if (m.type === 'result') {
-    busy = false;
-    if (!current || m.model !== current.name) { drainPending(); return; }  // stale model
+    const completed = activeJob;
+    if (!completed || m.id !== completed.id) return;
+    busy = false; activeJob = null;
+    if (completed.selection !== sourceSelection
+        || current?.name !== completed.model || m.model !== completed.model) {
+      drainPending(); return;
+    }
     const stl = new Uint8Array(m.stl);
     lastStl = stl; lastGlb = m.glb || null; lastStep = m.step || null;
     if (m.glb) showGlb(new Uint8Array(m.glb), firstFrameForModel);
@@ -799,9 +890,39 @@ function onWorkerMessage(ev) {
     drainPending();
   }
   else if (m.type === 'error') {
-    busy = false;
-    setVStatus('live rebuild failed — showing prebuilt model (see log)', true);
+    const failed = activeJob;
+    if (m.id !== undefined && (!failed || m.id !== failed.id)) return;
+    activeJob = null; busy = false;
     log('ERROR: ' + m.message);
+    if (failed && (failed.selection !== sourceSelection || current?.name !== failed.model)) {
+      drainPending(); return;
+    }
+    if (m.httpStatus === 404 && failed && current?.name === failed.model) {
+      if (pending) { drainPending(); return; }
+      const edited = typeof failed.payload.source === 'string';
+      const oldPath = edited ? failed.editSourcesPath : failed.sourcesPath;
+      const selection = failed.selection;
+      const stillCurrent = () => (
+        sourceSelection === selection && current?.name === failed.model
+        && reqId === failed.id && activeJob === null
+      );
+      setVStatus('refreshing model sources…');
+      refreshPublishedSources(failed.model, oldPath, edited, stillCurrent).then((updated) => {
+        if (!stillCurrent()) return;
+        if (updated) sendJob(failed);
+        else {
+          setVStatus('live rebuild failed — source asset missing (see log)', true);
+          drainPending();
+        }
+      }).catch((error) => {
+        if (!stillCurrent()) return;
+        setVStatus('live rebuild failed — source update failed (see log)', true);
+        log('ERROR: ' + error);
+        drainPending();
+      });
+      return;
+    }
+    setVStatus('live rebuild failed — showing prebuilt model (see log)', true);
     if (m.id === undefined) { runtimeState = 'error'; setRuntimePill(); }
     drainPending();
   }
@@ -810,19 +931,24 @@ function drainPending() {
   if (pending && !busy) { const p = pending; pending = null; sendJob(p); }
 }
 function sendJob(job) {
-  if (!job || !current) return;
+  if (!job || !current || job.model !== current.name) return;
   if (!requestRuntime(job)) return;
   if (runtimeState !== 'ready') { pending = job; return; }
   if (busy) { pending = job; setVStatus('queued — waiting for current build…'); return; }
   busy = true;
+  activeJob = {
+    ...job, id: ++reqId, selection: sourceSelection,
+    sourcesPath: current.sources, editSourcesPath: manifest.editSources,
+  };
   setVStatus(job.payload.source !== undefined
     ? 'running edited code… (build123d is slow, up to ~20 s)'
     : 'building… (build123d is slow, up to ~20 s)');
-  // sourcePath rides along on every job: an edited model has to be written back
-  // to its own file, which for a package or a submodule is not models/<name>.py.
   worker.postMessage({
-    type: 'generate', id: ++reqId, model: job.model,
-    sourcePath: current.source, ...job.payload,
+    type: 'generate', id: activeJob.id, model: job.model,
+    sourcePath: current.source,
+    sourcesUrl: new URL(current.sources, document.baseURI).href,
+    editSourcesUrl: new URL(manifest.editSources, document.baseURI).href,
+    ...job.payload,
   });
 }
 
@@ -1025,13 +1151,22 @@ function showUpdated(iso) {
 function selectModel(name) {
   current = manifest.models.find((x) => x.name === name);
   if (!current) return;
+  sourceSelection++;
+  sourceLoaded = false;
+  clearTimeout(debounce);
+  pending = null;
+  optInJob = null;
+  el.btnRun.disabled = true;
+  el.cmLoading.hidden = true;
+  el.cm.style.pointerEvents = 'none';
   renderPicker();
   showUpdated(current.updated);
   firstFrameForModel = true;
   editorDirty = false; el.editDirty.textContent = ''; el.btnRevert.disabled = true;
   el.params.classList.remove('disabled');
   el.editFile.textContent = current.source;
-  setEditorText(sources[current.source] || '# source unavailable');
+  setEditorText('');
+  if (document.body.classList.contains('code-open')) loadEditorSource();
   buildForm(current.params || []);
   if (document.body.classList.contains('about-open')) loadDocumentation();
   lastStl = null; lastGlb = null; lastStep = null;
@@ -1070,7 +1205,8 @@ el.btnRun.addEventListener('click', () => {
   sendJob({ model: current.name, payload: { source: currentSource() } });
 });
 el.btnRevert.addEventListener('click', () => {
-  setEditorText(sources[current.source] || '');
+  if (!sourceLoaded) return;
+  setEditorText(sources[current.source]);
   markDirty();
   scheduleRegen();
 });
@@ -1099,10 +1235,9 @@ el.btnStep.addEventListener('click', async () => {
 setRuntimePill();
 (async function boot() {
   try {
-    [manifest, sources] = await Promise.all([
-      fetch('models-manifest.json').then((r) => r.json()),
-      fetch('py-sources.json').then((r) => r.json()),
-    ]);
+    const response = await fetch('models-manifest.json');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    manifest = await response.json();
   } catch (e) {
     setVStatus('failed to load model manifest: ' + e, true); return;
   }
@@ -1114,7 +1249,7 @@ setRuntimePill();
   const wanted = new URL(location).searchParams.get('model');
   const start = manifest.models.find((x) => x.name === wanted) ? wanted : manifest.models[0].name;
   selectModel(start);
-  el.btnRun.disabled = false;
+  // Code can run only after its selected source has loaded on demand.
   // A visitor who has opted in before shouldn't have to ask twice.
   let remembered = null;
   try { remembered = localStorage.getItem(LS_RUNTIME); } catch { /* private mode */ }

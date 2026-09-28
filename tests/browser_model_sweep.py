@@ -60,12 +60,6 @@ def main() -> int:
             + 1
         ]
     selected = [item["name"] for item in manifest]
-    sources = website._py_sources()
-    for item in manifest:
-        if item["source"] not in sources:
-            raise ValueError(
-                f"missing bundled source for {item['name']}: {item['source']}"
-            )
 
     results: dict[str, dict] = {}
 
@@ -84,7 +78,8 @@ def main() -> int:
         (root / "browser-wheels" / wheel).write_bytes(
             (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
         )
-        (root / "py-sources.json").write_text(json.dumps(sources))
+        assets = {"models": manifest}
+        website._write_source_assets(assets, root)
         (root / "index.html").write_text(
             "<!doctype html><title>Browser model sweep</title>"
         )
@@ -103,13 +98,13 @@ def main() -> int:
                         )
                         page.expose_function("reportSweep", report)
                         page.evaluate(
-                            """async ({models, bootTimeout, modelTimeout}) => {
+                            """async ({models, editSources, bootTimeout, modelTimeout}) => {
                                 let worker = null;
                                 let pending = null;
                                 let bootWait = null;
                                 let lastStatus = 'loading worker script';
                                 let logs = [];
-                                const sourcesUrl = new URL('./py-sources.json', document.baseURI).href;
+                                const editSourcesUrl = new URL(editSources, document.baseURI).href;
 
                                 function stopWorker(reason) {
                                     if (worker) worker.terminate();
@@ -154,7 +149,8 @@ def main() -> int:
                                                 done(data);
                                             }
                                         };
-                                        worker.postMessage({type: 'init', sourcesUrl});
+                                        worker.postMessage({type: 'init',
+                                            baseUrl: new URL('./', document.baseURI).href});
                                     });
                                 }
                                 async function generate(item, id) {
@@ -163,7 +159,9 @@ def main() -> int:
                                             stopWorker('build timed out at: ' + item.name), modelTimeout);
                                         pending = (data) => { clearTimeout(timer); resolve(data); };
                                         worker.postMessage({type: 'generate', id,
-                                            model: item.name, sourcePath: item.source, params: {}});
+                                            model: item.name, sourcePath: item.source,
+                                            sourcesUrl: new URL(item.sources, document.baseURI).href,
+                                            editSourcesUrl, params: {}});
                                     });
                                 }
                                 function stlTriangles(buffer) {
@@ -240,10 +238,12 @@ def main() -> int:
                                     {
                                         "name": item["name"],
                                         "source": item["source"],
+                                        "sources": item["sources"],
                                         "assembly": item["assembly"],
                                     }
                                     for item in manifest
                                 ],
+                                "editSources": assets["editSources"],
                                 "bootTimeout": args.boot_timeout_ms,
                                 "modelTimeout": args.model_timeout_ms,
                             },

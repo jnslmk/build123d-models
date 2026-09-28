@@ -1,21 +1,23 @@
 """Static dev server + web-bundle builder for the Pyodide site.
 
 The site is fully static: geometry is generated in the browser (Pyodide + build123d
-+ OpenCASCADE WASM), so there is no server API. This module just (a) builds the two
-generated assets the page fetches and (b) serves ``website/`` for local preview.
++ OpenCASCADE WASM), so there is no server API. This module builds static assets
+and serves ``website/`` for local preview.
 
 ``build_web_bundle()`` is the single function both this dev server and CI call, so
 the local preview matches GitHub Pages exactly. It writes:
 
   * ``website/models-manifest.json`` -- per-model label, PARAMS schema, asset paths,
-                                        last-edited timestamp.
-  * ``website/py-sources.json``       -- source text of every ``models/*.py`` so the
-                                          worker can import them in the Pyodide FS.
+                                        last-edited timestamp, source asset URLs.
+  * ``website/model-sources/``        -- content-versioned import closures for
+                                        parameter rebuilds and a full-tree asset
+                                        for arbitrary edited Python imports.
 
-and copies the CI-rendered ``exports/<name>.stl|.step|.png`` into ``website/exports/``.
+It also copies CI-rendered ``exports/<name>.stl|.step|.png`` to ``website/exports/``.
 """
 
 import functools
+import hashlib
 import http.server
 import json
 import re
@@ -37,41 +39,51 @@ WEBSITE_EXPORTS = WEBSITE_DIR / "exports"
 
 
 def _py_sources() -> dict[str, str]:
-    """Source text the in-browser runtime needs to ``import models.<name>``.
-
-    The whole ``models`` tree is bundled -- single-file models, packages like
-    ``led_psu_enclosure``, and the shared ``models.lib`` helpers they import --
-    but nothing outside it: no ``create()`` path pulls in ``export.py``,
-    ``fontfix.py`` or ``tessellate_models.py`` (which would drag in ocp_vscode /
-    ocp_tessellate that don't exist in Pyodide).
-    """
+    """All model sources, used only for edited code that may import any model."""
     return {
         str(py.relative_to(HERE)): py.read_text()
         for py in sorted(MODELS_DIR.rglob("*.py"))
     }
 
 
+def _write_source_assets(manifest: dict, output_dir: Path) -> None:
+    """Attach immutable URLs and write each model's static import closure.
+
+    The all-model asset is only requested when running edited Python, whose
+    imports cannot be inferred from the original source. Parameter builds need
+    just their own closure, including every ancestor package initializer.
+    """
+    models = [item for item in manifest["models"] if "name" in item]
+    if not models:
+        return
+    # A watch rebuild runs in this same process; newly added/removed imports
+    # must not reuse model_deps.model_files' cached graph from the last build.
+    model_files.cache_clear()
+    sources = _py_sources()
+    asset_dir = output_dir / "model-sources"
+    asset_dir.mkdir(parents=True, exist_ok=True)
+
+    def emit(name: str, files: dict[str, str]) -> str:
+        data = json.dumps(files, ensure_ascii=False, separators=(",", ":")).encode()
+        digest = hashlib.sha256(data).hexdigest()[:16]
+        path = f"model-sources/{name}.{digest}.json"
+        (output_dir / path).write_bytes(data)
+        return path
+
+    for item in models:
+        paths = [
+            path.relative_to(HERE).as_posix() for path in model_files(item["name"])
+        ]
+        item["sources"] = emit(item["name"], {path: sources[path] for path in paths})
+    manifest["editSources"] = emit("all", sources)
+
+
 def _source_path(name: str) -> str:
     """Where a model's own source lives, relative to the repo root.
 
-    A model name is a module path under ``models`` (``tessellate_models.MODELS``),
-    so the dots become directories: ``led_profiles.stand`` is
-    ``models/led_profiles/stand.py``. A package's own name resolves to its
-    ``__init__.py`` -- ``models/led_psu_enclosure.py`` has not existed since that
-    model became a package, and the page's Code panel has been showing "source
-    unavailable" for it ever since, because this is the key it looks up in
-    ``py-sources.json``.
-
-    Raises on a name that resolves to neither. This used to fall back to the
-    flat ``models/<name>.py`` so that a typo in the roster surfaced as an empty
-    editor rather than an exception, and that was the right trade only while
-    nothing else caught the typo: the fallback bought a bundle that still built,
-    at the price of a model whose Code panel silently said "source unavailable"
-    with nothing anywhere explaining why. ``tests/test_model_registry.py`` now
-    fails on an unresolvable roster name, so the typo is caught before a build
-    is ever attempted and the silence buys nothing -- it only delays the same
-    problem to a place where it reads as a website bug instead of a bad entry
-    in ``MODELS``.
+    Dots in the model name become directories. A package's source lives in its
+    ``__init__.py``; ordinary modules live in their own ``.py`` files.
+    Raises on a name that resolves to neither, rather than serving an empty editor.
     """
     flat = MODELS_DIR / f"{name.replace('.', '/')}.py"
     if flat.exists():
@@ -327,7 +339,8 @@ def build_web_bundle() -> None:
     """Emit metadata, source files, documentation, and render assets for the site."""
     WEBSITE_EXPORTS.mkdir(parents=True, exist_ok=True)
     manifest = _manifest()
-    (WEBSITE_DIR / "py-sources.json").write_text(json.dumps(_py_sources()))
+    _write_source_assets(manifest, WEBSITE_DIR)
+    (WEBSITE_DIR / "py-sources.json").unlink(missing_ok=True)
     (WEBSITE_DIR / "models-manifest.json").write_text(json.dumps(manifest, indent=2))
     copied_docs = _copy_documentation(
         {HERE / model["documentation"] for model in manifest["models"]}

@@ -20,12 +20,14 @@ import website
 
 EDITED_SOURCE = """\
 from build123d import Box, detect_primitives
+from models.led_profiles import config as profile
 from importlib.metadata import version
 from sklearn.cluster import DBSCAN
 
 
 def create():
     assert version('build123d') == '0.11.1'
+    assert profile.WIDTH == 26.1
     assert DBSCAN.__module__ == 'sklearn.cluster._dbscan'
     assert list(DBSCAN(eps=1, min_samples=2).fit([[0], [0.5], [10]]).labels_) == [0, 0, -1]
     part = Box(10, 10, 10)
@@ -48,7 +50,13 @@ class BrowserLazyDependency(unittest.TestCase):
             (root / "browser-wheels" / wheel).write_bytes(
                 (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
             )
-            (root / "py-sources.json").write_text(json.dumps(website._py_sources()))
+            assets = {
+                "models": [
+                    {"name": "lens_cap", "source": "models/lens_cap/__init__.py"}
+                ]
+            }
+            website._write_source_assets(assets, root)
+            (root / "models-manifest.json").write_text(json.dumps(assets))
             (root / "index.html").write_text(
                 "<!doctype html><title>Browser CAD</title>"
             )
@@ -79,6 +87,9 @@ class BrowserLazyDependency(unittest.TestCase):
                             result = page.evaluate(
                                 """async (source) => {
                                     const worker = new Worker('./js/pyodide-worker.js');
+                                    const assets = await (await fetch('models-manifest.json')).json();
+                                    const sourcesUrl = new URL(assets.models[0].sources, document.baseURI).href;
+                                    const editSourcesUrl = new URL(assets.editSources, document.baseURI).href;
                                     let status = 'loading worker';
                                     let next = null;
                                     try {
@@ -106,7 +117,7 @@ class BrowserLazyDependency(unittest.TestCase):
                                                 }
                                             };
                                             worker.postMessage({type: 'init',
-                                                sourcesUrl: new URL('./py-sources.json', document.baseURI).href});
+                                                baseUrl: new URL('./', document.baseURI).href});
                                         });
                                         const generate = (id, edit) => new Promise((resolve, reject) => {
                                             const timer = setTimeout(() =>
@@ -118,6 +129,7 @@ class BrowserLazyDependency(unittest.TestCase):
                                             worker.postMessage({type: 'generate', id,
                                                 model: 'lens_cap',
                                                 sourcePath: 'models/lens_cap/__init__.py',
+                                                sourcesUrl, editSourcesUrl,
                                                 ...(edit ? {source} : {params: {}})});
                                         });
                                         const first = await generate(1, false);

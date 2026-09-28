@@ -203,7 +203,7 @@ class NetworkTrace:
         ]
 
 
-RUN_WORKER = """async ({diameter, timeoutMs}) => {
+RUN_WORKER = """async ({diameter, sources, editSources, timeoutMs}) => {
     const started = Date.now();
     const worker = new Worker('./js/pyodide-worker.js');
     const events = [{atUnixMs: started, phase: 'worker-created'}];
@@ -225,6 +225,8 @@ RUN_WORKER = """async ({diameter, timeoutMs}) => {
                     events.push({atUnixMs: Date.now(), phase: 'ready'});
                     worker.postMessage({type: 'generate', id: 1,
                         model: 'lens_cap', sourcePath: 'models/lens_cap/__init__.py',
+                        sourcesUrl: new URL(sources, document.baseURI).href,
+                        editSourcesUrl: new URL(editSources, document.baseURI).href,
                         params: {inner_dia: diameter}});
                 } else if (data.type === 'result') {
                     if (data.id !== 1 || data.model !== 'lens_cap' || data.cached ||
@@ -257,7 +259,7 @@ RUN_WORKER = """async ({diameter, timeoutMs}) => {
                 }
             };
             worker.postMessage({type: 'init',
-                sourcesUrl: new URL('./py-sources.json', document.baseURI).href});
+                baseUrl: new URL('./', document.baseURI).href});
         });
     } finally {
         clearTimeout(timer);
@@ -326,7 +328,10 @@ def main() -> int:
         (site / "browser-wheels" / wheel).write_bytes(
             (website.WEBSITE_DIR / "browser-wheels" / wheel).read_bytes()
         )
-        (site / "py-sources.json").write_text(json.dumps(website._py_sources()))
+        assets = {
+            "models": [{"name": "lens_cap", "source": "models/lens_cap/__init__.py"}]
+        }
+        website._write_source_assets(assets, site)
         (site / "index.html").write_text(
             "<!doctype html><title>Browser cache trace</title>"
         )
@@ -352,7 +357,12 @@ def main() -> int:
                             trace.phase = phase
                             result = page.evaluate(
                                 RUN_WORKER,
-                                {"diameter": diameter, "timeoutMs": args.timeout_ms},
+                                {
+                                    "diameter": diameter,
+                                    "timeoutMs": args.timeout_ms,
+                                    "sources": assets["models"][0]["sources"],
+                                    "editSources": assets["editSources"],
+                                },
                             )
                             if not math.isclose(
                                 result["widthMm"], diameter + 2.4, abs_tol=0.2

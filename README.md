@@ -117,13 +117,26 @@ how a model gets registered, and the places the tree still deviates — is in
 [AGENTS.md](AGENTS.md#model-structure).
 
 The site's optional live rebuilds run in a Pyodide worker, not in the CI export
-environment. Renovate tracks the worker's Pyodide runtime and its build123d
-pin separately from `pyproject.toml`; the other browser Python installs float
-within their declared constraints. The build123d pin is tied to the available
-OCCT WASM wheel, so a Renovate PR is a compatibility proposal, not an automatic
-upgrade: verify runtime boot **and** a parameter rebuild in the browser before
-merging. The page passes the worker an absolute `py-sources.json` URL so it also
-works under the Pages project path.
+environment. Browsing the manifest and prebuilt previews does not fetch Python
+source; opening Code fetches the selected model's versioned source asset.
+Parameter rebuilds load only its statically resolved import closure (including
+package initializers). Running edited Python instead loads the full model tree,
+since new imports cannot be inferred from the published source. Local gzip
+estimates for the current 92-model roster: the full source asset is ~556 KB,
+the median model closure ~65 KB (about 88% less), and lens_cap ~19 KB (about
+97% less). These are compressed file sizes, not measured network timings.
+
+If a deploy removes an older hashed asset while a tab stays open, a missing
+source triggers a fresh manifest lookup and retries with the published URL;
+other HTTP failures stay visible in the Code panel or runtime log.
+
+Renovate tracks the worker's Pyodide runtime and its build123d pin separately
+from `pyproject.toml`; the other browser Python installs float within their
+declared constraints. The build123d pin is tied to the available OCCT WASM
+wheel, so a Renovate PR is a compatibility proposal, not an automatic upgrade:
+verify runtime boot **and** a parameter rebuild in the browser before merging.
+The page passes absolute source asset and site-base URLs to the worker so it
+also works under the Pages project path.
 
 ## CI/CD
 

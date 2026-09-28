@@ -14,23 +14,21 @@
 //                   cadMs, wallMs, cached}
 //   {type:"error", id?, message}
 // Protocol (main -> worker):
-//   {type:"init", sourcesUrl}                            // absolute manifest URL from page
-//   {type:"generate", id, model, sourcePath, params}     // param build (cacheable)
-//   {type:"generate", id, model, sourcePath, source}     // live code edit, never cached
+//   {type:"init", baseUrl}                                      // absolute site URL
+//   {type:"generate", id, model, sourcePath, sourcesUrl, editSourcesUrl, params}
+//   {type:"generate", id, model, sourcePath, sourcesUrl, editSourcesUrl, source}
 //
-// `model` is a module path under `models` (`led_profiles.stand`), and
-// `sourcePath` is where that module's file actually lives -- the manifest's own
-// `source` key. An edit has to be written back to that file, not to
-// `models/<model>.py`: a package's code is in its `__init__.py` and a
-// submodule's is a directory down, so writing the flat path would leave a stray
-// file and re-import the unedited module.
+// The edited file is at the manifest's `source` path, which may be a package
+// __init__.py. Source assets are versioned URLs from the manifest.
 
 importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.0a3/full/pyodide.js");
 
 let pyodide = null;
-const cache = new Map(); // JSON({model,params}) -> {stl:Uint8Array, glb:Uint8Array|null}
-let resolveSourcesUrl;
-const sourcesUrl = new Promise((resolve) => { resolveSourcesUrl = resolve; });
+const cache = new Map(); // JSON({model,params,sourcesUrl}) -> generated mesh buffers
+let resolveBaseUrl;
+const baseUrl = new Promise((resolve) => { resolveBaseUrl = resolve; });
+const sourceAssets = new Map(); // asset URL -> Promise of source dictionary
+const writtenSources = new Map(); // Python FS path -> most recently written text
 
 const status = (text) => self.postMessage({ type: "status", text });
 const log = (text) => self.postMessage({ type: "log", text });
@@ -76,10 +74,9 @@ import build123d
 print("build123d", build123d.__version__, "ready")
 `;
 
-// Build one model. SOURCE is the edited text for a live code edit, or None for a
-// plain parameter build. On a source edit we purge EVERY models.* module (not
-// just the edited one) because models import each other -- a stale dependency in
-// sys.modules would silently run old code and yield wrong geometry.
+// Build one model. RELOAD is true whenever a source file on the Python FS
+// changed (or code was explicitly run). Purge all models.* modules because
+// models import each other; otherwise an import can silently reuse old code.
 const DRIVER = `
 import json, time, importlib, sys
 from build123d import Color, Compound, export_stl, export_step, export_gltf
@@ -94,10 +91,8 @@ def _apply_default_colors(part):
         if leaf.color is None:
             leaf.color = _DEFAULT_COLOR
 
-def _run(model, params_json, source, source_path):
-    if source is not None:
-        with open("/" + source_path, "w") as f:
-            f.write(source)
+def _run(model, params_json, reload):
+    if reload:
         for k in [k for k in sys.modules if k == "models" or k.startswith("models.")]:
             del sys.modules[k]
         importlib.invalidate_caches()
@@ -125,7 +120,7 @@ def _run(model, params_json, source, source_path):
         print("step export skipped:", exc)
     return json.dumps({"cadMs": cad_ms, "glb": have_glb, "step": have_step})
 
-_run(MODEL, PARAMS_JSON, SOURCE, SOURCE_PATH)
+_run(MODEL, PARAMS_JSON, RELOAD)
 `;
 
 async function boot() {
@@ -133,46 +128,69 @@ async function boot() {
   pyodide = await loadPyodide({ stdout: log, stderr: log });
   status("Installing numpy / micropip…");
   await pyodide.loadPackage(["micropip", "numpy", "typing-extensions"]);
-  // Use the manifest URL, not the worker URL: workers can be loaded from blobs.
+  // Workers may be created from blobs; resolve relative to the page's site URL.
   pyodide.globals.set(
     "BUILD123D_WHEEL_URL",
-    new URL("browser-wheels/build123d-0.11.1-py3-none-any.whl", await sourcesUrl).href
+    new URL("browser-wheels/build123d-0.11.1-py3-none-any.whl", await baseUrl).href
   );
   status("Downloading build123d + OpenCASCADE WASM (~40 MB, cached after)…");
   await pyodide.runPythonAsync(SETUP);
 
-  status("Loading model sources…");
-  // The page supplies the URL: workers can be loaded through a blob URL, whose
-  // path cannot resolve a project-relative asset (notably under GitHub Pages).
-  const sources = await (await fetch(await sourcesUrl)).json();
   pyodide.FS.mkdirTree("/models");
-  for (const [path, text] of Object.entries(sources)) {
-    // path is like "models/lens_cap.py"; write it at the FS root so "import models.x" works
-    const full = "/" + path;
-    const dir = full.slice(0, full.lastIndexOf("/"));
-    pyodide.FS.mkdirTree(dir);
-    pyodide.FS.writeFile(full, text);
-  }
   pyodide.runPython("import sys; sys.path.insert(0, '/')");
 
   log("runtime ready ✔");
   self.postMessage({ type: "ready" });
 }
 
-const bootPromise = boot().catch((e) =>
-  self.postMessage({ type: "error", message: "boot: " + (e.message || e) })
-);
+let bootFailed = false;
+const bootPromise = boot().catch((e) => {
+  bootFailed = true;
+  self.postMessage({ type: "error", message: "boot: " + (e.message || e) });
+});
+
+async function loadSources(url) {
+  if (!sourceAssets.has(url)) {
+    const request = (async () => {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const error = new Error(`source asset ${url}: HTTP ${response.status}`);
+        error.httpStatus = response.status;
+        throw error;
+      }
+      return response.json();
+    })();
+    sourceAssets.set(url, request);
+    request.catch(() => sourceAssets.delete(url));
+  }
+  return sourceAssets.get(url);
+}
+
+function writeSources(sources, path, editedSource) {
+  if (typeof sources[path] !== "string") throw new Error(`source asset missing ${path}`);
+  let changed = editedSource !== null;
+  for (const [file, original] of Object.entries(sources)) {
+    const text = editedSource !== null && file === path ? editedSource : original;
+    if (writtenSources.get(file) === text) continue;
+    const full = "/" + file;
+    pyodide.FS.mkdirTree(full.slice(0, full.lastIndexOf("/")));
+    pyodide.FS.writeFile(full, text);
+    writtenSources.set(file, text);
+    changed = true;
+  }
+  return changed;
+}
 
 self.onmessage = async (ev) => {
   const msg = ev.data;
-  if (msg.type === "init") { resolveSourcesUrl(msg.sourcesUrl); return; }
+  if (msg.type === "init") { resolveBaseUrl(msg.baseUrl); return; }
   if (msg.type !== "generate") return;
   await bootPromise;
-  if (!pyodide) return;
+  if (bootFailed) return;
 
   const isEdit = typeof msg.source === "string";
   const params = msg.params || {};
-  const key = JSON.stringify({ model: msg.model, params });
+  const key = JSON.stringify({ model: msg.model, params, sourcesUrl: msg.sourcesUrl });
 
   // Cache hit (param builds only) — hand back a fresh copy so the cached buffer
   // survives the transfer.
@@ -190,7 +208,6 @@ self.onmessage = async (ev) => {
     return;
   }
 
-
   try {
     // Live edits may invoke any build123d API, including detect_primitives.
     // Install the real Pyodide scikit-learn package before importing edited code;
@@ -199,15 +216,12 @@ self.onmessage = async (ev) => {
       status("Installing scikit-learn for edited source…");
       await pyodide.loadPackage("scikit-learn");
     }
+    status("Loading model sources…");
+    const sources = await loadSources(isEdit ? msg.editSourcesUrl : msg.sourcesUrl);
+    const reload = writeSources(sources, msg.sourcePath, isEdit ? msg.source : null);
     pyodide.globals.set("MODEL", msg.model);
     pyodide.globals.set("PARAMS_JSON", isEdit ? "" : JSON.stringify(params));
-    pyodide.globals.set("SOURCE", isEdit ? msg.source : null);
-    // Fall back to the flat path only for a message that predates sourcePath;
-    // every model the manifest describes carries its own.
-    pyodide.globals.set(
-      "SOURCE_PATH",
-      msg.sourcePath || "models/" + msg.model + ".py"
-    );
+    pyodide.globals.set("RELOAD", reload);
 
     const t0 = performance.now();
     const metaJson = await pyodide.runPythonAsync(DRIVER);
@@ -237,6 +251,9 @@ self.onmessage = async (ev) => {
       transfer
     );
   } catch (e) {
-    self.postMessage({ type: "error", id: msg.id, message: e.message || String(e) });
+    self.postMessage({
+      type: "error", id: msg.id, message: e.message || String(e),
+      httpStatus: e.httpStatus || null,
+    });
   }
 };
