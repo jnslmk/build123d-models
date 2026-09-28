@@ -54,6 +54,9 @@ discs go on the bed chamfered-face-up. The clips stand on their lower jaw; the
 only overhang on the whole model is the 3.8 mm ledge under a clip's upper jaw,
 which is inside what any printer bridges unsupported.
 
+The clip's exposed arc ends have small bevels on the jaws and release tab;
+the tooth's locking face stays square so the detent cannot pull back out.
+
 Suggested settings: 0.2 mm layers, 3 perimeters, 20% infill. The clip's detent
 arm is 1.8 mm thick — four perimeters at a 0.4 mm nozzle — so it comes out
 solid whatever the infill is.

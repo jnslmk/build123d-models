@@ -137,6 +137,13 @@ itself as OCC silently refusing a chamfer rather than as anything visible:
   hard `StdFail_NotDone` that aborts the sketch, so `_profile` rebuilds a rung
   down rather than trusting one radius.
 
+The browser's OCCT build can leave a roughly 4-nanometre edge where the cable
+notch meets an arm. Its arc-length sampler cannot evaluate that edge; the route
+selectors exclude edges shorter than 0.0000001 mm before sampling. This does
+not remove a printable edge treatment: the threshold is below the selectors'
+own 0.000001 mm plane tolerance, and the native physical gate still checks all
+named treatments and convex edges.
+
 Each is now a derived bound with a named constant (`CHANNEL_OVERCUT`,
 `JUNCTION_STEP`, `CORNER_CLEAR`, `RIM_KEEPOUT`) rather than a number that
 happened to work at the defaults. If you add a feature cut in from the tape

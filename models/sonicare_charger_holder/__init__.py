@@ -446,6 +446,12 @@ def _chamfer_rim_outer(builder: BuildPart, h: Holder) -> bool:
     return chamfer_edge(builder, _outer_at(builder, h.body_h, h), h.rim_chamfer)
 
 
+# OCC/WASM can leave a sub-tolerance sliver where the notch meets an arm.
+# Arc-length sampling it raises Standard_ConstructionError. Such an edge is
+# below the 1e-6 mm plane predicates and cannot carry a printable edge break.
+MIN_SAMPLE_EDGE = 1e-7
+
+
 def _route_edges(builder: BuildPart, h: Holder, where):
     """Cable-route edges matching ``where``, selected by geometry alone.
 
@@ -459,6 +465,8 @@ def _route_edges(builder: BuildPart, h: Holder, where):
     front = h.back_y - h.channel_depth - 0.05
 
     def selected(edge: Edge) -> bool:
+        if edge.length < MIN_SAMPLE_EDGE:
+            return False
         pts = [edge.position_at(t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)]
         if not all(abs(pt.X) <= half and pt.Y >= front for pt in pts):
             return False
@@ -485,6 +493,8 @@ def _feature_edges(builder: BuildPart, h: Holder, where):
     """
 
     def selected(edge: Edge) -> bool:
+        if edge.length < MIN_SAMPLE_EDGE:
+            return False
         return where([edge.position_at(t) for t in (0.0, 0.25, 0.5, 0.75, 1.0)], h)
 
     return builder.edges().filter_by(selected)  # ty: ignore[invalid-argument-type]
@@ -515,8 +525,7 @@ def _on_arms(pts, h: Holder) -> bool:
     tape-face mouth all the way up to its crown.
     """
     return all(
-        pt.Z <= h.side_w + 0.05 and pt.Y >= h.back_y - h.side_depth - 0.05
-        for pt in pts
+        pt.Z <= h.side_w + 0.05 and pt.Y >= h.back_y - h.side_depth - 0.05 for pt in pts
     )
 
 
@@ -547,8 +556,7 @@ def _on_arm_end(pts, h: Holder) -> bool:
     both a better detail and a treatable one.
     """
     return all(
-        abs(abs(pt.X) - h.arm_half) < 1e-6
-        and pt.Z <= h.side_w + h.route_chamfer + 0.05
+        abs(abs(pt.X) - h.arm_half) < 1e-6 and pt.Z <= h.side_w + h.route_chamfer + 0.05
         for pt in pts
     )
 

@@ -51,24 +51,29 @@ printed spring.
 
 from __future__ import annotations
 
-from math import atan2, degrees
+from math import atan2, cos, degrees, radians, sin
 
 from build123d import (
     Axis,
     BuildLine,
     BuildPart,
     BuildSketch,
+    Face,
     Part,
     Plane,
     Polyline,
     Pos,
     Rotation,
+    Vector,
+    Wire,
     add,
+    extrude,
     make_face,
     revolve,
 )
 
-from ..lib.edges import as_part, chamfer_edge, fillet_edge
+from ..lib.checks import solid_probe
+from ..lib.edges import as_part, fillet_edge
 from . import config as cfg
 
 _ARM_MID_R = (cfg.DETENT_INNER_R + cfg.DETENT_OUTER_R) / 2.0
@@ -160,36 +165,71 @@ def _tooth_profile() -> list[tuple[float, float]]:
     ]
 
 
-def _radial_plane_edges(part: Part, planes: list[float]) -> list:
-    """Every edge lying wholly in one of a set of radial planes.
-
-    Everything in this part is a revolve, so every square corner it has that
-    is not already broken in a profile lies in one of six planes: the clip's
-    two ends, the plane the detent arm leaves its root block on, and the two
-    ends of the tooth. Selecting them by geometry rather than by index means
-    the list survives a change to any of those angles.
-    """
+def _radial_plane_edges(part: Part, plane: float) -> list:
+    """Straight profile edges on a radial end face, independent of edge order."""
     out = []
     for edge in part.edges():  # ty: ignore[invalid-argument-type]
         pts = [v.to_tuple() for v in edge.vertices()]
         if len(pts) != 2:
             continue
-        angles = [degrees(atan2(y, x)) for x, y, _ in pts]
-        if any(all(abs(a - t) < 1e-3 for a in angles) for t in planes):
+        if all(abs(degrees(atan2(y, x)) - plane) < 1e-3 for x, y, _ in pts):
             out.append(edge)
     return out
 
 
-def cut_planes() -> list[float]:
-    """The six radial planes that carry the clip's remaining square corners."""
-    half_tooth = cfg.DETENT_TOOTH_ARC / 2.0
-    return [
-        cfg.CLIP_WRAP / 2.0,
-        -cfg.CLIP_WRAP / 2.0,
-        ARM_ROOT_ANGLE,
-        TOOTH_ANGLE - half_tooth,
-        TOOTH_ANGLE + half_tooth,
-    ]
+def _end_break_tools(part: Part) -> list[Part]:
+    """Cut 0.2 mm bevels at the exposed radial ends without OCC edge chamfers.
+
+    Each tool is a triangular prism along a straight end-profile edge. In its
+    normal section, the material side of the radial face is removed wherever
+    (distance inward from the profile + distance inward from the end) < 0.2.
+    The stock outside those two faces is enlarged so the boolean has no
+    coincident cutting surfaces. The detent tooth's catch and the narrow arm
+    root slot are *not* end faces; their square edges remain intentional.
+    """
+    inside = solid_probe(part)
+    tools: list[Part] = []
+    for plane in (-cfg.CLIP_WRAP / 2.0, cfg.CLIP_WRAP / 2.0):
+        angle = radians(plane)
+        radial = Vector(cos(angle), sin(angle), 0.0)
+        into_end = Vector(-sin(angle), cos(angle), 0.0) * (1 if plane < 0 else -1)
+        for edge in _radial_plane_edges(part, plane):
+            # The short upper-jaw nose and 45-degree profile breaks are
+            # already eased; beveling their sub-0.3 mm facets would erase them.
+            if edge.length < 0.3:
+                continue
+            start, finish = (
+                Vector(vertex.X, vertex.Y, vertex.Z) for vertex in edge.vertices()
+            )
+            along = (finish - start).normalized()
+            normal = Vector(
+                -along.Z * radial.X,
+                -along.Z * radial.Y,
+                along.X * radial.X + along.Y * radial.Y,
+            )
+            midpoint = (start + finish) * 0.5 + into_end * 0.3
+            left = inside(midpoint + normal * 0.1)
+            right = inside(midpoint - normal * 0.1)
+            if left == right:
+                left = inside(midpoint + normal * 0.3)
+                right = inside(midpoint - normal * 0.3)
+            if left == right:
+                # The two long outer vertical edges have already been rounded
+                # by the end fillet, so they no longer bound a sharp corner.
+                if abs(along.Z) > 0.9 and edge.length > 5.0:
+                    continue
+                raise ValueError(f"cannot determine material side of {edge}")
+            inward = normal if left else -normal
+            base = start - along * 0.005
+            triangle = Wire.make_polygon(
+                [
+                    base - inward * 0.5 - into_end * 0.5,
+                    base + inward * 0.7 - into_end * 0.5,
+                    base - inward * 0.5 + into_end * 0.7,
+                ]
+            )
+            tools.append(extrude(Face(triangle), amount=edge.length + 0.01, dir=along))
+    return tools
 
 
 def build() -> Part:
@@ -251,24 +291,17 @@ def build() -> Part:
             if fillet_edge(clip, ends, radius):
                 break
 
-        # Everything left is a raw 90 degree corner in one of the five radial
-        # planes this part is cut on. Broken as a group, isolated, because a
-        # chamfer that will not take on one of them must not silently kill the
-        # rest (`build123d-geometry-ops`).
-        # One plane at a time, each on its own size ladder: an edge that will
-        # not take 0.4 mm on the tooth must not cost the spine its chamfer.
-        for plane in cut_planes():
-            edges = _radial_plane_edges(clip.part, [plane])
-            for size in (cfg.CLIP_EDGE_CHAMFER / 2.0, 0.3, 0.2):
-                if chamfer_edge(clip, edges, size):
-                    break
-    return clip.part
+    # The full end profiles carry the small radial-face bevels. OCC's grouped
+    # chamfers repeatedly refused the tooth and arm-root planes on native and
+    # hung inside the fourth group in browser WASM. The tooth flanks must stay
+    # square for the captive catch; the root slot must not widen. Bevel only
+    # the two hand-facing ends with subtractive tools built from their outline.
+    part = clip.part
+    return as_part(part.cut(*_end_break_tools(part)))
 
 
 def create() -> Part:
     """One clip, in print pose: lower jaw on `z = 0`, centred over the origin."""
     part = build()
     box = part.bounding_box()
-    return as_part(
-        Pos(-box.center().X, -box.center().Y, -box.min.Z) * part
-    )
+    return as_part(Pos(-box.center().X, -box.center().Y, -box.min.Z) * part)

@@ -82,7 +82,9 @@ def _plate(r: Report, base: Part) -> None:
     )
     r.check(
         at(base, 40.0, spoke + degrees(asin(cfg.SPOKE_HALF_W / 40.0)) - 0.8, 1.0)
-        and not at(base, 40.0, spoke + degrees(asin(cfg.SPOKE_HALF_W / 40.0)) + 0.8, 1.0),
+        and not at(
+            base, 40.0, spoke + degrees(asin(cfg.SPOKE_HALF_W / 40.0)) + 0.8, 1.0
+        ),
         "the same 10 mm width holds at r=40 -- the spokes are bars, not wedges",
     )
     r.check(
@@ -173,7 +175,12 @@ def _bayonet(r: Report, base: Part, cover: Part) -> None:
         "the cone between them fills from the bottom up, as a cone must",
     )
     r.check(
-        at(base, cfg.HUB_RIB_R - 0.2, rib, cfg.FLARE_BOTTOM_Z + cfg.BAYONET_FLARE_H / 2.0),
+        at(
+            base,
+            cfg.HUB_RIB_R - 0.2,
+            rib,
+            cfg.FLARE_BOTTOM_Z + cfg.BAYONET_FLARE_H / 2.0,
+        ),
         "the flare comes back to HUB_RIB_R above the cone",
     )
     r.check(
@@ -182,18 +189,30 @@ def _bayonet(r: Report, base: Part, cover: Part) -> None:
         "and there is no flare between the ribs -- it is four lugs, not a ring",
     )
     r.check(
-        not at(base, cfg.HUB_RIB_R - 0.3, rib + cfg.HUB_RIB_ARC / 2.0 - 0.3, cfg.COVER_Z - 0.1),
+        not at(
+            base,
+            cfg.HUB_RIB_R - 0.3,
+            rib + cfg.HUB_RIB_ARC / 2.0 - 0.3,
+            cfg.COVER_Z - 0.1,
+        ),
         "the rib's top trailing corner is cut back -- the twist's lead-in",
     )
     r.check(
-        at(base, cfg.HUB_RIB_R - 0.3, rib + cfg.HUB_RIB_ARC / 2.0 - 0.3, cfg.COVER_Z - cfg.RIB_LEAD_H - 0.2),
+        at(
+            base,
+            cfg.HUB_RIB_R - 0.3,
+            rib + cfg.HUB_RIB_ARC / 2.0 - 0.3,
+            cfg.COVER_Z - cfg.RIB_LEAD_H - 0.2,
+        ),
         "and only near the top: the rib below the lead-in is full width",
     )
 
     # -- the cover's side: lip, tab, pocket --
     r.check(
         at(cover, cfg.COVER_LIP_R + 0.2, cfg.LOCK_PHASE, cfg.BAYONET_LIP_H / 2.0)
-        and not at(cover, cfg.COVER_LIP_R - 0.2, cfg.LOCK_PHASE, cfg.BAYONET_LIP_H / 2.0),
+        and not at(
+            cover, cfg.COVER_LIP_R - 0.2, cfg.LOCK_PHASE, cfg.BAYONET_LIP_H / 2.0
+        ),
         f"the locking sector's bore is COVER_LIP_R = {cfg.COVER_LIP_R} at the bed face",
     )
     r.check(
@@ -207,19 +226,25 @@ def _bayonet(r: Report, base: Part, cover: Part) -> None:
         "a tab is at lip radius over the whole thickness -- that is the stop",
     )
     r.check(
-        not at(cover, cfg.COVER_RELIEF_R - 0.2, cfg.POCKET_PHASE, cfg.BAYONET_LIP_H / 2.0)
-        and not at(cover, cfg.COVER_RELIEF_R - 0.2, cfg.POCKET_PHASE, cfg.PLATE_T - 0.15),
+        not at(
+            cover, cfg.COVER_RELIEF_R - 0.2, cfg.POCKET_PHASE, cfg.BAYONET_LIP_H / 2.0
+        )
+        and not at(
+            cover, cfg.COVER_RELIEF_R - 0.2, cfg.POCKET_PHASE, cfg.PLATE_T - 0.15
+        ),
         "a pocket is at relief radius over the whole thickness -- that is the way in",
     )
 
     # -- the arithmetic the whole thing rests on --
     band = cfg.BAYONET_LIP_H + cfg.BAYONET_RAMP_H + cfg.BAYONET_FLARE_H
     r.check(
-        abs(band - cfg.PLATE_T) < 1e-9 and abs(cfg.STACK_H - cfg.COVER_Z - cfg.PLATE_T) < 1e-9,
+        abs(band - cfg.PLATE_T) < 1e-9
+        and abs(cfg.STACK_H - cfg.COVER_Z - cfg.PLATE_T) < 1e-9,
         f"the bayonet band is {band} mm against a {cfg.PLATE_T} mm cover -- it closes",
     )
     r.check(
-        abs(cfg.COVER_LOCK_ARC + cfg.COVER_TAB_ARC + cfg.COVER_POCKET_ARC - 90.0) < 1e-9,
+        abs(cfg.COVER_LOCK_ARC + cfg.COVER_TAB_ARC + cfg.COVER_POCKET_ARC - 90.0)
+        < 1e-9,
         f"lock {cfg.COVER_LOCK_ARC} + tab {cfg.COVER_TAB_ARC} + pocket "
         f"{cfg.COVER_POCKET_ARC} = 90 deg, so the bore repeats four times",
     )
@@ -280,8 +305,7 @@ def _bayonet_motion(r: Report, base: Part, cover: Part) -> None:
     pushed = fouls(placed(0.0, cfg.COVER_Z - 0.5))
     r.check(
         pushed > 0.1,
-        f"and cannot sink: 0.5 mm down it is inside the rib tops "
-        f"({pushed:.2f} mm^3)",
+        f"and cannot sink: 0.5 mm down it is inside the rib tops ({pushed:.2f} mm^3)",
     )
 
     past = fouls(placed(-3.0, cfg.COVER_Z))
@@ -344,7 +368,9 @@ def _clip_shape(r: Report, clip: Part) -> None:
     )
     r.check(
         at(clip, cfg.DETENT_TOOTH_INNER_R + 0.5, tooth, cfg.DETENT_TOOTH_H - 0.2)
-        and not at(clip, cfg.DETENT_TOOTH_INNER_R + 0.5, tooth, cfg.DETENT_TOOTH_H + 0.2),
+        and not at(
+            clip, cfg.DETENT_TOOTH_INNER_R + 0.5, tooth, cfg.DETENT_TOOTH_H + 0.2
+        ),
         f"the tooth stands {cfg.DETENT_TOOTH_H} mm proud -- the undercut the arm rides",
     )
     arm_mid = (cfg.DETENT_INNER_R + cfg.DETENT_OUTER_R) / 2.0
@@ -361,9 +387,35 @@ def _clip_shape(r: Report, clip: Part) -> None:
         "and a slot between the arm and the lower jaw, so the two are separate",
     )
     r.check(
-        at(clip, arm_mid, -cfg.CLIP_WRAP / 2.0 + cfg.DETENT_ROOT_ARC / 2.0, -cfg.CLIP_JAW_T + 0.2),
+        at(
+            clip,
+            arm_mid,
+            -cfg.CLIP_WRAP / 2.0 + cfg.DETENT_ROOT_ARC / 2.0,
+            -cfg.CLIP_JAW_T + 0.2,
+        ),
         "the arm's root block is solid to the jaw's own bottom face",
     )
+
+
+def _clip_end_breaks(r: Report, clip: Part) -> None:
+    """The end-face bevels must remove material, not merely select edges."""
+    for radius, z, sides, feature in (
+        (87.0, -cfg.CLIP_JAW_T + 0.1, (-1, 1), "lower jaw"),
+        (
+            88.0,
+            cfg.STACK_H + cfg.CLIP_STACK_CLEAR + cfg.CLIP_TOP_JAW_T - 0.1,
+            (-1, 1),
+            "upper jaw",
+        ),
+        (75.0, -cfg.DETENT_H + 0.1, (1,), "release tab"),
+    ):
+        for side in sides:
+            r.check(
+                not at(clip, radius, side * (cfg.CLIP_WRAP / 2.0 - 0.025), z)
+                and at(clip, radius, side * (cfg.CLIP_WRAP / 2.0 - 0.2), z),
+                f"{feature} end at {side * cfg.CLIP_WRAP / 2.0:+.0f} deg has a "
+                "small bevel without shortening its bearing face",
+            )
 
 
 def _snap_sizing(r: Report) -> None:
@@ -376,8 +428,10 @@ def _snap_sizing(r: Report) -> None:
     strain = y * h / (0.67 * length**2)
     force = (b * h**2 / 6.0) * (PETG_FLEX_MODULUS * strain / length)
     lead = radians(cfg.DETENT_LEAD_ANGLE)
-    mating = force * (FRICTION + sin(lead) / cos(lead)) / (
-        1.0 - FRICTION * sin(lead) / cos(lead)
+    mating = (
+        force
+        * (FRICTION + sin(lead) / cos(lead))
+        / (1.0 - FRICTION * sin(lead) / cos(lead))
     )
 
     r.check(
@@ -401,7 +455,9 @@ def _snap_sizing(r: Report) -> None:
     )
 
 
-def _fits_together(r: Report, base: Part, middle: Part, cover: Part, clip: Part) -> None:
+def _fits_together(
+    r: Report, base: Part, middle: Part, cover: Part, clip: Part
+) -> None:
     """The one thing no probe on a single solid can answer."""
     from build123d import Pos
 
@@ -465,8 +521,7 @@ ALLOW = (
         "undercut the liner that stands on it, and nothing reaches it",
     ),
     (
-        lambda e: abs(e.center().Z - cfg.MIDDLE_Z) < 1e-6
-        and _radius(e) < cfg.HUB_R,
+        lambda e: abs(e.center().Z - cfg.MIDDLE_Z) < 1e-6 and _radius(e) < cfg.HUB_R,
         "the keyway's floor, inside the hub bore and under the middle disc",
     ),
     (
@@ -517,7 +572,9 @@ def _edges(r: Report, parts: list[tuple[str, Part]]) -> None:
                 ""
                 if not unexplained
                 else "; unexplained: "
-                + ", ".join(f"{e.length:.1f} mm at {e.center()}" for e in unexplained[:6])
+                + ", ".join(
+                    f"{e.length:.1f} mm at {e.center()}" for e in unexplained[:6]
+                )
             ),
         )
 
@@ -539,6 +596,7 @@ def run() -> Report:
     _bayonet_motion(r, base, cover)
     r.section("The clip")
     _clip_shape(r, clip)
+    _clip_end_breaks(r, clip)
     r.section("Snap sizing")
     _snap_sizing(r)
     r.section("Assembly")
