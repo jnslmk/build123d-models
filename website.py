@@ -36,7 +36,8 @@ from tessellate_models import MODELS, model_is_assembly, model_params
 HERE = Path(__file__).parent.resolve()
 EXPORTS = HERE / "exports"
 MODELS_DIR = HERE / "models"
-WEBSITE_DIR = HERE / "website"
+RUNTIME_ASSETS = HERE / "website"
+WEBSITE_DIR = RUNTIME_ASSETS
 WEBSITE_EXPORTS = WEBSITE_DIR / "exports"
 
 
@@ -346,14 +347,14 @@ def stage_browser_runtime(output_dir: Path) -> None:
     ):
         destination = output_dir / path
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(WEBSITE_DIR / path, destination)
+        shutil.copy2(RUNTIME_ASSETS / path, destination)
 
 
 def build_web_bundle() -> None:
     """Emit metadata, source files, documentation, and render assets for the site."""
-    lock = json.loads((WEBSITE_DIR / "runtime-lock.json").read_text())
+    lock = json.loads((RUNTIME_ASSETS / "runtime-lock.json").read_text())
     wheel = lock["packages"]["build123d"]
-    local_wheel = WEBSITE_DIR / wheel["file_name"]
+    local_wheel = RUNTIME_ASSETS / wheel["file_name"]
     if (
         not local_wheel.is_file()
         or hashlib.sha256(local_wheel.read_bytes()).hexdigest() != wheel["sha256"]
@@ -361,6 +362,8 @@ def build_web_bundle() -> None:
         raise ValueError(
             "browser build123d wheel is missing or differs from runtime-lock.json"
         )
+    if WEBSITE_DIR != RUNTIME_ASSETS:
+        stage_browser_runtime(WEBSITE_DIR)
     WEBSITE_EXPORTS.mkdir(parents=True, exist_ok=True)
     manifest = _manifest()
     _write_source_assets(manifest, WEBSITE_DIR)
