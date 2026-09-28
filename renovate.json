@@ -3,6 +3,7 @@
   "extends": [
     "config:recommended"
   ],
+  "automerge": false,
   "labels": ["dependencies"],
   "customManagers": [
     {
@@ -35,6 +36,16 @@
     {
       "matchManagers": ["uv", "custom.regex"],
       "labels": ["python"]
+    },
+    {
+      "description": "Only browser Pyodide/build123d pin PRs merge after the browser runtime check passes",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["website/js/pyodide-worker.js"],
+      "matchPackageNames": ["build123d", "pyodide/pyodide"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "ignoreTests": false
     }
   ]
 }

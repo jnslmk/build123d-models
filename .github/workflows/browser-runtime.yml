@@ -1,0 +1,42 @@
+name: Browser Python Runtime
+
+# Do not filter paths: Renovate's PR automerge is check-driven, and a paths
+# filter could leave a browser-pin PR without this check (or let a grouped PR
+# bypass it). Harness and bundled-source changes need the same coverage.
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-runtime:
+    name: Browser Python Runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      UV_NO_SYNC: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # No GTK viewer or PDF renderer is involved in the browser CAD engine.
+      - name: Install Python dependencies
+        run: uv sync --frozen --no-group viewer --no-group pdf
+
+      - name: Install headless Chromium and system dependencies
+        run: uv run --with playwright==1.58.0 python -m playwright install --with-deps chromium
+
+      # The test stages the site's worker and website._py_sources() bundle in a
+      # temporary HTTP root. It boots real Pyodide + WASM packages in Chromium,
+      # generates a non-default lens cap, and verifies its binary STL dimensions.
+      - name: Boot browser Python and rebuild model
+        run: uv run --with playwright==1.58.0 python -m unittest tests.browser_runtime_smoke
