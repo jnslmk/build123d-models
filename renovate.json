@@ -4,13 +4,36 @@
     "config:recommended"
   ],
   "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the browser-only build123d pin, which uv cannot see",
+      "managerFilePatterns": ["/^website\\/js\\/pyodide-worker\\.js$/"],
+      "matchStrings": [
+        "micropip\\.install\\(\\[\"(?<depName>build123d)==(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the Pyodide runtime used by the browser Python packages",
+      "managerFilePatterns": ["/^website\\/js\\/pyodide-worker\\.js$/"],
+      "matchStrings": [
+        "cdn\\.jsdelivr\\.net/pyodide/v(?<currentValue>[^/]+)/full/pyodide\\.js"
+      ],
+      "depNameTemplate": "pyodide/pyodide",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "pep440"
+    }
+  ],
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
       "labels": ["github-actions"]
     },
     {
-      "matchManagers": ["uv"],
+      "matchManagers": ["uv", "custom.regex"],
       "labels": ["python"]
     }
   ]

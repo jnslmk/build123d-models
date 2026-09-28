@@ -113,11 +113,13 @@ how a model gets registered, and the places the tree still deviates — is in
 [AGENTS.md](AGENTS.md#model-structure).
 
 The site's optional live rebuilds run in a Pyodide worker, not in the CI export
-environment. Its `website/js/pyodide-worker.js` pins build123d 0.11.1 to the
-available OCCT 7.9 WASM wheel; when upgrading that stack, verify runtime boot
-**and** a parameter rebuild in the browser before deploying. The page passes
-the worker an absolute `py-sources.json` URL so it also works under the Pages
-project path.
+environment. Renovate tracks the worker's Pyodide runtime and its build123d
+pin separately from `pyproject.toml`; the other browser Python installs float
+within their declared constraints. The build123d pin is tied to the available
+OCCT WASM wheel, so a Renovate PR is a compatibility proposal, not an automatic
+upgrade: verify runtime boot **and** a parameter rebuild in the browser before
+merging. The page passes the worker an absolute `py-sources.json` URL so it also
+works under the Pages project path.
 
 ## CI/CD
 
