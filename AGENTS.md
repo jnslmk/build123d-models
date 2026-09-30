@@ -127,6 +127,9 @@ view.
 **Edge design for FDM**: add chamfers/fillets where appropriate; never ship raw
 square edges. **Chamfer horizontal edges, fillet vertical edges.**
 
+**Removable supports**: before designing built-in supports, changing their release
+interface, or fixing supported-roof sagging, read `docs/fdm-support-design.md`.
+
 ## build123d Style
 
 Always use **builder mode** (`BuildPart`, `BuildSketch`, `BuildLine` context
