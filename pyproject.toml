@@ -59,6 +59,7 @@ packages = [
     "models.drill_storage.dremel",
     "models.drill_storage.hex",
     "models.drill_storage.hex.bits",
+    "models.drill_storage.hex.bits_double",
     "models.drill_storage.metal",
     "models.drill_storage.metal.sideways",
     "models.drill_storage.stone",

@@ -68,3 +68,28 @@ same geometry, the family's clearances kept outright — see
 [`../allen/README.md`](../allen/README.md). The clearances, the fit classes and
 the argument behind the two-material split are the drill family's — see [the
 family README](../README.md) and [`docs/design-notes.md`](../docs/design-notes.md).
+
+## Labelled 1×2 BITS variant
+
+The accepted extension stores **36 short ¼-inch hex-shank driver bits in a
+literal 4×9 grid**, with full H / T / PZ / PH / SL socket labels and duplicate
+Torx sizes side-by-side. It keeps the existing ASA / TPU / PETG construction
+and leaves the original 1×1 BITS box unchanged. The
+[labelled-bits specification](docs/labelled-bits-specification.md) records the
+exact accepted layout.
+
+The current reviewable anchor is `drill_storage.hex.bits_double.base`: a
+41.5×83.5 mm, 30 mm-tall ASA base with two Gridfinity feet. Its long walls carry
+the nearest two socket columns each; labels read vertically, with each row's
+left-to-right pair ordered toward −Y. Rows run back (+Y) to front (−Y).
+Engravings are 0.8 mm deep, bold, and suitable for a contrasting paint fill.
+Print feet-down, cavity-up, in an enclosure.
+
+```bash
+uv run view drill_storage.hex.bits_double.base
+uv run export drill_storage.hex.bits_double.base
+uv run check drill_storage.hex.bits_double.base
+```
+
+The matching cartridge and cover wait for this base's human acceptance under
+the [current CAD contract](docs/labelled-bits-cad-contract.md).
