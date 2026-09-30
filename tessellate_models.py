@@ -78,6 +78,7 @@ MODELS = [
     "drill_storage.hex.bits.cover",
     "drill_storage.hex.bits.cover_stackable",
     "drill_storage.hex.bits_double.base",
+    "drill_storage.hex.bits_double.insert",
     # The lamp system: the whole stick, the three ways it gets mounted, and
     # each printed part on its own in print pose.
     "led_profiles",

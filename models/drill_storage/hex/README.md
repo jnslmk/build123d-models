@@ -78,7 +78,7 @@ and leaves the original 1×1 BITS box unchanged. The
 [labelled-bits specification](docs/labelled-bits-specification.md) records the
 exact accepted layout.
 
-The current reviewable anchor is `drill_storage.hex.bits_double.base`: a
+The accepted rigid base is `drill_storage.hex.bits_double.base`: a
 41.5×83.5 mm, 30 mm-tall ASA base with two Gridfinity feet. Its long walls carry
 the nearest two socket columns each; labels read vertically, with each row's
 left-to-right pair ordered toward −Y. Rows run back (+Y) to front (−Y).
@@ -89,7 +89,14 @@ Print feet-down, cavity-up, in an enclosure.
 uv run view drill_storage.hex.bits_double.base
 uv run export drill_storage.hex.bits_double.base
 uv run check drill_storage.hex.bits_double.base
+uv run view drill_storage.hex.bits_double.insert
+uv run export drill_storage.hex.bits_double.insert
+uv run check drill_storage.hex.bits_double.insert
 ```
 
-The matching cartridge and cover wait for this base's human acceptance under
-the [current CAD contract](docs/labelled-bits-cad-contract.md).
+The matching **TPU cartridge** is the current reviewable anchor,
+`drill_storage.hex.bits_double.insert`. It uses the identical 36 coordinates,
+the existing BITS grip lands, and the keyed outward retention bead. Print it
+flat-bottom down with sockets up in black TPU; it seats on the base's cavity
+floor at z=23.2 mm. The PETG cover waits for cartridge acceptance under the
+[current CAD contract](docs/labelled-bits-cad-contract.md).
