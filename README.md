@@ -37,6 +37,11 @@ uv run show led_profiles.assemblies.standing  # one directory deeper
 
 The same name works for `export`, `render`, `render-a4` and `check`.
 
+For a self-contained browser artifact, run `uv run view lens_cap` to write
+`exports/lens_cap.html`. It embeds the model and viewer dependencies, so it opens
+locally without network access. Drag to rotate, scroll to zoom, and use **Grid**
+to hide or show the ground grid; the button's pressed state tracks visibility.
+
 ## Rendering to SVG
 
 Generate SVG projections without a viewer:

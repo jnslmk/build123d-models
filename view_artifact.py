@@ -184,7 +184,7 @@ const { showStl, showGlb, setGrid, getGrid } = viewer;
 
 const gridBtn = document.getElementById('btn-grid');
 gridBtn.addEventListener('click', () => {
-  const on = __omp_shell("getGrid();")
+  const on = !getGrid();
   setGrid(on);
   gridBtn.setAttribute('aria-pressed', String(on));
 });

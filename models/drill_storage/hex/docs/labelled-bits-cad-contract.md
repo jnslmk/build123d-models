@@ -315,8 +315,9 @@ integration. Ruff and type checks passed; no printable geometry changed.
   clearance. Actual scene cover/base and cover/insert common volumes were zero.
   Chromium visual review showed the closed holder, all shanks through the
   translucent cover and the upright long-side BITS label.
-- **Viewer limitation:** Clicking the artifact's Grid button raised the existing
-  `__omp_shell` reference error from `view_artifact.py`'s shell expression.
-  Geometry renders; the unrelated artifact-shell code remains unchanged.
+- **Viewer controls:** The artifact's Grid control now toggles the ground grid
+  through the shared viewer API and updates its pressed state. Regenerate older
+  HTML artifacts with `uv run view drill_storage.hex.bits_double` to include the
+  corrected control; printable geometry is unchanged.
 - **Acceptance:** Pending human review of the assembled holder.
 - **Next slice:** None defined.
