@@ -160,11 +160,20 @@ printable parts: a rigid ASA guide base, a removable TPU grip insert, and a
 translucent PETG cover for tools up to 50 mm long. It is not an STL print job;
 export the `.base`, `.insert`, and `.cover` leaf models separately.
 
-The 1×2 base has two Gridfinity feet, a flat cover seat at z=24, and 55
-compensated free-fit guides ending on an ASA floor at z=8. The 8 mm TPU
-cartridge has matching through-bores, each with a short gripping land and a
-relieved upper section. Its outward retention bead snaps into the base's
-inner groove; the cartridge can be lifted from its proud rim.
+The 1×2 base retains its 55 existing positions in a 5×11 grid at 7 mm pitch,
+two Gridfinity feet, flat cover seat at z=24, and ASA guide floor at z=8.
+The approved 2026-09-30 inventory rebore assigns nominal shank diameters
+in ascending groups along the existing x-major order (increasing X, then
+increasing Y within each column): 1.0 mm ×1, 1.5 mm ×1, 2.0 mm ×1,
+2.35 mm ×10, 2.9 mm ×25, and 3.1 mm ×17. These include the owned
+inventory of 1, 1, 1, 6, 21, and 11 tools respectively, plus 14 spare
+positions: four at 2.35 mm, four at 2.9 mm, and six at 3.1 mm.
+The ASA guides and matching TPU through-bores use the family's
+diameter-dependent small-bore compensation; each TPU bore retains its
+short gripping land and relieved upper section. The 8 mm cartridge's
+outward retention bead snaps into the base's inner groove and it can be
+lifted from its proud rim. The envelope, 50 mm tool-length limit, floor,
+seats and all cartridge/cover interfaces are unchanged.
 
 The labelled PETG cover snaps over the base's rectangular collar and sits
 flush with the full-width body. Its assembled top is 10U (70 mm), giving
@@ -172,8 +181,11 @@ flush with the full-width body. Its assembled top is 10U (70 mm), giving
 pillow-top down with its open mouth up; the inverted print-pose lettering
 reads upright when the cover is seated. All three parts require individual
 prints in their specified materials. Tool heads wider than the 7 mm pitch
-can prevent filling every one of the 55 positions simultaneously. Printed
-TPU grip and cover snap effort/durability remain to be calibrated.
+can prevent filling every one of the 55 positions simultaneously. The user
+accepted the purpose, inventory and spare allocation on 2026-09-30.
+The updated assembly gate verifies all bore sizes, guide floors and seated
+non-interference; the CAD contract records the evidence. Printed TPU grip
+and cover snap effort/durability remain to be calibrated.
 See the [Dremel specification](docs/dremel-specification.md) and
 [CAD contract](docs/dremel-cad-contract.md).
 

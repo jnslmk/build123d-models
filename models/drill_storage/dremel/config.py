@@ -29,12 +29,22 @@ SEAT_Z = FOOT_TOP
 BASE_TOP_Z = family.SHELL_TOTAL_H
 CAVITY_FLOOR_Z = family.CAVITY_FLOOR_Z
 GUIDE_FLOOR_Z = 8.0  # preserve the original 50 mm Dremel tool reference floor
-SHANK_D = 2.5
-CUT_D = SHANK_D + family.small_bore_comp(
-    SHANK_D
-)  # same compensation in guide and TPU bores
 PITCH = 7.0
-POSITIONS = tuple((x * PITCH, y * PITCH) for x in range(-2, 3) for y in range(-5, 6))
+# Inventory plus 14 spares: +4 at 2.35, +4 at 2.9 and +6 at 3.1 mm.
+SHANK_COUNTS = ((1.0, 1), (1.5, 1), (2.0, 1), (2.35, 10), (2.9, 25), (3.1, 17))
+# Contiguous diameter groups run along Y, then advance to the next X column.
+BORES = tuple(
+    (x * PITCH, y * PITCH, diameter)
+    for (x, y), diameter in zip(
+        ((x, y) for x in range(-2, 3) for y in range(-5, 6)),
+        (diameter for diameter, count in SHANK_COUNTS for _ in range(count)),
+        strict=True,
+    )
+)
+# Apply the family's calibrated small-bore compensation before either fit.
+CUT_BORES = tuple(
+    (x, y, diameter + family.small_bore_comp(diameter)) for x, y, diameter in BORES
+)
 
 # Future mating parts use these same coordinates and dimensions.
 CART_X = family.CART_W

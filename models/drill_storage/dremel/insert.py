@@ -21,8 +21,6 @@ from . import config as c
 
 IS_ASSEMBLY = False
 PARAMS = []
-LAND_R = (c.CUT_D + family.LAND_FIT) / 2  # TPU short interference land
-RELIEF_R = (c.CUT_D + family.RELIEF_FIT) / 2  # TPU sliding relief above land
 
 
 def _retention_bead():
@@ -77,37 +75,41 @@ def create():
         )
 
         with BuildSketch():
-            with Locations(*c.POSITIONS):
-                Circle(LAND_R)
+            for x, y, diameter in c.CUT_BORES:
+                with Locations((x, y)):
+                    Circle((diameter + family.LAND_FIT) / 2)
         extrude(amount=family.LAND_H, mode=Mode.SUBTRACT)
         with BuildSketch(Plane.XY.offset(family.LAND_H + family.LAND_LEAD_IN)):
-            with Locations(*c.POSITIONS):
-                Circle(RELIEF_R)
+            for x, y, diameter in c.CUT_BORES:
+                with Locations((x, y)):
+                    Circle((diameter + family.RELIEF_FIT) / 2)
         extrude(
             amount=family.CART_H - family.LAND_H - family.LAND_LEAD_IN + 0.01,
             mode=Mode.SUBTRACT,
         )
-        for x, y in c.POSITIONS:
+        for x, y, diameter in c.CUT_BORES:
+            land_r = (diameter + family.LAND_FIT) / 2  # TPU interference land
+            relief_r = (diameter + family.RELIEF_FIT) / 2  # TPU sliding relief
             with Locations((x, y, family.LAND_H)):
                 Cone(
-                    LAND_R,
-                    RELIEF_R,
+                    land_r,
+                    relief_r,
                     family.LAND_LEAD_IN,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,
                 )
             with Locations((x, y, 0)):
                 Cone(
-                    LAND_R + family.BORE_FOOT_RELIEF,
-                    LAND_R,
+                    land_r + family.BORE_FOOT_RELIEF,
+                    land_r,
                     family.BORE_FOOT_RELIEF,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,
                 )
             with Locations((x, y, family.CART_H - family.CART_MOUTH_CH)):
                 Cone(
-                    RELIEF_R,
-                    RELIEF_R + family.CART_MOUTH_CH,
+                    relief_r,
+                    relief_r + family.CART_MOUTH_CH,
                     family.CART_MOUTH_CH + 0.01,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,

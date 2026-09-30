@@ -35,7 +35,6 @@ from . import config as c
 
 IS_ASSEMBLY = False
 PARAMS = []
-GUIDE_R = (c.CUT_D + family.GUIDE_FIT) / 2  # free ASA guide, never a grip
 GUIDE_MOUTH_CH = family.GUIDE_MOUTH_CH
 
 
@@ -150,14 +149,16 @@ def create():
         loft(sections=[low.sketch, high.sketch], ruled=True, mode=Mode.SUBTRACT)
 
         with BuildSketch(Plane.XY.offset(c.GUIDE_FLOOR_Z)):
-            with Locations(*c.POSITIONS):
-                Circle(GUIDE_R)
+            for x, y, diameter in c.CUT_BORES:
+                with Locations((x, y)):
+                    Circle((diameter + family.GUIDE_FIT) / 2)
         extrude(amount=c.CAVITY_FLOOR_Z - c.GUIDE_FLOOR_Z + 0.01, mode=Mode.SUBTRACT)
-        for x, y in c.POSITIONS:
+        for x, y, diameter in c.CUT_BORES:
+            guide_r = (diameter + family.GUIDE_FIT) / 2  # free ASA guide
             with Locations((x, y, c.CAVITY_FLOOR_Z - GUIDE_MOUTH_CH)):
                 Cone(
-                    GUIDE_R,
-                    GUIDE_R + GUIDE_MOUTH_CH,
+                    guide_r,
+                    guide_r + GUIDE_MOUTH_CH,
                     GUIDE_MOUTH_CH + 0.01,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                     mode=Mode.SUBTRACT,

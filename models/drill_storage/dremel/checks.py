@@ -1,13 +1,18 @@
-"""Physical gate for the seated Dremel parts and cover tool clearance.
+"""Physical gate for Dremel inventory, seated bores and cover tool clearance.
 
 A cover deliberately driven 2 mm below its seat overlaps the base by 483 mm³;
 the nominal pose has zero overlap. The overlap assertion was exercised against
 both shapes before this gate was added.
 """
 
+from collections import Counter
+
+from models.drill_storage import config as family
 from models.lib.checks import Report, is_solid_at
 from models.lib.edges import as_part
 from . import config as c, create
+
+PROBE = 0.02  # resolve the close shank sizes without sampling an OCC boundary
 
 
 def run() -> Report:
@@ -37,6 +42,75 @@ def run() -> Report:
         "50 mm tool clears the solid PETG roof",
         f"tool tip z={tip_z:.1f}",
     )
+
+    report.section("Dremel shank inventory")
+    expected_counts = {1.0: 1, 1.5: 1, 2.0: 1, 2.35: 10, 2.9: 25, 3.1: 17}
+    actual_counts = Counter(nominal_d for _x, _y, nominal_d in c.BORES)
+    report.check(
+        actual_counts == expected_counts,
+        "55 positions hold the accepted inventory and spare diameters",
+        f"nominal diameter counts={dict(actual_counts)}",
+    )
+
+    report.section("Dremel seated guide, land and relief bores")
+    base = as_part(shell)
+    insert = as_part(cartridge)
+    guide_z = (c.GUIDE_FLOOR_Z + c.CAVITY_FLOOR_Z) / 2
+    land_z = c.CAVITY_FLOOR_Z + family.LAND_H / 2
+    # Sample the straight relief, above its land lead-in and below its mouth.
+    relief_z = (
+        c.CAVITY_FLOOR_Z
+        + (family.LAND_H + family.LAND_LEAD_IN + family.CART_H - family.CART_MOUTH_CH)
+        / 2
+    )
+    directions = ((1, 0), (-1, 0), (0, 1), (0, -1))
+    solid_at = report.solid_at
+    for x, y, cut_d in c.CUT_BORES:
+        guide_r = (cut_d + family.GUIDE_FIT) / 2
+        land_r = (cut_d + family.LAND_FIT) / 2
+        relief_r = (cut_d + family.RELIEF_FIT) / 2
+        label = f"bore at ({x:g}, {y:g}), cut diameter {cut_d:.3f} mm"
+        for name, part, radius, z in (
+            ("ASA guide", base, guide_r, guide_z),
+            ("TPU land", insert, land_r, land_z),
+            ("TPU relief", insert, relief_r, relief_z),
+        ):
+            report.check(
+                all(
+                    not solid_at(
+                        part, x + dx * (radius - PROBE), y + dy * (radius - PROBE), z
+                    )
+                    and solid_at(
+                        part, x + dx * (radius + PROBE), y + dy * (radius + PROBE), z
+                    )
+                    for dx, dy in directions
+                ),
+                f"{label}: {name} has the specified radius",
+                f"r={radius:.3f} mm at seated z={z:.3f}",
+            )
+        report.check(
+            solid_at(base, x, y, c.GUIDE_FLOOR_Z - PROBE)
+            and all(
+                not solid_at(base, x, y, z)
+                for z in (
+                    c.GUIDE_FLOOR_Z + PROBE,
+                    guide_z,
+                    c.CAVITY_FLOOR_Z - PROBE,
+                )
+            ),
+            f"{label}: guide is open above an intact ASA floor",
+            f"floor z={c.GUIDE_FLOOR_Z:.3f}",
+        )
+        step_r = (land_r + relief_r) / 2
+        report.check(
+            all(
+                solid_at(insert, x + dx * step_r, y + dy * step_r, land_z)
+                and not solid_at(insert, x + dx * step_r, y + dy * step_r, relief_z)
+                for dx, dy in directions
+            ),
+            f"{label}: short grip land is distinct from the sliding relief",
+            f"diametral step={2 * (relief_r - land_r):.3f} mm",
+        )
     return report
 
 
