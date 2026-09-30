@@ -72,6 +72,7 @@ MODELS = [
     "drill_storage.dremel.base",
     "drill_storage.dremel.insert",
     "drill_storage.dremel.cover",
+    "drill_storage.dremel.cover_stackable",
     "drill_storage.hex",
     "drill_storage.hex.bits.base",
     "drill_storage.hex.bits.insert",

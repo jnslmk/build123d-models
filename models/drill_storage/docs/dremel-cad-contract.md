@@ -3,28 +3,29 @@
 ## References
 
 - **Context:** `models/drill_storage/README.md`; the existing `drill_storage.base`, `insert`, and `hex.cover` patterns.
-- **Specification:** [Dremel specification](dremel-specification.md), DR-1–DR-6.
+- **Specification:** [Dremel specification](dremel-specification.md), DR-1–DR-7.
 - **Supporting evidence:** User-accepted 2026-09-30 inventory and spare allocation; accepted 1×2 footprint, 50 mm tool length and existing drill-holder fit/snap dimensions. Earlier uniform 2.5 mm shanks are historical.
 
 ## Current slice
 
-- **Name:** Accepted-inventory rebore of the existing 55-position Dremel holder.
-- **Anchor part:** Existing accepted ASA base and its fixed 5×11 guide layout; matching TPU insert and unchanged PETG cover.
-- **Purpose and print pose:** Store the owned mixed-shank inventory with spare capacity; retain the independent base, insert and cover print poses and the closed inspection scene.
-- **In scope:** Assign nominal diameter groups to existing positions and apply the family's diameter-dependent small-bore compensation to matching guide/insert bores. Preserve guide clearance, TPU grip-land and upper-relief fit rules.
-- **Unchanged:** 55 coordinates, 7 mm pitch, 1×2 envelope, 50 mm tool-length capacity, floor/seat heights, insert retention, cover collar/snap, cover geometry and assembly transforms.
-- **Deferred interfaces:** None; this is a rebore of the accepted parts, not a new mating-interface design. Physical trials of TPU grip, snap force and large tool-head packing remain outside CAD evidence.
+- **Name:** Separate stackable Dremel cover option.
+- **Anchor part:** `drill_storage.dremel.cover_stackable`, a separately printable PETG cover; the accepted ASA base and TPU insert are fixed mating references.
+- **Purpose and print pose:** Retain labelled snap closure while receiving two full-depth Gridfinity feet at a 10U stack pitch. Print socket-down, open mouth up.
+- **In scope:** Two 4.4 mm sockets centred at X=0, Y=±21 mm; 42×84 mm top lip; 2 mm roof below the sockets; default-on `support` boolean reusing the family's removable breakaway lattices.
+- **Unchanged:** ASA base, TPU insert, 55-position inventory rebore, smooth cover, label and snap interfaces. The parent closed scene continues to use the smooth cover.
+- **Deferred interfaces:** No new dependent parts. Printed foot fit, thin-wall survival, loaded-stack strength and neighbouring-cell clearance remain experimental physical-trial questions.
 
 ## Applicable specification constraints
 
 | Requirement | Consequence for this slice |
 | --- | --- |
 | DR-1 | Change only the independent Dremel variant; preserve existing sets. |
-| DR-2 | Retain the 1×2 footprint and 50 mm tool below the 70 mm assembled top; replace uniform shanks with the accepted nominal diameter groups. |
+| DR-2 | Retain the 1×2 footprint and clearance for 50 mm tools; the stackable option raises the top to z=74.4 without changing the tool floor. |
 | DR-3 | No copied Printables geometry. |
 | DR-4 | Retain the individually printable ASA base, TPU insert and PETG cover and their seated scene. |
-| DR-5 | Provide the specification's 41 owned-tool positions plus 14 spares, totaling 55; corresponding ASA/TPU bores receive the same diameter-dependent compensation before material-specific fit allowances. |
-| DR-6 | Assign ascending diameter groups to the existing x-major coordinates; preserve all envelope and mating-interface dimensions. |
+| DR-5 | Preserve the specification's accepted 41 owned tools and 14 spare positions; no guide/insert changes. |
+| DR-6 | Preserve the existing x-major bore positions, envelopes and mating interfaces. |
+| DR-7 | Add only the separate stackable cover, with full-depth sockets, preserved roof, default-on removable supports and experimental thin-wall print-trial boundary. |
 
 ## Evidence-backed dimensions
 
@@ -36,6 +37,10 @@
 | Cover height | family `cover_height_for(50, bore_floor_z=8, cap_h=2)` = 46 mm above shoulder, assembled top z=70 (10U) | quantized family rule, 6 mm minimum headroom | cover roof |
 | Snap bead | 0.38 mm radial protrusion into 39.6 mm bore at z=6 above mouth | adapted from family's 0.45 mm; nominal passage strain 2×(0.38−0.20)/39.2 ≈ 0.92% below PETG repeated 1.0% | cover retention |
 | Print roof | 2 mm solid cap | 10 × 0.2 mm layers, double the 1×1 cover's 1 mm cap for the longer unsupported plate | cover top |
+| Stackable receiver | two full-depth 4.4 mm sockets at X=0, Y=−21/+21 mm | user-confirmed stackable option, 2026-09-30 | upper holder feet |
+| Stackable top and pitch | assembled top z=74.4; full foot seating yields 70 mm (10U) pitch | user-confirmed stackable option, 2026-09-30 | stack datum |
+| Stackable lip and roof | top lip 42×84 mm; 2 mm solid roof remains below socket floors | user-confirmed stackable option, 2026-09-30 | cover top |
+| Receiver mouth walls | approximately 0.14 mm nominal | accepted experimental exception, consistent with family stackable covers | print trial, not a validated printable wall |
 
 ### Bore assignment
 
@@ -67,11 +72,16 @@ mixed-inventory bore targets.
 | --- | --- | --- |
 | Long rectangular snap stiffness | Model-fit proof and physical print trial | Geometric clearance and strain estimate can be checked; force and fatigue cannot. |
 | Variable Dremel head diameters | Trial actual tools against the 7 mm layout | The cover can enclose 50 mm length, but 55 large tool heads may not all fit at once. |
+| Experimental receiver mouth walls | Inspect slicer toolpaths and print PETG trial | CAD fit does not prove the ~0.14 mm mouth walls print or survive handling. |
+| Foot fit, loaded stack and adjacent cells | Remove supports; trial mating feet and neighbouring holders | No loaded-stack or print-tolerance claim before physical trials. |
 
 ## Service and assembly constraints
 
 1. Do not export the mixed-material scene as one printable STL; export base, insert and cover separately.
 2. Close the cover over the seated insert with its engraved label upright.
+3. Export `.cover_stackable` independently; the parent scene deliberately retains `.cover`.
+4. With `support=True` (default), remove both breakaway lattices and all attachment nibs before inserting feet. Disable support only for slicer supports or a verified unsupported bridge.
+5. Inspect sliced thin-wall toolpaths and printed fit/durability before loading a stack.
 
 ## Required skills
 
@@ -83,49 +93,67 @@ mixed-inventory bore targets.
 
 ## Verifiable predicates
 
-- [x] All 55 original coordinates retain the six nominal diameter/count groups, including the 14 spare positions; the top render shows the unchanged 5×11 layout.
-- [x] Four-direction boundary probes verify every ASA guide and matching TPU land/relief against its compensated diameter and existing fit allowance; all guide floors remain at z=8.
-- [x] Updated base and insert each return one solid seated on z=0 (numerical tolerance 0.000001 mm); cover geometry and assembly transforms are unchanged.
-- [x] `uv run check drill_storage.dremel` passes the inventory/bore gate, all three zero-overlap pairs, rim seat and 50 mm tool clearance. Substituting the former uniform 2.5 mm bore geometry produces 210 failed physical predicates. The throwaway red-run harness subsequently hit a list-versus-int assertion error, after recording those failures.
-- [x] Base and insert rebuilt/exported through `uv run view`, their HTML views opened locally, and the base top PNG inspected. `uv run ruff check .` and `uv run ty check .` pass.
+- [x] The separate PETG leaf builds as one valid solid at z=0 in socket-down print pose, with supports enabled and disabled.
+- [x] Both 4.4 mm receivers align with the existing feet at Y=±21 mm: the real upper ASA base seats at 70 mm pitch without interference; lowering it by 0.3 mm meets the socket floors.
+- [x] Measured lip 42×84 mm and print height 50.4 mm give assembled top z=74.4; probes verify the preserved 2 mm roof beneath each socket.
+- [x] The smooth cover geometry supplies the unchanged label and snap; seated base and TPU insert have zero interference, and both cells retain at least 6 mm clearance above 50 mm tools.
+- [x] Both default-on support lattices are present with a 0.2 mm release gap; disabling support leaves both receivers open.
+- [x] The smooth cover, ASA base, TPU insert and smooth-cover parent scene are unchanged.
+- [x] `uv run check drill_storage.dremel.cover_stackable`, repository Ruff and ty checks passed; the view artifact built and was opened locally. The socket-fit and clean-socket predicates failed against the initial misplaced-cut geometry before passing after correction.
 
-The diameter-dependent compensation retains the family's existing calibration;
-these probes establish CAD dimensions, not measured printed TPU retention.
-
-### Edge survey
-
-`sharp_convex_edges` reports 26 sharp / 55 unclassifiable edges on the
-base and 8 sharp / 110 unclassifiable edges on the print-pose insert.
-This rebore retains the accepted interface geometry; it does not claim a
-zero-sharp-edge audit. The unchanged sharp-edge exceptions are:
-
-- Base outer cover-seat perimeter at z=24: four 75.5/33.5 mm lines and
-  four quarter-circle edges of length 6.283 mm. Keep the flat cover landing.
-- Base two 8.5 mm straight edges at z=4.4 between the Gridfinity feet:
-  retain the accepted foot/body junction.
-- Base cartridge receiver perimeter at each of z=31.35 and z=34.15:
-  four 74.2/32.2 mm lines and four quarter-circles of length 2.985 mm per
-  perimeter. Retain the accepted retention groove profile.
-- Insert retention-bead perimeter at print z=6.4: four 74.2/32.2 mm lines
-  and four quarter-circles of length 2.749 mm. Retain the accepted TPU bead.
-
-The unclassifiable edges are cylindrical surface seams, not physical sharp
-rims: one 20.7 mm guide seam per position, and one 3.2 mm relief seam plus
-one 3.5 mm land seam per position. Bore-mouth chamfers are retained.
+The clean-cover `sharp_convex_edges` survey found **78 sharp edges and zero
+unclassifiable edges**. Intentional exceptions: 46 unchanged shallow engraved
+letter edges preserve the accepted label; 16 unchanged snap-profile edges
+preserve detent engagement; eight receiver mouth-perimeter edges retain the
+experimental 0.14 mm wall rather than chamfering it away; eight receiver/base
+transition edges preserve the flat shoulder and unchanged cover envelope.
+The reused breakaway lattice is sacrificial, not a handled finished surface.
+Printed grip, snap effort, thin-wall survival and stack durability are not
+established by CAD predicates.
 
 ## Visual review
 
-- **Views to show:** Updated base and insert in their print poses; closed scene isometric and long-side orthographic for the unchanged envelope.
-- **What they let the human judge:** Diameter grouping at unchanged positions, retained proportions, component colors and upright assembled label.
-- **Artifacts:** `exports/drill_storage.dremel.base.html`, `exports/drill_storage.dremel.insert.html`, their updated STL exports, and `exports/drill_storage.dremel.base_top.png`. Closed scene rebuilt at `exports/drill_storage.dremel.html`.
+- **Views to show:** Stackable cover in print pose with supports enabled and disabled; socket/top view and a side or section-like view showing roof and receiver depth.
+- **What they let the human judge:** Two-cell receiver alignment, widened lip, retained label/snap, support removal access and thin mouth walls.
+- **Artifacts:** `exports/drill_storage.dremel.cover_stackable.html` (shaded, supports enabled, opened locally); `_iso.png` (support-enabled print pose); `_clean_bottom.png` (both exposed sockets, no supports); `_clean_right.png` (side view with hidden receiver/roof lines), all using the same `drill_storage.dremel.cover_stackable` filename prefix.
 
 ## Acceptance gate
 
-- **Acceptance signal:** The user confirmed the purpose/specification update, retained 55 positions and authorized selection of the additional diameters on 2026-09-30. The approved allocation is recorded in the specification; no additional interface decision is pending.
-- **CAD evidence state:** Mixed-bore inventory, radii, guide floors and seated non-interference verified on 2026-09-30. Actual tool-head packing and printed grip effort remain physical-trial questions.
-- **Next slice after verification:** None; print trials still govern real-world TPU grip and snap effort/durability.
+- **Acceptance signal:** The user confirmed the separate stackable option, retained smooth scene/base/insert, 10U pitch, full-depth sockets and experimental mouth-wall exception on 2026-09-30.
+- **CAD evidence state:** Stackable geometry predicates passed; the user accepted the visual result with “great, commit and push” on 2026-09-30. Physical print trials remain pending. Earlier smooth-cover and inventory evidence below remains historical.
+- **Next slice after verification:** No dependent geometry requested; physical print trials remain necessary before loading a stack.
 
 ## Historical acceptance and verification
+
+### Accepted inventory rebore, 2026-09-30
+
+The user confirmed the purpose/specification update, retained 55 positions and
+authorized additional-diameter selection. The accepted allocation is recorded
+in DR-5 and DR-6; no new interface was introduced.
+
+- All 55 original coordinates retained the six nominal diameter/count groups and 14 spares; the top render showed the unchanged 5×11 layout.
+- Four-direction probes verified every ASA guide and matching TPU land/relief against its compensated diameter and existing fit allowance; all floors remained z=8.
+- Base and insert each returned one solid seated on z=0 within 0.000001 mm; cover geometry and assembly transforms were unchanged.
+- `uv run check drill_storage.dremel` passed the inventory/bore gate, three zero-overlap pairs, rim seat and 50 mm tool clearance. Substituting former uniform 2.5 mm bores produced 210 failed physical predicates; the throwaway red-run harness subsequently hit a list-versus-int assertion error after recording those failures.
+- Base and insert were rebuilt/exported through `uv run view`, their HTML views opened locally and the base top PNG inspected. `uv run ruff check .` and `uv run ty check .` passed.
+- Artifacts were `exports/drill_storage.dremel.base.html`, `exports/drill_storage.dremel.insert.html`, updated STL exports and `exports/drill_storage.dremel.base_top.png`; the closed scene was rebuilt at `exports/drill_storage.dremel.html`.
+
+The compensation retained the family's calibration; these probes established
+CAD dimensions, not measured printed TPU retention or tool-head packing.
+
+Historical edge survey: `sharp_convex_edges` reported 26 sharp / 55
+unclassifiable edges on the base and 8 sharp / 110 unclassifiable edges on
+the print-pose insert. It did not claim a zero-sharp-edge audit. Retained
+exceptions were the base cover-seat perimeter at z=24 (four 75.5/33.5 mm
+lines and four 6.283 mm quarter-circle edges); two 8.5 mm foot/body-junction
+edges at z=4.4; cartridge receiver perimeters at z=31.35 and 34.15
+(four 74.2/32.2 mm lines and four 2.985 mm quarter-circles each); and insert
+bead perimeter at print z=6.4 (four 74.2/32.2 mm lines and four 2.749 mm
+quarter-circles). Unclassifiable edges were cylindrical seams: one 20.7 mm
+guide seam, one 3.2 mm relief seam and one 3.5 mm land seam per position.
+Bore-mouth chamfers were retained.
+
+### Earlier uniform-bore acceptance, 2026-09-28
 
 The following records are explicitly historical evidence from the earlier
 uniform-2.5 mm-shank design accepted on 2026-09-28, not current-slice proof.

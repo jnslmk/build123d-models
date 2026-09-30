@@ -27,6 +27,8 @@ uv run view drill_storage.dremel        # closed 1×2 inspection scene
 uv run export drill_storage.dremel.base    # ASA guide base, foot-down
 uv run export drill_storage.dremel.insert  # TPU grip cartridge, land-up
 uv run export drill_storage.dremel.cover   # PETG cover, pillow-down
+uv run view drill_storage.dremel.cover_stackable  # alternate 1×2 PETG cover
+uv run export drill_storage.dremel.cover_stackable  # sockets down; built-in support on
 ```
 
 ## Layout
@@ -44,7 +46,7 @@ uv run export drill_storage.dremel.cover   # PETG cover, pillow-down
 | `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket and built-in removable print support. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
-| [`dremel/`](dremel/) | Independent 1×2 three-part Dremel variant: ASA base, TPU insert and labelled PETG cover, plus the closed inspection scene. |
+| [`dremel/`](dremel/) | Independent 1×2 three-part Dremel variant: ASA base, TPU insert, smooth labelled PETG cover and a separate stackable cover option; the closed inspection scene retains the smooth cover. |
 | `sideways.py` / `sideways_insert.py` / `sideways_cover.py` / `sideways_checks.py` | Shared horizontal wood/metal guides, keyed TPU grip cartridges, foot-bearing collar-over-base covers, rear-face tool maps and one 4.4 mm stacking receiver per cell. Each `sideways` package is the assembled scene, with separate `.base`, `.insert` and `.cover` prints and an open `.preview`; see the [sideways specification](docs/sideways-specification.md) and [current CAD contract](docs/sideways-cad-contract.md). |
 
 Adding a set is a `DrillSet` in `sets.py` and a package copied from
@@ -186,6 +188,20 @@ accepted the purpose, inventory and spare allocation on 2026-09-30.
 The updated assembly gate verifies all bore sizes, guide floors and seated
 non-interference; the CAD contract records the evidence. Printed TPU grip
 and cover snap effort/durability remain to be calibrated.
+
+The separate `drill_storage.dremel.cover_stackable` retains the smooth cover's
+label and snap, ASA base and TPU insert. Its two full-depth 4.4 mm sockets
+are centred at Y=−21 and +21 mm; only its top lip grows to 42×84 mm.
+The assembled top is z=74.4 mm, giving a 10U (70 mm) stack pitch when the
+upper feet seat fully; a 2 mm roof remains below the sockets.
+Print **socket-down, mouth-up** in PETG. Its `support` checkbox defaults to
+on and reuses the family's removable breakaway lattices. Remove both lattices
+and all attachment nibs before stacking; turn support off only for slicer
+supports or a printer-verified unsupported bridge. The approximately
+**0.14 mm mouth walls** are a user-accepted experimental print-trial exception,
+not proven printable or durable. Check the sliced walls, printed foot fit,
+stack strength and neighbouring-cell clearance before loading a stack.
+The smooth `.cover` and parent scene remain unchanged and support-free.
 See the [Dremel specification](docs/dremel-specification.md) and
 [CAD contract](docs/dremel-cad-contract.md).
 
