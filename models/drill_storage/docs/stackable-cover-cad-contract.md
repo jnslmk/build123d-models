@@ -3,16 +3,16 @@
 ## References
 
 - Context: `../README.md`, `../box.py`, `../hex/README.md`.
-- Specification: [stackable-cover-specification.md](stackable-cover-specification.md), revised SC-1–SC-3.
+- Specification: [stackable-cover-specification.md](stackable-cover-specification.md), revised SC-1–SC-4.
 - Supporting evidence: `box.gridfinity_foot`, `box.cover_height_for`, existing cover geometry and fit constants.
 
 ## Current slice
 
-- Name: 1×1 stackable cover family.
-- Anchor part: the shared stackable PETG cover, reviewed as `drill_storage.wood.cover_stackable`; the other four labels/heights use that same receiving geometry.
-- Purpose and print pose: accept an upper holder's Gridfinity foot while keeping the original cover-to-base interface; print top down, mouth up, with optional integral removable support under the socket (enabled by default).
-- In scope: five stackable cover entries, one shared foot receiver and optional support, compatibility/clearance proof, visual review.
-- Deferred interfaces: no new base, cartridge, connector, or fastener.
+- Name: approved optional separate stacking lips for the 1×1 stackable cover family.
+- Anchor part: the existing accepted stackable PETG cover, reviewed as `drill_storage.wood.cover_stackable`; the other four labels/heights use that same receiving geometry.
+- Purpose and print pose: preserve the existing receiver and closure; one-piece socket-down/mouth-up remains the default, while split mode prints the roof-down body and glue-face-down/socket-up lips.
+- In scope: Boolean split option, support-free socket-floor split, named child print poses, preserved closure/labels/receiver, glue instructions and targeted geometry gates.
+- Deferred interfaces: no new base, cartridge, connector, alignment pin, fastener or adhesive-gap feature.
 
 ## Applicable specification constraints
 
@@ -21,6 +21,7 @@
 | SC-1 | Full 4.4 mm foot profile enters a 4.4 mm-deep socket; lip sits at 7U + 4.4 mm and next foot's body seats at 7U. Only stackable lip widens from 41.5 to 42 mm. |
 | SC-2 | Original bases and smooth covers retain their envelope and snap joints; the lip mouth's sub-perimeter wall is a user-accepted experimental exception, not proven printable. |
 | SC-3 | Integral support spans the deeper socket floor in print pose when enabled and can be removed for stacking; disabling support yields the unchanged cover/socket without sacrificial geometry. |
+| SC-4 | Two named children `lid_body` and `stacking_lips`, both on z=0 and separated only for preview; split at the socket floor and omit all sacrificial material. Ideal assembled geometry equals the clean one-piece lid. |
 
 ## Evidence-backed dimensions
 
@@ -53,19 +54,47 @@
 
 ## Verifiable predicates
 
-- [ ] Full foot seats to the socket floor without overlap, and the assembled stack pitch equals a whole 7 mm multiple — targeted `stackable_checks.check_cover` geometric gate; physical fit still pending.
-- [ ] Solid cap and tool-tip clearance remain under the full-depth socket — five targeted cover gates.
-- [ ] Default support bridges the deeper socket floor in print pose and exposes the seat when removed; disabling it leaves the cover/socket unchanged — geometry gate, physical breakaway and unsupported bridge pending.
-- [ ] Only stackable lip reaches 42 mm; original smooth cover/base remain 41.5 mm, with snap interface unchanged — geometry gate and parent validation pending.
+- [x] Full foot seats to the socket floor without overlap, and the assembled stack pitch equals a whole 7 mm multiple — all five targeted cover gates passed; physical fit still pending.
+- [x] Solid cap and tool-tip clearance remain under the full-depth socket — all five targeted cover gates passed.
+- [x] Default support bridges the deeper socket floor in print pose and exposes the seat when removed — geometry gates passed; physical breakaway and unsupported bridge remain unverified.
+- [x] Only stackable lip reaches 42 mm; original body retains 41.5 mm and snap interface — targeted gates passed.
+- [x] Split children are valid connected solids on z=0; lips point socket-up and retain the complete 4.4 mm height, with substantial planar bed-adhesion faces — all five split gates passed. Bed area is not measured common glue-contact area.
+- [x] Independent reassembly retains clean one-piece labels, closure and socket, with no overlapping material and a connected no-gap assembly — all five split gates passed at 0.01 mm³ Boolean tolerance.
+- [x] Integration create/export smoke succeeded for all seven confirmed leaves: each yields two named valid connected children and independent STLs on z=0, including three bin parameter variations. Independent review passed; its bed-area wording nit was corrected.
+- Shared split-gate red proof on representative bin specimens: reversing the lips to socket-down produced 94.108221 mm³ missing material and failed equivalence; lifting the body 0.3 mm failed pose/bed, equivalence and connectivity; lowering it 0.3 mm failed direct body/lips overlap at 223.432254 mm³. All five positive family gates, Dremel and the full bin gate passed. Ruff and ty passed.
 
 ## Visual review
 
 - Views: stackable-cover isometric, socket-down projection, side section revealing the entire 4.4 mm foot/lip engagement, and neighbouring-holder view for the 42 mm lip.
 - Human review: thin lip, full foot seat, support removal access and unchanged original cover/base silhouettes.
 - Prior 2.5 mm-seat artifacts (`exports/drill_storage.wood.cover_stackable.html` and `_bottom.png`) are superseded; regenerate views after physical gates.
+- Integration browser proof: actual Chromium live-generation and repeated cache-hit child-STL downloads passed. This is export/UI evidence, not slicing or physical glue acceptance.
 
 ## Acceptance gate
 
 - Human confirmation: draft-spec thin 42 mm lip accepted as an experiment, despite the ~0.14 mm nominal wall and lost neighbouring-cell tolerance.
 - Physical acceptance signal: pending printed fit, support removal, durability and adjacent-cell trial.
+- Split-option purpose/decision signal: user confirmed all seven upright/bin/Dremel stackable lids on 2026-09-30, explicitly excluding sideways holders; planar glue split is approved.
+- Split print/glue acceptance: create/export smoke, desktop/mobile visual inspection, live/cache browser downloads, mutation rejection proof and positive geometry gates complete. Adhesive compatibility/strength, actual flatness and bond-line thickness remain physically unverified. New square interface edges preserve the planar joint; bed-face area does not establish bonded contact area or load capacity, and existing receiver/snap/text exceptions remain unchanged.
 - Next slice: any alteration to the original base, foot, snap, or a separately retained accessory requires a new accepted slice.
+
+## Split print edge survey
+
+Integration `sharp_convex_edges` audit; counts are body / lips. Every child
+had zero unclassifiable edges. Allowed boundaries were matched by exact edge
+identity from planar bed faces, not a loose positional exception.
+
+| Leaf | Raw sharp | Allowed planar bed/interface boundary | Retained original sharp |
+| --- | --- | --- | --- |
+| wood | 8 / 24 | 8 / 16 | 0 / 8 |
+| metal | 36 / 24 | 8 / 16 | 28 / 8 |
+| stone | 33 / 24 | 8 / 16 | 25 / 8 |
+| allen | 8 / 24 | 8 / 16 | 0 / 8 |
+| hex.bits | 30 / 24 | 8 / 16 | 22 / 8 |
+
+Planar bed/interface boundaries intentionally remain square to preserve the
+approved planar split. Retained body edges are the original engraved glyph
+mouths (metal 28, stone 25, BITS 22). The eight retained lip edges on each
+tool cover preserve the accepted experimental ~0.14 mm receiver-mouth profile;
+chamfering them would alter it. No edge retuning was made. Bed-face area and
+edge exceptions do not prove common bonded area or adhesive strength.

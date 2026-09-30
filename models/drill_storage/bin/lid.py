@@ -1,4 +1,4 @@
-"""Lift-off stackable Gridfinity bin lid, socket-down in print pose."""
+"""Lift-off stackable bin lid: supported one-piece or separate glue-on lips."""
 
 from math import floor
 
@@ -16,7 +16,13 @@ from build123d import (
     loft,
 )
 
-from models.drill_storage.box import FOOT_C1, FOOT_C3, FOOT_STRAIGHT
+from models.drill_storage.box import (
+    FOOT_C1,
+    FOOT_C3,
+    FOOT_STRAIGHT,
+    split_stacking_lips,
+)
+from models.drill_storage.cover import SEPARATE_STACKING_LIPS_PARAM
 from models.lib import fits
 from models.lib.edges import bottom_chamfer_tool, top_chamfer_tool
 from . import config as c
@@ -67,6 +73,7 @@ PARAMS = [
         "type": "boolean",
         "default": True,
     },
+    SEPARATE_STACKING_LIPS_PARAM,
 ]
 IS_ASSEMBLY = False
 
@@ -168,8 +175,9 @@ def create(
     wall_thickness: float = c.WALL,
     lid_height: float = c.LID_MIN_HEIGHT,
     support: bool = True,
+    separate_stacking_lips: bool = False,
 ):
-    """Print pose: exposed top/socket on z=0 and locating skirt pointing up."""
+    """Socket-down one-piece print, or body roof-down and lips socket-up."""
     if lid_height < c.LID_MIN_HEIGHT or lid_height > 14:
         raise ValueError("lid_height must fit a foot socket, solid roof and 3 mm skirt")
     if wall_thickness < 1 or wall_thickness > 4:
@@ -228,7 +236,7 @@ def create(
             ruled=True,
             mode=Mode.SUBTRACT,
         )
-        if support:
+        if support and not separate_stacking_lips:
             for cell_x, x in x_cells:
                 for cell_y, y in y_cells:
                     _support(
@@ -239,4 +247,6 @@ def create(
                     )
     part = lid.part
     part.color = c.LID_COLOR
+    if separate_stacking_lips:
+        return split_stacking_lips(part, c.LID_SOCKET_DEPTH)
     return part

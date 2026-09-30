@@ -45,6 +45,7 @@ from build123d import (
     BuildSketch,
     Box,
     Color,
+    Compound,
     Cone,
     Cylinder,
     FontStyle,
@@ -53,6 +54,7 @@ from build123d import (
     Part,
     Plane,
     Polygon,
+    Pos,
     RectangleRounded,
     RegularPolygon,
     Text,
@@ -65,7 +67,7 @@ from build123d import (
 )
 
 from ..lib import fits
-from ..lib.edges import chamfer_edge, reseat_on_bed
+from ..lib.edges import as_part, chamfer_edge, reseat_on_bed
 
 # --- Gridfinity standard ------------------------------------------------------
 GRID = 42.0
@@ -86,6 +88,47 @@ STACK_SOCKET_DEPTH = BASE_H
 STACK_LIP_W = GRID
 STACK_LIP_R = CORNER_R + (STACK_LIP_W - PAD) / 2
 STACK_FIT = fits.SLIDING  # sliding fit, PETG baseline; diametral
+
+
+def split_stacking_lips(finished: Part, socket_depth: float) -> Compound:
+    """Split a clean socket-down lid at its floor into two bed-seated prints.
+
+    Keep the roof with the body and the entire receiver with the lips. The lips
+    print glue-face-down, socket-up, avoiding the original unsupported roof.
+    A multi-cell receiver remains one child (and therefore one STL); its webs
+    retain the socket spacing, without adding material to the finished lid.
+    """
+    bounds = finished.bounding_box()
+    with BuildPart() as body:
+        add(finished)
+        with Locations((bounds.center().X, bounds.center().Y, socket_depth)):
+            Box(
+                bounds.size.X + 2,
+                bounds.size.Y + 2,
+                bounds.max.Z - socket_depth + 1,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.INTERSECT,
+            )
+    with BuildPart() as lips:
+        add(finished)
+        with Locations((bounds.center().X, bounds.center().Y, 0)):
+            Box(
+                bounds.size.X + 2,
+                bounds.size.Y + 2,
+                socket_depth,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.INTERSECT,
+            )
+    lid_body = as_part(Pos(0, 0, -socket_depth) * body.part)
+    stacking_lips = reseat_on_bed(lips.part, flip=True)
+    # Preview separation only, not a fit or adhesive-gap allowance.
+    preview_gap = 5.0
+    offset = lid_body.bounding_box().max.X - stacking_lips.bounding_box().min.X
+    stacking_lips = as_part(Pos(offset + preview_gap, 0, 0) * stacking_lips)
+    lid_body.label = "lid_body"
+    stacking_lips.label = "stacking_lips"
+    lid_body.color = stacking_lips.color = finished.color
+    return Compound(children=[lid_body, stacking_lips])
 
 
 def add_stacking_lip(top_z: float) -> None:

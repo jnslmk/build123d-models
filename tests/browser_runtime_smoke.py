@@ -12,6 +12,7 @@ import http.server
 import json
 import math
 import os
+import struct
 import tempfile
 import threading
 import unittest
@@ -228,6 +229,226 @@ class BrowserRuntimeSmoke(unittest.TestCase):
 
 
 class BrowserPageSourceSmoke(unittest.TestCase):
+    def test_split_lid_downloads_survive_warm_cache_and_clear_on_switch(self) -> None:
+        from build123d import Box, export_stl
+        from tessellate_models import model_params
+
+        lid_name = "drill_storage.bin.lid"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            assets = _stage_page(
+                root, (lid_name, "lens_cap", "drill_storage"), with_worker=True
+            )
+            lid = assets["models"][0]
+            lid["params"] = model_params(lid_name)
+            # A real binary STL makes the prebuilt/default download observable;
+            # the split downloads below come from the real bin model in WASM.
+            prebuilt = root / "exports" / f"{lid_name}.stl"
+            export_stl(Box(10, 10, 10), str(prebuilt))
+            lid["stl"] = f"exports/{lid_name}.stl"
+            assets["models"][2]["assembly"] = True
+            (root / "models-manifest.json").write_text(json.dumps(assets))
+            handler = functools.partial(
+                http.server.SimpleHTTPRequestHandler, directory=str(root)
+            )
+            with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                try:
+                    with sync_playwright() as playwright:
+                        browser = playwright.chromium.launch(headless=True)
+                        try:
+                            page = browser.new_page()
+                            timeout_ms = int(
+                                os.environ.get("BROWSER_SMOKE_TIMEOUT_MS", "720000")
+                            )
+                            page.set_default_timeout(timeout_ms + 60_000)
+                            # Observe the shipped worker without replacing its runtime,
+                            # geometry, messages, or transferable buffers.
+                            page.add_init_script("""(() => {
+                                const RealWorker = window.Worker;
+                                window.buildResults = [];
+                                window.Worker = class extends RealWorker {
+                                    constructor(...args) {
+                                        super(...args);
+                                        this.addEventListener('message', ({data}) => {
+                                            if (data.type !== 'result') return;
+                                            window.buildResults.push({
+                                                cached: data.cached,
+                                                labels: (data.parts || []).map(part => part.label),
+                                                filenames: (data.parts || []).map(part => part.filename),
+                                            });
+                                        });
+                                    }
+                                };
+                            })();""")
+                            page.goto(
+                                f"http://127.0.0.1:{server.server_port}/?model={lid_name}",
+                                wait_until="networkidle",
+                            )
+                            page.wait_for_function(
+                                "() => document.querySelector('#vstatus').classList.contains('hidden')"
+                            )
+                            split = page.get_by_label(
+                                "Separate stacking lips", exact=True
+                            )
+                            self.assertFalse(split.is_checked())
+                            self.assertTrue(page.locator("#btn-stl").is_visible())
+                            self.assertTrue(page.locator("#part-downloads").is_hidden())
+                            with page.expect_download() as pending_download:
+                                page.click("#btn-stl")
+                            default_download = pending_download.value
+                            self.assertEqual(
+                                default_download.suggested_filename, f"{lid_name}.stl"
+                            )
+                            default_path = default_download.path()
+                            assert default_path is not None
+                            self.assertEqual(
+                                default_path.read_bytes(), prebuilt.read_bytes()
+                            )
+
+                            # Opt in using the actual checkbox and runtime approval UI.
+                            split.check()
+                            page.wait_for_selector("#optin", state="visible")
+                            page.click("#optin-yes")
+                            page.wait_for_function(
+                                "() => window.buildResults.length === 1 && "
+                                "!document.querySelector('#part-downloads').hidden"
+                            )
+                            self.assertEqual(
+                                page.evaluate("window.buildResults[0]"),
+                                {
+                                    "cached": False,
+                                    "labels": ["lid_body", "stacking_lips"],
+                                    "filenames": [
+                                        f"{lid_name}_lid_body.stl",
+                                        f"{lid_name}_stacking_lips.stl",
+                                    ],
+                                },
+                            )
+                            self.assertTrue(page.locator("#btn-stl").is_hidden())
+
+                            def download_parts() -> dict[str, bytes]:
+                                downloaded = {}
+                                for label in ("lid body", "stacking lips"):
+                                    with page.expect_download() as pending_download:
+                                        page.get_by_role(
+                                            "button",
+                                            name=f"Download {label} STL",
+                                            exact=True,
+                                        ).click()
+                                    item = pending_download.value
+                                    path = item.path()
+                                    assert path is not None
+                                    downloaded[item.suggested_filename] = (
+                                        path.read_bytes()
+                                    )
+                                return downloaded
+
+                            live_parts = download_parts()
+                            bounds = []
+                            for data in live_parts.values():
+                                self.assertGreaterEqual(len(data), 84)
+                                triangles = struct.unpack_from("<I", data, 80)[0]
+                                self.assertGreater(triangles, 0)
+                                self.assertEqual(len(data), 84 + triangles * 50)
+                                vertices = [
+                                    struct.unpack_from(
+                                        "<fff", data, 84 + index * 50 + offset
+                                    )
+                                    for index in range(triangles)
+                                    for offset in (12, 24, 36)
+                                ]
+                                self.assertTrue(
+                                    all(
+                                        math.isfinite(value)
+                                        for vertex in vertices
+                                        for value in vertex
+                                    )
+                                )
+                                lower = [
+                                    min(vertex[axis] for vertex in vertices)
+                                    for axis in range(3)
+                                ]
+                                upper = [
+                                    max(vertex[axis] for vertex in vertices)
+                                    for axis in range(3)
+                                ]
+                                self.assertAlmostEqual(lower[2], 0, places=4)
+                                for low, high in zip(lower, upper):
+                                    self.assertGreater(high, low)
+                                bounds.append((lower, upper))
+                            # Independent print poses, not two copies of the preview mesh.
+                            self.assertTrue(
+                                any(
+                                    bounds[0][1][axis] < bounds[1][0][axis]
+                                    or bounds[1][1][axis] < bounds[0][0][axis]
+                                    for axis in (0, 1)
+                                )
+                            )
+
+                            split.uncheck()
+                            page.wait_for_function(
+                                "() => window.buildResults.length === 1 && "
+                                "document.querySelector('#part-downloads').hidden"
+                            )
+                            self.assertEqual(
+                                page.locator("#part-download-buttons button").count(), 0
+                            )
+                            self.assertTrue(page.locator("#btn-stl").is_disabled())
+                            page.wait_for_function(
+                                "() => window.buildResults.length === 2 && "
+                                "!document.querySelector('#btn-stl').disabled"
+                            )
+                            self.assertTrue(page.locator("#part-downloads").is_hidden())
+                            self.assertEqual(
+                                page.locator("#part-download-buttons button").count(), 0
+                            )
+                            self.assertTrue(page.locator("#btn-stl").is_visible())
+                            self.assertEqual(
+                                page.evaluate("window.buildResults[1].labels"), []
+                            )
+
+                            # Return twice to the warm entry: each transfer must leave
+                            # cached child buffers intact for the next download.
+                            for expected_count in (3, 5):
+                                split.check()
+                                page.wait_for_function(
+                                    """count => window.buildResults.length === count &&
+                                    !document.querySelector('#part-downloads').hidden""",
+                                    arg=expected_count,
+                                )
+                                self.assertTrue(
+                                    page.evaluate("window.buildResults.at(-1).cached")
+                                )
+                                self.assertIn(
+                                    "cached", page.locator("#vstatus").inner_text()
+                                )
+                                self.assertTrue(page.locator("#btn-stl").is_hidden())
+                                self.assertEqual(download_parts(), live_parts)
+                                if expected_count == 3:
+                                    split.uncheck()
+                                    page.wait_for_function(
+                                        "() => window.buildResults.length === 4 && "
+                                        "document.querySelector('#part-downloads').hidden"
+                                    )
+
+                            page.select_option("#family", "lens_cap")
+                            self.assertTrue(page.locator("#part-downloads").is_hidden())
+                            self.assertEqual(
+                                page.locator("#part-download-buttons button").count(), 0
+                            )
+                            self.assertTrue(page.locator("#btn-stl").is_visible())
+                            page.select_option("#family", "drill_storage")
+                            self.assertTrue(page.locator("#btn-stl").is_hidden())
+                            self.assertTrue(page.locator("#btn-step").is_hidden())
+                            self.assertTrue(page.locator("#part-downloads").is_hidden())
+                        finally:
+                            browser.close()
+                finally:
+                    server.shutdown()
+                    thread.join()
+
     def test_prebuilt_preview_and_code_revert_survive_model_switch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

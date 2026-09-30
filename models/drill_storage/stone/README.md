@@ -31,6 +31,12 @@ mouth wall and zero nominal gap between adjacent 42 mm cells require a
 physical print and fit trial; see the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
+Enable **Separate stacking lips** for support-free `lid_body` and
+socket-up `stacking_lips` prints; the default remains one piece with support.
+Download the two child STLs and glue their flat faces after dry-aligning the
+centred 0.25 mm lip overhang.
+See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
+
 ## Bores are cut to the shank, which is ground below nominal
 
 This is the one thing that makes the stone set more than a different drill list.

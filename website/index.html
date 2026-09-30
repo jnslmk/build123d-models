@@ -132,6 +132,8 @@
   .prow .hint { font-size: 11px; color: #8b93a1; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
   .muted { color: #8b93a1; font-size: 12px; }
   #noparams { font-size: 12px; color: #8b93a1; font-style: italic; }
+  #part-download-buttons { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  #part-download-buttons button { min-height: 38px; text-align: left; }
 
   #logbox { margin-top: 20px; }
   #logbox summary {
@@ -328,6 +330,11 @@
   <h2 class="sec">Parameters</h2>
   <div id="params"></div>
   <div id="noparams" hidden>No parameters — edit the code to change this model.</div>
+  <section id="part-downloads" hidden aria-label="Individual print parts">
+    <h2 class="sec">Print parts</h2>
+    <p class="muted">The combined view is a preview. Download each part separately to print.</p>
+    <div id="part-download-buttons"></div>
+  </section>
 
   <details id="logbox">
     <summary>Log</summary>
@@ -397,6 +404,8 @@ const el = {
   btnRevert: document.getElementById('btn-revert'),
   btnStl: document.getElementById('btn-stl'),
   btnStep: document.getElementById('btn-step'),
+  partDownloads: document.getElementById('part-downloads'),
+  partDownloadButtons: document.getElementById('part-download-buttons'),
   tabSide: document.getElementById('tab-side'),
   tabEdit: document.getElementById('tab-edit'),
   tabAbout: document.getElementById('tab-about'),
@@ -424,6 +433,7 @@ let editorDirty = false;
 let lastStl = null;          // Uint8Array from the worker (live geometry)
 let lastGlb = null;          // ArrayBuffer from the worker (colour render), or null
 let lastStep = null;         // ArrayBuffer from the worker, or null
+let lastParts = [];          // named print parts from the worker, separate STL buffers
 
 // Code panel — source and CodeMirror load only after Code opens. Until then
 // editorText records what the editor would show on the next opening.
@@ -879,13 +889,17 @@ function onWorkerMessage(ev) {
         || current?.name !== completed.model || m.model !== completed.model) {
       drainPending(); return;
     }
+    if (pending) { drainPending(); return; }
     const stl = new Uint8Array(m.stl);
     lastStl = stl; lastGlb = m.glb || null; lastStep = m.step || null;
+    lastParts = m.parts || [];
+    renderPartDownloads();
+    showDownloads(!current.assembly);
     if (m.glb) showGlb(new Uint8Array(m.glb), firstFrameForModel);
     else showStl(stl, firstFrameForModel);
     firstFrameForModel = false;
     el.btnStl.disabled = false;
-    el.btnStep.disabled = false;
+    el.btnStep.disabled = lastParts.length ? !lastStep : !(lastStep || current.step);
     setVStatus(`${m.cached ? 'cached' : 'built in ' + (m.wallMs / 1000).toFixed(1) + ' s'} · ${triCount(stl).toLocaleString()} triangles`);
     drainPending();
   }
@@ -933,6 +947,9 @@ function drainPending() {
 function sendJob(job) {
   if (!job || !current || job.model !== current.name) return;
   if (!requestRuntime(job)) return;
+  clearLiveDownloads();
+  el.btnStl.disabled = true;
+  el.btnStep.disabled = true;
   if (runtimeState !== 'ready') { pending = job; return; }
   if (busy) { pending = job; setVStatus('queued — waiting for current build…'); return; }
   busy = true;
@@ -970,8 +987,25 @@ function scheduleRegen() {
 // not offer them. Hidden, not disabled: a greyed-out button reads as "broken
 // here", and this is a deliberate absence.
 function showDownloads(on) {
-  el.btnStl.classList.toggle('hidden', !on);
+  el.btnStl.classList.toggle('hidden', !on || lastParts.length > 0);
   el.btnStep.classList.toggle('hidden', !on);
+}
+function renderPartDownloads() {
+  el.partDownloadButtons.replaceChildren();
+  el.partDownloads.hidden = !!current?.assembly || lastParts.length === 0;
+  if (el.partDownloads.hidden) return;
+  for (const part of lastParts) {
+    const button = document.createElement('button');
+    button.className = 'primary';
+    button.textContent = `Download ${part.label.replace(/_/g, ' ')} STL`;
+    button.addEventListener('click', () => download(part.stl, part.filename, 'model/stl'));
+    el.partDownloadButtons.append(button);
+  }
+}
+function clearLiveDownloads() {
+  lastStl = null; lastGlb = null; lastStep = null; lastParts = [];
+  renderPartDownloads();
+  showDownloads(!current?.assembly);
 }
 
 // A model's name is a module path -- `drill_storage.hex.bits.base` -- so the
@@ -1169,8 +1203,7 @@ function selectModel(name) {
   if (document.body.classList.contains('code-open')) loadEditorSource();
   buildForm(current.params || []);
   if (document.body.classList.contains('about-open')) loadDocumentation();
-  lastStl = null; lastGlb = null; lastStep = null;
-  showDownloads(!current.assembly);
+  clearLiveDownloads();
   el.btnStl.disabled = !current.stl;
   el.btnStep.disabled = !current.step;
   // Instant preview from the CI-rendered assets, whether or not the WASM runtime

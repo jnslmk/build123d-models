@@ -3,15 +3,15 @@
 ## References
 
 - **Context:** `models/drill_storage/README.md`.
-- **Specification:** [Dremel specification](dremel-specification.md), DR-1–DR-9.
-- **Acceptance signal:** The user confirmed 8U stacking pitch, preferred lowering the bottom, then accepted the 55-socket six-column arrangement and matching TPU insert, 2026-09-30.
+- **Specification:** [Dremel specification](dremel-specification.md), DR-1–DR-10; common split-print requirements [SC-4](stackable-cover-specification.md).
+- **Acceptance signal:** The user confirmed 8U stacking pitch and the lower-floor repack, then approved optional separate lips for all seven stackable lids on 2026-09-30.
 
 ## Current slice
 
-- **Name:** Approved lower-floor repack and 8U stacking integration.
-- **Anchor:** The approved six-column ASA base; the matching insert and shorter stackable cover are its authorized dependent parts.
-- **In scope:** Repack all 55 guides and TPU bores; lower the floor to z=3; shorten only the stackable cover to 56 mm seated pitch.
-- **Unchanged:** Diameter counts, calibrated guide/land/relief fits, Gridfinity feet, cartridge retention, flat shoulder z=24, snap interface, smooth cover at 70 mm and smooth-cover parent scene.
+- **Name:** Approved optional separate stacking lips.
+- **Anchor:** The accepted 8U stackable PETG cover.
+- **In scope:** Optional socket-floor split into two named support-free print-pose children; keep both receivers and their connecting web in one lip STL, document planar glue usage and verify ideal assembled equivalence.
+- **Unchanged:** Accepted six-column base/insert, diameter counts and calibrated fits, 8U stacking pitch, 2 mm roof, feet, cartridge retention, flat shoulder z=24, label/snap, smooth cover and parent scene. The lower-floor evidence below is historical verification, not split-print proof.
 
 ## Evidence-backed dimensions
 
@@ -37,6 +37,11 @@
 - [x] Seated cover clears both base and cartridge; smooth scene still clears all parts.
 - [x] Both support lattices, 0.2 mm release gaps and 2 mm roofs remain present.
 - [x] Exported parts and local views rebuilt; lint/type checks passed.
+- [x] Full Dremel leaf gate passed: valid connected prints on z=0, 4.4 mm socket-up lips, planar bed-adhesion faces and separate preview footprints. Bed area is not common glued-contact area: the retained body pillow fillet narrows planar overlap.
+- [x] Independent reassembly equals the clean one-piece cover at 0.01 mm³ Boolean tolerance, retaining both sockets, 2 mm roof, labels/snap and 8U pitch, with zero body/lips overlap.
+- [x] Integration create/export smoke succeeded for all seven confirmed leaves, including Dremel's two receivers in one valid connected lip child: both named children and independent STLs rest on z=0. Independent review passed with bed-area wording clarified.
+- [x] Actual Chromium live-generation and repeated cache-hit child-STL download smoke passed; this establishes the export/UI path, not sliced printability or bonded strength.
+- Shared gate mutation proof on representative bin specimens: socket-down lips fail equivalence (94.108221 mm³ missing); body raised 0.3 mm fails pose/bed, equivalence and connectivity; body lowered 0.3 mm fails direct overlap (223.432254 mm³). Positive Dremel gate, ruff and ty passed.
 
 ## Prior feasibility proof
 
@@ -62,6 +67,16 @@ opened locally; the shorter cover's right PNG was inspected. The smooth parent
 scene was rebuilt with the repacked base/insert. The user accepted the visual
 result with “commit and push” on 2026-09-30; physical print trials remain pending.
 
+The user approved the optional split-print delta on 2026-09-30. Print the body
+roof-down and the one-piece lip field glue-face-down/socket-up, without socket
+supports. Dry-align its centred 0.25 mm per-side overhang before gluing; see
+[family instructions](../README.md#separate-printable-stacking-lips).
+Adhesive compatibility, cured strength, printed flatness, actual bond-line
+height and loaded-stack durability remain physically unverified. New interface
+perimeter edges intentionally remain square; only the overlapping planar regions
+are bonded, not the whole bed-face area. This option does not assert acceptance
+of the existing experimental thin walls.
+
 ## Current edge survey
 
 The base has 26 sharp / 55 unclassifiable edges: eight cover-seat perimeter
@@ -76,6 +91,23 @@ letter edges preserve readable engraving, sixteen snap edges preserve detent
 engagement, eight receiver mouth edges preserve the experimental thin wall,
 and eight receiver/body transitions preserve the flat shoulder. The reused
 support lattices are sacrificial and excluded from the clean-cover survey.
+
+### Split print edge survey
+
+Integration `sharp_convex_edges` audit; counts are body / lips.
+
+| Leaf | Raw sharp | Allowed planar bed/interface boundary | Retained original sharp | Unclassifiable |
+| --- | --- | --- | --- | --- |
+| Dremel stackable cover | 62 / 32 | 0 / 24 | 62 / 8 | 0 / 0 |
+
+Allowed boundary edges were matched by exact identity from planar bed faces,
+not a loose positional rule. Lip bed/interface edges intentionally remain
+square for the approved planar split; the body's retained pillow fillet
+leaves no sharp bed-boundary edges. The 62 original body edges comprise
+16 snap-bead ring edges preserving detent engagement and 46 engraved glyph
+edges preserving readable lettering. Eight retained lip-mouth edges preserve
+the accepted experimental ~0.14 mm receiver profile. No edge retuning was
+made; this audit and bed area do not establish common bonded area or strength.
 
 ## Historical acceptance and verification
 

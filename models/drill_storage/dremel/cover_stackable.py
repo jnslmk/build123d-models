@@ -9,21 +9,22 @@ from models.drill_storage.box import (
     STACK_SOCKET_DEPTH,
     add_stacking_support,
     cut_stacking_socket,
+    split_stacking_lips,
 )
-from models.drill_storage.cover import SUPPORT_PARAM
+from models.drill_storage.cover import SEPARATE_STACKING_LIPS_PARAM, SUPPORT_PARAM
 from models.drill_storage.tools import COVER_GLASS
 from models.lib.edges import as_part, reseat_on_bed
 from . import config as c, cover
 
-PARAMS = [SUPPORT_PARAM]
+PARAMS = [SUPPORT_PARAM, SEPARATE_STACKING_LIPS_PARAM]
 IS_ASSEMBLY = False
 CELL_Y = (-GRID / 2, GRID / 2)
 STACK_PITCH = 8 * 7.0
 HEIGHT = STACK_PITCH - c.SEAT_Z + STACK_SOCKET_DEPTH
 
 
-def create(support: bool = True):
-    """Return socket-down, mouth-up; remove both lattices before stacking."""
+def create(support: bool = True, separate_stacking_lips: bool = False):
+    """Return one socket-down print, or body and socket-up lips for gluing."""
     # Build the receiver upright, then invert it onto the print bed. The common
     # snap-cover builder retains its 2 mm cap and label at the shorter height.
     with BuildPart() as receiver:
@@ -42,6 +43,9 @@ def create(support: bool = True):
         add(reseat_on_bed(lip, flip=True))
         add(Pos(0, 0, STACK_SOCKET_DEPTH) * cover._create(HEIGHT - STACK_SOCKET_DEPTH))
     result = body.part
+    if separate_stacking_lips:
+        result.color = COVER_GLASS
+        return split_stacking_lips(result, STACK_SOCKET_DEPTH)
     if support:
         for y in CELL_Y:
             centered = as_part(Pos(0, -y, 0) * result)
@@ -56,12 +60,14 @@ def check():
 
     from models.drill_storage import config as family
     from models.lib.checks import Report, is_solid_at
+    from models.drill_storage.stackable_checks import check_split_lips
     from . import base, insert
 
     report = Report()
     clean = create(support=False)
     supported = create()
     bb = clean.bounding_box()
+    check_split_lips(report, create(separate_stacking_lips=True), clean)
     report.check(
         clean.is_valid and len(clean.solids()) == 1, "clean cover is one valid solid"
     )

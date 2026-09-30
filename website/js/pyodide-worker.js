@@ -11,7 +11,7 @@
 //   {type:"log", text}            console line
 //   {type:"ready"}                runtime up, first generate can run
 //   {type:"result", id, model, stl(ArrayBuffer), step(ArrayBuffer|null),
-//                   cadMs, wallMs, cached}
+//                   parts:[{label,filename,stl(ArrayBuffer)}], cadMs, wallMs, cached}
 //   {type:"error", id?, message}
 // Protocol (main -> worker):
 //   {type:"init", baseUrl}                                      // absolute site URL
@@ -59,7 +59,7 @@ print("build123d", build123d.__version__, "ready")
 // changed (or code was explicitly run). Purge all models.* modules because
 // models import each other; otherwise an import can silently reuse old code.
 const DRIVER = `
-import json, time, importlib, sys
+import json, re, time, importlib, sys
 from build123d import Color, Compound, export_stl, export_step, export_gltf
 
 # House blue (#59a6ff) so uncolored models still render in brand colour rather
@@ -86,6 +86,16 @@ def _run(model, params_json, reload):
     export_stl(
         part, "/tmp/out.stl", tolerance=0.001, angular_tolerance=0.05
     )  # colourless, drives downloads
+    # Match export.py's named-Compound child convention. Assemblies remain
+    # preview-only: their children can include hardware in non-print poses.
+    parts = []
+    if isinstance(part, Compound) and not getattr(mod, "IS_ASSEMBLY", False):
+        for index, child in enumerate(part.children, start=1):
+            label = getattr(child, "label", None) or f"part_{index}"
+            slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") or "part"
+            path = f"/tmp/out_part_{index}.stl"
+            export_stl(child, path, tolerance=0.001, angular_tolerance=0.05)
+            parts.append({"label": label, "filename": f"{model}_{slug}.stl", "path": path})
     have_glb = False
     try:                               # colour-carrying render asset for the viewer
         _apply_default_colors(part)
@@ -99,7 +109,7 @@ def _run(model, params_json, reload):
         have_step = True
     except Exception as exc:            # STEP is best-effort; never block the STL
         print("step export skipped:", exc)
-    return json.dumps({"cadMs": cad_ms, "glb": have_glb, "step": have_step})
+    return json.dumps({"cadMs": cad_ms, "glb": have_glb, "step": have_step, "parts": parts})
 
 _run(MODEL, PARAMS_JSON, RELOAD)
 `;
@@ -229,11 +239,15 @@ self.onmessage = async (ev) => {
     const hit = cache.get(key);
     const stl = new Uint8Array(hit.stl);
     const glb = hit.glb ? new Uint8Array(hit.glb) : null;
+    const parts = hit.parts.map((part) => ({
+      label: part.label, filename: part.filename, stl: new Uint8Array(part.stl).buffer,
+    }));
     const transfer = [stl.buffer];
     if (glb) transfer.push(glb.buffer);
+    for (const part of parts) transfer.push(part.stl);
     self.postMessage(
       { type: "result", id: msg.id, model: msg.model, cached: true, cadMs: 0, wallMs: 0,
-        stl: stl.buffer, glb: glb ? glb.buffer : null, step: null },
+        stl: stl.buffer, glb: glb ? glb.buffer : null, step: null, parts },
       transfer
     );
     return;
@@ -260,10 +274,20 @@ self.onmessage = async (ev) => {
 
     const stlBytes = new Uint8Array(pyodide.FS.readFile("/tmp/out.stl"));
     const glbBytes = meta.glb ? new Uint8Array(pyodide.FS.readFile("/tmp/out.glb")) : null;
+    const parts = meta.parts.map((part) => ({
+      label: part.label, filename: part.filename,
+      stl: new Uint8Array(pyodide.FS.readFile(part.path)).buffer,
+    }));
     // keep copies for the cache (the originals get transferred away below)
-    if (!isEdit) cache.set(key, { stl: new Uint8Array(stlBytes), glb: glbBytes ? new Uint8Array(glbBytes) : null });
+    if (!isEdit) cache.set(key, {
+      stl: new Uint8Array(stlBytes), glb: glbBytes ? new Uint8Array(glbBytes) : null,
+      parts: parts.map((part) => ({
+        label: part.label, filename: part.filename, stl: new Uint8Array(part.stl.slice(0)),
+      })),
+    });
 
     const transfer = [stlBytes.buffer];
+    for (const part of parts) transfer.push(part.stl);
     let glbBuf = null;
     if (glbBytes) { glbBuf = glbBytes.buffer; transfer.push(glbBuf); }
     let stepBuf = null;
@@ -277,7 +301,7 @@ self.onmessage = async (ev) => {
       {
         type: "result", id: msg.id, model: msg.model, cached: false,
         cadMs: meta.cadMs, wallMs: Math.round(performance.now() - t0),
-        stl: stlBytes.buffer, glb: glbBuf, step: stepBuf,
+        stl: stlBytes.buffer, glb: glbBuf, step: stepBuf, parts,
       },
       transfer
     );

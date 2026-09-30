@@ -76,6 +76,12 @@ breakaway lattice and nibs before stacking. The ~0.14 mm nominal lip mouth
 wall and zero nominal gap to an adjacent 42 mm cell require a physical trial;
 see the [stackable-cover specification](../docs/stackable-cover-specification.md).
 
+Enable **Separate stacking lips** for support-free `lid_body` and
+socket-up `stacking_lips` prints; the default remains one piece with support.
+Download the two child STLs and glue their flat faces after dry-aligning the
+centred 0.25 mm lip overhang. This does not change the sideways holder.
+See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
+
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended
 `TAP` on the walls rather than a bare size, since it is not a drill. The step
 drill gets the same treatment, legended `STEP`.

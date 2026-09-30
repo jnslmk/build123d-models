@@ -47,6 +47,12 @@ gap to neighbouring cells) needs a physical print and fit trial. The
 original 24 mm smooth cover remains support-free. See the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
+The 1×1 BITS stackable cover also exposes **Separate stacking lips**:
+support-free `lid_body` and socket-up `stacking_lips` prints, with the
+one-piece supported default preserved. Download the two child STLs and glue
+their flat faces after dry-aligning the centred 0.25 mm lip overhang.
+See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
+
 **Cover snap**: eased for this box alone — `BITS_SNAP_PROTRUSION` (0.35 mm)
 against the family's 0.45, so the bead engages 0.15 mm rather than 0.25 once the
 collar's slip gap is spent, and comes off with roughly 40% less force. A 24 mm

@@ -73,6 +73,12 @@ and durability trial. The smooth 109 mm cover remains the support-free,
 41.5 mm-wide option; see the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
+Enable **Separate stacking lips** for support-free `lid_body` and
+socket-up `stacking_lips` prints; the default remains one piece with support.
+Download the two child STLs and glue their flat faces after dry-aligning the
+centred 0.25 mm lip overhang. This does not change the sideways holder.
+See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
+
 The countersink is packed by its 10 mm head — which stands above the tray rather
 than dropping into it — and bored as a hex socket for its 6.3 mm shank. It swaps
 places with the 10 mm drill so it lands at a row edge rather than in the centre

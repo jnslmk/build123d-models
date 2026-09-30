@@ -54,6 +54,12 @@ between neighbouring cells) needs a physical print trial. The original
 smooth cover remains 45 mm and support-free. See the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
+Enable **Separate stacking lips** for support-free `lid_body` and
+socket-up `stacking_lips` prints; the default remains one piece with support.
+Download the two child STLs and glue their flat faces after dry-aligning the
+centred 0.25 mm lip overhang.
+See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
+
 The sibling set, `drill_storage.hex`, is the 16-piece 25 mm driver-bit box —
 same boxes, shaved clearances to fit a literal 4x4 grid — see
 [`hex/README.md`](hex/README.md).

@@ -43,7 +43,7 @@ uv run export drill_storage.dremel.cover_stackable  # sockets down; built-in sup
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per drill set: the assembled scene, plus `base`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
-| `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket and built-in removable print support. |
+| `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket: one-piece with removable support by default, or separately printed glue-on lips. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
 | [`dremel/`](dremel/) | Independent 1×2 three-part Dremel variant: ASA base, TPU insert, smooth labelled PETG cover and a separate stackable cover option; the closed inspection scene retains the smooth cover. |
@@ -242,6 +242,53 @@ another holder. The cap and longest-tool
 clearance remain budgeted below the receiver. See
 [the stackable-cover specification](docs/stackable-cover-specification.md) and
 [the current CAD contract](docs/stackable-cover-cad-contract.md).
+
+### Separate printable stacking lips
+
+**Separate stacking lips** is an off-by-default checkbox on the five upright
+`wood`, `metal`, `stone`, `allen`, and `hex.bits` stackable covers, the Dremel
+stackable cover, and the bin lid. It does not apply to sideways holders.
+The [accepted split-print decision](docs/stackable-cover-specification.md)
+preserves the clean one-piece socket, stacking pitch, roof, labels and closure.
+
+When enabled, the preview shows two XY-separated bed-seated parts and offers
+two child STL download controls: **lid_body** and **stacking_lips**. This is
+an exploded **print layout, not an assembled lid**; print the individual STLs.
+Python callers can use `create(separate_stacking_lips=True)`; the existing
+named-Compound export convention writes `<model>_lid_body.stl` and
+`<model>_stacking_lips.stl`. `IS_ASSEMBLY` stays false. Disabling the checkbox
+keeps the original one-piece Part and default-on support behavior.
+
+Print both in PETG without built-in socket supports: the body has its flat
+roof/glue face on z=0 and its mouth or skirt upward; the lips have their flat
+glue face on z=0 and open sockets upward. The support checkbox is ignored in
+this mode because no socket roof bridges during either print. Dremel and
+multi-cell bin lips are one connected receiver field in one STL, not one
+download per socket; the original webs hold their spacing. Inspect the slicer
+for those webs and bed adhesion. Split printing does **not** thicken the
+experimental ~0.14 mm tool-cover mouth walls or prove their printability.
+
+For assembly, turn the body mouth/skirt-down so its flat roof faces up, keep
+the lips socket-up, and dry-align the matching outer contours and rounded
+corners. The tool-cover lips overhang their original body by 0.25 mm per side;
+centre that overhang. Preserve the chosen half-cell socket arrangement on bin
+lids; use the matching upper foot layout to check orientation and full seating
+before gluing. Do not rotate an asymmetric lip field independently. Apply a
+thin, even PETG-compatible adhesive film to the contacting flat ring/web faces,
+keep adhesive out of the sockets, and hold alignment until fully cured. No
+pins, rebates or adhesive-gap allowance are added. The ideal flat-on-flat
+zero-gap assembly matches the clean original lid; a real adhesive bond line
+adds its thickness to the stack height.
+The measured planar bed-face area is **not** the bonded contact area: the lip
+overhangs, and the Dremel body's retained pillow fillet narrows its flat roof
+contact region. Apply adhesive only where the two planar faces actually meet.
+CAD connectivity/equivalence proves an ideal joined shape, not bonded strength.
+
+**Physical acceptance remains pending:** adhesive compatibility and cured
+strength, printed flatness, thin-wall slicing/durability, neighbouring-cell
+clearance and loaded-stack stability need a representative print/glue trial.
+Do not load a stack based on CAD equivalence alone. Smooth covers remain the
+support-free option requiring no glue.
 
 ## Printing
 

@@ -6,6 +6,7 @@ from typing import Any
 from build123d import Align, Box, BuildPart, Locations, Mode, Part, Pos, add
 
 from models.drill_storage.box import FOOT_C1, FOOT_C3
+from models.drill_storage.stackable_checks import check_split_lips
 from models.lib.edges import as_part
 from models.lib.checks import Report, is_solid_at, sharp_convex_edges, solid_probe
 from . import base, config as c, create as seated, lid
@@ -217,21 +218,20 @@ def run() -> Report:
         scene = seated(**options)
         body, closed_lid = scene.solids()
         body_part = as_part(body)
-        printed = lid.create(
-            **{
-                key: value
-                for key, value in options.items()
-                if key
-                in (
-                    "grid_x",
-                    "grid_y",
-                    "half_grid_base",
-                    "half_grid_right",
-                    "half_grid_top",
-                    "wall_thickness",
-                )
-            }
-        )
+        lid_options = {
+            key: value
+            for key, value in options.items()
+            if key
+            in (
+                "grid_x",
+                "grid_y",
+                "half_grid_base",
+                "half_grid_right",
+                "half_grid_top",
+                "wall_thickness",
+            )
+        }
+        printed = lid.create(**lid_options)
         # The public scene seats a clean lid; the printed leaf includes supports.
         body_height = body.bounding_box().max.Z
         roof_top = body_height + c.LID_ROOF + c.LID_SOCKET_DEPTH
@@ -333,6 +333,12 @@ def run() -> Report:
                 not options.get("half_grid_top", True),
             ),
         )
+        check_split_lips(
+            report,
+            lid.create(**lid_options, separate_stacking_lips=True),
+            cleared,
+            c.LID_SOCKET_DEPTH,
+        )
     support_cases: tuple[tuple[str, dict[str, Any]], ...] = (
         ("minimum half-cell lid", {"grid_x": 0.5, "grid_y": 0.5}),
         ("all-half-cell lid", {"grid_x": 1, "grid_y": 1, "half_grid_base": True}),
@@ -346,6 +352,19 @@ def run() -> Report:
             cell_layout(options["grid_x"], options.get("half_grid_base", False), True),
             cell_layout(options["grid_y"], options.get("half_grid_base", False), False),
         )
+        check_split_lips(
+            report,
+            lid.create(**options, separate_stacking_lips=True),
+            lid.create(**options, support=False),
+            c.LID_SOCKET_DEPTH,
+        )
+    report.section("taller split lid")
+    check_split_lips(
+        report,
+        lid.create(lid_height=9, separate_stacking_lips=True),
+        lid.create(lid_height=9, support=False),
+        c.LID_SOCKET_DEPTH,
+    )
     report.section("base variants")
     thicker = base.create(bottom_thickness=2)
     report.check(
