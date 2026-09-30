@@ -43,7 +43,7 @@ def _boolean(name: str, label: str, default: bool) -> dict:
 PARAMS = [
     _number("grid_x", "Grid width (cells)", 0.5, 6, 0.5, 1),
     _number("grid_y", "Grid depth (cells)", 0.5, 6, 0.5, 2),
-    _number("height_u", "Bin height (7 mm units)", 2, 20, 1, 3),
+    _number("height_u", "Bin height (7 mm units)", 2, 20, 1, 5),
     _boolean("half_grid_base", "Half-grid feet throughout", False),
     _boolean("half_grid_right", "Partial foot on +X", True),
     _boolean("half_grid_top", "Partial foot on +Y", True),

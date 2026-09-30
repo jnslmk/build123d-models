@@ -104,7 +104,7 @@ for a base.
 
 `drill_storage.bin.base` is a separate PETG container with half-cell X/Y sizes
 and body height in 7 mm units. Its wall defaults to 1 mm (two 0.4 mm
-perimeters with a small reserve). The 1×2×3U default has a closed 1 mm plate
+perimeters with a small reserve). The 1×2×5U (35 mm body height) default has a closed 1 mm plate
 under each foot and a hollow rising into the open cavity: the foot boundaries
 form a shallow raised seam on the interior floor, rather than exposed
 underside ribs or a continuous floor above the feet. `bottom_thickness=0`

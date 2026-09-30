@@ -22,7 +22,7 @@
 | EB-2 | Full and half Gridfinity feet beneath one open container; 42 mm pitch and whole-unit vertical height. |
 | EB-3 | Preserve a flat perimeter landing for the inside-plug lid. |
 | EB-4 | Expose generator controls; use a 1 mm PETG default wall with at least two perimeters and a flat lid-bearing rim. |
-| EB-6 | Default 1×2×3U feet have closed 1 mm bed plates, interior-open cavities and a raised cell seam; no underside ribs or mouse ears. Divider switch is on with 0×0 counts; magnets, labels and scoops are off. |
+| EB-6 | Default 1×2×5U feet have closed 1 mm bed plates, interior-open cavities and a raised cell seam; no underside ribs or mouse ears. Divider switch is on with 0×0 counts; magnets, labels and scoops are off. |
 
 ## Evidence-backed dimensions
 

@@ -37,7 +37,7 @@ def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Com
         Pos(
             0,
             0,
-            bin_options.get("height_u", 3) * config.HEIGHT_UNIT
+            bin_options.get("height_u", 5) * config.HEIGHT_UNIT
             + lid_height
             - config.LID_SKIRT_MIN,
         )

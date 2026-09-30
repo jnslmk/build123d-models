@@ -99,7 +99,7 @@ def _foot_cavity(
 def create(
     grid_x: float = 1,
     grid_y: float = 2,
-    height_u: int = 3,
+    height_u: int = 5,
     half_grid_base: bool = False,
     half_grid_right: bool = True,
     half_grid_top: bool = True,
