@@ -90,7 +90,7 @@ reported no remaining important findings after the gate corrections.
 - **Acceptance:** User replied “confirmed” to the request to confirm the base
   geometry and side-wall label placement before the matching parts are built.
 
-## Current slice: matching TPU cartridge
+## Accepted cartridge slice
 
 - **Anchor:** `drill_storage.hex.bits_double.insert`.
 - **Purpose/print pose:** Grip the same 36 short bits on the existing BITS
@@ -169,5 +169,92 @@ reported no remaining important findings after the bead-root correction.
   (2.0 MiB, shaded GLB), plus the refreshed and inspected isometric PNG.
   Local automatic opening via `xdg-open` timed out; the artifact and render are
   available directly. The STL is in print pose, land-side down.
-- **Acceptance:** Pending explicit human acceptance of the cartridge anchor.
-- **Next slice:** Matching PETG cover after cartridge acceptance.
+- **Acceptance:** User replied "confirmed" to the request to confirm the cartridge
+  geometry before proceeding to the matching PETG cover.
+- **Next slice:** Matching PETG cover; no accepted-design-decision delta.
+
+## Current slice: matching PETG cover
+
+- **Anchor:** `drill_storage.hex.bits_double.cover`.
+- **Purpose / print pose:** Close the accepted 36-bit holder with a translucent
+  PETG snap cover, pillow-top down at z=0 and open mouth up.
+- **In scope:** Existing BITS cover extended by one Gridfinity cell, with its
+  eased snap, pillow top, internal ceiling fillet and engraved "BITS" label.
+- **Deferred interface:** Assembled scene until this cover's acceptance.
+- **Applicable specification:** LBL1, LBL2 and LBL5. Socket assignment and both
+  accepted anchors remain unchanged.
+
+### Cover dimensions and constraints
+
+| Dimension | Value | Source / consequence |
+| --- | --- | --- |
+| Outer footprint | 41.5 × 83.5 mm | Flush with the accepted base; one-cell extension |
+| Cover height | 24 mm | Existing 25 mm BITS cover |
+| Assembled height | 42 mm / 6U | Mouth seats at z=18 mm |
+| Ceiling / bit tips | z=41 / 40 mm | 1 mm short-bit headroom |
+| Flat wall / cap | 0.95 / 1.0 mm | Existing BITS cover sections |
+| Snap reach | 0.35 mm radial | Existing eased BITS detent |
+| Collar slip | 0.4 mm diametral | Family cover fit, not reselected |
+| Label | "BITS", 0.5 mm engraving | Inherited identification and accepted 0.45 mm backing |
+
+No open shape decision. Fit and manufacturing tolerances remain physically
+untested; geometric fit does not claim an opening force or a print trial.
+Required skills: `model-documentation`, `cad-iteration`, `box-closures`,
+`snap-fits`, `fdm-fits-and-clearances`, `printed-text` and
+`build123d-geometry-ops`.
+
+### Cover verification and acceptance gate
+
+- [X] Valid single solid, complete rectangular envelope and z=0 print pose.
+- [X] Cap, pillow, ceiling fillet, walls and mouth lead-ins survive the cuts.
+- [X] Actual seated cover clears the accepted base and cartridge.
+- [X] Detent fits its receiver and mechanically catches on withdrawal.
+- [X] All 36 short-bit tips have the required ceiling clearance.
+- [X] Engraving removes material without piercing the inherited backing.
+- [X] Sharp and unclassifiable edge audits have only named functional exceptions.
+- [X] A deliberately altered cover fails a relevant physical predicate.
+
+### Cover exercised evidence
+
+The focused shell gate passed 19 assertions on the completed cover. Removing
+the top 1.01 mm with a full-envelope slab caused five failures, including the
+missing-cap predicate, the measured thickness and both pillow-fillet probes.
+The isometric print-pose projection was rendered and inspected. The
+self-contained shaded GLB artifact was opened in Chromium and visually
+inspected, with no browser errors.
+
+The integrated `uv run check drill_storage.hex.bits_double.cover` passed:
+zero seated overlap with both accepted anchors, 18.57985 mm³ withdrawal
+interference and 0.15000 mm measured engagement on both axes. The inherited
+short-span snap-sizing estimate is 0.765%; this is not a local-strain bound
+or opening-force prediction. All 36 bit-tip positions retain 1.00000 mm
+vertical clearance. A conservative 8 mm AF circumscribed tip envelope retains
+at least 2.39294 mm wall clearance; it is not manufacturer-specific geometry.
+The actual glyphs are at least 9.268 mm high, with no remaining engraving-tool
+material or missing blind backing. Both convex-edge audit buckets passed with
+zero unexplained edges.
+
+Review exposed two false passes and both were reproduced before repair:
+an "STIB" inscription passed all six former label predicates, and a public
+print-pose cover with its detent removed passed all 71 former gate assertions.
+The gate now checks the actual public printable solid through a fixed
+inverse pose and compares independently placed BITS glyphs in reading order,
+including their oriented boundary curves and counters. The healthy lettering
+passes; "STIB" fails the ordered-ink predicate; the detent-removed print fails
+seven relevant ramp, retention, engagement and snap-sizing predicates.
+Near-coincident OCC glyph common booleans were replaced by bidirectional
+curve membership after the healthy B falsely returned an empty intersection.
+
+The config-dependent accepted base and insert leaf gates passed again.
+`uv run ruff check .` and `uv run ty check .` passed after the review fixes.
+The final fresh-geometry cover leaf gate passed with all predicates applied
+to the public printable solid. Independent geometry/spec and gate/standards
+source reviews reported no remaining important findings after the corrections.
+
+- **Views:** Self-contained cover artifact and isometric print-pose projection.
+- **Review:** Proportions, accessible mouth, pillow, label and print pose.
+- **Evidence/artifact:** `exports/drill_storage.hex.bits_double.cover.html`
+  (2.8 MiB, shaded GLB), inspected alongside
+  `exports/drill_storage.hex.bits_double.cover_iso.png`. The STL is pillow-down.
+- **Acceptance:** Pending explicit human acceptance of the cover geometry.
+- **Next slice:** Assembled labelled 1×2 BITS scene after cover acceptance.

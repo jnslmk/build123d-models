@@ -94,9 +94,22 @@ uv run export drill_storage.hex.bits_double.insert
 uv run check drill_storage.hex.bits_double.insert
 ```
 
-The matching **TPU cartridge** is the current reviewable anchor,
-`drill_storage.hex.bits_double.insert`. It uses the identical 36 coordinates,
-the existing BITS grip lands, and the keyed outward retention bead. Print it
-flat-bottom down with sockets up in black TPU; it seats on the base's cavity
-floor at z=23.2 mm. The PETG cover waits for cartridge acceptance under the
+The accepted **TPU cartridge**, `drill_storage.hex.bits_double.insert`, uses the
+identical 36 coordinates, the existing BITS grip lands, and the keyed outward
+retention bead. Print it flat-bottom down with sockets up in black TPU; it seats
+on the base's cavity floor at z=23.2 mm.
+
+The matching **PETG cover** is the current reviewable anchor,
+`drill_storage.hex.bits_double.cover`: a 24 mm cover with the existing eased BITS
+snap and engraved "BITS" identification, extended to 41.5 × 83.5 mm. Print it
+pillow-top down, open mouth up, in translucent PETG. It seats at z=18 mm for a
+42 mm / 6U assembled holder and leaves 1 mm above the 25 mm bits.
+
+```bash
+uv run view drill_storage.hex.bits_double.cover
+uv run export drill_storage.hex.bits_double.cover
+uv run check drill_storage.hex.bits_double.cover
+```
+
+The assembled scene waits for cover acceptance under the
 [current CAD contract](docs/labelled-bits-cad-contract.md).
