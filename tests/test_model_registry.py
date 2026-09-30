@@ -53,6 +53,14 @@ NOT_A_MODEL = {
         "assembly geometry gate imports create() to inspect the seated Dremel "
         "parts; it is a check helper, not a printable or display model."
     ),
+    "drill_storage.hex.bits_double.checks": (
+        "physical geometry gate imports create() to test the 1×2 BITS base; "
+        "it is invoked by uv run check, not offered as a model."
+    ),
+    "drill_storage.hex.bits_double.insert_checks": (
+        "physical geometry gate imports create() to test the 1×2 BITS insert; "
+        "it is invoked by uv run check, not offered as a model."
+    ),
 }
 
 

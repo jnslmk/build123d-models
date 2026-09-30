@@ -15,6 +15,7 @@
 //   {type:"error", id?, message}
 // Protocol (main -> worker):
 //   {type:"init", baseUrl}                                      // absolute site URL
+//   {type:"preload", sourcesUrl}                                // fetch during boot
 //   {type:"generate", id, model, sourcePath, sourcesUrl, editSourcesUrl, params}
 //   {type:"generate", id, model, sourcePath, sourcesUrl, editSourcesUrl, source}
 //
@@ -52,6 +53,15 @@ _stub.reset_show = lambda *a, **k: None
 sys.modules["ocp_vscode"] = _stub
 
 import build123d
+from OCP.Font import Font_FontMgr, Font_SystemFont, Font_FA_Regular
+from OCP.TCollection import TCollection_AsciiString
+
+# Native OpenCASCADE resolves the models' Arial request to DejaVu Sans.
+# Register that exact face instead of WASM's single-line CAD fallback.
+_font = Font_SystemFont(TCollection_AsciiString("Arial"))
+_font.SetFontPath(Font_FA_Regular, TCollection_AsciiString("/fonts/DejaVuSans.ttf"))
+if not Font_FontMgr.GetInstance_s().RegisterFont(_font, True):
+    raise RuntimeError("Could not register the bundled Arial-compatible font")
 print("build123d", build123d.__version__, "ready")
 `;
 
@@ -134,7 +144,17 @@ async function boot() {
   const lockUrl = URL.createObjectURL(new Blob([JSON.stringify(runtimeLock)], { type: "application/json" }));
   status("Booting Python WebAssembly runtime…");
   try {
-    pyodide = await loadPyodide({ stdout: log, stderr: log, lockFileURL: lockUrl });
+    const [runtime, font] = await Promise.all([
+      loadPyodide({ stdout: log, stderr: log, lockFileURL: lockUrl }),
+      (async () => {
+        const response = await fetch(new URL("fonts/DejaVuSans.ttf", site));
+        if (!response.ok) throw new Error(`model font: HTTP ${response.status}`);
+        return new Uint8Array(await response.arrayBuffer());
+      })(),
+    ]);
+    pyodide = runtime;
+    pyodide.FS.mkdirTree("/fonts");
+    pyodide.FS.writeFile("/fonts/DejaVuSans.ttf", font);
   } finally {
     URL.revokeObjectURL(lockUrl);
   }
@@ -225,9 +245,13 @@ function writeSources(sources, path, editedSource) {
 self.onmessage = async (ev) => {
   const msg = ev.data;
   if (msg.type === "init") { resolveBaseUrl(msg.baseUrl); return; }
+  if (msg.type === "preload") {
+    // Fetching has no Python/FS dependency. A failed speculative preload is
+    // retried by generate, which reports the error against the current job.
+    loadSources(msg.sourcesUrl).catch(() => {});
+    return;
+  }
   if (msg.type !== "generate") return;
-  await bootPromise;
-  if (bootFailed) return;
 
   const isEdit = typeof msg.source === "string";
   const params = msg.params || {};
@@ -239,21 +263,27 @@ self.onmessage = async (ev) => {
     const hit = cache.get(key);
     const stl = new Uint8Array(hit.stl);
     const glb = hit.glb ? new Uint8Array(hit.glb) : null;
+    const step = hit.step ? new Uint8Array(hit.step) : null;
     const parts = hit.parts.map((part) => ({
       label: part.label, filename: part.filename, stl: new Uint8Array(part.stl).buffer,
     }));
     const transfer = [stl.buffer];
     if (glb) transfer.push(glb.buffer);
+    if (step) transfer.push(step.buffer);
     for (const part of parts) transfer.push(part.stl);
     self.postMessage(
       { type: "result", id: msg.id, model: msg.model, cached: true, cadMs: 0, wallMs: 0,
-        stl: stl.buffer, glb: glb ? glb.buffer : null, step: null, parts },
+        stl: stl.buffer, glb: glb ? glb.buffer : null, step: step ? step.buffer : null, parts },
       transfer
     );
     return;
   }
-
   try {
+    const [, sources] = await Promise.all([
+      bootPromise, loadSources(isEdit ? msg.editSourcesUrl : msg.sourcesUrl),
+    ]);
+    if (bootFailed) return;
+
     // Live edits may invoke any build123d API, including detect_primitives.
     // Install the real Pyodide scikit-learn package before importing edited code;
     // parameter-only rebuilds never request it.
@@ -262,7 +292,6 @@ self.onmessage = async (ev) => {
       await loadLocked(["scikit-learn"]);
     }
     status("Loading model sources…");
-    const sources = await loadSources(isEdit ? msg.editSourcesUrl : msg.sourcesUrl);
     const reload = writeSources(sources, msg.sourcePath, isEdit ? msg.source : null);
     pyodide.globals.set("MODEL", msg.model);
     pyodide.globals.set("PARAMS_JSON", isEdit ? "" : JSON.stringify(params));
@@ -274,6 +303,7 @@ self.onmessage = async (ev) => {
 
     const stlBytes = new Uint8Array(pyodide.FS.readFile("/tmp/out.stl"));
     const glbBytes = meta.glb ? new Uint8Array(pyodide.FS.readFile("/tmp/out.glb")) : null;
+    const stepBytes = meta.step ? new Uint8Array(pyodide.FS.readFile("/tmp/out.step")) : null;
     const parts = meta.parts.map((part) => ({
       label: part.label, filename: part.filename,
       stl: new Uint8Array(pyodide.FS.readFile(part.path)).buffer,
@@ -281,6 +311,7 @@ self.onmessage = async (ev) => {
     // keep copies for the cache (the originals get transferred away below)
     if (!isEdit) cache.set(key, {
       stl: new Uint8Array(stlBytes), glb: glbBytes ? new Uint8Array(glbBytes) : null,
+      step: stepBytes ? new Uint8Array(stepBytes) : null,
       parts: parts.map((part) => ({
         label: part.label, filename: part.filename, stl: new Uint8Array(part.stl.slice(0)),
       })),
@@ -291,8 +322,7 @@ self.onmessage = async (ev) => {
     let glbBuf = null;
     if (glbBytes) { glbBuf = glbBytes.buffer; transfer.push(glbBuf); }
     let stepBuf = null;
-    if (meta.step) {
-      const stepBytes = new Uint8Array(pyodide.FS.readFile("/tmp/out.step"));
+    if (stepBytes) {
       stepBuf = stepBytes.buffer;
       transfer.push(stepBuf);
     }

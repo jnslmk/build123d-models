@@ -143,10 +143,6 @@ class BrowserRuntimeSmoke(unittest.TestCase):
                                                 lastStatus = data.text;
                                             } else if (data.type === 'error') {
                                                 fail('worker error: ' + data.message);
-                                            } else if (data.type === 'ready') {
-                                                worker.postMessage({type: 'generate', id: 1,
-                                                    model: 'lens_cap', sourcePath: 'models/lens_cap/__init__.py',
-                                                    sourcesUrl, editSourcesUrl, params: {}});
                                             } else if (data.type === 'result') {
                                                 if (data.cached || !(data.stl instanceof ArrayBuffer)) {
                                                     fail('expected freshly generated STL ArrayBuffer');
@@ -198,6 +194,10 @@ class BrowserRuntimeSmoke(unittest.TestCase):
                                         };
                                         worker.postMessage({type: 'init',
                                             baseUrl: new URL('./', document.baseURI).href});
+                                        // Direct callers may queue generation while Python boots.
+                                        worker.postMessage({type: 'generate', id: 1,
+                                            model: 'lens_cap', sourcePath: 'models/lens_cap/__init__.py',
+                                            sourcesUrl, editSourcesUrl, params: {}});
                                     });
                                 } finally {
                                     clearTimeout(timer);
@@ -230,10 +230,15 @@ class BrowserRuntimeSmoke(unittest.TestCase):
 
 class BrowserPageSourceSmoke(unittest.TestCase):
     def test_split_lid_downloads_survive_warm_cache_and_clear_on_switch(self) -> None:
+        self._check_split_lid_downloads("drill_storage.bin.lid")
+
+    def test_wood_split_lips_boot_overlap_and_step_downloads(self) -> None:
+        self._check_split_lid_downloads("drill_storage.wood.cover_stackable")
+
+    def _check_split_lid_downloads(self, lid_name: str) -> None:
         from build123d import Box, export_stl
         from tessellate_models import model_params
 
-        lid_name = "drill_storage.bin.lid"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             assets = _stage_page(
@@ -242,15 +247,26 @@ class BrowserPageSourceSmoke(unittest.TestCase):
             lid = assets["models"][0]
             lid["params"] = model_params(lid_name)
             # A real binary STL makes the prebuilt/default download observable;
-            # the split downloads below come from the real bin model in WASM.
+            # The split downloads below come from the real model in WASM.
             prebuilt = root / "exports" / f"{lid_name}.stl"
             export_stl(Box(10, 10, 10), str(prebuilt))
             lid["stl"] = f"exports/{lid_name}.stl"
             assets["models"][2]["assembly"] = True
             (root / "models-manifest.json").write_text(json.dumps(assets))
-            handler = functools.partial(
-                http.server.SimpleHTTPRequestHandler, directory=str(root)
-            )
+            release_boot = threading.Event()
+            source_requested = threading.Event()
+            requests = []
+
+            class GatedHandler(http.server.SimpleHTTPRequestHandler):
+                def do_GET(self) -> None:
+                    requests.append(self.path)
+                    if self.path.endswith("/runtime-lock.json"):
+                        release_boot.wait(60)
+                    super().do_GET()
+                    if self.path.startswith("/model-sources/"):
+                        source_requested.set()
+
+            handler = functools.partial(GatedHandler, directory=str(root))
             with http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
@@ -268,10 +284,14 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             page.add_init_script("""(() => {
                                 const RealWorker = window.Worker;
                                 window.buildResults = [];
+                                window.workerReady = false;
+                                window.preloads = 0;
+                                window.generatedJobs = [];
                                 window.Worker = class extends RealWorker {
                                     constructor(...args) {
                                         super(...args);
                                         this.addEventListener('message', ({data}) => {
+                                            if (data.type === 'ready') window.workerReady = true;
                                             if (data.type !== 'result') return;
                                             window.buildResults.push({
                                                 cached: data.cached,
@@ -279,6 +299,11 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                                 filenames: (data.parts || []).map(part => part.filename),
                                             });
                                         });
+                                    }
+                                    postMessage(data, ...rest) {
+                                        if (data.type === 'preload') window.preloads++;
+                                        if (data.type === 'generate') window.generatedJobs.push(data);
+                                        return super.postMessage(data, ...rest);
                                     }
                                 };
                             })();""")
@@ -310,7 +335,26 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             # Opt in using the actual checkbox and runtime approval UI.
                             split.check()
                             page.wait_for_selector("#optin", state="visible")
+                            self.assertFalse(
+                                any(
+                                    path.startswith(("/model-sources/", "/fonts/"))
+                                    or "runtime-lock.json" in path
+                                    or "pyodide-worker.js" in path
+                                    for path in requests
+                                ),
+                                requests,
+                            )
                             page.click("#optin-yes")
+                            # Hold Python's lock response: source fetching must still
+                            # finish, and rapid edits must build only the newest job.
+                            self.assertTrue(source_requested.wait(30), requests)
+                            self.assertFalse(page.evaluate("window.workerReady"))
+                            split.uncheck()
+                            page.wait_for_function("() => window.preloads === 2")
+                            split.check()
+                            page.wait_for_function("() => window.preloads === 3")
+                            self.assertEqual(page.evaluate("window.generatedJobs"), [])
+                            release_boot.set()
                             page.wait_for_function(
                                 "() => window.buildResults.length === 1 && "
                                 "!document.querySelector('#part-downloads').hidden"
@@ -327,6 +371,43 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 },
                             )
                             self.assertTrue(page.locator("#btn-stl").is_hidden())
+                            self.assertEqual(
+                                len(page.evaluate("window.generatedJobs")), 1
+                            )
+                            log_text = page.locator("#log").inner_text()
+                            for warning in (
+                                "Font_FontMgr, warning",
+                                "chamfer skipped",
+                                "step export skipped",
+                                "Failed to write STEP",
+                            ):
+                                self.assertNotIn(warning, log_text)
+
+                            def download_step() -> bytes:
+                                with page.expect_download() as pending_download:
+                                    page.click("#btn-step")
+                                item = pending_download.value
+                                self.assertEqual(
+                                    item.suggested_filename, f"{lid_name}.step"
+                                )
+                                path = item.path()
+                                assert path is not None
+                                return path.read_bytes()
+
+                            live_step = download_step()
+                            self.assertTrue(live_step.startswith(b"ISO-10303-21;"))
+                            self.assertTrue(
+                                live_step.rstrip().endswith(b"END-ISO-10303-21;")
+                            )
+                            for label in (b"lid_body", b"stacking_lips"):
+                                self.assertIn(label, live_step)
+                            from build123d import import_step
+
+                            step_path = root / "roundtrip.step"
+                            step_path.write_bytes(live_step)
+                            roundtrip = import_step(str(step_path))
+                            self.assertEqual(len(roundtrip.solids()), 2)
+                            self.assertTrue(roundtrip.is_valid)
 
                             def download_parts() -> dict[str, bytes]:
                                 downloaded = {}
@@ -386,6 +467,20 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                     for axis in (0, 1)
                                 )
                             )
+                            # STEP must contain the same two printable solids,
+                            # not just a valid header or an unrelated fallback.
+                            step_solids = sorted(
+                                roundtrip.solids(),
+                                key=lambda solid: solid.bounding_box().min.X,
+                            )
+                            for solid, (lower, upper) in zip(
+                                step_solids, sorted(bounds, key=lambda pair: pair[0][0])
+                            ):
+                                box = solid.bounding_box()
+                                for actual, expected in zip(
+                                    (*box.min, *box.max), (*lower, *upper)
+                                ):
+                                    self.assertAlmostEqual(actual, expected, delta=0.02)
 
                             split.uncheck()
                             page.wait_for_function(
@@ -426,6 +521,7 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 )
                                 self.assertTrue(page.locator("#btn-stl").is_hidden())
                                 self.assertEqual(download_parts(), live_parts)
+                                self.assertEqual(download_step(), live_step)
                                 if expected_count == 3:
                                     split.uncheck()
                                     page.wait_for_function(
@@ -446,6 +542,7 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                         finally:
                             browser.close()
                 finally:
+                    release_boot.set()
                     server.shutdown()
                     thread.join()
 

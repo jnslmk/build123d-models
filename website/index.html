@@ -950,7 +950,16 @@ function sendJob(job) {
   clearLiveDownloads();
   el.btnStl.disabled = true;
   el.btnStep.disabled = true;
-  if (runtimeState !== 'ready') { pending = job; return; }
+  if (runtimeState !== 'ready') {
+    pending = job;
+    worker.postMessage({
+      type: 'preload', sourcesUrl: new URL(
+        typeof job.payload.source === 'string' ? manifest.editSources : current.sources,
+        document.baseURI,
+      ).href,
+    });
+    return;
+  }
   if (busy) { pending = job; setVStatus('queued — waiting for current build…'); return; }
   busy = true;
   activeJob = {

@@ -344,6 +344,8 @@ def stage_browser_runtime(output_dir: Path) -> None:
         "js/pyodide-worker.js",
         "runtime-lock.json",
         "browser-wheels/build123d-0.11.1-py3-none-any.whl",
+        "fonts/DejaVuSans.ttf",
+        "fonts/LICENSE-DejaVu.txt",
     ):
         destination = output_dir / path
         destination.parent.mkdir(parents=True, exist_ok=True)

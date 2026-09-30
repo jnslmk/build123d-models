@@ -131,6 +131,12 @@ estimates for the current 92-model roster: the full source asset is ~556 KB,
 the median model closure ~65 KB (about 88% less), and lens_cap ~19 KB (about
 97% less). These are compressed file sizes, not measured network timings.
 
+After opting into live rebuilds, the selected source asset downloads while Python
+and the CAD packages initialize. Builds still wait for both, and parameter
+changes during startup coalesce to the newest requested build.
+Generated STL children and STEP files remain available on repeated requests served
+from the worker's geometry cache; a cache hit does not substitute prebuilt files.
+
 If a deploy removes an older hashed asset while a tab stays open, a missing
 source triggers a fresh manifest lookup and retries with the published URL;
 other HTTP failures stay visible in the Code panel or runtime log.
@@ -146,6 +152,13 @@ The lock's local wheel URL is resolved against the page's absolute site base
 before loading, including blob workers under a GitHub Pages project path. Remote
 wheel hosts must permit browser CORS; failed downloads and hash mismatches fail
 the worker rather than continuing with a partial environment.
+
+The worker bundles DejaVu Sans and registers it for regular `Arial` text—the
+same face OpenCASCADE resolves locally for the drill-storage labels—rather
+than using build123d's single-line fallback. Font initialization does not change
+the models' dimensions, label settings or split-print interfaces. The font's
+redistribution notices are in
+[`website/fonts/LICENSE-DejaVu.txt`](website/fonts/LICENSE-DejaVu.txt).
 
 To propose a browser dependency update, first update the explicitly pinned
 Pyodide and/or browser build123d wheel and its upstream SHA in
