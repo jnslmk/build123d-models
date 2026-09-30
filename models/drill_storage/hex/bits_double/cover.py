@@ -1,7 +1,7 @@
 """Matching 1×2 BITS cover: translucent PETG, pillow down and mouth up.
 
 The original short BITS cover's bore, cap, eased detent and 24 mm height are
-extended by one Gridfinity cell. BITS reads across the short +Y wall in use
+extended by one Gridfinity cell. BITS reads across the long +X wall in use
 pose. The blind engraving retains the inherited 0.45 mm backing allowance;
 its glyph edges and the detent's tip-flat transitions are functional edges.
 """
@@ -103,7 +103,7 @@ def label_tool() -> Part:
     with BuildSketch() as probe:
         Text("BITS", font_size=size, font_style=FontStyle.BOLD)
     bounds = probe.sketch.bounding_box()
-    flat_width = c.COVER_X - 2 * CORNER_R
+    flat_width = c.COVER_Y - 2 * CORNER_R
     flat_height = c.COVER_H - TOP_FILLET - 1.0
     size *= min(
         1.0,
@@ -114,9 +114,9 @@ def label_tool() -> Part:
         Text("BITS", font_size=size, font_style=FontStyle.BOLD)
     center = glyph.sketch.bounding_box().center()
     wall = Plane(
-        origin=(0, c.COVER_Y / 2, label_z),
-        x_dir=(-1, 0, 0),
-        z_dir=(0, 1, 0),
+        origin=(c.COVER_X / 2, 0, label_z),
+        x_dir=(0, 1, 0),
+        z_dir=(1, 0, 0),
     )
     with BuildPart() as tool:
         with BuildSketch(wall):

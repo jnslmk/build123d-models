@@ -101,8 +101,9 @@ on the base's cavity floor at z=23.2 mm.
 
 The matching **PETG cover** is the current reviewable anchor,
 `drill_storage.hex.bits_double.cover`: a 24 mm cover with the existing eased BITS
-snap and engraved "BITS" identification, extended to 41.5 × 83.5 mm. Print it
-pillow-top down, open mouth up, in translucent PETG. It seats at z=18 mm for a
+snap and engraved "BITS" identification on the long +X side, extended to
+41.5 × 83.5 mm. Print it pillow-top down, open mouth up, in translucent PETG.
+It seats at z=18 mm for a
 42 mm / 6U assembled holder and leaves 1 mm above the 25 mm bits.
 
 ```bash

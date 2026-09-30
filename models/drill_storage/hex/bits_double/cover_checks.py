@@ -358,17 +358,17 @@ def check_fit(report: Report, usecover: Part, base: Part, insert: Part) -> None:
     )
 
 
-def _glyph_point(report: Report, tool: Part, glyph, y: float):
+def _glyph_point(report: Report, tool: Part, glyph, x: float):
     center = glyph.center(CenterOf.MASS)
-    if report.solid_at(tool, center.X, y, center.Z):
-        return center.X, center.Z
+    if report.solid_at(tool, x, center.Y, center.Z):
+        return center.Y, center.Z
     bounds = glyph.bounding_box()
-    for ix in range(1, 20):
+    for iy in range(1, 20):
         for iz in range(1, 20):
-            x = bounds.min.X + bounds.size.X * ix / 20
+            y = bounds.min.Y + bounds.size.Y * iy / 20
             z = bounds.min.Z + bounds.size.Z * iz / 20
             if report.solid_at(tool, x, y, z):
-                return x, z
+                return y, z
     return None
 
 
@@ -376,18 +376,18 @@ def _check_label(report: Report, usecover: Part, tool: Part) -> None:
     report.section("Full BITS engraving: true bold glyphs, depth, backing and no holes")
     bounds = tool.bounding_box()
     glyphs = list(tool.solids())
-    wall = c.COVER_Y / 2
+    wall = c.COVER_X / 2
     report.check(
         tool.is_valid
-        and abs(bounds.max.Y - wall) < GEOMETRY_TOL
-        and abs(bounds.min.Y - (wall - h.LABEL_DEPTH)) < GEOMETRY_TOL
-        and abs((bounds.min.X + bounds.max.X) / 2) < GEOMETRY_TOL
-        and bounds.min.X > -c.COVER_X / 2 + CORNER_R
-        and bounds.max.X < c.COVER_X / 2 - CORNER_R
+        and abs(bounds.max.X - wall) < GEOMETRY_TOL
+        and abs(bounds.min.X - (wall - h.LABEL_DEPTH)) < GEOMETRY_TOL
+        and abs((bounds.min.Y + bounds.max.Y) / 2) < GEOMETRY_TOL
+        and bounds.min.Y > -c.COVER_Y / 2 + CORNER_R
+        and bounds.max.Y < c.COVER_Y / 2 - CORNER_R
         and bounds.min.Z > 1
         and bounds.max.Z < c.COVER_H - TOP_FILLET,
-        "whole true glyph envelope lies across the flat short +Y wall at exact .5 mm depth",
-        f"X={bounds.min.X:.3f}..{bounds.max.X:.3f}; Z={bounds.min.Z:.3f}..{bounds.max.Z:.3f}",
+        "whole true glyph envelope lies across the flat long +X wall at exact .5 mm depth",
+        f"Y={bounds.min.Y:.3f}..{bounds.max.Y:.3f}; Z={bounds.min.Z:.3f}..{bounds.max.Z:.3f}",
     )
     # Font size is inferred from true ink height, but the word, reading
     # direction, centering and wall plane are independent of the supplied tool.
@@ -399,23 +399,18 @@ def _check_label(report: Report, usecover: Part, tool: Part) -> None:
         Text("BITS", font_size=size, font_style=FontStyle.BOLD)
     center = reference_ink.sketch.bounding_box().center()
     _, label_z, _ = label_fit(c.COVER_H, "BITS")
-    reference_plane = Plane(
-        origin=(0, wall, label_z), x_dir=(-1, 0, 0), z_dir=(0, 1, 0)
-    )
+    reference_plane = Plane(origin=(wall, 0, label_z), x_dir=(0, 1, 0), z_dir=(1, 0, 0))
     with BuildPart() as reference_tool:
         with BuildSketch(reference_plane):
             with Locations((-center.X, -center.Y)):
                 add(reference_ink.sketch)
         extrude(amount=-h.LABEL_DEPTH)
-    # Local text +X runs toward world -X when read from the exterior +Y side.
+    # Local text +X runs toward world +Y when read from the exterior +X side.
     expected = sorted(
         reference_tool.part.solids(),
-        key=lambda glyph: glyph.bounding_box().center().X,
-        reverse=True,
+        key=lambda glyph: glyph.bounding_box().center().Y,
     )
-    actual = sorted(
-        glyphs, key=lambda glyph: glyph.bounding_box().center().X, reverse=True
-    )
+    actual = sorted(glyphs, key=lambda glyph: glyph.bounding_box().center().Y)
     matches = len(actual) == len(expected) == 4
 
     def boundary_matches(first, second) -> bool:
@@ -445,8 +440,8 @@ def _check_label(report: Report, usecover: Part, tool: Part) -> None:
         positioned = all(
             abs(a - b) < 1e-4
             for a, b in zip(
-                (gb.min.X, gb.max.X, gb.min.Z, gb.max.Z),
-                (wb.min.X, wb.max.X, wb.min.Z, wb.max.Z),
+                (gb.min.Y, gb.max.Y, gb.min.Z, gb.max.Z),
+                (wb.min.Y, wb.max.Y, wb.min.Z, wb.max.Z),
             )
         )
         # Bounds alone cannot distinguish a mirrored asymmetric glyph. Match
@@ -479,16 +474,16 @@ def _check_label(report: Report, usecover: Part, tool: Part) -> None:
     # Translate the exact tool into the residual wall and clip off .002 mm
     # at each boundary so contact tolerances cannot conceal a through-hole.
     backing_width = COVER_WALL - h.LABEL_DEPTH - 0.004
-    backing_glyph = as_part(Pos(0, -h.LABEL_DEPTH, 0) * tool)
+    backing_glyph = as_part(Pos(-h.LABEL_DEPTH, 0, 0) * tool)
     with BuildPart() as backing_slab:
         with Locations(
             (
+                (c.COVER_INNER_X / 2 + wall - h.LABEL_DEPTH) / 2,
                 0,
-                (c.COVER_INNER_Y / 2 + wall - h.LABEL_DEPTH) / 2,
                 c.COVER_H / 2,
             )
         ):
-            Box(c.COVER_X + 2, backing_width, c.COVER_H + 2)
+            Box(backing_width, c.COVER_Y + 2, c.COVER_H + 2)
     with BuildPart() as backing:
         add(backing_glyph)
         add(backing_slab.part, mode=Mode.INTERSECT)
@@ -504,11 +499,11 @@ def _check_label(report: Report, usecover: Part, tool: Part) -> None:
         if point is None:
             backed = False
             continue
-        x, z = point
+        y, z = point
         backed &= (
-            not report.solid_at(usecover, x, wall - h.LABEL_DEPTH + PROBE, z)
-            and report.solid_at(usecover, x, wall - h.LABEL_DEPTH - PROBE, z)
-            and not report.solid_at(usecover, x, c.COVER_INNER_Y / 2 - PROBE, z)
+            not report.solid_at(usecover, wall - h.LABEL_DEPTH + PROBE, y, z)
+            and report.solid_at(usecover, wall - h.LABEL_DEPTH - PROBE, y, z)
+            and not report.solid_at(usecover, c.COVER_INNER_X / 2 - PROBE, y, z)
         )
     report.check(
         bool(glyphs) and backed,

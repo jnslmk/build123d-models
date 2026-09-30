@@ -18,6 +18,7 @@ Torx sizes side-by-side.
 | LB3 | Full family-and-size labels on assigned positions | H = hex, T = Torx, PZ = Pozidriv, PH = Phillips, SL = slotted blade width in mm |
 | LB4 | Exact layout below; identical Torx sizes adjacent | No unassigned sockets; 14 Torx positions weighted to common sizes |
 | LB5 | Existing 1×1 BITS stays unchanged | New variant lives under `drill_storage.hex.bits_double` |
+| LB6 | Cover identification reads across a long side | User requested "Print the cover label on the long side"; engrave BITS on the +X wall, with existing depth and backing |
 
 Rows run from back (+Y) to front (−Y), columns left (−X) to right (+X),
 viewed from above:

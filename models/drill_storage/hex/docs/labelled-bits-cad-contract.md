@@ -179,9 +179,9 @@ reported no remaining important findings after the bead-root correction.
 - **Purpose / print pose:** Close the accepted 36-bit holder with a translucent
   PETG snap cover, pillow-top down at z=0 and open mouth up.
 - **In scope:** Existing BITS cover extended by one Gridfinity cell, with its
-  eased snap, pillow top, internal ceiling fillet and engraved "BITS" label.
+  eased snap, pillow top, internal ceiling fillet and long-side engraved "BITS" label.
 - **Deferred interface:** Assembled scene until this cover's acceptance.
-- **Applicable specification:** LBL1, LBL2 and LBL5. Socket assignment and both
+- **Applicable specification:** LB1, LB2, LB5 and LB6. Socket assignment and both
   accepted anchors remain unchanged.
 
 ### Cover dimensions and constraints
@@ -195,7 +195,7 @@ reported no remaining important findings after the bead-root correction.
 | Flat wall / cap | 0.95 / 1.0 mm | Existing BITS cover sections |
 | Snap reach | 0.35 mm radial | Existing eased BITS detent |
 | Collar slip | 0.4 mm diametral | Family cover fit, not reselected |
-| Label | "BITS", 0.5 mm engraving | Inherited identification and accepted 0.45 mm backing |
+| Label | "BITS" across long +X wall, 0.5 mm engraving | User's long-side request; accepted 0.45 mm backing |
 
 No open shape decision. Fit and manufacturing tolerances remain physically
 untested; geometric fit does not claim an opening force or a print trial.
@@ -251,10 +251,26 @@ The final fresh-geometry cover leaf gate passed with all predicates applied
 to the public printable solid. Independent geometry/spec and gate/standards
 source reviews reported no remaining important findings after the corrections.
 
+### Long-side label revision
+
+User feedback: "Print the cover label on the long side." This changes only
+the identification plane to the long +X wall, reading along +Y. Height, fits,
+cap, shell, text, engraving depth and backing remain unchanged. LB6 records
+this accepted-decision delta. The cover remains the current reviewable anchor;
+the assembled scene is still deferred.
+
+The revised cover leaf gate passed with zero seated interference, unchanged
+detent geometry and 1 mm short-bit headroom. All six focused label predicates
+passed; moving the label back to the short wall was rejected by the long-wall
+envelope, independently positioned ink and backing predicates. The glyphs
+are at least 9.477 mm high, with unchanged 0.5 mm depth and 0.45 mm backing.
+The refreshed STL, shaded HTML preview and isometric PNG were exported; the
+PNG and browser preview were visually inspected. Ruff and type checks passed.
+
 - **Views:** Self-contained cover artifact and isometric print-pose projection.
 - **Review:** Proportions, accessible mouth, pillow, label and print pose.
 - **Evidence/artifact:** `exports/drill_storage.hex.bits_double.cover.html`
-  (2.8 MiB, shaded GLB), inspected alongside
+  (2.7 MiB, shaded GLB), inspected alongside
   `exports/drill_storage.hex.bits_double.cover_iso.png`. The STL is pillow-down.
 - **Acceptance:** Pending explicit human acceptance of the cover geometry.
 - **Next slice:** Assembled labelled 1×2 BITS scene after cover acceptance.
