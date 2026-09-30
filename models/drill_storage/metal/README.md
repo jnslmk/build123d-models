@@ -12,13 +12,20 @@ position. A short grip land in each TPU through-bore holds the shank; the ASA
 bores guide freely. The keyed TPU bead seats in a shallow ASA pocket. Print
 the cartridge flat, with its relieved face on the bed and its grip lands up.
 
-The cover slides **over a broad ASA collar** along the drill axes. A short
-ramped bead in its PETG bed clicks into a backed groove under the ASA collar,
-holding the cover in place while allowing hand removal. Lift the assembled
-holder off its baseplate before pulling the foot-bearing cover sideways; keep
-it horizontal while opening. Print the ASA base and PETG cover foot-down,
-with slicer supports under the ASA rear roof and collar overhang and the PETG
-long roof. Clear the detent groove of supports before assembly.
+The cover slides **over a continuous ASA collar** along the drill axes. A
+ramped 0.30 mm PETG bead runs around its full mouth perimeter, including the
+rounded corners, and seats in the matching ASA groove with 0.19 mm nominal
+engagement and 0.17 mm radial groove relief. The collar retains its outer
+dimensions with a continuous 1.16 mm wall (0.36 mm groove plus 0.8 mm backing);
+the tool layout is repacked to clear it, including rearranged tool positions.
+Reprint the base, TPU cartridge and cover together: the revised bore positions
+do not match the old cartridge. This replaces the short floor catch, as confirmed
+on 2026-09-30. Lift the assembled holder off its baseplate before pulling the
+foot-bearing cover sideways; keep it horizontal while opening. Print the ASA
+base and PETG cover foot-down, with slicer supports under the ASA rear roof and
+collar overhang and the PETG long roof. Clear supports from the entire groove
+and bead ring before assembly. Retention and hand-release force remain
+unverified until a physical print trial.
 
 The ASA guide's exposed side and lower bed edge stay flush across the cartridge
 seat and into the cover joint; the sliding cover clearance remains inside.

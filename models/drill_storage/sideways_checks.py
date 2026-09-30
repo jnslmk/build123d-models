@@ -1,7 +1,7 @@
 """Physical tool-envelope, side-cover, and print-pose gates."""
 
 from itertools import combinations
-from math import hypot, sqrt
+from math import cos, hypot, pi, sin, sqrt
 
 from build123d import BuildSketch, CenterOf, FontStyle, Pos, Text, Vector
 from models.lib.checks import Report, is_solid_at
@@ -15,10 +15,9 @@ from .sideways import (
     COLLAR_END,
     COLLAR_CLEAR,
     COLLAR_LEAD,
+    COLLAR_WALL,
     DETENT_BEAD,
     DETENT_GROOVE,
-    DETENT_W,
-    DETENT_X,
     DETENT_Y,
     EDGE_CHAMFER,
     FRONT_CORNER_R,
@@ -36,7 +35,7 @@ from .sideways_cover import MOUTH_LEAD, SEAM, WALL
 # clear the next bit by this much even at the widest point of its body.
 MIN_TOOL_GAP = 1.4  # 1 mm reserved + 0.4 mm diametral running clearance
 SIDE_WALL = 1.2  # three 0.4 mm ASA perimeters
-FLOOR_WALL = 1.2
+FLOOR_WALL = BED_THICKNESS + COLLAR_CLEAR / 2  # clear raised bed, PETG sliding gap
 TOP_WALL = 1.2
 
 
@@ -52,6 +51,49 @@ def _ink_point(face):
             if face.is_inside(point):
                 return point
     return None
+
+
+def _detent_perimeter():
+    """Sample every flat and rounded corner of the male collar perimeter."""
+    half_w = (PAD - 2 - COLLAR_CLEAR) / 2
+    bottom = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2
+    top = 5 * HEIGHT_UNIT - 1 - COLLAR_CLEAR / 2
+    for sign in (-1, 1):
+        for index in range(37):
+            x = (half_w - 1) * (2 * index / 36 - 1)
+            yield x, top if sign == 1 else bottom, 0, -sign
+        for index in range(27):
+            z = bottom + 1 + (top - bottom - 2) * index / 26
+            yield sign * half_w, z, -sign, 0
+        for side in (-1, 1):
+            for index in range(1, 6):
+                angle = index * pi / 12
+                nx, nz = side * cos(angle), sign * sin(angle)
+                yield (
+                    side * (half_w - 1) + nx,
+                    (top - 1 if sign == 1 else bottom + 1) + nz,
+                    -nx,
+                    -nz,
+                )
+
+
+def _perimeter_detent_present(base, cover, rear: float) -> bool:
+    """The whole loop has a seated bead, empty groove and intact ASA backing."""
+    y = rear + DETENT_Y
+    return all(
+        is_solid_at(cover, x + nx * 0.09, y, z + nz * 0.09)
+        and not is_solid_at(base, x + nx * 0.25, y, z + nz * 0.25)
+        and all(
+            is_solid_at(
+                base,
+                x + nx * (DETENT_GROOVE + backing),
+                y,
+                z + nz * (DETENT_GROOVE + backing),
+            )
+            for backing in (0.05, 0.4, 0.75)
+        )
+        for x, z, nx, nz in _detent_perimeter()
+    )
 
 
 def run_for(drills: DrillSet, part) -> Report:
@@ -386,29 +428,26 @@ def run_cover_for(drills: DrillSet, cover) -> Report:
         and is_solid_at(cover, mouth_x, shell_rear + MOUTH_LEAD + 0.1, 20),
         "both sides of the collar joint have an entry lead-in",
     )
-    # The bead sits clear inside the seated groove; moving the cover 1 mm
-    # forward drives it into the collar floor before it can withdraw.
-    detent_y = rear + DETENT_Y
-    detent_x = DETENT_X + DETENT_W / 2
-    detent_floor = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2
+    aperture_x = male_outer_x - COLLAR_WALL
+    report.check(
+        is_solid_at(base, aperture_x + 0.1, rear + COLLAR_END - 0.25, 20)
+        and not is_solid_at(base, aperture_x + 0.1, rear + COLLAR_END - 0.05, 20),
+        "continuous collar aperture has a bevel on its exposed inner rim",
+    )
+    # Sample every flat and corner, not just the former isolated floor catch.
+    # Seated parts must be clear; withdrawal must encounter a real barrier.
     engagement = DETENT_BEAD - COLLAR_CLEAR / 2
     report.check(
-        not is_solid_at(base, detent_x, detent_y, detent_floor + 0.25)
-        and is_solid_at(base, detent_x, detent_y, detent_floor + DETENT_GROOVE + 0.75)
-        and not is_solid_at(
-            base, detent_x, detent_y, detent_floor + DETENT_GROOVE + 0.85
-        )
-        and is_solid_at(cover, detent_x, detent_y, BASE_H + BED_THICKNESS + 0.2)
-        and is_solid_at(cover, detent_x, detent_y - 0.5, BASE_H + BED_THICKNESS + 0.15)
-        and not is_solid_at(
-            cover, detent_x, detent_y + 0.35, BASE_H + BED_THICKNESS + 0.15
-        )
+        _perimeter_detent_present(base, cover, rear)
+        and COLLAR_WALL - DETENT_GROOVE >= 0.8 - 1e-6
         and base.intersect(cover).volume < 1e-5
         and base.intersect(Pos(0, 1, 0) * cover).volume > 0
         and engagement > 0.1,
-        "backed ASA groove seats PETG bead with axial retention",
-        f"{engagement:.2f} mm nominal engagement, 0.8 mm groove backing",
+        "continuous backed ASA groove seats PETG bead on every flat and corner",
+        f"{engagement:.2f} mm engagement, 0.8 mm groove backing",
     )
+    # A circular-hoop formula does not predict rectangular wall bending or
+    # across-layer opening force. Repeated hand release still needs a print.
     report.check(
         all(
             base.intersect(Pos(0, offset, 0) * cover).volume < 1e-5

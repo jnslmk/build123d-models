@@ -102,8 +102,8 @@ def create_cover_for(drills: DrillSet):
                     RectangleRounded(PAD - 2 * WALL, cavity_h, 0.2)
             loft(ruled=True)
         add(mouth.part, mode=Mode.SUBTRACT)
-        # One shallow ramped bead mates with the ASA floor groove; the 1.6 mm
-        # PETG bed supports it without thinning the long side walls.
+        # A closed-loop ramped bead follows all four collar faces and corners.
+        # Its root is embedded in the bed, side walls and roof.
         add(cover_detent(rear, groove=False))
         # Each forward foot has its own 4.4 mm receiver above the 5U roof.
         # Its floor remains the original roof, so no socket cuts into the bits.

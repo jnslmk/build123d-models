@@ -18,7 +18,6 @@ from build123d import (
     Mode,
     Plane,
     Pos,
-    Polygon,
     RectangleRounded,
     Rotation,
     Sphere,
@@ -43,36 +42,40 @@ from .box import (
 from .sets import DrillSet, StepDrill
 from .tools import STEEL, create_drill, create_hex_tool, create_step_drill
 
-# Frozen cross-sections solved against every tool's full outside envelope, with
-# 1.5 mm side margins, 2 mm vertical margins, and >=1 mm between reserved
-# circles. The rear ASA guide cuts only the shank clearance, leaving more wall.
+# Frozen X/Z positions minimize squared movement from the previous layout while
+# clearing the continuous collar aperture (X +/-18.48, Z 7.27..32.73, R 0.2).
+# Reserve max(body radius + COLLAR_CLEAR, compensated ASA guide radius), plus
+# >=0.05 mm at the aperture; full tool-body gaps remain >=1.4 mm and outer
+# side/floor/roof walls >=1.2 mm. STEP reserves R8 + COLLAR_CLEAR only through
+# the collar: its R10 shoulder lies behind it, but still sets body/wall budgets.
+# STEP's full shoulder also clears the raised bed (Z 6.11) by >=0.11 mm.
 WOOD_XZ = {
-    "2": (3.10, 31.70),
-    "2.5": (-8.78, 7.95),
-    "3": (-17.45, 31.20),
-    "3.5": (-17.20, 11.79),
-    "4": (13.25, 30.70),
-    "5": (16.45, 20.67),
-    "6": (-1.38, 19.49),
-    "7": (5.58, 14.91),
-    "8": (-2.49, 10.70),
-    "9": (14.45, 11.20),
-    "10": (6.64, 24.96),
-    "CSK": (-10.85, 17.25),
+    "2": (2.81, 31.43),
+    "2.5": (-9.16, 8.82),
+    "3": (-16.68, 30.93),
+    "3.5": (-16.43, 11.58),
+    "4": (13.49, 30.43),
+    "5": (15.68, 20.67),
+    "6": (-1.69, 19.87),
+    "7": (4.91, 15.51),
+    "8": (-3.09, 11.57),
+    "9": (13.68, 12.07),
+    "10": (6.87, 25.23),
+    "CSK": (-11.32, 17.95),
 }
 METAL_XZ = {
-    "1": (18.05, 17.83),
-    "1.5": (-11.06, 31.95),
-    "2": (17.65, 31.70),
-    "2.5": (-17.70, 7.95),
-    "3": (11.58, 31.20),
-    "4": (-3.92, 30.61),
-    "5": (16.45, 9.20),
-    "6": (-15.95, 29.70),
-    "8": (14.95, 24.86),
-    "10": (4.26, 27.70),
-    "TAP": (8.66, 15.38),
-    "STEP": (-8.63, 17.06),
+    "1": (17.30, 20.25),
+    "1.5": (-10.44, 31.44),
+    "2": (17.02, 31.27),
+    "2.5": (-8.21, 28.85),
+    "3": (10.12, 30.87),
+    "4": (-3.83, 30.43),
+    "5": (3.61, 10.07),
+    "6": (-15.18, 29.39),
+    "8": (14.18, 25.27),
+    "10": (3.57, 26.42),
+    "TAP": (12.37, 14.23),
+    "STEP": (-9.30, 16.23),
 }
 
 # The guide end is deliberately closed: a drill seats against an ASA back wall.
@@ -95,18 +98,15 @@ INSERT_CATCH_OFFSET = 0.0  # pocket leaves 0.35 mm at the thinnest ASA point
 
 COLLAR_START = GRID - 3.0  # overlap with the rear guide's first-cell walls
 COLLAR_END = GRID + 4.0  # male reach into the hollow PETG cover
-COLLAR_WALL = 0.8  # two ASA perimeters; tool-clearance scallops are cut below
 COLLAR_CLEAR = fits.SLIDING  # sliding fit, PETG cover over ASA collar
 COLLAR_ROOF = 1.0
 COLLAR_LEAD = 0.3  # 45-degree male lead-in at the cover entry
-# The 4 mm axial collar cannot carry the upright holder's full perimeter ring:
-# its scalloped 0.8 mm walls would be erased by a groove. A short floor catch
-# uses the open space between the wood and metal tool paths instead.
-DETENT_X = 2.0
-DETENT_W = 8.0
+# A continuous, backed collar carries the same closed-loop detent as the
+# upright holders; the tool layout clears its inner aperture without scallops.
 DETENT_Y = GRID + 2.5
 DETENT_BEAD = 0.30  # PETG: 0.19 mm engagement beyond the 0.11 mm radial gap
-DETENT_GROOVE = 0.36  # ASA: added floor backing keeps 0.8 mm behind the groove
+DETENT_GROOVE = 0.36  # 0.17 mm radial relief beyond the bead's 0.19 mm engagement
+COLLAR_WALL = DETENT_GROOVE + 0.8  # groove depth plus two ASA backing perimeters
 DETENT_LEAD = 1.1  # gentle insertion ramp facing the cover's open mouth (-Y)
 DETENT_BACK = 0.5  # shorter retention face towards the closed end (+Y)
 DETENT_FLAT = 0.15  # printable flat instead of a knife-edge bead
@@ -115,47 +115,47 @@ LABEL_DEPTH = 0.5  # stays within the 1 mm PETG cover wall
 TOOL_LABEL_SIZE = 4.2  # bold digits render just over 3 mm tall
 TOOL_LABEL_DEPTH = 0.8  # leaves 1.2 mm of the ASA guide's 2 mm back wall
 TOOL_LABEL_MARGIN = 0.4  # flat rear face ends at PAD/2 - CORNER_R
+# Lettering uses rectangular ink bounds rather than circular tool envelopes.
+# Small map offsets keep decimal labels distinct without moving their bores.
+_TOOL_LABEL_OFFSETS = {
+    ("wood", "2.5"): (0.0, -0.65),
+    ("metal", "1.5"): (1.3, 0.0),
+    ("metal", "2.5"): (0.0, -1.80),
+}
 
 
 def cover_detent(rear: float, *, groove: bool):
-    """Matching axial bead/groove on the bed-facing collar and cover floor."""
+    """Ramped closed-loop bead/groove, including all four rounded corners."""
+    gap = COLLAR_CLEAR / 2
+    width = PAD - 2.0 - (COLLAR_CLEAR if groove else 0)
+    bottom = BASE_H + BED_THICKNESS + (gap if groove else 0)
+    top = 5 * HEIGHT_UNIT - COLLAR_ROOF - (gap if groove else 0)
+    radius = 1.0 if groove else 1.0 + gap
+    depth = DETENT_GROOVE if groove else DETENT_BEAD
     y = rear + DETENT_Y
-    # Embed the bead's root into the PETG bed so the fuse has a real overlap.
-    root = 0 if groove else 0.05
-    z = BASE_H + BED_THICKNESS + (COLLAR_CLEAR / 2 if groove else -root)
-    depth = DETENT_GROOVE if groove else DETENT_BEAD + root
-    # On insertion (-Y), the bead's negative-Y face meets the collar first.
-    # The short positive-Y face is the retention barrier during withdrawal.
-    with BuildPart() as catch:
-        with BuildSketch(Plane.YZ.offset(DETENT_X)):
-            Polygon(
-                (y - DETENT_LEAD - (0.1 if groove else 0), z),
-                (y - DETENT_FLAT / 2, z + depth),
-                (y + DETENT_FLAT / 2, z + depth),
-                (y + DETENT_BACK + (0.1 if groove else 0), z),
-                align=None,
-            )
-        extrude(amount=DETENT_W)
-    return catch.part
-
-
-def _detent_backing(rear: float):
-    """Reinforce the ASA floor under the groove without raw top edges."""
-    y = rear + DETENT_Y + (DETENT_BACK - DETENT_LEAD) / 2
-    z = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2 + COLLAR_WALL - 0.1
+    axial_clear = 0.1 if groove else 0
     sections = []
-    for height, inset in ((0, 0), (DETENT_GROOVE - 0.1, 0), (DETENT_GROOVE + 0.1, 0.2)):
-        with BuildSketch(Plane.XY.offset(z + height)) as profile:
-            with Locations((DETENT_X + DETENT_W / 2, y)):
+    for offset, inset in (
+        (-DETENT_LEAD - axial_clear, 0),
+        (-DETENT_FLAT / 2, depth),
+        (DETENT_FLAT / 2, depth),
+        (DETENT_BACK + axial_clear, 0),
+    ):
+        with BuildSketch(Plane.XZ.offset(-(y + offset))) as section:
+            with Locations((0, (bottom + top) / 2)):
                 RectangleRounded(
-                    DETENT_W + 0.4 - 2 * inset,
-                    DETENT_LEAD + DETENT_BACK + 1.0 - 2 * inset,
-                    0.25 - inset,
+                    width - 2 * inset, top - bottom - 2 * inset, radius - inset
                 )
-        sections.append(profile.sketch)
-    with BuildPart() as backing:
-        loft(sections=sections, ruled=True)
-    return backing.part
+        sections.append(section.sketch)
+    # The square-ish outside embeds the ring into the existing PETG shell and
+    # bed. The inner loft follows parallel offsets of the ASA rounded perimeter.
+    with BuildPart() as ring:
+        with BuildSketch(Plane.XZ.offset(-(y + DETENT_BACK + axial_clear))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(width + 0.1, top - bottom + 0.1, 0.2)
+        extrude(amount=DETENT_LEAD + DETENT_BACK + 2 * axial_clear)
+        loft(sections=sections, ruled=True, mode=Mode.SUBTRACT)
+    return ring.part
 
 
 def stacking_receiver(y: float, top_z: float):
@@ -182,13 +182,9 @@ def tool_map_glyphs(drills: DrillSet):
             Text(key, font_size=TOOL_LABEL_SIZE, font_style=FontStyle.BOLD)
         glyph = lettering.sketch
         bounds = glyph.bounding_box()
-        # METAL 1.5 otherwise touches the adjacent 6 label after the 6 is
-        # clamped away from the rounded corner.
-        shift = 1.3 if drills.name == "metal" and key == "1.5" else 0.0
-        x = min(
-            flat_half - bounds.max.X, max(-flat_half - bounds.min.X, hole_x + shift)
-        )
-        yield key, x, z, glyph
+        dx, dz = _TOOL_LABEL_OFFSETS.get((drills.name, key), (0.0, 0.0))
+        x = min(flat_half - bounds.max.X, max(-flat_half - bounds.min.X, hole_x + dx))
+        yield key, x, z + dz, glyph
 
 
 def engrave_tool_map(rear: float, glyphs) -> None:
@@ -211,8 +207,8 @@ def layout_for(drills: DrillSet) -> tuple[int, dict[str, tuple[float, float]]]:
     raise ValueError(f"no horizontal holder layout for {drills.name}")
 
 
-def _cover_collar(rear: float, height: float, drills: DrillSet, positions):
-    """Wide male rim inside the cover mouth, relieved around the tool paths."""
+def _cover_collar(rear: float, height: float):
+    """Continuous backed male rim inside the cover mouth."""
     outer_w = PAD - 2.0 - COLLAR_CLEAR
     bottom = BASE_H + BED_THICKNESS + COLLAR_CLEAR / 2
     top = height - COLLAR_ROOF - COLLAR_CLEAR / 2
@@ -232,37 +228,31 @@ def _cover_collar(rear: float, height: float, drills: DrillSet, positions):
             with Locations((0, (bottom + top) / 2)):
                 RectangleRounded(outer_w, top - bottom, 1.0)
         loft(ruled=True)
-        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END + 0.01))):
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END - 0.2))):
             with Locations((0, (bottom + top) / 2)):
                 RectangleRounded(
                     outer_w - 2 * COLLAR_WALL,
                     top - bottom - 2 * COLLAR_WALL,
                     0.2,
                 )
-        extrude(amount=COLLAR_END - COLLAR_START + 0.02, mode=Mode.SUBTRACT)
-        # Adjacent shanks have only a small margin at the guide's outside
-        # corners; scallop the collar rather than narrowing their free path.
-        for drill in drills.drills:
-            x, z = positions[f"{drill.nominal:g}"]
-            with Locations((x, rear + (COLLAR_START + COLLAR_END) / 2, z)):
-                Cylinder(
-                    (drills.cut_d(drill) + c.GUIDE_FIT) / 2,
-                    COLLAR_END - COLLAR_START + 0.2,
-                    rotation=(90, 0, 0),
-                    mode=Mode.SUBTRACT,
+        extrude(amount=COLLAR_END - COLLAR_START - 0.19, mode=Mode.SUBTRACT)
+        # Bevel the new continuous aperture's exposed rim as well as the
+        # outside: a 0.66 mm free edge remains where the two bevels meet.
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END - 0.2))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(
+                    outer_w - 2 * COLLAR_WALL,
+                    top - bottom - 2 * COLLAR_WALL,
+                    0.2,
                 )
-        for tool in drills.hex_tools:
-            x, z = positions[tool.key]
-            with Locations((x, rear + (COLLAR_START + COLLAR_END) / 2, z)):
-                Cylinder(
-                    max(
-                        tool.head_d / 2 + COLLAR_CLEAR,
-                        (tool.across_flats + c.GUIDE_FIT) / 3**0.5,
-                    ),
-                    COLLAR_END - COLLAR_START + 0.2,
-                    rotation=(90, 0, 0),
-                    mode=Mode.SUBTRACT,
+        with BuildSketch(Plane.XZ.offset(-(rear + COLLAR_END + 0.01))):
+            with Locations((0, (bottom + top) / 2)):
+                RectangleRounded(
+                    outer_w - 2 * COLLAR_WALL + 0.42,
+                    top - bottom - 2 * COLLAR_WALL + 0.42,
+                    0.41,
                 )
+        loft(ruled=True, mode=Mode.SUBTRACT)
     return collar.part
 
 
@@ -383,10 +373,7 @@ def create_base_for(drills: DrillSet):
                     height - BASE_H - BED_THICKNESS - 2,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                 )
-        add(_cover_collar(rear, height, drills, positions))
-        # Back the floor groove with two full ASA perimeters. This pad sits
-        # between the tool paths, with a chamfered top for support removal.
-        add(_detent_backing(rear))
+        add(_cover_collar(rear, height))
         add(cover_detent(rear, groove=True), mode=Mode.SUBTRACT)
         add(_insert_seat(rear, height), mode=Mode.SUBTRACT)
         front_y = rear + BACK_WALL + GUIDE_DEPTH
