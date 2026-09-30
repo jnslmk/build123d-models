@@ -170,11 +170,11 @@ printable parts: a rigid ASA guide base, a removable TPU grip insert, and a
 translucent PETG cover for tools up to 50 mm long. It is not an STL print job;
 export the `.base`, `.insert`, and `.cover` leaf models separately.
 
-The 1×2 base retains its 55 existing positions in a 5×11 grid at 7 mm pitch,
-two Gridfinity feet, flat cover seat at z=24, and ASA guide floor at z=8.
-The approved 2026-09-30 inventory rebore assigns nominal shank diameters
-in ascending groups along the existing x-major order (increasing X, then
-increasing Y within each column): 1.0 mm ×1, 1.5 mm ×1, 2.0 mm ×1,
+The 1×2 base has 55 positions in six columns at 6 mm horizontal pitch.
+Rows are 7 mm apart within each foot, with no sockets over the gap between
+the two feet. The ASA guide floor is z=3; the flat cover seat remains z=24.
+Nominal diameters run in ascending x-major groups:
+1.0 mm ×1, 1.5 mm ×1, 2.0 mm ×1,
 2.35 mm ×10, 2.9 mm ×25, and 3.1 mm ×17. These include the owned
 inventory of 1, 1, 1, 6, 21, and 11 tools respectively, plus 14 spare
 positions: four at 2.35 mm, four at 2.9 mm, and six at 3.1 mm.
@@ -182,16 +182,16 @@ The ASA guides and matching TPU through-bores use the family's
 diameter-dependent small-bore compensation; each TPU bore retains its
 short gripping land and relieved upper section. The 8 mm cartridge's
 outward retention bead snaps into the base's inner groove and it can be
-lifted from its proud rim. The envelope, 50 mm tool-length limit, floor,
-seats and all cartridge/cover interfaces are unchanged.
+lifted from its proud rim. The repacked base requires its matching new TPU
+insert; the previous 5×11 insert is incompatible. Retention and snap interfaces remain unchanged.
 
 The labelled PETG cover snaps over the base's rectangular collar and sits
 flush with the full-width body. Its assembled top is 10U (70 mm), giving
-10 mm clearance above a 50 mm tool standing on the guide floor. It prints
+15 mm clearance above a 50 mm tool standing on the lowered guide floor. It prints
 pillow-top down with its open mouth up; the inverted print-pose lettering
 reads upright when the cover is seated. All three parts require individual
-prints in their specified materials. Tool heads wider than the 7 mm pitch
-can prevent filling every one of the 55 positions simultaneously. The user
+prints in their specified materials. Tool heads wider than the 6 mm horizontal
+pitch can prevent filling every one of the 55 positions simultaneously. The user
 accepted the purpose, inventory and spare allocation on 2026-09-30.
 The updated assembly gate verifies all bore sizes, guide floors and seated
 non-interference; the CAD contract records the evidence. Printed TPU grip
@@ -200,8 +200,9 @@ and cover snap effort/durability remain to be calibrated.
 The separate `drill_storage.dremel.cover_stackable` retains the smooth cover's
 label and snap, ASA base and TPU insert. Its two full-depth 4.4 mm sockets
 are centred at Y=−21 and +21 mm; only its top lip grows to 42×84 mm.
-The assembled top is z=74.4 mm, giving a 10U (70 mm) stack pitch when the
-upper feet seat fully; a 2 mm roof remains below the sockets.
+The assembled top is z=60.4 mm, giving an 8U (56 mm) stack pitch when the
+upper feet seat fully; a 2 mm roof remains below the sockets, with 1 mm
+nominal headroom above a 50 mm tool on the 3 mm floor.
 Print **socket-down, mouth-up** in PETG. Its `support` checkbox defaults to
 on and reuses the family's removable breakaway lattices. Remove both lattices
 and all attachment nibs before stacking; turn support off only for slicer
@@ -209,7 +210,11 @@ supports or a printer-verified unsupported bridge. The approximately
 **0.14 mm mouth walls** are a user-accepted experimental print-trial exception,
 not proven printable or durable. Check the sliced walls, printed foot fit,
 stack strength and neighbouring-cell clearance before loading a stack.
-The smooth `.cover` and parent scene remain unchanged and support-free.
+The smooth `.cover` remains unchanged and support-free; the parent scene retains it.
+The user accepted the lower floor, six-column layout, matching TPU insert and
+8U stacking pitch. Reprint the ASA base and TPU insert together; the smooth
+cover remains unchanged and compatible. Actual tool-head packing and the
+1 mm nominal headroom still require a physical trial.
 See the [Dremel specification](docs/dremel-specification.md) and
 [CAD contract](docs/dremel-cad-contract.md).
 

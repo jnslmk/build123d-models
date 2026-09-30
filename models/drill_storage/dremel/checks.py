@@ -6,10 +6,12 @@ both shapes before this gate was added.
 """
 
 from collections import Counter
+from math import cos, pi, sin
 
 from models.drill_storage import config as family
 from models.lib.checks import Report, is_solid_at
 from models.lib.edges import as_part
+from . import cover as cap_model
 from . import config as c, create
 
 PROBE = 0.02  # resolve the close shank sizes without sampling an OCC boundary
@@ -37,8 +39,10 @@ def run() -> Report:
     tip_z = c.GUIDE_FLOOR_Z + 50
     report.check(
         not is_solid_at(cover, 0, 0, tip_z)
-        and not is_solid_at(cover, 0, 0, tip_z + 9.9)
-        and is_solid_at(cover, 0, 0, tip_z + 11),
+        and not is_solid_at(
+            cover, 0, 0, cap.bounding_box().max.Z - cap_model.CAP_H - 0.1
+        )
+        and is_solid_at(cover, 0, 0, cap.bounding_box().max.Z - cap_model.CAP_H + 0.1),
         "50 mm tool clears the solid PETG roof",
         f"tool tip z={tip_z:.1f}",
     )
@@ -70,6 +74,20 @@ def run() -> Report:
         land_r = (cut_d + family.LAND_FIT) / 2
         relief_r = (cut_d + family.RELIEF_FIT) / 2
         label = f"bore at ({x:g}, {y:g}), cut diameter {cut_d:.3f} mm"
+        report.check(
+            all(
+                solid_at(
+                    base,
+                    x + r * cos(angle),
+                    y + r * sin(angle),
+                    z,
+                )
+                for r in (0.0, guide_r - PROBE)
+                for angle in (i * pi / 4 for i in range(8))
+                for z in (PROBE, c.GUIDE_FLOOR_Z / 2, c.GUIDE_FLOOR_Z - PROBE)
+            ),
+            f"{label}: entire guide floor is closed, including between the feet",
+        )
         for name, part, radius, z in (
             ("ASA guide", base, guide_r, guide_z),
             ("TPU land", insert, land_r, land_z),

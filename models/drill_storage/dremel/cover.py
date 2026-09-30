@@ -34,7 +34,8 @@ from . import config as c
 IS_ASSEMBLY = False
 PARAMS = []
 CAP_H = 2.0  # ten fully solid 0.2 mm layers over the 1×2 cover plate
-HEIGHT = cover_height_for(50, bore_floor_z=c.GUIDE_FLOOR_Z, cap_h=CAP_H)
+# The smooth cover keeps its accepted 10U height; only the stackable option shrinks.
+HEIGHT = cover_height_for(50, bore_floor_z=8.0, cap_h=CAP_H)
 SNAP_REACH = 0.38  # radial: <1% nominal PETG strain crossing the ASA collar
 INNER_CORNER = INNER_R
 LABEL_DEPTH = 0.2  # shallow lettering preserves most of the 0.95 mm PETG wall
@@ -67,19 +68,19 @@ def _snap_bead():
     return bead.part
 
 
-def create():
-    """Return the labelled cover pillow-down, hollow mouth up, ready to print."""
+def _create(height: float):
+    """Build the common labelled snap cover at its variant's print height."""
     with BuildPart() as cover:
         with BuildSketch():
             RectangleRounded(c.COVER_X, c.COVER_Y, CORNER_R)
-        extrude(amount=HEIGHT)
+        extrude(amount=height)
         fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
         chamfer(cover.edges().group_by(Axis.Z)[0], COVER_SEAT_CH)
 
         with BuildSketch():
             RectangleRounded(c.COVER_INNER_X, c.COVER_INNER_Y, INNER_CORNER)
-        extrude(amount=HEIGHT - CAP_H, mode=Mode.SUBTRACT)
-        ceiling_z = HEIGHT - CAP_H
+        extrude(amount=height - CAP_H, mode=Mode.SUBTRACT)
+        ceiling_z = height - CAP_H
         ceiling = cover.edges().filter_by_position(Axis.Z, ceiling_z, ceiling_z)
         if ceiling and not fillet_edge(cover, ceiling, 1.0):
             raise RuntimeError("cannot soften the cover's inner ceiling")
@@ -97,7 +98,7 @@ def create():
 
         # Read across the long +X wall while the holder stands foot-down.
         label_plane = Plane(
-            origin=(c.COVER_X / 2, 0, HEIGHT / 2),
+            origin=(c.COVER_X / 2, 0, height / 2),
             x_dir=(0, 1, 0),
             z_dir=(1, 0, 0),
         )
@@ -108,3 +109,8 @@ def create():
     result = reseat_on_bed(cover.part, flip=True)
     result.color = COVER_GLASS
     return result
+
+
+def create():
+    """Return the smooth labelled cover pillow-down, hollow mouth up."""
+    return _create(HEIGHT)

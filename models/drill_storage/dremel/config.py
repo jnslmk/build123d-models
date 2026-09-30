@@ -28,15 +28,18 @@ COVER_FIT = SLIP  # 0.4 mm diametral, family PETG cover-to-ASA collar slip
 SEAT_Z = FOOT_TOP
 BASE_TOP_Z = family.SHELL_TOTAL_H
 CAVITY_FLOOR_Z = family.CAVITY_FLOOR_Z
-GUIDE_FLOOR_Z = 8.0  # preserve the original 50 mm Dremel tool reference floor
-PITCH = 7.0
+GUIDE_FLOOR_Z = 3.0  # 50 mm tools reach z=53, below the 8U cover's z=54 ceiling
 # Inventory plus 14 spares: +4 at 2.35, +4 at 2.9 and +6 at 3.1 mm.
 SHANK_COUNTS = ((1.0, 1), (1.5, 1), (2.0, 1), (2.35, 10), (2.9, 25), (3.1, 17))
 # Contiguous diameter groups run along Y, then advance to the next X column.
 BORES = tuple(
-    (x * PITCH, y * PITCH, diameter)
+    (x, y, diameter)
     for (x, y), diameter in zip(
-        ((x, y) for x in range(-2, 3) for y in range(-5, 6)),
+        tuple(
+            (x, y)
+            for x in (-15.0, -9.0, -3.0, 3.0, 9.0, 15.0)
+            for y in (-35.0, -28.0, -21.0, -14.0, -7.0, 7.0, 14.0, 21.0, 28.0, 35.0)
+        )[:55],
         (diameter for diameter, count in SHANK_COUNTS for _ in range(count)),
         strict=True,
     )
@@ -50,4 +53,3 @@ CUT_BORES = tuple(
 CART_X = family.CART_W
 CART_Y = CART_X + GRID
 CART_CORNER = family.CART_R
-COVER_TOP_Z = 9 * 7.0
