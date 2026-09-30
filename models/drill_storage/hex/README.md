@@ -99,7 +99,7 @@ identical 36 coordinates, the existing BITS grip lands, and the keyed outward
 retention bead. Print it flat-bottom down with sockets up in black TPU; it seats
 on the base's cavity floor at z=23.2 mm.
 
-The matching **PETG cover** is the current reviewable anchor,
+The accepted **PETG cover**,
 `drill_storage.hex.bits_double.cover`: a 24 mm cover with the existing eased BITS
 snap and engraved "BITS" identification on the long +X side, extended to
 41.5 × 83.5 mm. Print it pillow-top down, open mouth up, in translucent PETG.
@@ -112,5 +112,15 @@ uv run export drill_storage.hex.bits_double.cover
 uv run check drill_storage.hex.bits_double.cover
 ```
 
-The assembled scene waits for cover acceptance under the
-[current CAD contract](docs/labelled-bits-cad-contract.md).
+The closed **assembled scene** is `drill_storage.hex.bits_double`, with all
+three accepted parts and 36 representative 25 mm, ¼-inch hex-shank bits.
+The displayed shanks identify socket positions, not manufacturer-specific tips.
+This scene is for review, not printing: download the ASA, TPU and PETG leaves
+separately.
+
+```bash
+uv run view drill_storage.hex.bits_double
+```
+
+See the [current CAD contract](docs/labelled-bits-cad-contract.md) for
+acceptance and verification evidence.

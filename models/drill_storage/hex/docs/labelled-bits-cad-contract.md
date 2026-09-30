@@ -173,7 +173,7 @@ reported no remaining important findings after the bead-root correction.
   geometry before proceeding to the matching PETG cover.
 - **Next slice:** Matching PETG cover; no accepted-design-decision delta.
 
-## Current slice: matching PETG cover
+## Accepted cover slice
 
 - **Anchor:** `drill_storage.hex.bits_double.cover`.
 - **Purpose / print pose:** Close the accepted 36-bit holder with a translucent
@@ -272,5 +272,51 @@ PNG and browser preview were visually inspected. Ruff and type checks passed.
 - **Evidence/artifact:** `exports/drill_storage.hex.bits_double.cover.html`
   (2.7 MiB, shaded GLB), inspected alongside
   `exports/drill_storage.hex.bits_double.cover_iso.png`. The STL is pillow-down.
-- **Acceptance:** Pending explicit human acceptance of the cover geometry.
-- **Next slice:** Assembled labelled 1×2 BITS scene after cover acceptance.
+- **Acceptance:** User replied "confirmed" to the request to confirm the revised
+  long-side label placement.
+- **Next slice:** Assembled labelled 1×2 BITS scene; no geometry-decision delta.
+
+## Current slice: assembled labelled 1×2 BITS holder
+
+- **Anchor:** `drill_storage.hex.bits_double`.
+- **Purpose / pose:** Display the accepted ASA base, TPU insert, PETG cover
+  and 36 representative short-bit shanks in their closed use pose.
+- **In scope:** Scene placement and registration only. Printable leaves keep
+  their accepted geometry and bed poses.
+- **Applicable specification:** LB1–LB6.
+- **Dimensions:** Base foot at z=0; insert bottom at z=23.2 mm; cover mouth
+  at z=18 mm; bit bottoms/tops at z=15/40 mm; closed envelope
+  41.5 × 83.5 × 42 mm, from the accepted parts and existing BITS length.
+- **Service constraint:** Export the three printable leaves separately; the
+  assembly mixes materials and includes steel tool representations.
+- **Technical definition:** As in the original BITS scene, each tool is a
+  representative ¼-inch hex shank, not manufacturer-specific tip geometry.
+- **Open decisions:** None; this scene cannot change an accepted interface.
+- **Required skills:** `model-documentation`, `cad-iteration` and
+  `build123d-geometry-ops`.
+
+### Assembly verification and review
+
+- [X] Actual assembled envelope and all three part placements match the accepted fit.
+- [X] All 36 positioned shanks stand on the rigid guide floor and clear the ceiling.
+- [X] The scene's actual cover has zero seated interference with base and cartridge.
+- [X] Refreshed 3D artifact visually shows the assembled holder and long-side label.
+
+The cover leaf gate already owns the physical snap and hidden-wall predicates.
+Scene placement is exercised directly; no duplicate assembly gate is added.
+
+The base, insert and cover leaf physical gates all passed after assembly
+integration. Ruff and type checks passed; no printable geometry changed.
+
+- **Evidence / artifact:** `exports/drill_storage.hex.bits_double.html`
+  (12.5 MiB, shaded GLB). A throwaway smoke wrapper exercised the actual scene
+  builder through the artifact CLI: 41.5 × 83.5 × 42 mm bounds, 36 distinct
+  shanks at z=15–40 mm, all standing on blind ASA floors with 1 mm ceiling
+  clearance. Actual scene cover/base and cover/insert common volumes were zero.
+  Chromium visual review showed the closed holder, all shanks through the
+  translucent cover and the upright long-side BITS label.
+- **Viewer limitation:** Clicking the artifact's Grid button raised the existing
+  `__omp_shell` reference error from `view_artifact.py`'s shell expression.
+  Geometry renders; the unrelated artifact-shell code remains unchanged.
+- **Acceptance:** Pending human review of the assembled holder.
+- **Next slice:** None defined.

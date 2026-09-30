@@ -78,6 +78,7 @@ MODELS = [
     "drill_storage.hex.bits.insert",
     "drill_storage.hex.bits.cover",
     "drill_storage.hex.bits.cover_stackable",
+    "drill_storage.hex.bits_double",
     "drill_storage.hex.bits_double.base",
     "drill_storage.hex.bits_double.insert",
     "drill_storage.hex.bits_double.cover",
