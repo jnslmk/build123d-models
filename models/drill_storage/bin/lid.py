@@ -27,7 +27,14 @@ SKIRT_LEAD_IN = 0.3  # the skirt's entering outer edge
 SOCKET_LEAD_IN = 0.3  # functional entry funnel for a Gridfinity foot
 LATTICE_PITCH = 5.0
 LATTICE_RIB = 0.8
-LATTICE_GAP = 0.2  # one layer between removable support and socket ceiling
+# Support process candidates, not mating fits or calibrated PETG defaults.
+# Retain the existing nominal gap to isolate attachment/coverage changes;
+# effective separation must still be checked in the sliced PETG layer paths.
+LATTICE_GAP = 0.2
+SUPPORT_XY_GAP = 0.6  # per side: extrusion/first-layer separation from socket walls
+SUPPORT_TAB_WIDTH = 0.4  # one nominal bead along a straight rail; verify in slicer
+SUPPORT_TAB_DEPTH = 0.8  # across rail, retaining only 0.64 mm² total neck per cell
+SUPPORT_ROOF_OVERLAP = 0.02  # minimal positive weld, not the fracture section
 STACK_FIT = fits.SLIDING  # PETG sliding fit, diametral, between foot and socket
 PLUG_FIT = fits.SLIDING  # PETG sliding fit, diametral, between skirt and bin cavity
 
@@ -87,38 +94,69 @@ def _socket(cell_w: float, cell_d: float, x: float, y: float) -> None:
 
 
 def _support(cell_w: float, cell_d: float, x: float, y: float) -> None:
-    """One breakaway lattice, printed under the socket ceiling and peeled out."""
-    bottom_x = cell_w - 2 * (FOOT_C1 + FOOT_C3)
-    bottom_y = cell_d - 2 * (FOOT_C1 + FOOT_C3)
-    nx = max(1, floor((bottom_x / 2 - 1) / LATTICE_PITCH))
-    ny = max(1, floor((bottom_y / 2 - 1) / LATTICE_PITCH))
-    span_x = 2 * nx * LATTICE_PITCH + LATTICE_RIB
-    span_y = 2 * ny * LATTICE_PITCH + LATTICE_RIB
-    for ix in range(-nx, nx + 1):
-        with Locations((x + ix * LATTICE_PITCH, y, 0)):
-            Box(
-                LATTICE_RIB,
-                span_y,
-                c.LID_SOCKET_DEPTH - LATTICE_GAP,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-            )
-    for iy in range(-ny, ny + 1):
-        with Locations((x, y + iy * LATTICE_PITCH, 0)):
-            Box(
-                span_x,
-                LATTICE_RIB,
-                c.LID_SOCKET_DEPTH - LATTICE_GAP,
-                align=(Align.CENTER, Align.CENTER, Align.MIN),
-            )
-    for dx in (-min(nx, 2) * LATTICE_PITCH, min(nx, 2) * LATTICE_PITCH):
-        for dy in (-min(ny, 2) * LATTICE_PITCH, min(ny, 2) * LATTICE_PITCH):
-            with Locations((x + dx, y + dy, c.LID_SOCKET_DEPTH - LATTICE_GAP)):
+    """Bed-seated rail/lattice with two accessible gap-spanning roof tabs."""
+    inset = FOOT_C1 + FOOT_C3
+    # The ceiling is the narrowest socket section. Offset its whole contour,
+    # including the corner radius, so no lower wall/bevel can touch the support.
+    rail_w = cell_w - 2 * inset + STACK_FIT - 2 * SUPPORT_XY_GAP
+    rail_d = cell_d - 2 * inset + STACK_FIT - 2 * SUPPORT_XY_GAP
+    rail_r = c.CORNER_R - inset + STACK_FIT / 2 - SUPPORT_XY_GAP
+    support_h = c.LID_SOCKET_DEPTH - LATTICE_GAP
+    nx = max(1, floor(((cell_w - 2 * inset) / 2 - 1) / LATTICE_PITCH))
+    ny = max(1, floor(((cell_d - 2 * inset) / 2 - 1) / LATTICE_PITCH))
+    with BuildPart() as backing:
+        with BuildSketch():
+            with Locations((x, y)):
+                RectangleRounded(rail_w, rail_d, rail_r)
+                RectangleRounded(
+                    rail_w - 2 * LATTICE_RIB,
+                    rail_d - 2 * LATTICE_RIB,
+                    rail_r - LATTICE_RIB,
+                    mode=Mode.SUBTRACT,
+                )
+        extrude(amount=support_h)
+        # Extend every rib into the rail. Clipping the combined field prevents
+        # rectangular rib ends protruding into half-cell rounded corners.
+        for ix in range(-nx, nx + 1):
+            with Locations((x + ix * LATTICE_PITCH, y, 0)):
                 Box(
-                    0.6,
-                    0.6,
-                    LATTICE_GAP + 0.02,
+                    LATTICE_RIB,
+                    rail_d,
+                    support_h,
                     align=(Align.CENTER, Align.CENTER, Align.MIN),
                 )
+        for iy in range(-ny, ny + 1):
+            with Locations((x, y + iy * LATTICE_PITCH, 0)):
+                Box(
+                    rail_w,
+                    LATTICE_RIB,
+                    support_h,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+        with BuildSketch():
+            with Locations((x, y)):
+                RectangleRounded(rail_w, rail_d, rail_r)
+        extrude(amount=support_h, mode=Mode.INTERSECT)
+    add(backing.part)
+    # Opposite short-side straight rail midpoints: substantial roof above,
+    # direct access through the socket below. Cut tabs and peel inward rather
+    # than levering on the finished lip. Rotate for a wide/short half cell.
+    along_y = rail_d >= rail_w
+    tab_offset = (rail_d if along_y else rail_w) / 2 - LATTICE_RIB / 2
+    for sign in (-1, 1):
+        with Locations(
+            (
+                x if along_y else x + sign * tab_offset,
+                y + sign * tab_offset if along_y else y,
+                support_h,
+            )
+        ):
+            Box(
+                SUPPORT_TAB_WIDTH if along_y else SUPPORT_TAB_DEPTH,
+                SUPPORT_TAB_DEPTH if along_y else SUPPORT_TAB_WIDTH,
+                LATTICE_GAP + SUPPORT_ROOF_OVERLAP,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+            )
 
 
 def create(

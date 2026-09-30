@@ -147,10 +147,18 @@ bin rim. Raising it thickens the roof; it does not deepen the skirt and foul
 labels or dividers. The 1 mm body wall and lid skirt have a PETG sliding fit.
 Interior fixtures stop 3.6 mm below the rim to leave room for the skirt.
 The lid is printed **top-down, skirt up**. Its `support` checkbox defaults
-to on, adding a breakaway lattice beneath each socket. Remove each lattice
-and its four small attachment nibs before stacking. Turn `support` off to
-export a clean socket if using slicer supports or after verifying the
-unsupported ~37 mm bridge on your printer. The bin base is displayed black
+to on, adding a connected sacrificial lattice and rounded perimeter backing
+rail beneath each socket. The bin-lid support revision uses two weak tabs
+at straight rail midpoints: reach through the open socket to cut these,
+then peel the rail/lattice inward without levering against the finished rim.
+Trim any roof-side remnants without altering the foot seat before stacking.
+The 0.4×0.8 mm tabs, 0.6 mm per-side wall separation and retained 0.2 mm
+roof gap are **print-trial candidates**, not proven calibrated PETG settings.
+The recorded 0.4 mm-nozzle / 0.2 mm-layer PETG slice preserves the gaps and tabs;
+easier removal and reduced short-side sag still await physical trials.
+Family rollout waits for acceptance of this bin-lid anchor. Turn `support`
+off to export the unchanged clean socket for slicer supports or a
+printer-verified unsupported approximately 37 mm bridge. The bin base is displayed black
 and the lid translucent, matching the other drill-storage sets; STL carries
 geometry only, not color. `drill_storage.bin` shows the closed two-part scene
 after support removal; export the two leaf models separately to print them.

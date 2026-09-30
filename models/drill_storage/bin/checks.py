@@ -1,11 +1,13 @@
 """Physical gates for the removable lid, bin rim, and matching stacked feet."""
 
+from math import sqrt
 from typing import Any
 
-from build123d import Pos
+from build123d import Align, Box, BuildPart, Locations, Mode, Part, Pos, add
 
+from models.drill_storage.box import FOOT_C1, FOOT_C3
 from models.lib.edges import as_part
-from models.lib.checks import Report, is_solid_at, sharp_convex_edges
+from models.lib.checks import Report, is_solid_at, sharp_convex_edges, solid_probe
 from . import base, config as c, create as seated, lid
 from .foot import cell_layout
 
@@ -19,6 +21,170 @@ def _overlap(a, b) -> float:
         if hasattr(intersection, "volume")
         else sum(solid.volume for solid in intersection)
     )
+
+
+def _window(
+    part: Part, x: float, y: float, w: float, d: float, z: float, h: float
+) -> Part:
+    """Measure existing material in a cell/layer window, not a model constant."""
+    with BuildPart() as cut:
+        add(part)
+        with Locations((x, y, z)):
+            Box(
+                w,
+                d,
+                h,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.INTERSECT,
+            )
+    return cut.part
+
+
+def _check_supports(
+    report: Report,
+    printed: Part,
+    clean: Part,
+    x_cells: list[tuple[float, float]],
+    y_cells: list[tuple[float, float]],
+) -> None:
+    """Consumer-visible support predicates, also usable on broken specimens."""
+    box = printed.bounding_box()
+    report.check(
+        printed.is_valid and len(printed.solids()) == 1 and abs(box.min.Z) < 1e-6,
+        "supported lid is one valid connected solid on z=0",
+    )
+    report.check(
+        clean.is_valid
+        and len(clean.solids()) == 1
+        and abs(clean.bounding_box().min.Z) < 1e-6,
+        "support-off lid is one valid clean solid on z=0",
+    )
+    missing = clean.volume - _overlap(clean, printed)
+    with BuildPart() as extra:
+        add(printed)
+        add(clean, mode=Mode.SUBTRACT)
+    supports = extra.part
+    report.check(
+        abs(missing) < 1e-5
+        and supports.volume > 1
+        and supports.bounding_box().max.Z <= c.LID_SOCKET_DEPTH + 1e-5,
+        "support toggle preserves all finished geometry and adds only socket material",
+        f"missing clean volume={missing:.6f} mm³",
+    )
+    if supports.volume <= 1:
+        return
+    probe = solid_probe(printed)
+    # Roof-free wall geometry catches any lateral weld, including at corners.
+    walls = _window(
+        clean, 0, 0, box.size.X + 1, box.size.Y + 1, 0, c.LID_SOCKET_DEPTH - 0.05
+    )
+    inset = FOOT_C1 + FOOT_C3
+    roof_r = c.CORNER_R - inset + lid.STACK_FIT / 2
+    for cell_x, x in x_cells:
+        for cell_y, y in y_cells:
+            w = cell_x * c.GRID - (c.GRID - c.PAD)
+            d = cell_y * c.GRID - (c.GRID - c.PAD)
+            label = f"socket ({x:g}, {y:g}), {cell_x:g}×{cell_y:g}"
+            # Stop below the release gap so tabs cannot mask detached rib/rail
+            # islands. Full and half-cell bodies must each reach the bed.
+            body = _window(supports, x, y, w, d, 0, c.LID_SOCKET_DEPTH - 0.21)
+            body_solids = body.solids()
+            bed_z = body.bounding_box().min.Z if body_solids else float("inf")
+            report.check(
+                body.is_valid and len(body_solids) == 1 and abs(bed_z) < 1e-6,
+                f"{label}: rail and lattice form one bed-seated support body",
+                f"components={len(body_solids)}, z={bed_z:.6f}",
+            )
+            side_material = _window(supports, x, y, w, d, 0, c.LID_SOCKET_DEPTH - 0.05)
+            separation = side_material.distance_to(walls) if body_solids else 0
+            report.check(
+                separation >= 0.59,
+                f"{label}: support has positive separation from every socket wall",
+                f"minimum separation={separation:.3f} mm",
+            )
+            hx = (w - 2 * inset + lid.STACK_FIT) / 2
+            hy = (d - 2 * inset + lid.STACK_FIT) / 2
+            # Probe 0.75 mm inward of the actual roof contour: beyond the old
+            # full-cell lattice by 2.11 mm, and off all centre-grid ribs.
+            edge_points = [
+                (x + sign * (hx - 0.75), y + along)
+                for sign in (-1, 1)
+                for along in (-2.5, 2.5)
+            ] + [
+                (x + along, y + sign * (hy - 0.75))
+                for sign in (-1, 1)
+                for along in (-2.5, 2.5)
+            ]
+            corner_offset = (roof_r - 0.75) / sqrt(2)
+            edge_points += [
+                (
+                    x + sx * (hx - roof_r + corner_offset),
+                    y + sy * (hy - roof_r + corner_offset),
+                )
+                for sx in (-1, 1)
+                for sy in (-1, 1)
+            ]
+            report.check(
+                all(probe(px, py, c.LID_SOCKET_DEPTH - 0.25) for px, py in edge_points),
+                f"{label}: straight-edge bands and all rounded corners have backing",
+                "full-cell probes extend >2 mm beyond the old 30.8 mm lattice",
+            )
+            report.check(
+                probe(x, y, c.LID_SOCKET_DEPTH - 0.21)
+                and not probe(x, y, c.LID_SOCKET_DEPTH - 0.19)
+                and all(
+                    not probe(px, py, c.LID_SOCKET_DEPTH - 0.1)
+                    for px, py in [(x, y), *edge_points]
+                )
+                and is_solid_at(clean, x, y, c.LID_SOCKET_DEPTH + 0.01),
+                f"{label}: nominal 0.2 mm roof gap remains away from tabs",
+                "body ends within 0.01 mm of z=2.3; gap/roof independently probed",
+            )
+            # A thin actual-material slice counts EVERY welded path through the
+            # gap; four old nibs, a filled gap or widened tabs cannot pass.
+            necks = _window(supports, x, y, w, d, c.LID_SOCKET_DEPTH - 0.1, 0.05)
+            sections = necks.solids()
+            areas = [solid.volume / 0.05 for solid in sections]
+            report.check(
+                len(sections) == 2
+                and all(0.28 <= area <= 0.36 for area in areas)
+                and 0.56 <= sum(areas) <= 0.72,
+                f"{label}: exactly two deliberately bounded weak attachments",
+                f"neck sections={areas} mm²; old total was 1.44 mm²",
+            )
+            along_y = d >= w
+            midpoint = (hy if along_y else hx) - 1.0
+            centres = []
+            narrow = []
+            wide = []
+            for solid in sections:
+                bounds = solid.bounding_box()
+                centres.append(
+                    (
+                        (bounds.min.X + bounds.max.X) / 2 - x,
+                        (bounds.min.Y + bounds.max.Y) / 2 - y,
+                    )
+                )
+                narrow.append(bounds.size.X if along_y else bounds.size.Y)
+                wide.append(bounds.size.Y if along_y else bounds.size.X)
+            expected = [
+                (0, sign * midpoint) if along_y else (sign * midpoint, 0)
+                for sign in (-1, 1)
+            ]
+            report.check(
+                len(centres) == 2
+                and all(
+                    any(
+                        abs(px - ex) < 0.05 and abs(py - ey) < 0.05
+                        for px, py in centres
+                    )
+                    for ex, ey in expected
+                )
+                and all(0.35 <= value <= 0.45 for value in narrow)
+                and all(0.75 <= value <= 0.85 for value in wide),
+                f"{label}: one-bead tabs sit at accessible straight rail midpoints",
+                f"centres={centres}, narrow={narrow}, across rail={wide} mm",
+            )
 
 
 def run() -> Report:
@@ -151,6 +317,34 @@ def run() -> Report:
             and is_solid_at(cleared, print_x, print_y, c.LID_SOCKET_DEPTH + 0.5),
             "removed lattice exposes socket beneath solid roof",
             "sample at first socket centre",
+        )
+        _check_supports(
+            report,
+            printed,
+            cleared,
+            cell_layout(
+                width,
+                options.get("half_grid_base", False),
+                options.get("half_grid_right", True),
+            ),
+            cell_layout(
+                depth,
+                options.get("half_grid_base", False),
+                not options.get("half_grid_top", True),
+            ),
+        )
+    support_cases: tuple[tuple[str, dict[str, Any]], ...] = (
+        ("minimum half-cell lid", {"grid_x": 0.5, "grid_y": 0.5}),
+        ("all-half-cell lid", {"grid_x": 1, "grid_y": 1, "half_grid_base": True}),
+    )
+    for name, options in support_cases:
+        report.section(name)
+        _check_supports(
+            report,
+            lid.create(**options),
+            lid.create(**options, support=False),
+            cell_layout(options["grid_x"], options.get("half_grid_base", False), True),
+            cell_layout(options["grid_y"], options.get("half_grid_base", False), False),
         )
     report.section("base variants")
     thicker = base.create(bottom_thickness=2)
