@@ -8,7 +8,10 @@ from build123d import (
     Cylinder,
     Locations,
     Mode,
+    Part,
     Plane,
+    Polygon,
+    sweep,
     Pos,
     RectangleRounded,
     add,
@@ -94,6 +97,32 @@ def _foot_cavity(
             sections.append(profile.sketch)
         loft(sections=sections, ruled=True)
     return cavity.part
+
+
+def _snap_groove(inner_w: float, inner_d: float, inner_r: float, z_tip: float) -> Part:
+    """Cut the snap bead's receiving groove into the bin's inner wall.
+
+    The mirror of the lid's bead: the same quad cross-section, cut into the
+    cavity wall instead of standing out of it. ``SNAP_GROOVE_FLOOR`` is how far
+    below ``z_tip`` the groove's lower face meets the wall again and
+    ``SNAP_GROOVE_ROOF`` how far above. Subtract it.
+    """
+    with BuildSketch(Plane.XY.offset(z_tip)) as outline:
+        RectangleRounded(inner_w, inner_d, inner_r)
+    path = outline.faces()[0].outer_wire()
+    x_wall = inner_w / 2
+    x_tip = x_wall + c.SNAP_PROTRUSION
+    profile = [
+        (x_wall, z_tip + c.SNAP_GROOVE_ROOF),
+        (x_tip, z_tip + c.SNAP_TIP_FLAT / 2),
+        (x_tip, z_tip - c.SNAP_TIP_FLAT / 2),
+        (x_wall, z_tip - c.SNAP_GROOVE_FLOOR),
+    ]
+    with BuildPart() as tool:
+        with BuildSketch(Plane.XZ):
+            Polygon(*profile, align=None)
+        sweep(path=path)
+    return tool.part
 
 
 def create(
@@ -227,6 +256,18 @@ def create(
         loft(
             sections=[mouth_bottom.sketch, mouth_top.sketch],
             ruled=True,
+            mode=Mode.SUBTRACT,
+        )
+        inner_w = width - 2 * wall
+        inner_d = depth - 2 * wall
+        inner_r = max(0.4, c.CORNER_R - wall)
+        add(
+            _snap_groove(
+                inner_w,
+                inner_d,
+                inner_r,
+                height - (c.LID_SKIRT_MIN - c.SNAP_Z),
+            ),
             mode=Mode.SUBTRACT,
         )
 

@@ -73,6 +73,14 @@ roof finishes horizontal, so the lip the cartridge hangs from used to droop into
 the groove it bounds — see `docs/design-notes.md`. A key rib on the +X face means it
 only goes in one way round, which is what makes the base's engraved legend true.
 
+**Bin lid → bin.** The lid's 3 mm skirt plugs into the bin's cavity on a 0.22 mm
+diametral sliding fit, and a ramped bead on the skirt's outer wall clicks into a
+groove in the bin's inner wall. The bead is on the compliant skirt — a thin PETG
+tube that flexes inward — and the groove is on the rigid 1 mm bin wall, so the
+snap costs a gentle squeeze rather than deflecting the bin. The bead's lead-in
+ramp is on the insertion side so the lid slides on progressively; its 45°
+retention face detents without being a knife edge.
+
 **Cartridge → bit.** The bore is plain and round, and it grips on a **3.5 mm
 land** at the very bottom, on the bit's plain shank. Everything above the land is
 relieved and everything below it is ASA. Guiding and gripping are cut on opposite
@@ -115,8 +123,8 @@ default base profile follow the
 [Gridfinity Bin Generator](https://sitnikov.github.io/gridfinity-bin-generator/);
 this body retains this repository's Gridfinity foot envelope and independently
 built PETG geometry. Its 0.6 mm flat landing strip supports the separate
-`drill_storage.bin.lid` with a locating skirt. The lid lifts off rather than
-snapping shut; it is not sealed. It receives matching full or half Gridfinity
+`drill_storage.bin.lid` with a locating skirt. The lid snaps shut on a
+bead-and-groove detent; it is not sealed. It receives matching full or half
 feet in a 2.5 mm socket on its exposed face. See the
 [empty-bin specification](docs/empty-bin-specification.md), the
 [accepted body contract](docs/empty-bin-cad-contract.md), and the

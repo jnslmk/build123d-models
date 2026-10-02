@@ -188,6 +188,33 @@ def _check_supports(
             )
 
 
+def _check_snap_fit(
+    report: Report,
+    body: Part,
+    lid_part: Part,
+    width: float,
+    depth: float,
+    wall: float,
+    height: float,
+    lid_height: float,
+) -> None:
+    """Verify the lid's snap bead and the bin's groove."""
+    skirt_w = width - 2 * wall - lid.PLUG_FIT
+    inner_w = width - 2 * wall
+    bead_z = lid_height - c.SNAP_Z
+    groove_z = height - (c.LID_SKIRT_MIN - c.SNAP_Z)
+    # The bead protrudes from the skirt.
+    report.check(
+        is_solid_at(lid_part, skirt_w / 2 + c.SNAP_PROTRUSION / 2, 0, bead_z),
+        "lid skirt carries the snap bead",
+    )
+    # The groove is cut into the bin's inner wall.
+    report.check(
+        not is_solid_at(body, inner_w / 2 + c.SNAP_PROTRUSION / 2, 0, groove_z),
+        "bin inner wall carries the snap groove",
+    )
+
+
 def run() -> Report:
     report = Report()
     cases: tuple[tuple[str, dict[str, Any]], ...] = (
@@ -264,6 +291,18 @@ def run() -> Report:
                         and abs(edge.center().Z - c.BASE_H) < 0.01,
                         "foot-to-body shoulders retain the Gridfinity transition",
                     ),
+                    (
+                        lambda edge: body_height
+                        - (c.LID_SKIRT_MIN - c.SNAP_Z)
+                        - c.SNAP_GROOVE_FLOOR
+                        - 0.01
+                        < edge.center().Z
+                        < body_height
+                        - (c.LID_SKIRT_MIN - c.SNAP_Z)
+                        + c.SNAP_GROOVE_ROOF
+                        + 0.01,
+                        "snap groove edges are functional",
+                    ),
                 ),
             )
             report.check(
@@ -272,10 +311,20 @@ def run() -> Report:
                 f"sharp={len(survey.sharp)}, unclassifiable={len(survey.unclassifiable)}; "
                 "2 square outer foot shoulders intentionally excepted",
             )
+            _check_snap_fit(
+                report,
+                body_part,
+                printed,
+                width=options.get("grid_x", 1) * c.GRID - (c.GRID - c.PAD),
+                depth=options.get("grid_y", 2) * c.GRID - (c.GRID - c.PAD),
+                wall=options.get("wall_thickness", c.WALL),
+                height=options.get("height_u", 5) * c.HEIGHT_UNIT,
+                lid_height=c.LID_MIN_HEIGHT,
+            )
         joint_overlap = _overlap(body, closed_lid)
         report.check(
             joint_overlap < 0.01,
-            "lift-off skirt enters bin without collision",
+            "seated lid enters bin without collision",
             f"overlap={joint_overlap:.4f} mm³",
         )
         width = options.get("grid_x", 1)

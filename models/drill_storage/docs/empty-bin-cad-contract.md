@@ -38,7 +38,7 @@
 
 | Question | Resolution path | Blocking effect |
 | --- | --- | --- |
-| Printed lid retention | Existing lift-off lid geometry is unchanged; confirm PETG fit by physical print | CAD overlap proof does not establish printed retention |
+| Printed lid retention | Snap bead and groove geometry is implemented (EB-9); confirm PETG fit by physical print | CAD overlap proof does not establish printed retention |
 | Printed baseplate fit and larger-footprint warping | Physical print calibration | Cannot claim physical fit from CAD alone |
 | Optional internal fixtures over the open foot cavities | Print divided/scooped variants and assess bridging before production use | CAD verifies geometry and stacking, not unsupported first layers of dividers or scoops |
 

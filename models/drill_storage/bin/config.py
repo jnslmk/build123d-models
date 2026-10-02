@@ -18,6 +18,19 @@ LID_ROOF = 1.0  # five solid 0.2 mm layers above the receiving socket
 LID_SKIRT_MIN = 3.0  # lift-off locating engagement inside the body wall
 LID_MIN_HEIGHT = LID_SOCKET_DEPTH + LID_ROOF + LID_SKIRT_MIN  # 6.5 mm overall
 FEATURE_HEADROOM = LID_SKIRT_MIN + 0.6  # clearance below the seated locating skirt
+# --- Snap fit ---------------------------------------------------------------
+# A shallow ramped bead on the lid's skirt clicks into a groove in the bin's
+# inner wall, so the lid snaps shut instead of lifting off freely. The bead
+# stands out of the plug (the skirt); the groove is cut into the bore (the
+# bin's cavity wall). Both share one profile: a long gentle lead-in ramp on
+# the insertion side and a shorter retention face on the far side.
+SNAP_PROTRUSION = 0.25  # radial: bead tip stands out of the skirt / groove depth
+SNAP_LEAD_IN = 0.5  # vertical run of the gentle insertion ramp
+SNAP_BACK = 0.25  # vertical run of the steeper retention face
+SNAP_TIP_FLAT = 0.1  # short flat at the tip
+SNAP_Z = 1.0  # bead tip height above the skirt's free (inserting) end
+SNAP_GROOVE_FLOOR = SNAP_LEAD_IN + 0.05  # 0.55: swallows the bead's ramp
+SNAP_GROOVE_ROOF = SNAP_BACK + 0.03  # 0.28: clears the bead's back face
 BASE_COLOR = Color(0.1, 0.1, 0.1)  # same black as drill_storage.hex.config.BASE_COLOR
 LID_COLOR = COVER_GLASS  # translucent PETG, shared with the other drill covers
 
@@ -83,4 +96,11 @@ __all__ = [
     "MAGNET_FIT",
     "RIM_CHAMFER",
     "MOUTH_CHAMFER",
+    "SNAP_PROTRUSION",
+    "SNAP_LEAD_IN",
+    "SNAP_BACK",
+    "SNAP_TIP_FLAT",
+    "SNAP_Z",
+    "SNAP_GROOVE_FLOOR",
+    "SNAP_GROOVE_ROOF",
 ]

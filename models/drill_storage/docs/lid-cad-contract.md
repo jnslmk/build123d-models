@@ -10,9 +10,9 @@
 
 - Name: optional support-free split-print bin lid.
 - Anchor part: the accepted finished `drill_storage.bin.lid` for `drill_storage.bin.base`.
-- Purpose and print pose: preserve the lift-off closure and receivers; default socket-down/skirt-up print retains optional default-on support, while split mode prints roof-down body and glue-face-down/socket-up lips.
+Purpose and print pose: preserve the snap-in closure and receivers; default socket-down/skirt-up print retains optional default-on support, while split mode prints roof-down body and glue-face-down/socket-up lips.
 - In scope: optional planar socket-floor split, named two-child contract and print poses, all full/half-cell layouts and taller roofs, glue instructions and physical invariants.
-- Deferred interfaces: no snap lock, gasket, fastener, locating pin or adhesive-gap allowance. Historical EB-7 support revision is unchanged; its physical acceptance and family rollout remain pending.
+Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance. The snap lock is now implemented (EB-9). Historical EB-7 support revision is unchanged; its physical acceptance and family rollout remain pending.
 
 ## Applicable specification constraints
 
@@ -51,7 +51,7 @@
 ## Service and assembly constraints
 
 1. With supports enabled, reach through each open socket to cut the two weak tabs at the straight perimeter rail midpoints, then peel the connected rail/lattice inward. Do not pry against the finished rim or skirt. Trim any roof-side tab remnants without changing the foot seat; confirm full-depth mating-foot seating before stacking. Tabs survive the recorded slice; cutting access and removal effort await physical trials. With supports disabled, use slicer support or verify the approximately 37 mm socket bridge on the target printer.
-2. The skirt locates but does not lock: lift lid by hand to access bin.
+2. The skirt locates and locks: the bead on the skirt detents into the bin's groove. Pull the lid to unsnap and access the bin.
 3. Closed display scene is not a slicer part; base and lid each have a separate print-pose model.
 
 ## Required skills

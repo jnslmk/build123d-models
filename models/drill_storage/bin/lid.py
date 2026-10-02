@@ -9,7 +9,10 @@ from build123d import (
     BuildSketch,
     Locations,
     Mode,
+    Part,
     Plane,
+    Polygon,
+    sweep,
     RectangleRounded,
     add,
     extrude,
@@ -166,6 +169,34 @@ def _support(cell_w: float, cell_d: float, x: float, y: float) -> None:
             )
 
 
+def _snap_bead(skirt_w: float, skirt_d: float, skirt_r: float, z_tip: float) -> Part:
+    """A chamfered bead ring standing out of the skirt's outer wall.
+
+    The cross-section is a quad that protrudes ``SNAP_PROTRUSION`` from the
+    skirt and rises with a long gentle ``SNAP_LEAD_IN`` ramp on the free-end
+    (insertion) side and a shorter ``SNAP_BACK`` retention face on the plate
+    side, with a small ``SNAP_TIP_FLAT`` at the tip. Swept around the skirt's
+    rounded-rectangle perimeter; union it into the lid so the skirt slides
+    into the bin progressively yet detents into the bin's groove.
+    """
+    with BuildSketch(Plane.XY.offset(z_tip)) as outline:
+        RectangleRounded(skirt_w, skirt_d, skirt_r)
+    path = outline.faces()[0].outer_wire()
+    x_wall = skirt_w / 2
+    x_tip = x_wall + c.SNAP_PROTRUSION
+    profile = [
+        (x_wall, z_tip + c.SNAP_LEAD_IN),
+        (x_tip, z_tip + c.SNAP_TIP_FLAT / 2),
+        (x_tip, z_tip - c.SNAP_TIP_FLAT / 2),
+        (x_wall, z_tip - c.SNAP_BACK),
+    ]
+    with BuildPart() as ring:
+        with BuildSketch(Plane.XZ):
+            Polygon(*profile, align=None)
+        sweep(path=path)
+    return ring.part
+
+
 def create(
     grid_x: float = 1,
     grid_y: float = 2,
@@ -224,6 +255,7 @@ def create(
             top_chamfer_tool(skirt_w, skirt_d, skirt_r, lid_height, SKIRT_LEAD_IN),
             mode=Mode.SUBTRACT,
         )
+        add(_snap_bead(skirt_w, skirt_d, skirt_r, lid_height - c.SNAP_Z))
         inner_w = skirt_w - 2 * SKIRT_WALL
         inner_d = skirt_d - 2 * SKIRT_WALL
         inner_r = max(0.2, skirt_r - SKIRT_WALL)
