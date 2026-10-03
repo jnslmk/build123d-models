@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from build123d import Compound, Part
 
+from models.lib.gridfinity import BASE_H
 from .box import (
-    BASE_H,
     CAP_H,
     COVER_COLOR,
     STACK_SOCKET_DEPTH,

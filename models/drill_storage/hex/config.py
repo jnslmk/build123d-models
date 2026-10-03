@@ -41,24 +41,19 @@ from __future__ import annotations
 
 from build123d import Color
 
+from models.lib import gridfinity
 from .. import config as fam
 from ..box import (
-    BASE_H,
     BODY_W,
     CAP_H,
     COLLAR_R,
     COLLAR_W,
     COVER_W,
-    CORNER_R,
-    FOOT_C1,
-    FOOT_C3,
-    FOOT_STRAIGHT,
     HEX_SLIP,
     INNER_R,
     LABEL_CHAMFER,
     LABEL_DEPTH,
     LABEL_SIZE,
-    PAD,
     SLIP,
     SNAP_GROOVE_ROOF,
     SNAP_PROTRUSION,
@@ -238,10 +233,10 @@ GROOVE_LIP_GAP = (BEAD_Z - GROOVE_FLOOR) - (BASE_FOOT_TOP + SNAP_Z + SNAP_GROOVE
 LEGEND_MARGIN = 0.6  # clear space kept above/below the block of rows
 LEGEND_ROWS = 3
 LEGEND_GLYPH_H = 0.75 * WALL_LABEL_SIZE  # build123d renders digits at ~0.75 * size
-LEGEND_Z = (BASE_H + BASE_FOOT_TOP) / 2
-LEGEND_LINE_H = ((BASE_FOOT_TOP - BASE_H - 2 * LEGEND_MARGIN) - LEGEND_GLYPH_H) / (
-    LEGEND_ROWS - 1
-)
+LEGEND_Z = (gridfinity.BASE_H + BASE_FOOT_TOP) / 2
+LEGEND_LINE_H = (
+    (BASE_FOOT_TOP - gridfinity.BASE_H - 2 * LEGEND_MARGIN) - LEGEND_GLYPH_H
+) / (LEGEND_ROWS - 1)
 
 MARGIN = 0.9  # fraction of a face a label may span, so it never runs to the edge
 
@@ -444,7 +439,7 @@ def cover_h_for(bit_len: float, floor_z: float, *, stackable: bool = False) -> f
         bore_floor_z=floor_z,
         foot_top=BASE_FOOT_TOP,
         cap_h=CAP_H + (STACK_SOCKET_DEPTH if stackable else 0),
-        stack_lip_h=BASE_H if stackable else 0.0,
+        stack_lip_h=gridfinity.BASE_H if stackable else 0.0,
     )
 
 
@@ -543,22 +538,16 @@ __all__ = [
     "socket_layout",
     "box_fits",
     # re-exported from ``box`` so the hex modules read one config
-    "BASE_H",
     "BODY_W",
     "CAP_H",
     "COLLAR_R",
     "COLLAR_W",
     "COVER_W",
-    "CORNER_R",
-    "FOOT_C1",
-    "FOOT_C3",
-    "FOOT_STRAIGHT",
     "HEX_SLIP",
     "INNER_R",
     "LABEL_CHAMFER",
     "LABEL_DEPTH",
     "LABEL_SIZE",
-    "PAD",
     "SLIP",
     "SNAP_GROOVE_ROOF",
     "SNAP_PROTRUSION",

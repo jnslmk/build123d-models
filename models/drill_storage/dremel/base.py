@@ -15,8 +15,7 @@ from build123d import (
     loft,
 )
 
-from models.drill_storage import config as family
-from models.drill_storage.box import (
+from models.lib.gridfinity import (
     BASE_H,
     CORNER_R,
     FOOT_C1,
@@ -24,6 +23,9 @@ from models.drill_storage.box import (
     FOOT_STRAIGHT,
     GRID,
     PAD,
+)
+from models.drill_storage import config as family
+from models.drill_storage.box import (
     SNAP_GROOVE_D,
     SNAP_GROOVE_FLOOR,
     SNAP_GROOVE_ROOF,

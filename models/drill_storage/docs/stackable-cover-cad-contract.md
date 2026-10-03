@@ -4,7 +4,7 @@
 
 - Context: `../README.md`, `../box.py`, `../hex/README.md`.
 - Specification: [stackable-cover-specification.md](stackable-cover-specification.md), revised SC-1–SC-4.
-- Supporting evidence: `box.gridfinity_foot`, `box.cover_height_for`, existing cover geometry and fit constants.
+- Supporting evidence: `models.lib.gridfinity.gridfinity_foot`, `box.cover_height_for`, existing cover geometry and fit constants.
 
 ## Current slice
 
@@ -27,10 +27,10 @@
 
 | Dimension | Value | Source |
 | --- | --- | --- |
-| Original 1×1 pad, body and smooth cover | 41.5 mm | `box.PAD`, unchanged |
+| Original 1×1 pad, body and smooth cover | 41.5 mm | `models.lib.gridfinity.PAD`, unchanged |
 | Stackable lip envelope | 42 mm, +0.25 mm per side | Gridfinity draft drawing; user-authorized exception at the lip only |
-| Foot lower bevel / straight band / upper bevel | 0.7 / 1.8 / 1.9 mm | `box.FOOT_C1`, `FOOT_STRAIGHT`, `FOOT_C3` |
-| Full foot seat and added lip height | 4.4 mm | `box.BASE_H`; drawing's 2U = 14 + 4.4 mm |
+| Foot lower bevel / straight band / upper bevel | 0.7 / 1.8 / 1.9 mm | `models.lib.gridfinity.FOOT_C1`, `FOOT_STRAIGHT`, `FOOT_C3` |
+| Full foot seat and added lip height | 4.4 mm | `models.lib.gridfinity.BASE_H`; drawing's 2U = 14 + 4.4 mm |
 | PETG socket clearance | `fits.SLIDING`, 0.22 mm diametral | `models.lib.fits` |
 | Narrowest nominal lip wall | (42 − 41.5 − 0.22)/2 = 0.14 mm | Full-width foot shoulder and user-accepted thin-lip exception |
 | Minimum solid cover ceiling | 1.0 mm | `box.CAP_H` |

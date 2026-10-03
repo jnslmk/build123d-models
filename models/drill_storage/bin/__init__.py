@@ -5,6 +5,7 @@ from typing import Any
 from build123d import Compound, Pos, Rotation
 
 from models.lib.edges import as_part
+from models.lib.gridfinity import HEIGHT_UNIT
 from . import base, config, lid
 
 IS_ASSEMBLY = True
@@ -37,7 +38,7 @@ def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Com
         Pos(
             0,
             0,
-            bin_options.get("height_u", 5) * config.HEIGHT_UNIT
+            bin_options.get("height_u", 5) * HEIGHT_UNIT
             + lid_height
             - config.LID_SKIRT_MIN,
         )

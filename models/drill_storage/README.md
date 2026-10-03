@@ -35,7 +35,8 @@ uv run export drill_storage.dremel.cover_stackable  # sockets down; built-in sup
 
 | module | what it is |
 |---|---|
-| `box.py` | **The engine.** Gridfinity constants, hole packing, wall legends, `create_cover`, and the one-material `create_base`. Not a model. |
+| `box.py` | **The engine.** Hole packing, wall legends, `create_cover`, and the one-material `create_base`. Not a model. |
+| [`models.lib.gridfinity`](../lib/gridfinity.py) | Shared standard dimensions, `gridfinity_foot(size_x=PAD, size_y=PAD)` and `gridfinity_foot_cavity(size_x, size_y, wall, bottom, seams, seam_chamfer=0.2)`. The existing ruled profiles are unchanged; `seams` is ordered −X, +X, −Y, +Y. |
 | `config.py` | Every clearance, shared by all three sets: the guide fit, the land fit, the relief, the snap. No geometry. |
 | `sets.py` | **The drill sets**, side by side: sizes, lengths, cover label, shank allowance. The only thing a variant decides. |
 | `freepack.py` | The layout solver for the one set `pack_rows` cannot lay out in rows. Run by hand; its answer is frozen in `sets.py`. |

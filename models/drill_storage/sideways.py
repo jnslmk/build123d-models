@@ -28,16 +28,18 @@ from build123d import (
 )
 from models.lib.edges import as_part, top_chamfer_tool
 from models.lib import fits
-from . import config as c
-from .box import (
+from models.lib.gridfinity import (
     BASE_H,
     CORNER_R,
     GRID,
     HEIGHT_UNIT,
     PAD,
+    gridfinity_foot,
+)
+from . import config as c
+from .box import (
     add_stacking_lip,
     cut_stacking_socket,
-    gridfinity_foot,
 )
 from .sets import DrillSet, StepDrill
 from .tools import STEEL, create_drill, create_hex_tool, create_step_drill

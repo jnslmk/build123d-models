@@ -46,11 +46,10 @@ from ...lib.checks import is_flush_seam
 from ...lib.checks import is_solid_at as is_solid_at
 from ...lib.checks import sharp_convex_edges
 from ...lib.fits import MIN_WALL
+from models.lib.gridfinity import BASE_H, HEIGHT_UNIT
 from ..box import (
-    BASE_H,
     BODY_W,
     CAP_H,
-    HEIGHT_UNIT,
     INNER_W,
     SNAP_BACK,
     SNAP_LEAD_IN,
@@ -337,14 +336,39 @@ def check_box(
         f"z={c.BASE_FOOT_TOP:.1f}..{c.BASE_TOTAL_H:.1f}",
     )
     for what, bead_z, prot, lead, back, tip, bead_wall, mate, sign in (
-        ("cartridge", c.BEAD_Z, c.CART_BEAD, c.BEAD_LEAD_IN, c.BEAD_BACK,
-         c.BEAD_TIP_FLAT, c.CART_W / 2, c.CAVITY_W / 2, +1.0),
-        ("cover", c.BASE_FOOT_TOP + SNAP_Z, snap_protrusion, SNAP_LEAD_IN,
-         SNAP_BACK, SNAP_TIP_FLAT, INNER_W / 2, c.COLLAR_W / 2, -1.0),
+        (
+            "cartridge",
+            c.BEAD_Z,
+            c.CART_BEAD,
+            c.BEAD_LEAD_IN,
+            c.BEAD_BACK,
+            c.BEAD_TIP_FLAT,
+            c.CART_W / 2,
+            c.CAVITY_W / 2,
+            +1.0,
+        ),
+        (
+            "cover",
+            c.BASE_FOOT_TOP + SNAP_Z,
+            snap_protrusion,
+            SNAP_LEAD_IN,
+            SNAP_BACK,
+            SNAP_TIP_FLAT,
+            INNER_W / 2,
+            c.COLLAR_W / 2,
+            -1.0,
+        ),
     ):
         bite, at_z = worst_bead_bite(
-            base, bead_z, prot, lead, back, tip,
-            bead_wall=bead_wall, mating_wall=mate, sign=sign,
+            base,
+            bead_z,
+            prot,
+            lead,
+            back,
+            tip,
+            bead_wall=bead_wall,
+            mating_wall=mate,
+            sign=sign,
         )
         r.check(
             bite < 0.0,
@@ -445,8 +469,7 @@ def check_box(
     r.check(
         guide_af > c.HEX_AF + c.HEX_LAND_FIT,
         "the rigid guide stays looser than the TPU land it feeds",
-        f"guide {guide_af:.2f} mm across-flats vs land "
-        f"{c.HEX_AF + c.HEX_LAND_FIT:.2f}",
+        f"guide {guide_af:.2f} mm across-flats vs land {c.HEX_AF + c.HEX_LAND_FIT:.2f}",
     )
     ok = all(
         not is_solid_at(insert, x, y, z)

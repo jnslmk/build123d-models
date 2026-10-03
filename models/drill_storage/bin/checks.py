@@ -5,7 +5,15 @@ from typing import Any
 
 from build123d import Align, Box, BuildPart, Locations, Mode, Part, Pos, add
 
-from models.drill_storage.box import FOOT_C1, FOOT_C3
+from models.lib.gridfinity import (
+    BASE_H,
+    CORNER_R,
+    FOOT_C1,
+    FOOT_C3,
+    GRID,
+    HEIGHT_UNIT,
+    PAD,
+)
 from models.drill_storage.stackable_checks import check_split_lips
 from models.lib.edges import as_part
 from models.lib.checks import Report, is_solid_at, sharp_convex_edges, solid_probe
@@ -80,11 +88,11 @@ def _check_supports(
         clean, 0, 0, box.size.X + 1, box.size.Y + 1, 0, c.LID_SOCKET_DEPTH - 0.05
     )
     inset = FOOT_C1 + FOOT_C3
-    roof_r = c.CORNER_R - inset + lid.STACK_FIT / 2
+    roof_r = CORNER_R - inset + lid.STACK_FIT / 2
     for cell_x, x in x_cells:
         for cell_y, y in y_cells:
-            w = cell_x * c.GRID - (c.GRID - c.PAD)
-            d = cell_y * c.GRID - (c.GRID - c.PAD)
+            w = cell_x * GRID - (GRID - PAD)
+            d = cell_y * GRID - (GRID - PAD)
             label = f"socket ({x:g}, {y:g}), {cell_x:g}×{cell_y:g}"
             # Stop below the release gap so tabs cannot mask detached rib/rail
             # islands. Full and half-cell bodies must each reach the bed.
@@ -287,8 +295,8 @@ def run() -> Report:
                 body_part,
                 allow=(
                     (
-                        lambda edge: abs(abs(edge.center().X) - c.PAD / 2) < 0.01
-                        and abs(edge.center().Z - c.BASE_H) < 0.01,
+                        lambda edge: abs(abs(edge.center().X) - PAD / 2) < 0.01
+                        and abs(edge.center().Z - BASE_H) < 0.01,
                         "foot-to-body shoulders retain the Gridfinity transition",
                     ),
                     (
@@ -315,10 +323,10 @@ def run() -> Report:
                 report,
                 body_part,
                 printed,
-                width=options.get("grid_x", 1) * c.GRID - (c.GRID - c.PAD),
-                depth=options.get("grid_y", 2) * c.GRID - (c.GRID - c.PAD),
+                width=options.get("grid_x", 1) * GRID - (GRID - PAD),
+                depth=options.get("grid_y", 2) * GRID - (GRID - PAD),
                 wall=options.get("wall_thickness", c.WALL),
-                height=options.get("height_u", 5) * c.HEIGHT_UNIT,
+                height=options.get("height_u", 5) * HEIGHT_UNIT,
                 lid_height=c.LID_MIN_HEIGHT,
             )
         joint_overlap = _overlap(body, closed_lid)

@@ -19,12 +19,8 @@ from build123d import (
     loft,
 )
 
-from models.drill_storage.box import (
-    FOOT_C1,
-    FOOT_C3,
-    FOOT_STRAIGHT,
-    split_stacking_lips,
-)
+from models.drill_storage.box import split_stacking_lips
+from models.lib.gridfinity import CORNER_R, FOOT_C1, FOOT_C3, FOOT_STRAIGHT, GRID, PAD
 from models.drill_storage.cover import SEPARATE_STACKING_LIPS_PARAM
 from models.lib import fits
 from models.lib.edges import bottom_chamfer_tool, top_chamfer_tool
@@ -97,7 +93,7 @@ def _socket(cell_w: float, cell_d: float, x: float, y: float) -> None:
                 RectangleRounded(
                     cell_w - 2 * inset + STACK_FIT + 2 * lead,
                     cell_d - 2 * inset + STACK_FIT + 2 * lead,
-                    c.CORNER_R - inset + STACK_FIT / 2 + lead,
+                    CORNER_R - inset + STACK_FIT / 2 + lead,
                 )
         profiles.append(section.sketch)
     loft(sections=profiles, ruled=True, mode=Mode.SUBTRACT)
@@ -110,7 +106,7 @@ def _support(cell_w: float, cell_d: float, x: float, y: float) -> None:
     # including the corner radius, so no lower wall/bevel can touch the support.
     rail_w = cell_w - 2 * inset + STACK_FIT - 2 * SUPPORT_XY_GAP
     rail_d = cell_d - 2 * inset + STACK_FIT - 2 * SUPPORT_XY_GAP
-    rail_r = c.CORNER_R - inset + STACK_FIT / 2 - SUPPORT_XY_GAP
+    rail_r = CORNER_R - inset + STACK_FIT / 2 - SUPPORT_XY_GAP
     support_h = c.LID_SOCKET_DEPTH - LATTICE_GAP
     nx = max(1, floor(((cell_w - 2 * inset) / 2 - 1) / LATTICE_PITCH))
     ny = max(1, floor(((cell_d - 2 * inset) / 2 - 1) / LATTICE_PITCH))
@@ -216,28 +212,28 @@ def create(
     x_cells = cell_layout(grid_x, half_grid_base, half_grid_right)
     # The lid is printed upside-down; rotating it into use pose reverses Y.
     y_cells = cell_layout(grid_y, half_grid_base, not half_grid_top)
-    width = grid_x * c.GRID - (c.GRID - c.PAD)
-    depth = grid_y * c.GRID - (c.GRID - c.PAD)
+    width = grid_x * GRID - (GRID - PAD)
+    depth = grid_y * GRID - (GRID - PAD)
     plate_height = lid_height - c.LID_SKIRT_MIN
     skirt_w = width - 2 * wall_thickness - PLUG_FIT
     skirt_d = depth - 2 * wall_thickness - PLUG_FIT
-    skirt_r = max(0.4, c.CORNER_R - wall_thickness) - PLUG_FIT / 2
+    skirt_r = max(0.4, CORNER_R - wall_thickness) - PLUG_FIT / 2
 
     with BuildPart() as lid:
         with BuildSketch():
-            RectangleRounded(width, depth, c.CORNER_R)
+            RectangleRounded(width, depth, CORNER_R)
         extrude(amount=plate_height)
-        add(bottom_chamfer_tool(width, depth, c.CORNER_R, 0, 0.3), mode=Mode.SUBTRACT)
+        add(bottom_chamfer_tool(width, depth, CORNER_R, 0, 0.3), mode=Mode.SUBTRACT)
         # Match the body's exterior rim bevel without spending its flat landing.
         add(
-            top_chamfer_tool(width, depth, c.CORNER_R, plate_height, c.RIM_CHAMFER),
+            top_chamfer_tool(width, depth, CORNER_R, plate_height, c.RIM_CHAMFER),
             mode=Mode.SUBTRACT,
         )
         for cell_x, x in x_cells:
             for cell_y, y in y_cells:
                 _socket(
-                    cell_x * c.GRID - (c.GRID - c.PAD),
-                    cell_y * c.GRID - (c.GRID - c.PAD),
+                    cell_x * GRID - (GRID - PAD),
+                    cell_y * GRID - (GRID - PAD),
                     x,
                     y,
                 )
@@ -272,8 +268,8 @@ def create(
             for cell_x, x in x_cells:
                 for cell_y, y in y_cells:
                     _support(
-                        cell_x * c.GRID - (c.GRID - c.PAD),
-                        cell_y * c.GRID - (c.GRID - c.PAD),
+                        cell_x * GRID - (GRID - PAD),
+                        cell_y * GRID - (GRID - PAD),
                         x,
                         y,
                     )

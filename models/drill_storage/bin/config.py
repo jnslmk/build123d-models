@@ -2,7 +2,6 @@
 
 from build123d import Color
 
-from models.drill_storage.box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD
 from models.drill_storage.tools import COVER_GLASS
 from models.lib import fits
 
@@ -86,11 +85,6 @@ PARAMS = [
 ]
 
 __all__ = [
-    "BASE_H",
-    "CORNER_R",
-    "GRID",
-    "HEIGHT_UNIT",
-    "PAD",
     "WALL",
     "PARAMS",
     "MAGNET_FIT",

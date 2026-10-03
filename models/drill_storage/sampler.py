@@ -18,7 +18,7 @@ from __future__ import annotations
 from build123d import Compound, Pos, Rotation
 
 from . import config as c
-from .box import GRID
+from models.lib.gridfinity import GRID
 from .cover import create_cover_for
 from .insert import create_insert_for
 from .sets import ALL

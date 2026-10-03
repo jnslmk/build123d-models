@@ -7,7 +7,14 @@ from build123d import BuildSketch, CenterOf, FontStyle, Pos, Text, Vector
 from models.lib.checks import Report, is_solid_at
 
 from . import config as c
-from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
+from models.lib.gridfinity import (
+    BASE_H,
+    CORNER_R,
+    GRID,
+    HEIGHT_UNIT,
+    PAD,
+    gridfinity_foot,
+)
 from .sets import DrillSet
 from .sideways import (
     BACK_WALL,

@@ -33,10 +33,10 @@ from build123d import (
     section,
 )
 
+from models.lib.gridfinity import CORNER_R
 from models.drill_storage.box import (
     CAP_FILLET,
     CAP_H,
-    CORNER_R,
     COVER_SEAT_CH,
     COVER_WALL,
     INNER_R,

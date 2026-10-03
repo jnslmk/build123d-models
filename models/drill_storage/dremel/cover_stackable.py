@@ -2,8 +2,8 @@
 
 from build123d import BuildPart, BuildSketch, Plane, Pos, RectangleRounded, add, extrude
 
+from models.lib.gridfinity import GRID
 from models.drill_storage.box import (
-    GRID,
     STACK_LIP_R,
     STACK_LIP_W,
     STACK_SOCKET_DEPTH,

@@ -37,22 +37,20 @@ from ..lib.checks import is_solid_at as is_solid_at
 from ..lib.checks import is_vertical_seam
 from ..lib.checks import sharp_convex_edges
 from ..lib.fits import MIN_WALL
+from models.lib.gridfinity import BASE_H, CORNER_R, HEIGHT_UNIT, PAD
 from . import config as c
 from . import sets
 from .box import (
-    BASE_H,
     BODY_W,
     CAP_H,
     CAP_SOLID_LAYERS,
     COLLAR_R,
     COLLAR_W,
-    CORNER_R,
     COVER_SEAT_CH,
     COVER_W,
     COVER_WALL,
     MOUTH_CH,
     FOOT_TOP,
-    HEIGHT_UNIT,
     INNER_R,
     INNER_W,
     LABEL_CHAMFER,
@@ -60,7 +58,6 @@ from .box import (
     LABEL_SIZE,
     LABEL_Z,
     LAYER_H,
-    PAD,
     SLIP,
     SNAP_BACK,
     SNAP_GROOVE_D,
@@ -106,9 +103,7 @@ def _bore_label(s: DrillSet, cut_d: float) -> str:
 def _bore_footprints(s: DrillSet) -> list[tuple[str, float, float, float]]:
     """Every cut bore as ``(key, relieved_radius, x, y)`` -- the real footprint,
     not the nominal tool, which is what has to be packed and walled."""
-    items = [
-        (_bore_label(s, d), c.relieved_bore_r(d), x, y) for d, x, y in s.bores
-    ]
+    items = [(_bore_label(s, d), c.relieved_bore_r(d), x, y) for d, x, y in s.bores]
     items += [
         (f"hex{af:g}", _hex_r(af, c.RELIEF_FIT), x, y) for af, x, y in s.hex_bores
     ]
@@ -1057,9 +1052,7 @@ def check_guides(s: DrillSet, base: Part, r: Report) -> None:
     # layout_bores packs on the *cartridge's* relieved bore and knows nothing about
     # how wide the guide is cut, so widening GUIDE_FIT spends a wall nothing else
     # is watching. This is the check that stops it going too far.
-    guides = [
-        (_bore_label(s, d), (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in s.bores
-    ]
+    guides = [(_bore_label(s, d), (d + c.GUIDE_FIT) / 2, x, y) for d, x, y in s.bores]
     guides += [
         (f"hex{af:g}", _hex_r(af, c.GUIDE_FIT), x, y) for af, x, y in s.hex_bores
     ]
@@ -1320,8 +1313,11 @@ def wall_legend_window(
 
     Shared with the hex checks, which import this one.
     """
-    b = _ink("".join(sorted({ch for row in rows for k in row for ch in k})),
-             WALL_LABEL_SIZE, WALL_LABEL_STYLE)
+    b = _ink(
+        "".join(sorted({ch for row in rows for k in row for ch in k})),
+        WALL_LABEL_SIZE,
+        WALL_LABEL_STYLE,
+    )
     reach = (len(rows) - 1) * line_h / 2
     return (z_center - reach + b.min.Y - INK_PAD, z_center + reach + b.max.Y + INK_PAD)
 

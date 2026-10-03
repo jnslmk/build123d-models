@@ -66,27 +66,17 @@ from build123d import (
     sweep,
 )
 
-from ..lib import fits
+from ..lib import fits, gridfinity
 from ..lib.edges import as_part, chamfer_edge, reseat_on_bed
-
-# --- Gridfinity standard ------------------------------------------------------
-GRID = 42.0
-TOLERANCE = 0.5
-PAD = GRID - TOLERANCE  # 41.5 mm pad top
-CORNER_R = 4.0  # Gridfinity top corner radius
-FOOT_C1 = 0.7  # bottom chamfer (45 deg)
-FOOT_STRAIGHT = 1.8  # vertical section
-FOOT_C3 = 1.9  # top chamfer (45 deg)
-BASE_H = FOOT_C1 + FOOT_STRAIGHT + FOOT_C3  # 4.4 mm foot profile
 
 # Stackable covers alone use the drawing's outward-offset lip: the shared
 # 41.5 mm base and the smooth cover remain unchanged. This 42 mm lip spends the
 # entire neighbouring-cell gap. At its mouth the PETG sliding fit leaves only
 # (42 - 41.5 - 0.22) / 2 = 0.14 mm per side: an explicitly experimental
 # exception to the normal printable-wall minimum, not a proven FDM feature.
-STACK_SOCKET_DEPTH = BASE_H
-STACK_LIP_W = GRID
-STACK_LIP_R = CORNER_R + (STACK_LIP_W - PAD) / 2
+STACK_SOCKET_DEPTH = gridfinity.BASE_H
+STACK_LIP_W = gridfinity.GRID
+STACK_LIP_R = gridfinity.CORNER_R + (STACK_LIP_W - gridfinity.PAD) / 2
 STACK_FIT = fits.SLIDING  # sliding fit, PETG baseline; diametral
 
 
@@ -133,9 +123,9 @@ def split_stacking_lips(finished: Part, socket_depth: float) -> Compound:
 
 def add_stacking_lip(top_z: float) -> None:
     """Add the draft-spec outer lip around the full foot seat inside a BuildPart."""
-    with BuildSketch(Plane.XY.offset(top_z - BASE_H)) as lip:
+    with BuildSketch(Plane.XY.offset(top_z - gridfinity.BASE_H)) as lip:
         RectangleRounded(STACK_LIP_W, STACK_LIP_W, STACK_LIP_R)
-    extrude(to_extrude=lip.sketch, amount=BASE_H)
+    extrude(to_extrude=lip.sketch, amount=gridfinity.BASE_H)
 
 
 def cut_stacking_socket(top_z: float) -> None:
@@ -144,26 +134,28 @@ def cut_stacking_socket(top_z: float) -> None:
     The upper 1.9 mm bevel is itself the lead-in; an additional mouth chamfer
     would erase the intentionally thin experimental lip.
     """
-    bottom_w = PAD - 2 * (FOOT_C1 + FOOT_C3)
-    mid_w = PAD - 2 * FOOT_C3
-    bottom_r = CORNER_R - FOOT_C1 - FOOT_C3
-    mid_r = CORNER_R - FOOT_C3
-    with BuildSketch(Plane.XY.offset(top_z - BASE_H)) as bottom:
+    bottom_w = gridfinity.PAD - 2 * (gridfinity.FOOT_C1 + gridfinity.FOOT_C3)
+    mid_w = gridfinity.PAD - 2 * gridfinity.FOOT_C3
+    bottom_r = gridfinity.CORNER_R - gridfinity.FOOT_C1 - gridfinity.FOOT_C3
+    mid_r = gridfinity.CORNER_R - gridfinity.FOOT_C3
+    with BuildSketch(Plane.XY.offset(top_z - gridfinity.BASE_H)) as bottom:
         RectangleRounded(
             bottom_w + STACK_FIT, bottom_w + STACK_FIT, bottom_r + STACK_FIT / 2
         )
-    with BuildSketch(Plane.XY.offset(top_z - BASE_H + FOOT_C1)) as mid:
+    with BuildSketch(
+        Plane.XY.offset(top_z - gridfinity.BASE_H + gridfinity.FOOT_C1)
+    ) as mid:
         RectangleRounded(mid_w + STACK_FIT, mid_w + STACK_FIT, mid_r + STACK_FIT / 2)
-    with BuildSketch(Plane.XY.offset(top_z - FOOT_C3)) as shoulder:
+    with BuildSketch(Plane.XY.offset(top_z - gridfinity.FOOT_C3)) as shoulder:
         RectangleRounded(mid_w + STACK_FIT, mid_w + STACK_FIT, mid_r + STACK_FIT / 2)
     # Extend the 45-degree bevel just past the lip face so the opening at
     # top_z retains the full 0.22 mm diametral fit, not a truncated profile.
     overcut = 0.05
     with BuildSketch(Plane.XY.offset(top_z + overcut)) as mouth:
         RectangleRounded(
-            PAD + STACK_FIT + 2 * overcut,
-            PAD + STACK_FIT + 2 * overcut,
-            CORNER_R + STACK_FIT / 2 + overcut,
+            gridfinity.PAD + STACK_FIT + 2 * overcut,
+            gridfinity.PAD + STACK_FIT + 2 * overcut,
+            gridfinity.CORNER_R + STACK_FIT / 2 + overcut,
         )
     loft(
         sections=[bottom.sketch, mid.sketch, shoulder.sketch, mouth.sketch],
@@ -213,8 +205,6 @@ def add_stacking_support(print_pose: Part) -> Part:
     return supported.part
 
 
-HEIGHT_UNIT = 7.0  # Gridfinity Z unit
-
 # --- Cover --------------------------------------------------------------------
 # (COVER_H is derived under "Assembled height" once the base + cap are known.)
 # The cover is one Gridfinity pad, exactly like the body. Both numbers below are
@@ -232,7 +222,7 @@ HEIGHT_UNIT = 7.0  # Gridfinity Z unit
 # 39.2 collar at all, and an old 39.6 cover over a new 38.7 collar has 0.9 mm of
 # slip against a 0.45 mm bead, which is no detent left. Freezing INNER_W costs
 # 0.25 mm of wall; moving it costs the shelf.
-COVER_W = PAD  # 41.5 -- one Gridfinity pad, flush with the body (see BODY_W)
+COVER_W = gridfinity.PAD  # 41.5 -- one Gridfinity pad, flush with the body (see BODY_W)
 INNER_W = 39.6  # frozen: the bore every collar this package has ever cut plugs
 #                 into. Not derived from COVER_WALL any more -- it outranks it.
 COVER_WALL = (COVER_W - INNER_W) / 2  # 0.95 -- what is left, and it is enough:
@@ -293,7 +283,7 @@ MOUTH_CH = 0.3  # lead-in on the *inner* rim of the open end (see create_cover)
 # still more than twice the 0.200 mm the flats carry. Nothing binds, because the
 # corners are not the fit -- the flats are, at exactly SLIP/2, and that is where
 # the snap bead engages. Held in checks.py rather than left to this note.
-INNER_R = CORNER_R - COVER_WALL  # 3.05
+INNER_R = gridfinity.CORNER_R - COVER_WALL  # 3.05
 LABEL_SIZE = 13.0
 LABEL_Z = 45.0
 LABEL_DEPTH = 0.5  # engrave depth into the flat face (< COVER_WALL, no punch-through)
@@ -391,7 +381,7 @@ SNAP_GROOVE_FLOOR = SNAP_LEAD_IN - SNAP_RAMP_H * (SLIP / 2) / SNAP_PROTRUSION  #
 # stops sitting next to another bin. So the holder is one flush rounded square
 # from the foot to the top of the cover, and it is a well-behaved bin at every
 # height rather than only below 4.4 mm.
-BODY_W = PAD  # 41.5 -- the pad, and COVER_W too, so the two are flush
+BODY_W = gridfinity.PAD  # 41.5 -- the pad, and COVER_W too, so the two are flush
 FOOT_TOP = 24.0  # top of the full-width body (cover seats here)
 COLLAR_W = INNER_W - SLIP  # collar is a close slip fit inside the cover bore
 COLLAR_R = 3.5
@@ -481,7 +471,8 @@ def cover_height_for(
     """
     cover_top_min = bore_floor_z + max_drill_len + headroom + cap_h
     total_assembled_h = (
-        math.ceil((cover_top_min - stack_lip_h) / HEIGHT_UNIT) * HEIGHT_UNIT
+        math.ceil((cover_top_min - stack_lip_h) / gridfinity.HEIGHT_UNIT)
+        * gridfinity.HEIGHT_UNIT
         + stack_lip_h
     )
     return total_assembled_h - foot_top
@@ -529,25 +520,6 @@ BASE_COLOR = Color(0.62, 0.64, 0.67)
 COVER_COLOR = Color(0.93, 0.93, 0.92)
 
 
-def gridfinity_foot() -> Part:
-    """One 1x1 Gridfinity base foot; pad top lands at z=BASE_H."""
-    bottom = PAD - 2 * (FOOT_C1 + FOOT_C3)
-    mid = PAD - 2 * FOOT_C3
-    r_bottom = CORNER_R - (FOOT_C1 + FOOT_C3)
-    r_mid = CORNER_R - FOOT_C3
-    with BuildPart() as foot:
-        for size, radius, z in [
-            (bottom, r_bottom, 0.0),
-            (mid, r_mid, FOOT_C1),
-            (mid, r_mid, FOOT_C1 + FOOT_STRAIGHT),
-            (PAD, CORNER_R, BASE_H),
-        ]:
-            with BuildSketch(Plane.XY.offset(z)):
-                RectangleRounded(size, size, radius)
-        loft(ruled=True)
-    return foot.part
-
-
 def create_body(foot_top: float = FOOT_TOP) -> Part:
     """The full-width body: from the Gridfinity pad top up to the cover seat.
 
@@ -568,9 +540,9 @@ def create_body(foot_top: float = FOOT_TOP) -> Part:
     rule rather than quietly omitting it.
     """
     with BuildPart() as body:
-        with BuildSketch(Plane.XY.offset(BASE_H)):
-            RectangleRounded(BODY_W, BODY_W, CORNER_R)
-        extrude(amount=foot_top - BASE_H)
+        with BuildSketch(Plane.XY.offset(gridfinity.BASE_H)):
+            RectangleRounded(BODY_W, BODY_W, gridfinity.CORNER_R)
+        extrude(amount=foot_top - gridfinity.BASE_H)
     return body.part
 
 
@@ -958,7 +930,7 @@ def engrave_row_legend(
     n = len(rows)
     line_h = WALL_LABEL_SIZE + 1.6 if line_h is None else line_h
     z_top = z_center + (n - 1) * line_h / 2
-    flat_half = BODY_W / 2 - CORNER_R  # numbers must stay on the flat wall face
+    flat_half = BODY_W / 2 - gridfinity.CORNER_R  # numbers stay on the flat wall face
 
     def engrave(text: str, face: str, lateral: float, z: float) -> None:
         # Keep the (centre-aligned) glyphs clear of the rounded corners.
@@ -1148,7 +1120,7 @@ def create_base(
     """
     total_h = foot_top + collar_h
     with BuildPart() as base:
-        add(gridfinity_foot())
+        add(gridfinity.gridfinity_foot())
 
         # Full-width body from the pad top up to the shoulder -- BODY_W wide,
         # flush with the cover, and left a flat shoulder on top for it to seat
@@ -1211,7 +1183,7 @@ def create_cover(
     """
     with BuildPart() as cover:
         with BuildSketch():
-            RectangleRounded(COVER_W, COVER_W, CORNER_R)
+            RectangleRounded(COVER_W, COVER_W, gridfinity.CORNER_R)
         extrude(amount=cover_h)
         if stackable:
             add_stacking_lip(cover_h)

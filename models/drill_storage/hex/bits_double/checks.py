@@ -11,6 +11,7 @@ from build123d import BuildSketch, CenterOf, FontStyle, GeomType, Part, Text
 
 from models.lib.checks import Report, adjacent_faces, is_flush_seam, sharp_convex_edges
 from models.lib.fits import MIN_WALL
+from models.lib import gridfinity
 from models.drill_storage import box
 from models.drill_storage.hex import config as h
 
@@ -154,10 +155,10 @@ def check_guides(report: Report, base: Part) -> None:
         all(
             report.solid_at(base, x, y, z)
             for _, x, y in c.SOCKETS
-            for z in (box.BASE_H + PROBE, c.GUIDE_FLOOR_Z - MIN_WALL)
+            for z in (gridfinity.BASE_H + PROBE, c.GUIDE_FLOOR_Z - MIN_WALL)
         ),
         "blind floors stay above the foot with printable backing",
-        f"{c.GUIDE_FLOOR_Z - box.BASE_H:.3f} mm backing",
+        f"{c.GUIDE_FLOOR_Z - gridfinity.BASE_H:.3f} mm backing",
     )
     for index, (_, x, y) in enumerate(c.SOCKETS):
         # Probe the reserved outer-body margin, not a nonexistent cartridge.
@@ -197,14 +198,14 @@ def check_shell(report: Report, base: Part) -> None:
         "true 41.5 × 83.5 × 30 mm bounds; feet down at z=0",
         f"{bounds.size.X:.5f} × {bounds.size.Y:.5f} × {bounds.size.Z:.5f}",
     )
-    half_mid = box.PAD / 2 - box.FOOT_C3
-    for foot_y in (-box.GRID / 2, box.GRID / 2):
+    half_mid = gridfinity.PAD / 2 - gridfinity.FOOT_C3
+    for foot_y in (-gridfinity.GRID / 2, gridfinity.GRID / 2):
         samples = (
-            (box.FOOT_C1 / 2, half_mid - box.FOOT_C1 / 2),
-            (box.FOOT_C1 + box.FOOT_STRAIGHT / 2, half_mid),
+            (gridfinity.FOOT_C1 / 2, half_mid - gridfinity.FOOT_C1 / 2),
+            (gridfinity.FOOT_C1 + gridfinity.FOOT_STRAIGHT / 2, half_mid),
             (
-                box.FOOT_C1 + box.FOOT_STRAIGHT + box.FOOT_C3 / 2,
-                half_mid + box.FOOT_C3 / 2,
+                gridfinity.FOOT_C1 + gridfinity.FOOT_STRAIGHT + gridfinity.FOOT_C3 / 2,
+                half_mid + gridfinity.FOOT_C3 / 2,
             ),
         )
         report.check(
@@ -222,8 +223,8 @@ def check_shell(report: Report, base: Part) -> None:
             f"foot at y={foot_y:g}: bed face, lower relief, straight and upper chamfer",
         )
     report.check(
-        not report.solid_at(base, 0, 0, box.BASE_H / 2)
-        and report.solid_at(base, 0, 0, box.BASE_H + PROBE),
+        not report.solid_at(base, 0, 0, gridfinity.BASE_H / 2)
+        and report.solid_at(base, 0, 0, gridfinity.BASE_H + PROBE),
         "two separate standard feet join the continuous body above z=4.4",
     )
     report.section("Rectangular cavity and stretched retention interfaces")
@@ -446,7 +447,7 @@ def check_labels(report: Report, base: Part, tools: tuple[Part, ...]) -> None:
             and abs(bounds.size.Z - ink_bounds.size.X) < 1e-4
             and abs((bounds.min.Y + bounds.max.Y) / 2 - centre_y) < 1e-4
             and abs((bounds.min.Z + bounds.max.Z) / 2 - c.LABEL_Z) < 1e-4
-            and bounds.min.Z >= box.BASE_H + 0.6 - 1e-4
+            and bounds.min.Z >= gridfinity.BASE_H + 0.6 - 1e-4
             and bounds.max.Z <= c.SEAT_Z - 0.6 + 1e-4
             and bounds.min.Y > -c.BODY_Y / 2 + c.BODY_R
             and bounds.max.Y < c.BODY_Y / 2 - c.BODY_R,
@@ -538,7 +539,8 @@ def _edge_allow(base: Part, tools: tuple[Part, ...]) -> tuple:
         b = edge.bounding_box()
         at_shoulder = abs(b.min.Z - c.SEAT_Z) < 1e-5 and abs(b.max.Z - c.SEAT_Z) < 1e-5
         at_foot_join = (
-            abs(b.min.Z - box.BASE_H) < 1e-5 and abs(b.max.Z - box.BASE_H) < 1e-5
+            abs(b.min.Z - gridfinity.BASE_H) < 1e-5
+            and abs(b.max.Z - gridfinity.BASE_H) < 1e-5
         )
         shoulder_contour = at_shoulder and (
             on_contour(edge, c.BODY_X, c.BODY_Y, c.BODY_R)
@@ -547,8 +549,8 @@ def _edge_allow(base: Part, tools: tuple[Part, ...]) -> tuple:
         foot_contour = at_foot_join and (
             on_contour(edge, c.BODY_X, c.BODY_Y, c.BODY_R)
             or any(
-                on_contour(edge, box.PAD, box.PAD, box.CORNER_R, y)
-                for y in (-box.GRID / 2, box.GRID / 2)
+                on_contour(edge, gridfinity.PAD, gridfinity.PAD, gridfinity.CORNER_R, y)
+                for y in (-gridfinity.GRID / 2, gridfinity.GRID / 2)
             )
         )
         if not (shoulder_contour or foot_contour):

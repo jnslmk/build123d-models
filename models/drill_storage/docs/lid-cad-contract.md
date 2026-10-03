@@ -4,7 +4,7 @@
 
 - Context: `../README.md` and the [accepted body slice](empty-bin-cad-contract.md).
 - Specification: [empty-bin-specification.md](empty-bin-specification.md), EB-2–EB-5, EB-7 and EB-8; common split-print requirements [SC-4](stackable-cover-specification.md).
-- Supporting evidence: `drill_storage.box` foot profile and stackable socket; `models.lib.fits.SLIDING` PETG diametral; accepted body wall/rim; [support design procedure](../../../docs/fdm-support-design.md) and [removable-support research](../../../docs/research-removable-fdm-supports.md).
+- Supporting evidence: `models.lib.gridfinity` foot profile and `drill_storage.box` stackable socket; `models.lib.fits.SLIDING` PETG diametral; accepted body wall/rim; [support design procedure](../../../docs/fdm-support-design.md) and [removable-support research](../../../docs/research-removable-fdm-supports.md).
 
 ## Current slice
 

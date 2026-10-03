@@ -1,7 +1,8 @@
 """Accepted 36-bit layout; extend BITS by one 42 mm Gridfinity cell."""
 
 from models.drill_storage.hex import config as hex_config
-from models.drill_storage.box import COLLAR_R, CORNER_R, GRID, INNER_W, PAD
+from models.drill_storage.box import COLLAR_R, INNER_W
+from models.lib.gridfinity import BASE_H, CORNER_R, GRID, PAD
 
 LABELS = (
     ("H1.5", "H2", "H2.5", "H3"),
@@ -44,7 +45,7 @@ GUIDE_FLOOR_Z = hex_config.guide_floor_z("bits")
 LABEL_SIZE = 4.15
 LABEL_DEPTH = 0.8
 LABEL_PAIR_OFFSET = 1.85
-LABEL_Z = (hex_config.BASE_H + SEAT_Z) / 2
+LABEL_Z = (BASE_H + SEAT_Z) / 2
 
 # Same short-bit cover as BITS, stretched by one cell; all fits are inherited.
 COVER_X = hex_config.COVER_W

@@ -2,9 +2,9 @@
 
 ## References
 
-- Context: `../README.md`, `../box.py`.
+- Context: `../README.md`, `../../lib/gridfinity.py`.
 - Specification: [empty-bin-specification.md](empty-bin-specification.md), EB-1–EB-4 and EB-6.
-- Supporting evidence: `box.gridfinity_foot`, the 42 mm pitch and 7 mm height unit; the referenced generator's thin print-bed plate and interior-open foot cavities, as confirmed in the user's screenshot.
+- Supporting evidence: `models.lib.gridfinity.gridfinity_foot`, the 42 mm pitch and 7 mm height unit; the referenced generator's thin print-bed plate and interior-open foot cavities, as confirmed in the user's screenshot.
 
 ## Current slice
 
@@ -28,9 +28,9 @@
 
 | Dimension | Value | Source |
 | --- | --- | --- |
-| XY pitch / vertical unit | 42 / 7 mm | `drill_storage.box.GRID`, `HEIGHT_UNIT` |
-| Per-cell foot | 41.5 mm envelope, 4.4 mm exterior profile; half-foot 20.5 mm | Same four outer sections as `drill_storage.box.gridfinity_foot` |
-| Exterior margin | 0.25 mm on each side of the grid | `drill_storage.box.PAD` |
+| XY pitch / vertical unit | 42 / 7 mm | `models.lib.gridfinity.GRID`, `HEIGHT_UNIT` |
+| Per-cell foot | 41.5 mm envelope, 4.4 mm exterior profile; half-foot 20.5 mm | Same four outer sections, now shared as `models.lib.gridfinity.gridfinity_foot` |
+| Exterior margin | 0.25 mm on each side of the grid | `models.lib.gridfinity.PAD` |
 | Default floor / wall | 1 / 1 mm; 0 bottom override means wall thickness | Generator reference: closed foot plate, hollow open to bin interior; the former 1 mm continuous raised floor and underside ribs were replaced |
 | Rim bevels and landing | 0.2 mm exterior + 0.2 mm mouth lead-in, 0.6 mm flat | Retains lid-bearing land on 1 mm wall |
 

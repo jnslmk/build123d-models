@@ -26,20 +26,17 @@ from models.lib.edges import (
     top_chamfer_tool,
 )
 
+from models.lib.gridfinity import BASE_H, GRID, HEIGHT_UNIT, PAD
 from . import config as c
 from .box import hex_mouth_tool
 from .sets import DrillSet
 from .sideways import (
     BACK_WALL,
-    BASE_H,
-    GRID,
     GUIDE_DEPTH,
-    HEIGHT_UNIT,
     INSERT_CATCH_R,
     INSERT_CORNER_R,
     INSERT_DEPTH,
     INSERT_WALL,
-    PAD,
     layout_for,
 )
 

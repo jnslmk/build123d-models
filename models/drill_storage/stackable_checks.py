@@ -16,16 +16,12 @@ from build123d import (
 
 from ..lib.checks import Report, is_solid_at
 from ..lib.edges import as_part
+from models.lib.gridfinity import BASE_H, FOOT_C3, HEIGHT_UNIT, PAD, gridfinity_foot
 from .box import (
-    BASE_H,
     CAP_H,
-    FOOT_C3,
-    HEIGHT_UNIT,
-    PAD,
     STACK_FIT,
     STACK_LIP_W,
     STACK_SOCKET_DEPTH,
-    gridfinity_foot,
 )
 
 

@@ -14,7 +14,14 @@ from build123d import (
 )
 from models.lib.edges import as_part
 from models.lib.fits import SLIDING
-from .box import BASE_H, CORNER_R, GRID, HEIGHT_UNIT, PAD, gridfinity_foot
+from models.lib.gridfinity import (
+    BASE_H,
+    CORNER_R,
+    GRID,
+    HEIGHT_UNIT,
+    PAD,
+    gridfinity_foot,
+)
 from .sets import DrillSet
 from .sideways import (
     BED_THICKNESS,

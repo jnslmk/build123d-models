@@ -1,6 +1,6 @@
 """Common full/half Gridfinity foot layout for the bin and its stackable lid."""
 
-from .config import GRID
+from models.lib.gridfinity import GRID
 
 
 def cell_layout(

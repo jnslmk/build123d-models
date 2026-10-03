@@ -22,17 +22,15 @@ from build123d import (
     loft,
 )
 
+from models.lib.gridfinity import BASE_H, GRID, gridfinity_foot
 from models.drill_storage import config as family
 from models.drill_storage.base import key_slot_tool
 from models.drill_storage.box import (
-    BASE_H,
-    GRID,
     SNAP_GROOVE_D,
     SNAP_GROOVE_FLOOR,
     SNAP_GROOVE_ROOF,
     SNAP_TIP_FLAT,
     SNAP_Z,
-    gridfinity_foot,
 )
 from models.drill_storage.hex import config as hex_config
 from models.drill_storage.hex.base import hex_guide_tool

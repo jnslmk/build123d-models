@@ -1,14 +1,13 @@
 """Dremel variant: the drill family's square interface extended by one cell."""
 
+from models.lib.gridfinity import GRID, PAD
 from models.drill_storage import config as family
 from models.drill_storage.box import (
     COLLAR_R,
     COLLAR_W,
     COVER_W,
     FOOT_TOP,
-    GRID,
     INNER_W,
-    PAD,
     SLIP,
 )
 

@@ -33,6 +33,7 @@ from build123d import (
 )
 
 from ...lib.edges import chamfer_edge, reseat_on_bed
+from models.lib.gridfinity import CORNER_R
 from ..box import (
     CAP_FILLET,
     CAP_H,
@@ -73,7 +74,7 @@ def label_fit(cover_h: float, text: str) -> tuple[float, float, bool]:
 
     bottom, top = 1.0, cover_h - TOP_FILLET  # flat face, under the pillow fillet
     height = top - bottom
-    width = c.COVER_W - 2 * c.CORNER_R  # flat face between the rounded corners
+    width = c.COVER_W - 2 * CORNER_R  # flat face between the rounded corners
     up = c.MARGIN * height / run  # reading up the face
     across = min(c.MARGIN * width / run, c.MARGIN * height / thick)  # reading across
     return min(c.LABEL_SIZE, max(up, across)), (bottom + top) / 2, across > up
@@ -109,7 +110,7 @@ def create_cover(
     inner_w = c.COVER_W - 2 * COVER_WALL
     with BuildPart() as cover:
         with BuildSketch():
-            RectangleRounded(c.COVER_W, c.COVER_W, c.CORNER_R)
+            RectangleRounded(c.COVER_W, c.COVER_W, CORNER_R)
         extrude(amount=cover_h)
         if stackable:
             add_stacking_lip(cover_h)

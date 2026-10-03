@@ -49,6 +49,7 @@ from build123d import (
     loft,
 )
 
+from models.lib.gridfinity import gridfinity_foot
 from .box import (
     COLLAR_R,
     COLLAR_W,
@@ -56,7 +57,6 @@ from .box import (
     collar_snap_groove,
     create_body,
     engrave_row_legend,
-    gridfinity_foot,
     rim_chamfer_tool,
     snap_groove_ring,
 )
