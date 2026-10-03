@@ -209,6 +209,7 @@ Packages — each has its own README with the full story:
 | Model | Description |
 |-------|-------------|
 | [`drill_storage`](models/drill_storage/README.md) | Gridfinity drill holders, one per tool set (`.wood`, `.metal`, `.stone`) — a rigid ASA shell that guides, a compliant TPU cartridge that grips, and a labelled PETG cover, plus `.hex` for driver bits |
+| [`wrench_storage`](models/wrench_storage/README.md) | Lightweight PETG Gridfinity tray for six WORKZONE double-open wrenches standing on edge, with handle racks and configurable connected stepped footprints |
 | [`led_profiles`](models/led_profiles/README.md) | Modular 24 V addressable COB linear lamp system: endcap, corner, strap, stand, feet, and three mounting scenes |
 | [`led_psu_enclosure`](models/led_psu_enclosure/README.md) | Weatherproof enclosure for a 24 V LED driver stack, with sliding-shutter vents and an optional fan yoke |
 

@@ -80,6 +80,7 @@ packages = [
     "models.wolfbox_thermarest_adapter",
     "models.wire_clamp",
     "models.soldering_aid",
+    "models.wrench_storage",
 ]
 py-modules = ["fontfix", "show", "export_model", "check", "check_diff", "main", "model_deps", "viewer", "render_svg", "render_a4_pdf", "export", "selection", "sketch", "tessellate_models", "view_artifact", "website"]
 

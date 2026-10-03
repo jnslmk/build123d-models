@@ -147,6 +147,10 @@ MODELS = [
     "wire_clamp.body",
     "wire_clamp.screw",
     "wire_clamp.printable",
+    # Package alias and explicit printable leaf; the open tools are scene-only.
+    "wrench_storage",
+    "wrench_storage.base",
+    "wrench_storage.preview",
 ]
 
 
