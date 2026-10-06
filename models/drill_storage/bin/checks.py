@@ -14,6 +14,7 @@ from models.lib.gridfinity import (
     HEIGHT_UNIT,
     PAD,
 )
+from models.lib.gridfinity_socket import STACK_FIT
 from models.drill_storage.stackable_checks import check_split_lips
 from models.lib.edges import as_part
 from models.lib.checks import Report, is_solid_at, sharp_convex_edges, solid_probe
@@ -88,7 +89,7 @@ def _check_supports(
         clean, 0, 0, box.size.X + 1, box.size.Y + 1, 0, c.LID_SOCKET_DEPTH - 0.05
     )
     inset = FOOT_C1 + FOOT_C3
-    roof_r = CORNER_R - inset + lid.STACK_FIT / 2
+    roof_r = CORNER_R - inset + STACK_FIT / 2
     for cell_x, x in x_cells:
         for cell_y, y in y_cells:
             w = cell_x * GRID - (GRID - PAD)
@@ -111,8 +112,8 @@ def _check_supports(
                 f"{label}: support has positive separation from every socket wall",
                 f"minimum separation={separation:.3f} mm",
             )
-            hx = (w - 2 * inset + lid.STACK_FIT) / 2
-            hy = (d - 2 * inset + lid.STACK_FIT) / 2
+            hx = (w - 2 * inset + STACK_FIT) / 2
+            hy = (d - 2 * inset + STACK_FIT) / 2
             # Probe 0.75 mm inward of the actual roof contour: beyond the old
             # full-cell lattice by 2.11 mm, and off all centre-grid ribs.
             edge_points = [

@@ -4,7 +4,7 @@
 
 - Context: `../README.md` and the [accepted body slice](empty-bin-cad-contract.md).
 - Specification: [empty-bin-specification.md](empty-bin-specification.md), EB-2–EB-5, EB-7 and EB-8; common split-print requirements [SC-4](stackable-cover-specification.md).
-- Supporting evidence: `models.lib.gridfinity` foot profile and `drill_storage.box` stackable socket; `models.lib.fits.SLIDING` PETG diametral; accepted body wall/rim; [support design procedure](../../../docs/fdm-support-design.md) and [removable-support research](../../../docs/research-removable-fdm-supports.md).
+- Supporting evidence: `models.lib.gridfinity` foot profile and `models.lib.gridfinity_socket` lower-foot socket/support helpers (extracted unchanged from the bin lid); `models.lib.fits.SLIDING` PETG diametral; accepted body wall/rim; [support design procedure](../../../docs/fdm-support-design.md) and [removable-support research](../../../docs/research-removable-fdm-supports.md).
 
 ## Current slice
 
@@ -35,7 +35,7 @@ Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance
 | Plug engagement | 3 mm minimum | Three times 1 mm rim budget; lift-off locating skirt |
 | Outer shell | grid span minus 0.5 mm | Existing accepted bin body |
 | Fixture clearance | 3.6 mm below body rim | 3 mm skirt plus 0.6 mm service gap; accepted body's optional fixture headroom refined during lid integration |
-| Existing support body | 0.8 mm ribs, 5 mm centre pitch | Existing bin source; retained to isolate attachment/edge-coverage changes |
+| Existing support body | 0.8 mm ribs, 5 mm centre pitch | `models.lib.gridfinity_socket` (extracted unchanged from the bin lid); retained to isolate attachment/edge-coverage changes |
 | Nominal roof process gap | 0.2 mm retained trial candidate | Baseline and candidate slices: OrcaSlicer 2.4.2, Centauri Carbon 0.4 mm / Generic PETG, uniform 0.2 mm first/normal layers, generated supports and brim off. Lattice ends at Z=2.4 mm; Z=2.6 mm contains only attachments inside the sockets; full roof Bridge starts at Z=2.8 mm with HEIGHT=0.2. One empty layer remains away from tabs on this profile; other layer schedules require rechecking |
 | Perimeter process separation | 0.6 mm each side, rail 0.8 mm thick | Proposed positive XY manufacturing gap, not a mating-fit allowance; offset the narrowest socket/roof contour including its corner radius |
 | New tab necks | Two 0.4 × 0.8 mm sections per cell, measured 0.64 mm² total; gap height plus 0.02 mm roof overlap | Gate measured both necks; candidate slice preserves two attachment locations per socket at Z=2.6. Old four 0.6 × 0.6 mm nibs totalled 1.44 mm². Printed fracture/removal remains unproven |
