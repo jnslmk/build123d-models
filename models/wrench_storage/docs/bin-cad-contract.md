@@ -1,5 +1,8 @@
 # Wrench bin CAD contract
 
+This records the accepted bin anchor. The current dependent slice is the
+[removable stackable lid](lid-cad-contract.md); the bin geometry is unchanged.
+
 ## References
 
 - **Context:** [Family README](../README.md). No new glossary is needed; the
@@ -9,7 +12,7 @@
   `config.py`, `profiles.py` and the unchanged original
   [`exports/wrench_analysis/ledger.json`](../../../exports/wrench_analysis/ledger.json).
 
-## Current slice
+## Accepted bin slice
 
 - **Name:** Open on-edge wrench bin.
 - **Anchor part:** The bin alone, including its lightweight Gridfinity base,
@@ -21,11 +24,11 @@
   connected stepped footprints for unequal column lengths; supported lightweight
   base; finished exposed edges; an open tool preview that communicates seating
   and access without pretending to be a measured replica.
-- **Deferred interfaces:** All lid solids, skirts, snaps, receivers, mating
-  grooves and stacking-interface geometry. Only a future **3 mm vertical
-  headroom envelope above the highest seated tool** is reserved. The tray wall
-  is not required to reach that height: the later removable cover may be taller
-  than the tray. No closure type or interface geometry is chosen now.
+- **Interfaces deferred during this bin slice:** Lid solids, skirts, receivers
+  and stacking geometry were held until bin acceptance. The bin reserved a
+  **3 mm vertical cover envelope above the highest seated tool** while keeping
+  its walls low. Those interfaces now belong to the separate lid contract.
+  No snap, seal or retention mechanism is added to the accepted bin.
 
 ## Applicable specification constraints
 
@@ -65,7 +68,7 @@ must not silently change the user-recorded dimensional ledger.
 | Question | Resolution path | Blocking effect |
 | --- | --- | --- |
 | Photo accuracy and real slot fit | Print a rack coupon or fit the real tools in the bin; preserve provenance when adjusting technical dimensions. | Blocks a physical fit guarantee; thicknesses alone cannot validate the photographed underside. |
-| Lid and stacking definition | Human accepts this named bin, then open the dependent contract and load closure/fit skills. Any change to accepted intent returns to user-invoked `grill-with-docs`. | Blocks all lid/mating-interface geometry now. |
+| Lid and stacking definition | The user accepted the compact 1×5 bin. The separate [lid contract](lid-cad-contract.md) now owns dependent geometry; this accepted bin remains unchanged. | No longer blocks the lid slice. |
 
 ## Service and assembly constraints
 
@@ -166,8 +169,10 @@ These are CAD/photo-envelope results, not a printed-fit guarantee.
   on-edge wrench bin**, including its accessible head exposure, upright seating,
   support scheme, lightweight print pose and footprint. A printed fit result is
   needed before claiming physical fit.
-- **Acceptance signal:** **Pending.** The user approved purpose/requirements,
-  A4 paper and the bin-only anchor; that is not bin-geometry acceptance. Record
-  the exact explicit acceptance or instruction clearly approving this slice.
+- **Acceptance signal:** **Accepted for the compact 1×5 default.** On
+  2026-10-03 the user selected **“Accept the 1×5 bin”** in response to
+  “Do you accept this open 1×5 bin layout so I can build its removable stackable
+  lid?” The optional stepped layout is CAD-verified, not a required alternative
+  to the compact default. Actual printed tool fit remains unverified.
 - **Next slice after acceptance:** The separate removable stackable lid and its
   actual dependent mating/stacking interface, under a new current-slice contract.

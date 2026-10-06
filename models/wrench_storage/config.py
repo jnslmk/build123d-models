@@ -35,7 +35,9 @@ WALL = 1.0  # PETG: two 0.4 mm perimeters plus 0.2 mm slicer reserve.
 TOOL_GAP = fits.FREE  # Free fit, PETG baseline: total head-to-head drop-in gap.
 SLOT_CLEARANCE = fits.FREE  # Free fit, PETG baseline: total added to handle thickness.
 PHOTO_END_ALLOWANCE = 1.0  # Not a fit: functional photo-envelope reserve at EACH end.
-FUTURE_LID_HEADROOM = 3.0  # Not a fit: vertical envelope reserve; no lid geometry yet.
+FUTURE_LID_HEADROOM = (
+    3.0  # Not a fit: minimum cover-envelope reserve above tools/racks.
+)
 RACK_THICKNESS = 2.0  # Longitudinal support band used by profiles.HANDLE_SPANS.
 DEFAULT_WRENCHES_PER_COLUMN = 6
 

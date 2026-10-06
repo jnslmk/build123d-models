@@ -147,12 +147,14 @@ MODELS = [
     "wire_clamp.body",
     "wire_clamp.screw",
     "wire_clamp.printable",
-    # Package alias and explicit printable leaf; the open tools are scene-only.
+    # Accepted bin aliases, lidless variants and lid, then inspection scenes.
     "wrench_storage",
     "wrench_storage.base",
     "wrench_storage.open",
     "wrench_storage.stackable",
+    "wrench_storage.lid",
     "wrench_storage.preview",
+    "wrench_storage.closed",
 ]
 
 
