@@ -150,6 +150,8 @@ MODELS = [
     # Package alias and explicit printable leaf; the open tools are scene-only.
     "wrench_storage",
     "wrench_storage.base",
+    "wrench_storage.open",
+    "wrench_storage.stackable",
     "wrench_storage.preview",
 ]
 
