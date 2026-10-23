@@ -1,5 +1,7 @@
 """Physical gate for two-print keyed glue joints and Gridfinity stacking."""
 
+from collections.abc import Sequence
+
 from build123d import (
     Align,
     Box,
@@ -26,8 +28,47 @@ from .box import (
     STACK_LIP_W,
     STACK_SOCKET_DEPTH,
     STACK_JOINT_DEPTH,
+    STACK_JOINT_PIN_H,
     STACK_JOINT_RELIEF,
 )
+
+
+def check_joint_print_growth(
+    report: Report, body: Part, lips: Part, socket_depth: float
+) -> None:
+    """Measure every underside in the joint region, including keys and webs.
+
+    A downward normal below -sqrt(1/2) is steeper than a 45-degree printable
+    underside. Bed faces are supported by the plate, not an overhang. Sampling
+    the tessellated surfaces also covers curved features away from their centres;
+    the normals come from the exact face, not the mesh's chord approximation.
+    This deliberately rejects a horizontal rebate ceiling of any width.
+    """
+    for part, label, ceiling in (
+        (body, "body", STACK_JOINT_DEPTH + STACK_JOINT_RELIEF + 0.01),
+        (lips, "receiver field", socket_depth + STACK_JOINT_PIN_H + 0.01),
+    ):
+        bad = []
+        sampled = 0
+        for face in Shape.get_shape_list(part, "Face"):
+            bounds = face.bounding_box()
+            if bounds.min.Z > ceiling or bounds.max.Z < 1e-6:
+                continue
+            vertices, triangles = face.tessellate(0.05, 0.15)
+            for a, b, c in triangles:
+                point = (vertices[a] + vertices[b] + vertices[c]) / 3
+                if not 1e-5 < point.Z <= ceiling:
+                    continue
+                normal = face.normal_at(point)
+                sampled += 1
+                if normal.Z < -0.7072:
+                    bad.append((round(point.Z, 4), round(normal.Z, 4)))
+        report.check(
+            not bad and sampled > 0,
+            f"{label} joint undersides grow from the bed or at at most 45 degrees",
+            f"{sampled} surface samples; unsupported={len(bad)}; "
+            f"first z/normal.Z={bad[:3]}",
+        )
 
 
 def check_split_lips(
@@ -35,13 +76,15 @@ def check_split_lips(
     split: Compound,
     clean: Part | Compound,
     socket_depth: float = STACK_SOCKET_DEPTH,
+    *,
+    joint_points: Sequence[tuple[float, float]] | None = None,
+    adhesive_points: Sequence[tuple[float, float]] | None = None,
 ) -> None:
-    """Reassemble independently and probe the actual lap, not its construction.
+    """Reassemble and probe independent physical location/retention/glue behavior.
 
-    Mutation red proof: monkeypatch box._keyed_stacking_joint to
-    ``lambda body, lips, depth: (body, lips)`` before creating a fresh split.
-    Lap height, transferred material, key, relief and crush probes must fail.
-    Removing only the cylinders/cones must fail retention while location passes.
+    Mutation red proof: restore the former broad 0.4 mm rebate joint. The
+    underside-growth gate must reject its peripheral, web and reservoir ceilings.
+    Disabling only the cones must fail keyed location and light retention.
     """
     clean = as_part(clean)
     report.section("separate stacking lips: print and glue geometry")
@@ -71,14 +114,13 @@ def check_split_lips(
         "exploded preview keeps the two print footprints separate",
     )
     report.check(
-        abs(lip_box.size.Z - socket_depth - STACK_JOINT_DEPTH) < 1e-6
+        abs(lip_box.size.Z - socket_depth - STACK_JOINT_PIN_H) < 1e-6
         and abs(body_box.size.Z + socket_depth - clean.bounding_box().size.Z) < 1e-6,
-        "lap is transferred into the roof without changing the stacking height",
+        "locating cones stay in the existing roof without changing stacking height",
     )
     for part, label in ((body, "body"), (lips, "lips")):
-        # Measure printable bed adhesion, not the common glued-contact area.
-        # Receiver overhangs and Dremel's retained roof fillet mean only part
-        # of these planar faces meets the other print after assembly.
+        # The receiver field now prints mouth-down: its experimental thin mouth
+        # is the real bed footprint, not the former broad raised glue-lap face.
         bed_faces = [
             face
             for face in Shape.get_shape_list(as_part(part), "Face")
@@ -88,18 +130,19 @@ def check_split_lips(
         ]
         bed_area = sum(face.area for face in bed_faces)
         report.check(
-            bed_area > 100,
-            f"{label} has substantial planar bed-adhesion faces",
-            f"planar bed area={bed_area:.2f} mm²",
+            bed_area > (100 if label == "body" else 5),
+            f"{label} has actual planar contact with the print bed",
+            f"planar bed area={bed_area:.2f} mm²"
+            + (
+                "; thin receiver mouths still need a slicer/adhesion trial"
+                if label == "lips"
+                else ""
+            ),
         )
+    check_joint_print_growth(report, body, lips, socket_depth)
     offset_x = lip_box.center().X - clean.bounding_box().center().X
     placed_body = as_part(Pos(0, 0, socket_depth) * body)
-    placed_lips = as_part(
-        Pos(0, 0, socket_depth + STACK_JOINT_DEPTH)
-        * Rotation(180, 0, 0)
-        * Pos(-offset_x, 0, 0)
-        * lips
-    )
+    placed_lips = as_part(Pos(-offset_x, 0, 0) * lips)
     with BuildPart() as assembled:
         add(placed_body)
         add(placed_lips)
@@ -139,70 +182,94 @@ def check_split_lips(
         return
     # Literal physical probe dimensions intentionally do not use the production
     # fit constants: a misplaced/doubled gap must not move its own test points.
-    z = socket_depth + 0.2
+    z = socket_depth + 0.04
     location_ok = retention_ok = relief_ok = seating_ok = lead_ok = True
-    for cell in cells:
-        x, y = cell.center().X, cell.center().Y
-        half, half_y = cell.size.X / 2, cell.size.Y / 2
-        probe_y = y - min(10, half_y * 0.55)
-        relief_y = y - min(7, cell.size.Y / 5)
+    if joint_points is None:
+        pins = [
+            (
+                cell.center().X + dx * (cell.size.X / 2 + 0.8),
+                cell.center().Y + dy * (cell.size.Y / 2 + 0.8),
+            )
+            for cell in cells
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+        ]
+        key = cells[0]
+        key_x = key.max.X + 0.8
+        key_y = key.center().Y + min(5, key.size.Y / 6)
+        absent_key = (key_x, key.center().Y - min(5, key.size.Y / 6))
+        seating = [(cell.max.X + 0.8, cell.center().Y - 2) for cell in cells]
+    else:
+        pins = list(joint_points[:-1])
+        key_x, key_y = joint_points[-1]
+        absent_key = (key_x, -key_y)
+        seating = [
+            (
+                (joint_points[0][0] + joint_points[1][0]) / 2,
+                (joint_points[0][1] + joint_points[1][1]) / 2,
+            )
+        ]
+    pins.append((key_x, key_y))
+    for px, py in pins:
         location_ok &= (
-            is_solid_at(placed_lips, x + half + 0.6, probe_y, z)
-            and not is_solid_at(placed_body, x + half + 0.6, probe_y, z)
-            and not is_solid_at(placed_lips, x + half - 0.1, probe_y, z)
-            and not is_solid_at(placed_body, x + half - 0.1, probe_y, z)
-            and is_solid_at(placed_body, x + half - 0.3, probe_y, z)
+            is_solid_at(placed_lips, px, py, socket_depth + 0.2)
+            and not is_solid_at(placed_body, px, py, socket_depth + 0.2)
+            and is_solid_at(placed_body, px + 0.25, py, socket_depth + 0.2)
         )
-        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-            px, py = x + dx * (half - 0.225), y + dy * (half_y - 0.225)
-            if dx == 1:
-                py -= min(5, cell.size.Y / 6)
-            retention_ok &= (
-                is_solid_at(placed_lips, px, py, z)
-                and is_solid_at(placed_body, px, py, z)
-                # Entering tip is clear, so this is not a blunt press wall.
-                and not is_solid_at(placed_lips, px, py, socket_depth + 0.39)
-            )
-        relief_ok &= not is_solid_at(
-            placed_body, x + half + 0.6, relief_y, socket_depth + 0.45
-        ) and is_solid_at(placed_body, x + half + 0.6, relief_y, socket_depth + 0.55)
-        seating_ok &= is_solid_at(
-            placed_lips, x + half + 0.6, probe_y, socket_depth + 0.39
-        ) and is_solid_at(placed_body, x + half + 0.6, probe_y, socket_depth + 0.41)
+        retention_ok &= is_solid_at(placed_lips, px + 0.375, py, z) and is_solid_at(
+            placed_body, px + 0.375, py, z
+        )
         lead_ok &= (
-            not is_solid_at(placed_lips, x + half + 0.05, probe_y, socket_depth + 0.39)
-            and is_solid_at(placed_lips, x + half + 0.05, probe_y, socket_depth + 0.2)
-            and not is_solid_at(
-                placed_body, x + half - 0.3, probe_y, socket_depth + 0.02
-            )
+            not is_solid_at(placed_lips, px + 0.10, py, socket_depth + 0.25)
+            and not is_solid_at(placed_body, px + 0.10, py, socket_depth + 0.25)
+            and is_solid_at(placed_body, px, py, socket_depth + 0.41)
         )
-    key = cells[0]
-    key_y = key.center().Y
-    key_offset = min(5, key.size.Y / 6)
-    report.check(
-        location_ok
-        and is_solid_at(placed_lips, key.max.X - 0.7, key_y + key_offset, z)
-        and not is_solid_at(placed_body, key.max.X - 0.7, key_y + key_offset, z)
-        and not is_solid_at(placed_lips, key.max.X - 0.7, key_y - key_offset, z),
-        "transferred lap and asymmetric inward key positively locate the lip field",
+    vents = (
+        [
+            (
+                cell.center().X + sign * (cell.size.X / 2 + 1),
+                cell.center().Y - min(7, cell.size.Y / 5),
+            )
+            for cell in cells
+            for sign in (-1, 1)
+        ]
+        if adhesive_points is None
+        else adhesive_points
     )
-    report.check(lead_ok, "both mating mouths have real 45-degree entering relief")
-    report.check(relief_ok, "vented adhesive reservoirs retain a solid roof beneath")
-    report.check(seating_ok, "unrelieved lap lands meet a hard 0.4 mm seating datum")
+    for x, y in vents:
+        relief_ok &= not is_solid_at(
+            placed_body, x, y - 0.4, socket_depth + 0.05
+        ) and is_solid_at(placed_body, x, y - 0.4, socket_depth + 0.11)
+    for x, y in seating:
+        seating_ok &= is_solid_at(
+            placed_lips, x, y, socket_depth - 0.01
+        ) and is_solid_at(placed_body, x, y, socket_depth + 0.01)
+    report.check(
+        location_ok and not is_solid_at(placed_lips, *absent_key, socket_depth + 0.2),
+        "tapered locating cones and asymmetric key locate the full field",
+    )
+    report.check(
+        lead_ok, "full-slope sockets and tapered cone tips provide entering clearance"
+    )
+    report.check(
+        relief_ok, "open V adhesive channels close at 45 degrees above a solid roof"
+    )
+    report.check(
+        seating_ok, "broad flat lands seat at the unchanged socket-floor datum"
+    )
     overlap = (placed_body & placed_lips).volume
-    withdrawing = as_part(Pos(0, 0, -0.1) * placed_lips)
+    withdrawing = as_part(Pos(0, 0, -0.02) * placed_lips)
     withdrawal_overlap = (placed_body & withdrawing).volume
     report.check(
         retention_ok
         and 1e-5 < overlap < len(cells) * 0.2
         and withdrawal_overlap > 1e-5,
-        "sparse crush pads interfere during seating and withdrawal, not a loose rabbet",
+        "sparse tapered crush cones interfere locally at seating and initial withdrawal",
         f"seated={overlap:.6f}, withdrawing={withdrawal_overlap:.6f} mm³; "
         "sacrificial PETG friction retention needs a printed fit trial",
     )
     report.check(
         len(assembled.part.solids()) == 1,
-        "hard lap lands join the roof and all receivers at the seating datum",
+        "flat seating lands join the roof and every connected receiver",
     )
 
 

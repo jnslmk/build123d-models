@@ -8,46 +8,58 @@
 
 ## Current slice
 
-- Name: two-part-only keyed glue interface, accepted 2026-10-23.
+- Name: two-part-only keyed glue interface with self-supporting undersides, accepted 2026-10-23.
 - Anchor: the existing accepted stackable PETG lids, not a new base/insert design.
 - Public result: exactly `lid_body` and `stacking_lips` print children; no one-piece alternative, `support` or `separate_stacking_lips` switch. Smooth covers remain unchanged.
-- In scope: positive keyed location, light self-retention while curing, adhesive relief, named print poses and independent STL downloads.
+- In scope: positive keyed location, light self-retention while curing, adhesive relief, named print poses and independent STL downloads. Both supplied poses must avoid unsupported precision mating cantilevers; the previous shallow-rebate joint did not meet that requirement.
 - Preserve: foot fit, stack pitch, roof/tool clearance, labels and closure.
-  Current native and browser evidence is recorded below; historical planar-split
-  evidence is not used as new-joint proof.
+- Historical planar-split and shallow-rebate keyed-joint results below do not establish verification of the self-supporting revision.
 
 ### Joint design for this slice
 
-The geometry owner selected a shallow keyed roof lap, transferring the receiver
-wall/web footprint 0.4 mm into the roof to the lip child. The body keeps its
-central socket floors on the bed. A 1 mm roof retains 0.6 mm beneath the lap
-generally and 0.5 mm beneath adhesive reservoirs; the interior roof is unchanged.
-Hard seating lands retain the original socket-floor datum; adhesive relief
-sits below the lap rather than adding a bond-line stack-height allowance.
+The revised joint removes the broad 0.4 mm roof rebate and its unsupported
+precision mating ledges. The body retains the original flat socket-floor
+split plane as its bed-backed hard seating datum and full roof, apart from
+discrete locating sockets and shallow adhesive channels. There is no added
+bond-line allowance changing the foot seat or stack height.
 
-The selected PETG side relief uses `FREE` (0.4 mm diametral); sparse crush ribs
-use `PRESS` (−0.10 mm diametral effective fit, 0.05 mm per side interference).
-Four rounded sacrificial crush pads per actual rectangular receiver each have
-0.45 mm radius and 0.15 mm tapered entering ends. The +X pad is shifted toward
-−Y by `min(5 mm, socket-floor Y span / 6)` so a half-cell key pocket cannot
-swallow its interference; the other pads remain at their flat midpoints.
-Mating lead-ins are 0.15 mm at 45°. Key, pad and reservoir positions derive
-from each actual socket-floor inner-wire bounds, including half-cell and
-2.5 mm-deep bin sockets. The first socket's +X side carries one 6 mm-long,
-1.2 mm-inward asymmetric key at +Y offset `min(5 mm, socket-floor Y span / 6)`.
-Radial adhesive vent/reservoir slots use −Y offset
-`min(7 mm, socket-floor Y span / 5)`; full 1×1 offsets remain +5/−7 mm.
-Slots are 0.8 mm wide and 0.1 mm deep; uncut pocket-floor lands hard-seat.
-These implementation values were reported by the geometry owner, not measured
-printed fit or retention force. Holding is one-shot crush/friction, not a snap,
-axial undercut or load-bearing claim.
+The locating sockets are 45° conical recesses, 0.4 mm deep with 0.4 mm mouth
+radius, closing continuously as the body prints upward. The lip child carries
+tapered sacrificial locating/crush cones, 0.45 mm base radius and 0.3 mm high,
+tapering to an apex. For the five upright tool covers and the bin, four cones
+locate each receiver, centered 0.8 mm outward from the actual socket-floor
+inner wire's straight-side midpoints. A fifth cone keys the lexicographically
+first receiver on its +X side at +Y offset `min(5 mm, cell_height / 6)`,
+including full/half-cell layouts. Dremel instead places its locating features
+on the bed-backed inter-socket web, as detailed in its contract.
+The nominal 0.05 mm radial base interference tapers toward entering clearance.
+Holding is local crush/friction during cure, not a snap, axial undercut or
+load-bearing claim; printed retention effort is unverified.
 
-The body prints original-central-socket-floor-down/open-mouth-up at z=0;
-the lips print glue-lap-down/socket-up at z=0. To reconstruct the seated joint,
-translate the body by `socket_depth`; undo the lip child's XY preview offset,
-rotate it 180° about X and translate it by `socket_depth + 0.4` in Z.
-These integrated transforms and geometry predicates pass the targeted gates;
-printed fit and retention force remain separate physical acceptance items.
+Adhesive relief is cut into the body's bed plane as open triangular V channels,
+0.2 mm wide, 0.1 mm deep and 0.8 mm long. Their 45° sides close without a
+horizontal reservoir ceiling. Flat lands remain at the original hard seating
+datum. A 1 mm roof retains 0.6 mm under the locating recesses and 0.9 mm under
+the channels; the Dremel's 2 mm roof retains 1.6 / 1.9 mm respectively.
+The interior roof surface is unchanged. Dimensions are the geometry owner's
+implementation values, not measured printed fits.
+
+The body prints flat-socket-floor-down/open-mouth-up at z=0; the lips now
+print **socket-mouth-down/joint-up** at z=0. The lip field contains no socket
+roof to bridge in this pose, and its tapered cones grow from the joint face.
+This replaces the earlier broad glue-lap-down/socket-up lip pose. The
+experimental approximately 0.14 mm cover receiver mouths now contact the bed;
+their adhesion and sliced continuity require a separate slicer/print trial.
+
+To reconstruct the seated joint, translate the body by `socket_depth` in Z
+and undo only the lip child's X preview offset. No lip flip or Z translation
+is applied. The original socket-floor datum therefore remains the hard seat,
+without a 0.4 mm transferred-lap allowance.
+
+The Dremel stackable cover also replaces the inherited 3 mm exterior pillow
+round with a 3 mm, 45° bevel to satisfy the supplied-pose growth requirement.
+Its smooth cover retains the pillow round. This stackable-only correction
+preserves the interior 2 mm roof, label, snap, socket fit and 8U pitch.
 
 ## Applicable specification constraints
 
@@ -55,8 +67,8 @@ printed fit and retention force remain separate physical acceptance items.
 | --- | --- |
 | SC-1 | Full 4.4 mm foot profile enters a 4.4 mm-deep socket; lip sits at 7U + 4.4 mm and next foot's body seats at 7U. Only stackable lip widens from 41.5 to 42 mm. |
 | SC-2 | Original bases and smooth covers retain their envelope and snap joints; the lip mouth's sub-perimeter wall is a user-accepted experimental exception, not proven printable. |
-| SC-3 | All seven leaves print only as two named children; no public one-piece/support/split control. Smooth covers remain available unchanged. |
-| SC-4 | Keyed locating, light cure-time retention and adhesive relief; preserve physical interfaces and the accepted stack pitch. Two bed-seated, XY-separated children download independently. |
+| SC-3 | All seven leaves print only as two named children with self-supporting underside joint geometry in the supplied poses; no public one-piece/support/split control. Smooth covers remain available unchanged. |
+| SC-4 | Keyed locating, light cure-time retention and adhesive relief must not rely on unsupported horizontal precision mating ledges. Preserve physical interfaces and the accepted stack pitch. Two bed-seated, XY-separated children download independently. |
 
 ## Evidence-backed dimensions
 
@@ -87,7 +99,59 @@ printed fit and retention force remain separate physical acceptance items.
 
 `model-documentation`, `cad-iteration`, `box-closures`, `fdm-fits-and-clearances`, `build123d-geometry-ops`.
 
-## Current joint verification required
+## Current verification — self-supporting underside revision, 2026-10-23
+
+The geometry owner's completed integration record reports **393 passing CAD
+assertions, zero failures**: 26 for each of the five upright cover leaves,
+139 for Dremel and 124 for the bin lid and its six relevant layouts. Bin
+coverage includes default 1×2, shifted 1.5×1.5, organized 1×1, minimum
+0.5×0.5, all-half-cell and 9 mm taller-roof cases. These are geometric
+predicates, not physical-print tests.
+
+The new underside gate evaluates print-direction growth on the actual CAD
+surfaces; all seven leaves had zero unsupported samples. Representative
+measured results supplied by the geometry owner:
+
+| Leaf | Body / lips bed contact (mm²) | Body / lips growth samples | Unsupported | Seated crush overlap / after 0.02 mm withdrawal (mm³) |
+| --- | --- | --- | --- | --- |
+| wood | 1705.68 / 22.44 | 2537 / 3735 | 0 | 0.030107 / 0.004943 |
+| Dremel, corrected bevel/web joint | 2861.49 / 60.38 | 1647 / 3675 | 0 | 0.018064 / 0.002966 |
+| bin, default | 3446.35 / 434.92 | Not separately recorded here | 0 | 0.054192 / 0.008897 |
+
+Wood's protected-envelope comparison measured 0.000000 mm³ missing/extra
+material. The crush overlap is intentional local retention interference,
+not whole-joint collision or measured force. Bed area is neither common
+bonded area nor proof of thin-mouth bed adhesion.
+
+- Restoring the actual former broad-rebate geometry in memory made **both**
+  body and lip underside predicates fail for wood, Dremel and bin:
+  `exports/joint-verification/old-geometry-red.json`.
+- All seven leaves exported combined STL/GLB and both named child STLs;
+  Dremel was rebuilt after its bevel/web-joint correction. Ruff and ty passed.
+  Earlier browser/WASM results below remain historical; they were not repeated
+  as part of this revision's recorded verification.
+- The final edge audit reports **361 raw sharp edges, zero unclassifiable**.
+  Each retained edge has a reason in
+  `exports/joint-verification/final-sharp-edges-with-reasons.json`: functional
+  flat seating/glue datums, experimental thin socket-mouth bed boundaries
+  preserving foot fit, unchanged detent junctions and inherited label edges.
+  This is an explicit functional exception record, not a zero-sharp-edge claim.
+- Wood, Dremel and bin self-contained HTML views were rebuilt and opened.
+  Exact CAD section images `exports/stacking-joint-sections.png` and
+  `exports/dremel-stacking-joint-sections.png` were inspected: flat body bed
+  faces, sloped recesses, mouth-down walls/webs and growing cones, plus the
+  corrected Dremel exterior bevel.
+
+No slicer or printer job was run. Experimental mouth continuity/adhesion,
+printed locating/crush fit, glue handling, cured PETG bond strength and loaded
+stacking remain physically unaccepted.
+
+## Historical verification — superseded shallow-rebate keyed joint
+
+These results precede the user's self-supporting-underside correction on
+2026-10-23. They establish only the earlier 0.4 mm-rebate implementation's
+reported CAD/export behavior, not printable mating geometry or verification
+of the revised joint. No slicing or physical printing is established here.
 
 - [x] Both named children are valid connected bed-seated print solids, with
   keyed location, light retention and adhesive relief present.
@@ -109,14 +173,15 @@ printed fit and retention force remain separate physical acceptance items.
   retained its own STL control and no child controls. Default bin child downloads
   returned HTTP 200 and matched native exports byte-for-byte.
 
-### Current raw edge survey
+### Historical shallow-rebate raw edge survey
 
-Counts are body/lips from the final analytic implementation, not a claim that
-every edge has a certified dihedral angle. WASM OCC rejected inward wire offsets
-even for unkeyed sockets; the final implementation reconstructs analytic
-rounded-rectangle profiles from actual floor wire bounds and corner radii.
-All seven native gates, STL-pair exports, the 113-test suite and mutation rejection
-proofs were repeated, and the real WASM custom build/download scenario passed.
+Counts are body/lips from the superseded analytic shallow-rebate implementation,
+not current geometry or a claim that every edge has a certified dihedral angle.
+WASM OCC rejected inward wire offsets even for unkeyed sockets; that revision
+reconstructed analytic rounded-rectangle profiles from actual floor wire bounds
+and corner radii. Its seven native gates, STL-pair exports, 113-test suite,
+mutation rejection proofs and real WASM custom build/download scenario passed;
+those results do not certify self-supporting undersides.
 
 | Leaf | Sharp | Unclassifiable |
 | --- | --- | --- |
@@ -165,10 +230,8 @@ as baseline evidence only, not a claim that current geometry or exports passed.
 ## Acceptance gate
 
 - Human confirmation: draft-spec thin 42 mm lip accepted as an experiment, despite the ~0.14 mm nominal wall and lost neighbouring-cell tolerance.
-- Current accepted delta: user confirmed two-part-only printing and keyed locating/light retention/glue relief on 2026-10-23; only one-piece stackable alternatives are removed, not smooth covers.
-- Current CAD/export verification: targeted gates, complete bin integration,
-  old-joint/pad-removal rejection proof and seven build-worker STL-pair exports
-  passed on 2026-10-23; physical acceptance remains separate.
+- Current accepted delta: user confirmed two-part-only printing and keyed locating/light retention/glue relief on 2026-10-23, then required self-supporting underside joint geometry without unsupported precision mating cantilevers. Only one-piece stackable alternatives are removed, not smooth covers.
+- Earlier targeted gates, bin integration, rejection proofs and build-worker exports are historical evidence for the shallow-rebate joint, not current-revision proof.
 - Physical acceptance: pending printed dry fit, retention effort, joint seating/relief, PETG adhesive compatibility and cured strength, loaded stack and adjacent-cell trials.
 - Any base/insert, foot or closure redesign is outside this slice.
 

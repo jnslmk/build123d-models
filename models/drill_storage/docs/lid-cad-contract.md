@@ -8,21 +8,23 @@
 
 ## Current slice
 
-- Name: two-part-only keyed glue interface, accepted 2026-10-23.
+- Name: two-part-only keyed glue interface with self-supporting undersides, accepted 2026-10-23.
 - Anchor: accepted `drill_storage.bin.lid` for the accepted bin body; no downstream body redesign.
 - Public print result: exactly `lid_body` and `stacking_lips`, with no one-piece alternative or support/split switches. Preserve all full/half-cell layouts and taller roofs.
-- Joint scope: keyed positive location, light retention during adhesive cure and adhesive relief; preserve snap-in closure, roof, socket fit and stacking pitch.
-- Current bin integration passes full, offset half-grid, minimum half-cell,
-  all-half-cell, organized and taller-lid cases. Both default child STLs were
-  exported by the actual build worker; physical glue/retention acceptance is pending.
+- Joint scope: keyed positive location, light retention during adhesive cure and adhesive relief, self-supporting in both supplied print poses without unsupported precision mating cantilevers. Preserve snap-in closure, roof, socket fit and stacking pitch.
+- Earlier shallow-rebate integration/export results do not establish verification of this underside correction; physical glue/retention acceptance is pending.
 
 The common [joint design](stackable-cover-cad-contract.md#joint-design-for-this-slice)
-uses a 0.4 mm roof lap, asymmetric key, clearance with sparse crush retention
-ribs, adhesive relief and hard seating lands at the original socket-floor datum.
-At the default 1 mm roof, backing is 0.6 mm generally and 0.5 mm below
-the 0.1 mm-deep adhesive reservoirs; the interior roof remains unchanged.
-Integrated predicates pass; physical fit calibration remains pending. The closure
-and 2.5 mm foot seat retain their original clearance.
+removes the broad roof rebate. A flat, bed-backed body roof carries discrete
+45° conical locating recesses (0.4 mm deep/radius) and 45° triangular adhesive
+channels (0.2 mm wide, 0.1 mm deep). The connected lip field prints
+socket-mouth-down/joint-up, carrying 0.3 mm-high tapered locating/crush cones
+with 0.45 mm base radius, four per receiver plus an asymmetric fifth key.
+The original split plane remains the hard seating datum. At the default
+1 mm roof, the discrete 0.4 mm recesses leave at least 0.6 mm backing; the
+shallow channels leave 0.9 mm. The interior roof, closure and 2.5 mm foot seat
+retain their original geometry. No unsupported precision ledge or horizontal
+adhesive-reservoir ceiling remains; sliced and physical behavior is unverified.
 
 ## Applicable specification constraints
 
@@ -33,7 +35,7 @@ and 2.5 mm foot seat retain their original clearance.
 | EB-4 | A 1 mm body wall remains viable: derive skirt width from the body cavity and a PETG sliding fit; keep a flat rim bearing on the accepted body's 0.6 mm landing. |
 | EB-5 | Preserve presentation; remove the former public support Boolean. |
 | EB-7 | Historical support-only revision, no longer the public printing path. |
-| EB-8 | Exactly two named print children with keyed location, light cure-time retention and glue relief; retain complete roof/skirt and connected receiver walls/webs. |
+| EB-8 / SC-3–SC-4 | Exactly two named print children with self-supporting underside joint geometry, keyed location, light cure-time retention and glue relief; retain complete roof/skirt and connected receiver walls/webs. |
 
 ## Evidence-backed dimensions
 
@@ -46,16 +48,16 @@ and 2.5 mm foot seat retain their original clearance.
 | Outer shell | grid span minus 0.5 mm | Existing accepted bin body |
 | Fixture clearance | 3.6 mm below body rim | 3 mm skirt plus 0.6 mm service gap; accepted body's optional fixture headroom refined during lid integration |
 | Historical support body | 0.8 mm ribs, 5 mm centre pitch | Superseded one-piece support revision; historical process rows below are not new-joint dimensions |
-| Nominal roof process gap | 0.2 mm retained trial candidate | Baseline and candidate slices: OrcaSlicer 2.4.2, Centauri Carbon 0.4 mm / Generic PETG, uniform 0.2 mm first/normal layers, generated supports and brim off. Lattice ends at Z=2.4 mm; Z=2.6 mm contains only attachments inside the sockets; full roof Bridge starts at Z=2.8 mm with HEIGHT=0.2. One empty layer remains away from tabs on this profile; other layer schedules require rechecking |
-| Perimeter process separation | 0.6 mm each side, rail 0.8 mm thick | Proposed positive XY manufacturing gap, not a mating-fit allowance; offset the narrowest socket/roof contour including its corner radius |
-| New tab necks | Two 0.4 × 0.8 mm sections per cell, measured 0.64 mm² total; gap height plus 0.02 mm roof overlap | Gate measured both necks; candidate slice preserves two attachment locations per socket at Z=2.6. Old four 0.6 × 0.6 mm nibs totalled 1.44 mm². Printed fracture/removal remains unproven |
-| Default full-cell roof/old lattice span | 36.52 / 30.8 mm; revised rail outer span 35.32 mm | Baseline straight-edge band 2.86 mm; revised nominal band 0.6 mm, extending backing 2.26 mm beyond each old edge. Gate probes straight edges and all rounded corners |
+| Historical nominal roof process gap | 0.2 mm trial candidate in the superseded support-only revision | Baseline and candidate slices: OrcaSlicer 2.4.2, Centauri Carbon 0.4 mm / Generic PETG, uniform 0.2 mm first/normal layers, generated supports and brim off. Lattice ended at Z=2.4 mm; Z=2.6 mm contained only attachments inside sockets; full roof Bridge started at Z=2.8 mm with HEIGHT=0.2. This is not a slice of the current two-part joint |
+| Historical perimeter process separation | 0.6 mm each side, rail 0.8 mm thick | Superseded support-only manufacturing gap, not a current mating-fit allowance |
+| Historical tab necks | Two 0.4 × 0.8 mm sections per cell, measured 0.64 mm² total; gap height plus 0.02 mm roof overlap | Superseded support-only gate measured both necks; candidate slice preserved two attachment locations per socket at Z=2.6. Old four 0.6 × 0.6 mm nibs totalled 1.44 mm². Printed fracture/removal was unproven |
+| Historical full-cell roof/lattice span | 36.52 / 30.8 mm; revised rail outer span 35.32 mm | Superseded support-only straight-edge band 2.86 mm; revised nominal band 0.6 mm, extending backing 2.26 mm beyond each old edge. Gate probed straight edges and all rounded corners |
 
 ## Open technical definitions
 
 | Question | Resolution path | Blocking effect |
 | --- | --- | --- |
-| Joint location, retention and adhesive relief | Integrated CAD gates, then printed dry-fit and cured-bond trial | Current joint verification and physical acceptance remain pending; old support slices cannot close this gate |
+| Joint location, retention and adhesive relief | Current integrated CAD gates passed; printed dry-fit and cured-bond trial remain required | CAD evidence does not establish physical acceptance; old support slices cannot close this gate |
 | Full/half-cell joint fit and loaded stacking | Representative minimum, shifted, multi-cell and taller lids with matching feet | Preserve foot seating/closure and stack pitch; actual fit and strength require printed evidence |
 
 ## Service and assembly constraints
@@ -67,6 +69,23 @@ and 2.5 mm foot seat retain their original clearance.
 ## Required skills
 
 `model-documentation`, `cad-iteration`, `box-closures`, `fdm-fits-and-clearances`, `build123d-geometry-ops`.
+
+## Current verification — self-supporting underside revision, 2026-10-23
+
+The geometry owner reports **124 passing CAD assertions** for the bin lid
+integration, covering default 1×2, shifted 1.5×1.5, organized 1×1, minimum
+0.5×0.5, all-half-cell and 9 mm taller-roof layouts. All supplied-pose growth
+checks had zero unsupported samples. Default measured body/lip bed contact
+was 3446.35 / 434.92 mm²; intentional crush overlap was 0.054192 mm³ seated,
+reducing to 0.008897 mm³ after 0.02 mm withdrawal. These are CAD measurements,
+not printed contact area, retention force or adhesive strength.
+
+Restoring the former broad-rebate joint failed both body and lip underside
+predicates. Both named child STLs and combined STL/GLB exported; the default
+HTML view was rebuilt/opened and exact CAD sections inspected. Ruff and ty
+passed. The [common verification record](stackable-cover-cad-contract.md#current-verification--self-supporting-underside-revision-2026-10-23)
+owns cross-family mutation, edge-audit and artifact details.
+No new slicer or physical-print evidence was produced.
 
 ## Historical verification — superseded support and planar-split implementations
 
@@ -85,15 +104,15 @@ does not establish that current geometry, slices or downloads have passed.
 
 ## Historical visual review
 
-- Current views: regenerated `exports/drill_storage.bin.lid.html` (shaded interactive GLB) and `exports/drill_storage.bin.lid_bottom.png` (socket-side hidden-line render); STL is `exports/drill_storage.bin.lid.stl`. Viewer rendered without browser errors and was opened on the user's machine. The clean lid's zero Boolean difference establishes the unchanged seated silhouette.
+- Historical views: `exports/drill_storage.bin.lid.html` (shaded interactive GLB), `exports/drill_storage.bin.lid_bottom.png` (socket-side hidden-line render) and the former single `exports/drill_storage.bin.lid.stl`. These were opened/rendered for the superseded revision; their paths are not evidence of current regenerated geometry or current child-STL output.
 - Human review: cutting/peeling access, short-side/corner backing, full/half-cell sockets, and unchanged roof/rim/skirt.
 - Offline slicing: OrcaSlicer reports success with no warnings. Inspected last support layer Z=2.4, isolated tabs at Z=2.6, and complete first roof bridges at Z=2.8. Print pose was preserved; no G-code was sent to a printer.
 - Split integration browser proof: actual Chromium live-generation and repeated cache-hit child-STL downloads passed. The historical one-piece slice above does not establish split-print toolpaths or adhesive strength; a split-print slicer/physical trial remains pending.
 
 ## Acceptance gate
 
-- Current purpose/decision signal: on 2026-10-23 the user retained the accepted bin lid as anchor and approved two-part-only printing with keyed location, light self-retention and glue relief.
-- Current CAD/print/export evidence: pending integration, separate from the historical records above.
+- Current purpose/decision signal: on 2026-10-23 the user retained the accepted bin lid as anchor and approved two-part-only printing with keyed location, light self-retention and glue relief, then required self-supporting underside joint geometry without unsupported precision mating cantilevers in both supplied poses.
+- Historical support slices and shallow-rebate CAD/export results are not verification of the revised joint.
 - Physical acceptance: pending dry-fit location/retention, joint seating and relief, adhesive compatibility/cured strength, matching-foot fit and loaded-stack trials.
 - The old support-anchor rollout gate is historical, not a requirement to retain a one-piece mode. No body/foot/snap redesign is authorized.
 

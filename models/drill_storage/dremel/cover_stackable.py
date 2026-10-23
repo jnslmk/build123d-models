@@ -29,6 +29,9 @@ IS_ASSEMBLY = False
 CELL_Y = (-GRID / 2, GRID / 2)
 STACK_PITCH = 8 * 7.0
 HEIGHT = STACK_PITCH - c.SEAT_Z + STACK_SOCKET_DEPTH
+# Three non-collinear points on the bed-backed inter-socket web, last one keyed.
+JOINT_POINTS = ((-10.0, 0.0), (10.0, 0.0), (0.0, 1.2))
+ADHESIVE_POINTS = ((-5.0, 0.0), (5.0, 0.0))
 
 
 def _create_finished() -> Part:
@@ -49,15 +52,23 @@ def _create_finished() -> Part:
         lip = as_part(Pos(0, y, 0) * cut.part)
     with BuildPart() as body:
         add(reseat_on_bed(lip, flip=True))
-        add(Pos(0, 0, STACK_SOCKET_DEPTH) * cover._create(HEIGHT - STACK_SOCKET_DEPTH))
+        add(
+            Pos(0, 0, STACK_SOCKET_DEPTH)
+            * cover._create(HEIGHT - STACK_SOCKET_DEPTH, pillow_top=False)
+        )
     result = body.part
     result.color = COVER_GLASS
     return result
 
 
 def create() -> Compound:
-    """Return the roof-down body and socket-up receiver as separate prints."""
-    return split_stacking_lips(_create_finished(), STACK_SOCKET_DEPTH)
+    """Return the roof-down body and mouth-down, joint-up receiver field."""
+    return split_stacking_lips(
+        _create_finished(),
+        STACK_SOCKET_DEPTH,
+        joint_points=JOINT_POINTS,
+        adhesive_points=ADHESIVE_POINTS,
+    )
 
 
 def check():
@@ -72,7 +83,15 @@ def check():
     report = Report()
     clean = _create_finished()
     bb = clean.bounding_box()
-    check_split_lips(report, create(), clean)
+    # Independent literal probe positions: changing a construction point must
+    # not move its own regression gate.
+    check_split_lips(
+        report,
+        create(),
+        clean,
+        joint_points=((-10, 0), (10, 0), (0, 1.2)),
+        adhesive_points=((-5, 0), (5, 0)),
+    )
     report.check(
         clean.is_valid and len(clean.solids()) == 1, "clean cover is one valid solid"
     )

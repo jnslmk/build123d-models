@@ -175,7 +175,7 @@ def create(
     wall_thickness: float = c.WALL,
     lid_height: float = c.LID_MIN_HEIGHT,
 ) -> Compound:
-    """Return the roof-down body and matching socket-up stacking lips."""
+    """Return the roof-down body and matching mouth-down, joint-up receiver field."""
     finished = _create_finished(
         grid_x=grid_x,
         grid_y=grid_y,

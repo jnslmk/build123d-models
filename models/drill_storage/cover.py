@@ -58,7 +58,7 @@ def _create_finished_stackable_cover_for(drill_set: DrillSet) -> Part:
 
 
 def create_stackable_cover_for(drill_set: DrillSet) -> Compound:
-    """Return the roof-down body and matching socket-up stacking lips."""
+    """Return the roof-down body and matching mouth-down, joint-up receiver field."""
     return split_stacking_lips(
         _create_finished_stackable_cover_for(drill_set), STACK_SOCKET_DEPTH
     )

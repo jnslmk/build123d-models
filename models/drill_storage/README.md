@@ -245,7 +245,9 @@ clearance remain budgeted below the receiver. See
 All seven leaves—the five upright `wood`, `metal`, `stone`, `allen`, and
 `hex.bits` stackable covers, the Dremel stackable cover, and the bin lid—now
 use **two-part printing only**. The user accepted this cutover and the improved
-keyed locating, lightly self-retaining, adhesive-relieved joint on 2026-10-23.
+keyed locating, lightly self-retaining, adhesive-relieved joint on 2026-10-23,
+then required self-supporting underside joint geometry in both supplied print
+poses: no unsupported precision mating cantilevers above a shallow rebate.
 The [accepted decision](docs/stackable-cover-specification.md) preserves foot
 fit, stacking pitch, tool clearance, labels and closure. Smooth covers remain
 unchanged; sideways holders are outside this change.
@@ -259,10 +261,19 @@ parameters. Named-Compound export writes `<model>_lid_body.stl` and
 `<model>_stacking_lips.stl`; `IS_ASSEMBLY` remains false.
 
 Print both in PETG in their supplied bed-seated poses, without built-in
-socket supports. The lips print broad glue-lap-down/socket-up, and the body
-central-socket-floor-down/open-mouth-up; use the supplied poses.
+socket supports. The lips print **socket-mouth-down/joint-up**, with no socket
+roof to bridge; the body prints **flat-socket-floor-down/open-mouth-up**.
+The body's conical locating recesses and shallow V-shaped glue channels close
+at 45°, while tapered locating/crush cones grow upward on the lips. There is no
+broad recessed roof lap or unsupported precision mating ledge. Use the supplied
+poses, not the earlier glue-lap-down/socket-up lip orientation.
+The Dremel stackable body uses a 3 mm, 45° exterior bevel instead of its
+inherited pillow round so its underside also grows self-supportingly; the
+smooth Dremel cover retains the pillow round.
 Dremel and multi-cell bin lips remain one connected receiver field in one STL,
-not one download per socket. Inspect webs, bed adhesion and locating features
+not one download per socket. The joint must grow self-supportingly in these
+poses; an earlier shallow-rebate joint's CAD/export results are historical,
+not current printability proof. Inspect webs, bed adhesion and locating features
 in the slicer. Two-part printing does **not** thicken the experimental ~0.14 mm
 tool-cover mouth walls or prove their printability.
 

@@ -4,22 +4,55 @@
 
 - **Context:** `models/drill_storage/README.md`.
 - **Specification:** [Dremel specification](dremel-specification.md), DR-1–DR-10; common split-print requirements [SC-4](stackable-cover-specification.md).
-- **Acceptance signal:** User accepted two-part-only stackable printing and keyed locating/light retention/glue relief on 2026-10-23; smooth covers remain unchanged.
+- **Acceptance signal:** User accepted two-part-only stackable printing and keyed locating/light retention/glue relief on 2026-10-23, then required self-supporting underside joint geometry in both supplied poses without unsupported precision mating cantilevers; smooth covers remain unchanged.
 
 ## Current slice
 
-- **Name:** Two-part-only keyed glue interface.
+- **Name:** Two-part-only keyed glue interface with self-supporting undersides.
 - **Anchor:** The existing accepted 8U stackable PETG cover.
-- **In scope:** Exactly `lid_body` and `stacking_lips`, independent print-pose STLs, keyed location, light cure-time retention and glue relief. Both receivers/web remain one lip child. Remove one-piece alternatives and public support/split controls.
+- **In scope:** Exactly `lid_body` and `stacking_lips`, independent print-pose STLs, keyed location, light cure-time retention and glue relief. Both supplied poses must avoid unsupported precision mating cantilevers. Both receivers/web remain one lip child. Remove one-piece alternatives and public support/split controls.
 - **Unchanged:** Accepted six-column base/insert, diameter counts and calibrated fits, 8U stacking pitch, 2 mm roof, feet, cartridge retention, flat shoulder z=24, label/snap, smooth cover and parent scene. The lower-floor evidence below is historical verification, not split-print proof.
 
 The common [joint design](stackable-cover-cad-contract.md#joint-design-for-this-slice)
-uses a 0.4 mm keyed roof lap with hard seating lands, adhesive relief and sparse
-crush ribs for light retention. Both receiver webs share the same connected lip
-child; preserve the 2 mm accepted roof envelope, 4.4 mm socket depth and 8U
-pitch. The current Dremel gate and common joint predicates pass, and the actual
-build worker exported both child STLs. Printed fit/strength remain unverified;
-see the common contract for current edge-survey exceptions.
+removes the broad 0.4 mm rebate. The full bed-backed body roof has discrete
+45° locating recesses and shallow V-shaped adhesive channels. The lips print
+socket-mouth-down/joint-up, with tapered locating/crush cones growing upward
+from the joint face; both receivers/web remain one connected lip child.
+Its two locating cones are at (−10, 0) and (+10, 0) mm, with an asymmetric
+key cone at (0, +1.2) mm, all on the bed-backed inter-socket web rather than
+the per-receiver pattern used by the other leaves. The matching body recesses
+are 45° cones of 0.4 mm radius/depth; lip cones have 0.45 mm base radius and
+0.3 mm height. V channels centered at (−5, 0) and (+5, 0) mm extend 0.8 mm
+toward −Y, with 0.2 mm width and 0.1 mm depth.
+The original flat split plane hard-seats without an added stack-height allowance.
+The 2 mm roof envelope, 4.4 mm socket depth and 8U pitch remain accepted
+constraints; 0.4 mm locating recesses leave 1.6 mm roof backing locally.
+The experimental thin mouths now contact the bed; their adhesion, sliced
+continuity and printed fit/strength remain unverified.
+
+The inherited 3 mm exterior pillow round failed the new supplied-pose 45°
+growth gate. The approved stackable-only correction replaces it with a
+3 mm, 45° bevel, retaining the interior roof, label, snap and accepted pitch.
+The smooth cover keeps its pillow round and the parent scene stays unchanged.
+This is CAD print-direction geometry, not a successful slice or print claim.
+
+## Current verification — self-supporting underside revision, 2026-10-23
+
+After the stackable-only bevel and inter-socket-web correction, the geometry
+owner reports **139 passing Dremel CAD assertions**. Supplied-pose surface
+growth inspected 1647 body / 3675 lip samples with **zero unsupported**.
+Measured bed contact is 2861.49 / 60.38 mm²; intentional local crush overlap
+is 0.018064 mm³ seated, reducing to 0.002966 mm³ after 0.02 mm withdrawal.
+These are CAD measurements, not bed-adhesion or retention-force tests.
+
+Restoring the former broad-rebate geometry failed both body and lip underside
+predicates. Corrected combined STL/GLB and both child STLs were rebuilt/exported;
+the HTML view was opened and exact CAD sections inspected, including the full
+45° exterior bevel. Ruff and ty passed. The
+[common verification record](stackable-cover-cad-contract.md#current-verification--self-supporting-underside-revision-2026-10-23)
+owns cross-family evidence and edge exceptions. No slicer or printer job was
+run; thin-mouth adhesion/continuity, printed fit and cured strength remain
+physically unaccepted.
 
 ## Evidence-backed dimensions
 
@@ -37,7 +70,7 @@ see the common contract for current edge-survey exceptions.
 ## Historical verification — accepted anchors and superseded planar split
 
 All results below predate the 2026-10-23 glue-joint change and remain baseline
-evidence only. Current joint CAD/print/export verification is pending integration.
+evidence only, not proof of the self-supporting underside revision.
 
 - [x] All 55 closed floor disks have solid backing at z=0.02, 1.5 and 2.98.
 - [x] Every guide and matching cartridge land/relief retains the accepted radius.
@@ -79,15 +112,17 @@ scene was rebuilt with the repacked base/insert. The user accepted the visual
 result with “commit and push” on 2026-09-30; physical print trials remain pending.
 
 The user accepted two-part-only printing and keyed locating/light retention/glue
-relief on 2026-10-23. Print both supplied child poses, dry-fit the keyed joint,
-check complete seating and apply PETG-compatible adhesive without fouling
-sockets or closure; see [family instructions](../README.md#separate-printable-stacking-lips).
+relief on 2026-10-23, then required self-supporting underside joint geometry
+without unsupported precision mating cantilevers in the supplied poses.
+Print both supplied child poses, dry-fit the keyed joint, check complete seating
+and apply PETG-compatible adhesive without fouling sockets or closure; see
+[family instructions](../README.md#separate-printable-stacking-lips).
 Light retention is intended for alignment during cure, not as a replacement
 for the adhesive. Preserve the accepted 8U stack pitch, 2 mm roof and headroom.
-Current joint CAD/print/export evidence is pending integration. Printed fit,
-retention effort, glue relief, adhesive compatibility/cured strength, flatness
-and loaded-stack durability remain physically unverified. Historical planar
-equivalence and edge surveys below do not prove this joint or bonded area.
+Printed fit, retention effort, glue relief, adhesive compatibility/cured strength,
+flatness and loaded-stack durability remain physically unverified. Historical
+planar and shallow-rebate CAD/export evidence does not verify the revised joint,
+successful slicing, physical printing or bonded area.
 
 ## Historical edge survey
 

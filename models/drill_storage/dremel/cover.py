@@ -28,7 +28,7 @@ from models.drill_storage.box import (
     cover_height_for,
 )
 from models.drill_storage.tools import COVER_GLASS
-from models.lib.edges import fillet_edge, reseat_on_bed
+from models.lib.edges import fillet_edge, reseat_on_bed, top_chamfer_tool
 from . import config as c
 
 IS_ASSEMBLY = False
@@ -68,13 +68,21 @@ def _snap_bead():
     return bead.part
 
 
-def _create(height: float):
+def _create(height: float, *, pillow_top: bool = True):
     """Build the common labelled snap cover at its variant's print height."""
     with BuildPart() as cover:
         with BuildSketch():
             RectangleRounded(c.COVER_X, c.COVER_Y, CORNER_R)
         extrude(amount=height)
-        fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
+        if pillow_top:
+            fillet(cover.edges().group_by(Axis.Z)[-1], TOP_FILLET)
+        else:
+            # The stackable body prints this underside on the bed. A full
+            # 45-degree bevel grows from it; the smooth pillow stays unchanged.
+            add(
+                top_chamfer_tool(c.COVER_X, c.COVER_Y, CORNER_R, height, TOP_FILLET),
+                mode=Mode.SUBTRACT,
+            )
         chamfer(cover.edges().group_by(Axis.Z)[0], COVER_SEAT_CH)
 
         with BuildSketch():

@@ -37,7 +37,6 @@ in a Gridfinity baseplate; the cover is a free lid.
 import math
 import sys
 from collections.abc import Mapping, Sequence
-from typing import cast
 
 from build123d import (
     Align,
@@ -49,21 +48,17 @@ from build123d import (
     Compound,
     Cone,
     Cylinder,
-    Face,
     FontStyle,
-    GeomType,
     Locations,
     Mode,
     Part,
     Plane,
     Polygon,
     Pos,
-    Rectangle,
     RectangleRounded,
     RegularPolygon,
     Text,
     Shape,
-    Sketch,
     add,
     chamfer,
     extrude,
@@ -86,216 +81,118 @@ STACK_LIP_W = gridfinity.GRID
 STACK_LIP_R = gridfinity.CORNER_R + (STACK_LIP_W - gridfinity.PAD) / 2
 STACK_FIT = fits.SLIDING  # sliding fit, PETG baseline; diametral
 
-# Shallow lap in the existing roof; the thinnest 1 mm roof retains 0.5 mm
-# beneath the 0.1 mm adhesive channels. No feature projects below either bed.
+# Shallow, fully sloped locating sockets leave 0.6 mm of the thinnest roof.
+# Their mouths and the V-shaped adhesive vents open on the body's bed face;
+# unlike a broad rebate, neither feature creates a horizontal underside.
 STACK_JOINT_DEPTH = 0.4
-STACK_JOINT_LEAD = 0.15  # 45-degree lead on both entering edges
-STACK_JOINT_CLEAR = fits.FREE  # free fit, PETG baseline; diametral
-STACK_JOINT_PRESS = fits.PRESS  # sacrificial crush ribs, PETG; diametral
-STACK_JOINT_RELIEF = 0.1  # not a fit: adhesive reservoir above the seating datum
-STACK_JOINT_KEY_W = 6.0
-STACK_JOINT_KEY_D = 1.2
-
-
-def _loft_joint_profiles(lower: Shape, upper: Shape) -> Part:
-    """Loft a webbed multi-receiver profile (build123d loft allows one hole)."""
-    lower_faces, upper_faces = lower.faces(), upper.faces()
-    if len(lower_faces) != 1 or len(upper_faces) != 1:
-        raise ValueError("joint profiles must be one connected receiver field")
-    first, last = lower_faces[0], upper_faces[0]
-    # Co-linear cells acquire sub-micron centroid noise during offsetting.
-    # Sorting raw floats can swap their Y order and loft holes across cells.
-    first_holes = sorted(
-        first.inner_wires(),
-        key=lambda wire: (
-            round(wire.bounding_box().center().X, 6),
-            round(wire.bounding_box().center().Y, 6),
-        ),
-    )
-    last_holes = sorted(
-        last.inner_wires(),
-        key=lambda wire: (
-            round(wire.bounding_box().center().X, 6),
-            round(wire.bounding_box().center().Y, 6),
-        ),
-    )
-    if len(first_holes) != len(last_holes):
-        raise ValueError("joint offset changed the receiver topology")
-    with BuildPart() as result:
-        loft(sections=[Face(first.outer_wire()), Face(last.outer_wire())], ruled=True)
-        for start, end in zip(first_holes, last_holes):
-            loft(sections=[Face(start), Face(end)], ruled=True, mode=Mode.SUBTRACT)
-    return result.part
+STACK_JOINT_PRESS = fits.PRESS  # sacrificial crush cones, PETG; diametral
+STACK_JOINT_RELIEF = 0.1  # not a fit: depth of open 45-degree adhesive vents
+STACK_JOINT_PIN_H = 0.3
 
 
 def _keyed_stacking_joint(
-    body: Part, lips: Part, socket_depth: float
+    body: Part,
+    lips: Part,
+    socket_depth: float,
+    joint_points: Sequence[tuple[float, float]] | None = None,
+    adhesive_points: Sequence[tuple[float, float]] | None = None,
 ) -> tuple[Part, Part]:
-    """Transfer a keyed receiver-footprint lap, including every connecting web.
+    """Locate a flat seated joint with sparse, tapered sacrificial crush cones.
 
-    The lap's broad end is the lip print's bed. The body's socket floors remain
-    on its bed; only the narrow peripheral/web rebates bridge (about 3 mm).
-    This is a crush-retained glue lap, not a snap: sparse 0.05 mm interference
-    pads deform locally rather than expanding an overconstrained closed ring.
-    Keeping this operation separate also permits a planar-joint red mutation.
+    The body retains its full bed-backed roof. All downward-facing socket and
+    adhesive-channel surfaces close at 45 degrees; there is no pocket ceiling.
+    The open receiver field prints mouth-down, so each upward-pointing cone is
+    backed by an existing socket wall or web. An offset final cone keys the field.
     """
     floor = section(
         lips, section_by=Plane.XY.offset(socket_depth - 1e-5), mode=Mode.PRIVATE
     )
-    # Socket inner wires give the real cell locations without assuming a 1x1
-    # or importing any bin/Dremel geometry into this shared engine.
-    floor_faces = Shape.get_shape_list(floor, "Face")
-    if len(floor_faces) != 1:
+    faces = Shape.get_shape_list(floor, "Face")
+    if len(faces) != 1:
         raise ValueError("stacking lip floor must be one connected receiver field")
-    outer = floor_faces[0].outer_wire()
-    outer_bounds = outer.bounding_box()
-    outer_radius = min(
-        edge.radius for edge in outer.edges() if edge.geom_type == GeomType.CIRCLE
+    cells = sorted(
+        (wire.bounding_box() for wire in faces[0].inner_wires()),
+        key=lambda bounds: (bounds.center().X, bounds.center().Y),
     )
-    cell_profiles = [
-        (
-            wire.bounding_box(),
-            min(
-                edge.radius
-                for edge in wire.edges()
-                if edge.geom_type == GeomType.CIRCLE
-            ),
-        )
-        for wire in floor_faces[0].inner_wires()
-    ]
-    cells = [bounds for bounds, _ in cell_profiles]
     if not cells:
         raise ValueError("stacking lip floor must contain at least one receiver")
-    cells.sort(key=lambda bounds: (bounds.center().X, bounds.center().Y))
-    key = cells[0]
-
-    def joint_profile(growth: float) -> Sketch:
-        # Reconstruct these rounded-rectangle receivers from measured wires.
-        # WASM OCC fails even on inward offsets of an unkeyed socket wire;
-        # analytic radii and dimensions avoid offset_2d entirely.
-        with BuildSketch(Plane.XY.offset(socket_depth)) as profile:
-            with Locations((outer_bounds.center().X, outer_bounds.center().Y)):
-                RectangleRounded(
-                    outer_bounds.size.X + 2 * growth,
-                    outer_bounds.size.Y + 2 * growth,
-                    outer_radius + growth,
-                )
-            for bounds, radius in cell_profiles:
-                with Locations((bounds.center().X, bounds.center().Y)):
-                    RectangleRounded(
-                        bounds.size.X - 2 * growth,
-                        bounds.size.Y - 2 * growth,
-                        radius - growth,
-                        mode=Mode.SUBTRACT,
-                    )
-            with Locations((key.max.X, key.center().Y + min(5, key.size.Y / 6))):
-                key_radius = STACK_JOINT_LEAD + growth
-                if key_radius > 1e-6:
-                    RectangleRounded(
-                        2 * (STACK_JOINT_KEY_D + growth),
-                        STACK_JOINT_KEY_W + 2 * growth,
-                        key_radius,
-                    )
-                else:
-                    Rectangle(
-                        2 * (STACK_JOINT_KEY_D + growth), STACK_JOINT_KEY_W + 2 * growth
-                    )
-        return profile.sketch
-
-    footprint = joint_profile(0)
-    tip = joint_profile(-STACK_JOINT_LEAD)
-    with BuildPart() as tongue:
-        extrude(
-            to_extrude=footprint,
-            amount=STACK_JOINT_DEPTH - STACK_JOINT_LEAD,
-        )
-        add(
-            _loft_joint_profiles(
-                Pos(0, 0, STACK_JOINT_DEPTH - STACK_JOINT_LEAD) * footprint,
-                Pos(0, 0, STACK_JOINT_DEPTH) * tip,
+    if joint_points is None:
+        pins = [
+            (
+                cell.center().X + dx * (cell.size.X / 2 + 0.8),
+                cell.center().Y + dy * (cell.size.Y / 2 + 0.8),
             )
-        )
-        add(body, mode=Mode.INTERSECT)
-
-    loose = joint_profile(STACK_JOINT_CLEAR / 2)
-    entry = joint_profile(STACK_JOINT_CLEAR / 2 + STACK_JOINT_LEAD)
-    with BuildPart() as pocket:
-        add(_loft_joint_profiles(entry, Pos(0, 0, STACK_JOINT_LEAD) * loose))
-        extrude(
-            to_extrude=cast(Sketch, Pos(0, 0, STACK_JOINT_LEAD) * loose),
-            amount=STACK_JOINT_DEPTH - STACK_JOINT_LEAD,
-        )
+            for cell in cells
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+        ]
+        key = cells[0]
+        pins.append((key.max.X + 0.8, key.center().Y + min(5, key.size.Y / 6)))
+    else:
+        pins = joint_points
+    vents = (
+        [
+            (
+                cell.center().X + sign * (cell.size.X / 2 + 1),
+                cell.center().Y - min(7, cell.size.Y / 5),
+            )
+            for cell in cells
+            for sign in (-1, 1)
+        ]
+        if adhesive_points is None
+        else adhesive_points
+    )
     with BuildPart() as joint_body:
         add(body)
-        add(pocket.part, mode=Mode.SUBTRACT)
-        # Radial vent/reservoirs stop hydraulic lock, but leave most of the
-        # horizontal pocket floor untouched as the positive height datum.
-        for cell in cells:
-            center, half_x = cell.center(), cell.size.X / 2
-            for sign in (-1, 1):
-                with Locations(
-                    (
-                        center.X + sign * (half_x + 1),
-                        center.Y - min(7, cell.size.Y / 5),
-                        socket_depth + STACK_JOINT_DEPTH,
-                    )
-                ):
-                    Box(
-                        6,
-                        0.8,
-                        STACK_JOINT_RELIEF,
-                        align=(Align.CENTER, Align.CENTER, Align.MIN),
-                        mode=Mode.SUBTRACT,
-                    )
+        for x, y in pins:
+            with Locations((x, y, socket_depth)):
+                Cone(
+                    STACK_JOINT_DEPTH,
+                    0,
+                    STACK_JOINT_DEPTH,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                    mode=Mode.SUBTRACT,
+                )
+        for x, y in vents:
+            # A triangular open channel, not a rectangular reservoir whose
+            # horizontal ceiling would itself be an unsupported mating face.
+            with BuildSketch(Plane.XZ.offset(-y)) as vent:
+                Polygon(
+                    (x - STACK_JOINT_RELIEF, socket_depth),
+                    (x + STACK_JOINT_RELIEF, socket_depth),
+                    (x, socket_depth + STACK_JOINT_RELIEF),
+                    align=None,
+                )
+            extrude(to_extrude=vent.sketch, amount=0.8, mode=Mode.SUBTRACT)
     with BuildPart() as joint_lips:
         add(lips)
-        add(tongue.part)
-        # Four short crush pads per receiver. Their rounded profiles meet a
-        # free-fit pocket at 0.05 mm interference per side, with a 45-degree
-        # entering taper. They are sacrificial, not repeatedly cycled springs.
-        radius = 0.45
-        inward = (STACK_JOINT_CLEAR - STACK_JOINT_PRESS) / 2
-        for cell in cells:
-            center = cell.center()
-            half_x, half_y = cell.size.X / 2, cell.size.Y / 2
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                # Half-cell keys reach the side midpoint; keep the +X pad on
-                # the opposite half so the key pocket cannot swallow its fit.
-                pad_y = center.Y + dy * (half_y + radius - inward)
-                if dx == 1:
-                    pad_y -= min(5, cell.size.Y / 6)
-                with Locations(
-                    (center.X + dx * (half_x + radius - inward), pad_y, socket_depth)
-                ):
-                    Cylinder(
-                        radius,
-                        STACK_JOINT_DEPTH - STACK_JOINT_LEAD,
-                        align=(Align.CENTER, Align.CENTER, Align.MIN),
-                    )
-                with Locations(
-                    (
-                        center.X + dx * (half_x + radius - inward),
-                        pad_y,
-                        socket_depth + STACK_JOINT_DEPTH - STACK_JOINT_LEAD,
-                    )
-                ):
-                    Cone(
-                        radius,
-                        radius - STACK_JOINT_LEAD,
-                        STACK_JOINT_LEAD,
-                        align=(Align.CENTER, Align.CENTER, Align.MIN),
-                    )
-        add(body, mode=Mode.INTERSECT)
-        add(lips)
+        for x, y in pins:
+            with Locations((x, y, socket_depth)):
+                Cone(
+                    STACK_JOINT_DEPTH - STACK_JOINT_PRESS / 2,
+                    0,
+                    STACK_JOINT_PIN_H,
+                    align=(Align.CENTER, Align.CENTER, Align.MIN),
+                )
+        # Retain the reference envelope even at an edge fillet or half-cell.
+        with BuildPart(mode=Mode.PRIVATE) as envelope:
+            add(body)
+            add(lips)
+        add(envelope.part, mode=Mode.INTERSECT)
     return joint_body.part, joint_lips.part
 
 
-def split_stacking_lips(finished: Part, socket_depth: float) -> Compound:
+def split_stacking_lips(
+    finished: Part,
+    socket_depth: float,
+    *,
+    joint_points: Sequence[tuple[float, float]] | None = None,
+    adhesive_points: Sequence[tuple[float, float]] | None = None,
+) -> Compound:
     """Return two keyed, crush-retained, glue-relieved bed-seated prints.
 
-    Both roofs and closure remain in the body. The complete receiver field and
-    its shallow roof lap print socket-up, lap-down. Re-seating after the lap is
-    essential: otherwise projecting keys would lift the ring above the bed.
+    The roof/closure body is socket-floor-down, with its full plane on the bed.
+    The complete open receiver field is mouth-down and joint-up: its walls and
+    connecting webs support the locating cones without a cantilevered lap.
     """
     bounds = finished.bounding_box()
     with BuildPart() as body:
@@ -318,9 +215,11 @@ def split_stacking_lips(finished: Part, socket_depth: float) -> Compound:
                 align=(Align.CENTER, Align.CENTER, Align.MIN),
                 mode=Mode.INTERSECT,
             )
-    body_part, lip_part = _keyed_stacking_joint(body.part, lips.part, socket_depth)
+    body_part, lip_part = _keyed_stacking_joint(
+        body.part, lips.part, socket_depth, joint_points, adhesive_points
+    )
     lid_body = as_part(Pos(0, 0, -socket_depth) * body_part)
-    stacking_lips = reseat_on_bed(lip_part, flip=True)
+    stacking_lips = reseat_on_bed(lip_part)
     # Preview separation only, not a fit or adhesive-gap allowance.
     preview_gap = 5.0
     offset = lid_body.bounding_box().max.X - stacking_lips.bounding_box().min.X
