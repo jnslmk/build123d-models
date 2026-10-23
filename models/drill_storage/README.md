@@ -22,13 +22,13 @@ uv run check drill_storage.wood         # geometry assertions for one set
 uv run export drill_storage.wood.cover_stackable  # alternate stackable PETG lid
 uv run show drill_storage.bin           # bin with lid seated, inspection scene
 uv run export drill_storage.bin.base    # empty PETG bin, foot-down
-uv run export drill_storage.bin.lid     # lift-off stackable PETG lid, socket-down
+uv run export drill_storage.bin.lid     # stackable PETG lid: two child STLs
 uv run view drill_storage.dremel        # closed 1×2 inspection scene
 uv run export drill_storage.dremel.base    # ASA guide base, foot-down
 uv run export drill_storage.dremel.insert  # TPU grip cartridge, land-up
 uv run export drill_storage.dremel.cover   # PETG cover, pillow-down
 uv run view drill_storage.dremel.cover_stackable  # alternate 1×2 PETG cover
-uv run export drill_storage.dremel.cover_stackable  # sockets down; built-in support on
+uv run export drill_storage.dremel.cover_stackable  # two PETG child STLs
 ```
 
 ## Layout
@@ -44,7 +44,7 @@ uv run export drill_storage.dremel.cover_stackable  # sockets down; built-in sup
 | `assembly.py` / `sampler.py` | The scenes: one set assembled, and all three side by side. |
 | `tools.py` | Display models of the bits themselves, for those scenes. Not printed. |
 | [`wood/`](wood/README.md) [`metal/`](metal/README.md) [`stone/`](stone/README.md) | One package per drill set: the assembled scene, plus `base`, `insert` and `cover` as their own downloadable models. Four modules of naming each. |
-| `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket: one-piece with removable support by default, or separately printed glue-on lips. |
+| `cover_stackable.py` (in each set package) | Alternate PETG cover with a full-depth Gridfinity foot socket, printed only as a body and glue-on stacking lips. |
 | [`allen/`](allen/README.md) [`hex/`](hex/README.md) | The two 1/4" hex-shank sets, sharing one geometry: `drill_storage.allen` is the 1x1 ALLEN key box (8 sockets), `drill_storage.hex` the 1x1 driver-bit box (16 sockets in a 4x4 grid, shaved lead-in clearances). Both rigid base + TPU insert + translucent cover. |
 | [`bin/`](bin/) | Parametric general-purpose PETG bin, independently printable body and lift-off stackable lid, plus a seated display scene. |
 | [`dremel/`](dremel/) | Independent 1×2 three-part Dremel variant: ASA base, TPU insert, smooth labelled PETG cover and a separate stackable cover option; the closed inspection scene retains the smooth cover. |
@@ -150,27 +150,19 @@ lid's foot socket clearance; unlike the default empty bin, their first
 layers can bridge an open foot cavity. Check those variants in the slicer
 or use a solid base if a continuous backing is needed.
 
-`lid_height` is the **whole print-part height in millimetres**, default 6.5 mm:
+`lid_height` is the **assembled lid height in millimetres**, default 6.5 mm:
 2.5 mm socket depth, 1 mm roof above it, and a 3 mm plug skirt below the
 bin rim. Raising it thickens the roof; it does not deepen the skirt and foul
 labels or dividers. The 1 mm body wall and lid skirt have a PETG sliding fit.
 Interior fixtures stop 3.6 mm below the rim to leave room for the skirt.
-The lid is printed **top-down, skirt up**. Its `support` checkbox defaults
-to on, adding a connected sacrificial lattice and rounded perimeter backing
-rail beneath each socket. The bin-lid support revision uses two weak tabs
-at straight rail midpoints: reach through the open socket to cut these,
-then peel the rail/lattice inward without levering against the finished rim.
-Trim any roof-side remnants without altering the foot seat before stacking.
-The 0.4×0.8 mm tabs, 0.6 mm per-side wall separation and retained 0.2 mm
-roof gap are **print-trial candidates**, not proven calibrated PETG settings.
-The recorded 0.4 mm-nozzle / 0.2 mm-layer PETG slice preserves the gaps and tabs;
-easier removal and reduced short-side sag still await physical trials.
-Family rollout waits for acceptance of this bin-lid anchor. Turn `support`
-off to export the unchanged clean socket for slicer supports or a
-printer-verified unsupported approximately 37 mm bridge. The bin base is displayed black
-and the lid translucent, matching the other drill-storage sets; STL carries
-geometry only, not color. `drill_storage.bin` shows the closed two-part scene
-after support removal; export the two leaf models separately to print them.
+The lid exports only as **lid_body** and **stacking_lips**, with no one-piece,
+support or split-mode control. Print and glue both children using the
+[shared instructions below](#separate-printable-stacking-lips).
+The former removable-support revision and its recorded PETG slice are
+historical evidence, not proof of this joint's printability or strength.
+The bin base is displayed black and the lid translucent; STL carries geometry
+only, not color. `drill_storage.bin` shows the closed display scene, not a print
+layout. Export the base leaf and both lid children separately.
 
 ## Dremel tool holder
 
@@ -212,10 +204,9 @@ are centred at Y=−21 and +21 mm; only its top lip grows to 42×84 mm.
 The assembled top is z=60.4 mm, giving an 8U (56 mm) stack pitch when the
 upper feet seat fully; a 2 mm roof remains below the sockets, with 1 mm
 nominal headroom above a 50 mm tool on the 3 mm floor.
-Print **socket-down, mouth-up** in PETG. Its `support` checkbox defaults to
-on and reuses the family's removable breakaway lattices. Remove both lattices
-and all attachment nibs before stacking; turn support off only for slicer
-supports or a printer-verified unsupported bridge. The approximately
+The stackable leaf exports two PETG print children, `lid_body` and
+`stacking_lips`; use the [shared print/glue instructions](#separate-printable-stacking-lips).
+There is no one-piece alternative or support/split switch. The approximately
 **0.14 mm mouth walls** are a user-accepted experimental print-trial exception,
 not proven printable or durable. Check the sliced walls, printed foot fit,
 stack strength and neighbouring-cell clearance before loading a stack.
@@ -242,56 +233,51 @@ Do not load a stack until a printed fit/durability and neighbouring-holder
 trial succeeds. Keep the original smooth cover for a 41.5 mm envelope and
 support-free printing.
 
-The stackable cover prints **socket-down, mouth-up**. Each of the five leaf
-models has an on-by-default `support` checkbox that adds a breakaway lattice
-under its full-depth socket floor. Turn it off for a clean socket if using
-slicer supports or after verifying the unsupported bridge on your printer.
-When enabled, remove the lattice and all four attachment nibs before seating
-another holder. The cap and longest-tool
+The stackable leaf prints only as the body and separate stacking lips described
+below; it has no built-in sacrificial supports or public support/split controls.
+The cap and longest-tool
 clearance remain budgeted below the receiver. See
 [the stackable-cover specification](docs/stackable-cover-specification.md) and
 [the current CAD contract](docs/stackable-cover-cad-contract.md).
 
 ### Separate printable stacking lips
 
-**Separate stacking lips** is an off-by-default checkbox on the five upright
-`wood`, `metal`, `stone`, `allen`, and `hex.bits` stackable covers, the Dremel
-stackable cover, and the bin lid. It does not apply to sideways holders.
-The [accepted split-print decision](docs/stackable-cover-specification.md)
-preserves the clean one-piece socket, stacking pitch, roof, labels and closure.
+All seven leaves—the five upright `wood`, `metal`, `stone`, `allen`, and
+`hex.bits` stackable covers, the Dremel stackable cover, and the bin lid—now
+use **two-part printing only**. The user accepted this cutover and the improved
+keyed locating, lightly self-retaining, adhesive-relieved joint on 2026-10-23.
+The [accepted decision](docs/stackable-cover-specification.md) preserves foot
+fit, stacking pitch, tool clearance, labels and closure. Smooth covers remain
+unchanged; sideways holders are outside this change.
 
-When enabled, the preview shows two XY-separated bed-seated parts and offers
-two child STL download controls: **lid_body** and **stacking_lips**. This is
-an exploded **print layout, not an assembled lid**; print the individual STLs.
-Python callers can use `create(separate_stacking_lips=True)`; the existing
-named-Compound export convention writes `<model>_lid_body.stl` and
-`<model>_stacking_lips.stl`. `IS_ASSEMBLY` stays false. Disabling the checkbox
-keeps the original one-piece Part and default-on support behavior.
+Opening one of these leaves in the webapp directly shows two XY-separated,
+bed-seated children and two STL download controls: **lid_body** and
+**stacking_lips**. There is no **Separate stacking lips** or **support** checkbox.
+This is a **print layout, not an assembled lid**; download and print both child
+STLs. Python callers use `create()` with the leaf's remaining dimensional
+parameters. Named-Compound export writes `<model>_lid_body.stl` and
+`<model>_stacking_lips.stl`; `IS_ASSEMBLY` remains false.
 
-Print both in PETG without built-in socket supports: the body has its flat
-roof/glue face on z=0 and its mouth or skirt upward; the lips have their flat
-glue face on z=0 and open sockets upward. The support checkbox is ignored in
-this mode because no socket roof bridges during either print. Dremel and
-multi-cell bin lips are one connected receiver field in one STL, not one
-download per socket; the original webs hold their spacing. Inspect the slicer
-for those webs and bed adhesion. Split printing does **not** thicken the
-experimental ~0.14 mm tool-cover mouth walls or prove their printability.
+Print both in PETG in their supplied bed-seated poses, without built-in
+socket supports. The lips print broad glue-lap-down/socket-up, and the body
+central-socket-floor-down/open-mouth-up; use the supplied poses.
+Dremel and multi-cell bin lips remain one connected receiver field in one STL,
+not one download per socket. Inspect webs, bed adhesion and locating features
+in the slicer. Two-part printing does **not** thicken the experimental ~0.14 mm
+tool-cover mouth walls or prove their printability.
 
-For assembly, turn the body mouth/skirt-down so its flat roof faces up, keep
-the lips socket-up, and dry-align the matching outer contours and rounded
-corners. The tool-cover lips overhang their original body by 0.25 mm per side;
-centre that overhang. Preserve the chosen half-cell socket arrangement on bin
-lids; use the matching upper foot layout to check orientation and full seating
-before gluing. Do not rotate an asymmetric lip field independently. Apply a
-thin, even PETG-compatible adhesive film to the contacting flat ring/web faces,
-keep adhesive out of the sockets, and hold alignment until fully cured. No
-pins, rebates or adhesive-gap allowance are added. The ideal flat-on-flat
-zero-gap assembly matches the clean original lid; a real adhesive bond line
-adds its thickness to the stack height.
-The measured planar bed-face area is **not** the bonded contact area: the lip
-overhangs, and the Dremel body's retained pillow fillet narrows its flat roof
-contact region. Apply adhesive only where the two planar faces actually meet.
-CAD connectivity/equivalence proves an ideal joined shape, not bonded strength.
+Dry-fit the matching body and lip field before applying adhesive: engage the
+keyed locating features rather than aligning the outer overhang by eye.
+Preserve the matching full/half-cell socket arrangement; do not rotate an
+asymmetric field independently. Check full upper-foot seating, closure and
+joint seating. The light retention is intended to hold alignment while curing,
+not replace the adhesive or establish load capacity. Use a PETG-compatible
+adhesive in the joint's relief, keep sockets and closure clear, and keep the
+joint fully seated until cured. Do not force an uncalibrated printed fit.
+Exact implemented joint geometry and verification state are recorded in the
+[current cover contract](docs/stackable-cover-cad-contract.md),
+[bin-lid contract](docs/lid-cad-contract.md) and
+[Dremel contract](docs/dremel-cad-contract.md).
 
 **Physical acceptance remains pending:** adhesive compatibility and cured
 strength, printed flatness, thin-wall slicing/durability, neighbouring-cell
@@ -301,9 +287,9 @@ support-free option requiring no glue.
 
 ## Printing
 
-The existing smooth parts need no supports. Every part comes off `create()` in
-its print pose; stackable covers include an experimental thin lip and removable
-support lattice requiring a slicer and print trial.
+The existing smooth parts need no supports. Every child comes off `create()`
+in its print pose; stackable lids require two PETG prints and a glued joint.
+Their experimental thin lips and joint still require slicer and print trials.
 
 - **Base — ASA**, foot down, cavity up. 36 mm tall. ASA wants an enclosure; a
   42 mm footprint is not fussy, but a draught will still lift the foot's corners.

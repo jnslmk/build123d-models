@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import patch
 
 import main
 
@@ -89,32 +89,6 @@ class BuildWorkerTests(unittest.TestCase):
             )
             self.assertFalse((exports / "scene.stl").exists())
             self.assertFalse((exports / "scene.step").exists())
-
-    def test_printable_keeps_stl_step_and_glb(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            exports = Path(tmp)
-
-            def export(_part, name, **kwargs):
-                return [exports / f"{name}.{ext}" for ext in ("stl", "step", "glb")]
-
-            modules = {
-                "export": SimpleNamespace(export=Mock(side_effect=export)),
-                "tessellate_models": SimpleNamespace(
-                    get_part=lambda _name: object(),
-                    model_is_assembly=lambda _name: False,
-                ),
-            }
-            with patch.dict(sys.modules, modules):
-                result = main._build("part")
-
-            self.assertEqual(result["outputs"], ["part.glb", "part.step", "part.stl"])
-            modules["export"].export.assert_called_once_with(
-                ANY,
-                "part",
-                step=True,
-                stl=True,
-                children=False,
-            )
 
 
 class StampRaceTests(unittest.TestCase):

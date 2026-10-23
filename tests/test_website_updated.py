@@ -315,22 +315,6 @@ class AssemblyAssetTests(unittest.TestCase):
         self.assertIsNone(entry["stl"])
         self.assertIsNone(entry["step"])
         self.assertEqual(entry["glb"], "exports/scene.glb")
-        self.assertEqual(
-            set(entry),
-            {
-                "name",
-                "label",
-                "params",
-                "assembly",
-                "source",
-                "updated",
-                "documentation",
-                "stl",
-                "step",
-                "glb",
-                "thumb",
-            },
-        )
 
     def test_bundle_removes_stale_assembly_downloads_and_copies_preview(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

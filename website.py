@@ -312,12 +312,22 @@ def _manifest() -> dict:
         glb = EXPORTS / f"{name}.glb"
         thumb = EXPORTS / f"{name}.png"
         assembly = model_is_assembly(name)
+        metadata = EXPORTS / f"{name}.parts.json"
+        parts = (
+            [
+                {**child, "url": f"exports/{child['filename']}"}
+                for child in json.loads(metadata.read_text())
+            ]
+            if not assembly and metadata.exists()
+            else []
+        )
         models.append(
             {
                 "name": name,
                 "label": _label(name),
                 "params": model_params(name),
                 "assembly": assembly,
+                "parts": parts,
                 "source": _source_path(name),
                 "documentation": _documentation_path(name),
                 # UTC ISO-8601, or null when neither git nor the filesystem can
@@ -375,6 +385,9 @@ def build_web_bundle() -> None:
         {HERE / model["documentation"] for model in manifest["models"]}
     )
     copied = 0
+    model_assets = {
+        model["name"]: model for model in manifest["models"] if "name" in model
+    }
     for name in MODELS:
         assembly = model_is_assembly(name)
         extensions = ("glb", "png") if assembly else ("stl", "step", "glb", "png")
@@ -384,6 +397,11 @@ def build_web_bundle() -> None:
         for ext in extensions:
             src = EXPORTS / f"{name}.{ext}"
             if src.exists():
+                shutil.copy2(src, WEBSITE_EXPORTS / src.name)
+                copied += 1
+        if not assembly:
+            for child in model_assets.get(name, {}).get("parts", []):
+                src = EXPORTS / child["filename"]
                 shutil.copy2(src, WEBSITE_EXPORTS / src.name)
                 copied += 1
     print(

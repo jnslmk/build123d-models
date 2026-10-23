@@ -1,8 +1,9 @@
-"""Lift-off stackable bin lid: supported one-piece or separate glue-on lips."""
+"""Snap-in stackable bin lid printed as a body and glue-on stacking lips."""
 
 from build123d import (
     BuildPart,
     BuildSketch,
+    Compound,
     Mode,
     Part,
     Plane,
@@ -17,10 +18,9 @@ from build123d import (
 
 from models.drill_storage.box import split_stacking_lips
 from models.lib.gridfinity import CORNER_R, GRID, PAD
-from models.drill_storage.cover import SEPARATE_STACKING_LIPS_PARAM
 from models.lib import fits
 from models.lib.edges import as_part, bottom_chamfer_tool, top_chamfer_tool
-from models.lib.gridfinity_socket import socket_support, socket_tool
+from models.lib.gridfinity_socket import socket_tool
 from . import config as c
 from .foot import cell_layout
 
@@ -51,13 +51,6 @@ PARAMS = [
         "step": 0.5,
         "default": c.LID_MIN_HEIGHT,
     },
-    {
-        "name": "support",
-        "label": "Include breakaway socket supports",
-        "type": "boolean",
-        "default": True,
-    },
-    SEPARATE_STACKING_LIPS_PARAM,
 ]
 IS_ASSEMBLY = False
 
@@ -90,7 +83,7 @@ def _snap_bead(skirt_w: float, skirt_d: float, skirt_r: float, z_tip: float) -> 
     return ring.part
 
 
-def create(
+def _create_finished(
     grid_x: float = 1,
     grid_y: float = 2,
     half_grid_base: bool = False,
@@ -98,10 +91,8 @@ def create(
     half_grid_top: bool = True,
     wall_thickness: float = c.WALL,
     lid_height: float = c.LID_MIN_HEIGHT,
-    support: bool = True,
-    separate_stacking_lips: bool = False,
-):
-    """Socket-down one-piece print, or body roof-down and lips socket-up."""
+) -> Part:
+    """Build the clean socket-down reference for splitting and fit checks."""
     if lid_height < c.LID_MIN_HEIGHT or lid_height > 14:
         raise ValueError("lid_height must fit a foot socket, solid roof and 3 mm skirt")
     if wall_thickness < 1 or wall_thickness > 4:
@@ -127,11 +118,6 @@ def create(
     ]
     cell_sizes = dict.fromkeys((cell_w, cell_d) for cell_w, cell_d, _, _ in cells)
     socket_tools = {size: socket_tool(*size, c.LID_SOCKET_DEPTH) for size in cell_sizes}
-    socket_supports = (
-        {size: socket_support(*size, c.LID_SOCKET_DEPTH) for size in cell_sizes}
-        if support and not separate_stacking_lips
-        else {}
-    )
 
     with BuildPart() as lid:
         with BuildSketch():
@@ -175,11 +161,28 @@ def create(
             ruled=True,
             mode=Mode.SUBTRACT,
         )
-        if support and not separate_stacking_lips:
-            for cell_w, cell_d, x, y in cells:
-                add(as_part(Pos(x, y, 0) * socket_supports[cell_w, cell_d]))
     part = lid.part
     part.color = c.LID_COLOR
-    if separate_stacking_lips:
-        return split_stacking_lips(part, c.LID_SOCKET_DEPTH)
     return part
+
+
+def create(
+    grid_x: float = 1,
+    grid_y: float = 2,
+    half_grid_base: bool = False,
+    half_grid_right: bool = True,
+    half_grid_top: bool = True,
+    wall_thickness: float = c.WALL,
+    lid_height: float = c.LID_MIN_HEIGHT,
+) -> Compound:
+    """Return the roof-down body and matching socket-up stacking lips."""
+    finished = _create_finished(
+        grid_x=grid_x,
+        grid_y=grid_y,
+        half_grid_base=half_grid_base,
+        half_grid_right=half_grid_right,
+        half_grid_top=half_grid_top,
+        wall_thickness=wall_thickness,
+        lid_height=lid_height,
+    )
+    return split_stacking_lips(finished, c.LID_SOCKET_DEPTH)

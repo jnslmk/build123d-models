@@ -40,17 +40,16 @@ which box gets which.
 **Stackable cover: 28.4 mm** (46.4 mm = 6U + 4.4 mm assembled).
 The same eased snap bead fits the existing BITS collar, with a full-depth
 socket seating the entire 4.4 mm of another unchanged 1×1 Gridfinity foot
-for a 6U stack pitch. A built-in breakaway lattice supports its ceiling
-during top-down printing; remove the lattice and nibs before stacking.
+for a 6U stack pitch. Print both PETG children and glue the keyed, lightly
+retaining joint; there is no one-piece/support mode.
 The experimental 42 mm lip mouth (~0.14 mm nominal wall, zero nominal
 gap to neighbouring cells) needs a physical print and fit trial. The
 original 24 mm smooth cover remains support-free. See the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
-The 1×1 BITS stackable cover also exposes **Separate stacking lips**:
-support-free `lid_body` and socket-up `stacking_lips` prints, with the
-one-piece supported default preserved. Download the two child STLs and glue
-their flat faces after dry-aligning the centred 0.25 mm lip overhang.
+The 1×1 BITS stackable leaf always provides `lid_body` and `stacking_lips`
+child STLs. Download and print both; dry-fit the locating/retention features
+before gluing and keep adhesive clear of the foot socket.
 See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
 
 **Cover snap**: eased for this box alone — `BITS_SNAP_PROTRUSION` (0.35 mm)

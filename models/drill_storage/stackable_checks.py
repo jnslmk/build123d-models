@@ -1,4 +1,4 @@
-"""Physical gate for the removable support and 1×1 Gridfinity stacking interface."""
+"""Physical gate for two-print keyed glue joints and Gridfinity stacking."""
 
 from build123d import (
     Align,
@@ -6,12 +6,15 @@ from build123d import (
     BuildPart,
     Compound,
     Face,
+    Locations,
     Mode,
     Part,
+    Plane,
     Pos,
     Rotation,
     Shape,
     add,
+    section,
 )
 
 from ..lib.checks import Report, is_solid_at
@@ -22,6 +25,8 @@ from .box import (
     STACK_FIT,
     STACK_LIP_W,
     STACK_SOCKET_DEPTH,
+    STACK_JOINT_DEPTH,
+    STACK_JOINT_RELIEF,
 )
 
 
@@ -31,11 +36,12 @@ def check_split_lips(
     clean: Part | Compound,
     socket_depth: float = STACK_SOCKET_DEPTH,
 ) -> None:
-    """Compare assembled prints with the complete finished lid, not constants.
+    """Reassemble independently and probe the actual lap, not its construction.
 
-    Reassembly is independent of the splitter: undo only the measured preview
-    X translation, turn the lips socket-down, and lift both to the floor datum.
-    Equivalence includes socket walls/floors, closure, labels and no supports.
+    Mutation red proof: monkeypatch box._keyed_stacking_joint to
+    ``lambda body, lips, depth: (body, lips)`` before creating a fresh split.
+    Lap height, transferred material, key, relief and crush probes must fail.
+    Removing only the cylinders/cones must fail retention while location passes.
     """
     clean = as_part(clean)
     report.section("separate stacking lips: print and glue geometry")
@@ -65,9 +71,9 @@ def check_split_lips(
         "exploded preview keeps the two print footprints separate",
     )
     report.check(
-        abs(lip_box.size.Z - socket_depth) < 1e-6
+        abs(lip_box.size.Z - socket_depth - STACK_JOINT_DEPTH) < 1e-6
         and abs(body_box.size.Z + socket_depth - clean.bounding_box().size.Z) < 1e-6,
-        "split is at socket floor: entire receiver above, complete roof below",
+        "lap is transferred into the roof without changing the stacking height",
     )
     for part, label in ((body, "body"), (lips, "lips")):
         # Measure printable bed adhesion, not the common glued-contact area.
@@ -89,46 +95,124 @@ def check_split_lips(
     offset_x = lip_box.center().X - clean.bounding_box().center().X
     placed_body = as_part(Pos(0, 0, socket_depth) * body)
     placed_lips = as_part(
-        Pos(0, 0, socket_depth) * Rotation(180, 0, 0) * Pos(-offset_x, 0, 0) * lips
+        Pos(0, 0, socket_depth + STACK_JOINT_DEPTH)
+        * Rotation(180, 0, 0)
+        * Pos(-offset_x, 0, 0)
+        * lips
     )
     with BuildPart() as assembled:
         add(placed_body)
         add(placed_lips)
-    # OCC integrates curved/text faces again after partitioning/fusing. A
-    # sub-microlitre residual is not missing printed material: use the same
-    # 0.01 mm³ physical volume tolerance as the existing foot-interface gate.
     volume_tolerance = 0.01
-    common = (assembled.part & clean).volume
-    missing = clean.volume - common
-    extra = assembled.part.volume - common
+    # Joint clearance and reservoirs deliberately remove a little material.
+    # Everywhere OUTSIDE that shallow layer must match the accepted anchor,
+    # including the complete socket, tool-side roof, closure and engraving.
+    bounds = clean.bounding_box()
+    with BuildPart() as protected:
+        add(clean)
+        with Locations((bounds.center().X, bounds.center().Y, socket_depth)):
+            Box(
+                bounds.size.X + 2,
+                bounds.size.Y + 2,
+                STACK_JOINT_DEPTH + STACK_JOINT_RELIEF + 1e-4,
+                align=(Align.CENTER, Align.CENTER, Align.MIN),
+                mode=Mode.SUBTRACT,
+            )
+    missing = (protected.part - assembled.part).volume
+    extra = (assembled.part - clean).volume
     report.check(
-        abs(missing) < volume_tolerance and abs(extra) < volume_tolerance,
-        "glued prints retain socket, roof, closure and labels without supports",
-        f"missing={missing:.6f}, extra={extra:.6f} mm³; "
-        f"tolerance={volume_tolerance:g} mm³",
+        missing < volume_tolerance and extra < volume_tolerance,
+        "socket, tool-side roof, closure and labels retain the accepted envelope",
+        f"protected missing={missing:.6f}, extra={extra:.6f} mm³",
     )
-    # Test physical overlap directly. Subtracting separately integrated total
-    # volumes gave a -0.023048 mm³ residual on the long engraved wood lid even
-    # though clean assembled equivalence passed; it is not an overlap measure.
-    overlap = (placed_body & placed_lips).volume
+    floor = section(
+        clean, section_by=Plane.XY.offset(socket_depth - 1e-5), mode=Mode.PRIVATE
+    )
+    cells = [
+        wire.bounding_box()
+        for face in Shape.get_shape_list(floor, "Face")
+        for wire in face.inner_wires()
+    ]
+    cells.sort(key=lambda bounds: (bounds.center().X, bounds.center().Y))
+    report.check(bool(cells), "finished anchor exposes real receiver floor contours")
+    if not cells:
+        return
+    # Literal physical probe dimensions intentionally do not use the production
+    # fit constants: a misplaced/doubled gap must not move its own test points.
+    z = socket_depth + 0.2
+    location_ok = retention_ok = relief_ok = seating_ok = lead_ok = True
+    for cell in cells:
+        x, y = cell.center().X, cell.center().Y
+        half, half_y = cell.size.X / 2, cell.size.Y / 2
+        probe_y = y - min(10, half_y * 0.55)
+        relief_y = y - min(7, cell.size.Y / 5)
+        location_ok &= (
+            is_solid_at(placed_lips, x + half + 0.6, probe_y, z)
+            and not is_solid_at(placed_body, x + half + 0.6, probe_y, z)
+            and not is_solid_at(placed_lips, x + half - 0.1, probe_y, z)
+            and not is_solid_at(placed_body, x + half - 0.1, probe_y, z)
+            and is_solid_at(placed_body, x + half - 0.3, probe_y, z)
+        )
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            px, py = x + dx * (half - 0.225), y + dy * (half_y - 0.225)
+            if dx == 1:
+                py -= min(5, cell.size.Y / 6)
+            retention_ok &= (
+                is_solid_at(placed_lips, px, py, z)
+                and is_solid_at(placed_body, px, py, z)
+                # Entering tip is clear, so this is not a blunt press wall.
+                and not is_solid_at(placed_lips, px, py, socket_depth + 0.39)
+            )
+        relief_ok &= not is_solid_at(
+            placed_body, x + half + 0.6, relief_y, socket_depth + 0.45
+        ) and is_solid_at(placed_body, x + half + 0.6, relief_y, socket_depth + 0.55)
+        seating_ok &= is_solid_at(
+            placed_lips, x + half + 0.6, probe_y, socket_depth + 0.39
+        ) and is_solid_at(placed_body, x + half + 0.6, probe_y, socket_depth + 0.41)
+        lead_ok &= (
+            not is_solid_at(placed_lips, x + half + 0.05, probe_y, socket_depth + 0.39)
+            and is_solid_at(placed_lips, x + half + 0.05, probe_y, socket_depth + 0.2)
+            and not is_solid_at(
+                placed_body, x + half - 0.3, probe_y, socket_depth + 0.02
+            )
+        )
+    key = cells[0]
+    key_y = key.center().Y
+    key_offset = min(5, key.size.Y / 6)
     report.check(
-        overlap < volume_tolerance,
-        "reassembled prints meet without overlapping material",
-        f"body/lips overlap={overlap:.6f} mm³; tolerance={volume_tolerance:g} mm³",
+        location_ok
+        and is_solid_at(placed_lips, key.max.X - 0.7, key_y + key_offset, z)
+        and not is_solid_at(placed_body, key.max.X - 0.7, key_y + key_offset, z)
+        and not is_solid_at(placed_lips, key.max.X - 0.7, key_y - key_offset, z),
+        "transferred lap and asymmetric inward key positively locate the lip field",
+    )
+    report.check(lead_ok, "both mating mouths have real 45-degree entering relief")
+    report.check(relief_ok, "vented adhesive reservoirs retain a solid roof beneath")
+    report.check(seating_ok, "unrelieved lap lands meet a hard 0.4 mm seating datum")
+    overlap = (placed_body & placed_lips).volume
+    withdrawing = as_part(Pos(0, 0, -0.1) * placed_lips)
+    withdrawal_overlap = (placed_body & withdrawing).volume
+    report.check(
+        retention_ok
+        and 1e-5 < overlap < len(cells) * 0.2
+        and withdrawal_overlap > 1e-5,
+        "sparse crush pads interfere during seating and withdrawal, not a loose rabbet",
+        f"seated={overlap:.6f}, withdrawing={withdrawal_overlap:.6f} mm³; "
+        "sacrificial PETG friction retention needs a printed fit trial",
     )
     report.check(
         len(assembled.part.solids()) == 1,
-        "flat glue faces meet with no vertical gap or separated receiver",
+        "hard lap lands join the roof and all receivers at the seating datum",
     )
 
 
 def check_cover(
     cover: Part | Compound, foot_top: float, tool_tip_z: float, tip_clear: float
 ) -> Report:
-    """Prove the foot fits after breaking out the grid, without relying on a view."""
+    """Prove the clean finished anchor retains foot fit and tool clearance."""
     cover = as_part(cover)
     r = Report()
-    r.section("stackable cover: foot interface and integral support")
+    r.section("stackable cover: clean foot interface and roof")
     bb = cover.bounding_box()
     h = bb.size.Z
     r.check(
@@ -167,32 +251,12 @@ def check_cover(
         "longest tool clears the solid ceiling below the stacking socket",
         f"tip at {tool_tip_z:.2f}, ceiling at {ceiling_z:.2f}",
     )
-    # The support is a single solid with the cover, but a tool can enter below
-    # the lattice ribs and the center void remains removable after nib cutting.
-    r.check(
-        len(cover.solids()) == 1
-        and is_solid_at(cover, 0, 0, 0.5)
-        and not is_solid_at(cover, 2.5, 2.5, 0.5),
-        "breakaway support is attached and has open lattice cells",
-        f"{len(cover.solids())} solid(s), rib at center and adjacent open cell",
-    )
-    # Simulate snipping the lattice below the socket floor, then seat the actual
-    # shared foot in the upright lid. An intersection means it cannot stack.
-    with BuildPart() as trimmed:
-        add(cover)
-        Box(
-            34,
-            34,
-            STACK_SOCKET_DEPTH,
-            align=(Align.CENTER, Align.CENTER, Align.MIN),
-            mode=Mode.SUBTRACT,
-        )
-    clean = trimmed.part
+    clean = cover
     r.check(
         not is_solid_at(clean, 0, 0, STACK_SOCKET_DEPTH - 0.1)
         and is_solid_at(clean, 0, 0, STACK_SOCKET_DEPTH + CAP_H / 2)
         and not is_solid_at(clean, 0, 0, STACK_SOCKET_DEPTH + CAP_H + 0.1),
-        "removal exposes the socket floor with a solid cap beneath it",
+        "socket floor is open above a continuous solid cap",
         f"socket floor z={STACK_SOCKET_DEPTH:.2f} in print pose; cap={CAP_H:.2f}",
     )
     # Verify the straight band and the draft's experimental thin mouth wall;
@@ -212,16 +276,16 @@ def check_cover(
         "full-width foot enters the thin experimental lip mouth",
         f"nominal lip wall={(STACK_LIP_W - PAD - STACK_FIT) / 2:.2f} mm per side",
     )
-    upright = Pos(0, 0, h) * Rotation(180, 0, 0) * clean
-    foot = Pos(0, 0, h - STACK_SOCKET_DEPTH) * gridfinity_foot()
+    upright = as_part(Pos(0, 0, h) * Rotation(180, 0, 0) * clean)
+    foot = as_part(Pos(0, 0, h - STACK_SOCKET_DEPTH) * gridfinity_foot())
     r.check(
-        upright.intersect(foot).volume < 0.01,
-        "real Gridfinity foot enters the cleared socket without collision",
+        (upright & foot).volume < 0.01,
+        "real Gridfinity foot enters the socket without collision",
         "foot placed on the socket floor, all 1x1 bevels included",
     )
-    lower_foot = Pos(0, 0, h - STACK_SOCKET_DEPTH - 0.3) * gridfinity_foot()
+    lower_foot = as_part(Pos(0, 0, h - STACK_SOCKET_DEPTH - 0.3) * gridfinity_foot())
     r.check(
-        upright.intersect(lower_foot).volume > 1.0,
+        (upright & lower_foot).volume > 1.0,
         "socket floor actually supports the foot rather than leaving a through-hole",
         "foot driven 0.3 mm into the floor must intersect",
     )

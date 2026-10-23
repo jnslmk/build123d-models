@@ -1,4 +1,4 @@
-# Empty bin — optional separate stacking lips
+# Empty bin — two-part stacking lid glue interface
 
 ## References
 
@@ -8,22 +8,32 @@
 
 ## Current slice
 
-- Name: optional support-free split-print bin lid.
-- Anchor part: the accepted finished `drill_storage.bin.lid` for `drill_storage.bin.base`.
-Purpose and print pose: preserve the snap-in closure and receivers; default socket-down/skirt-up print retains optional default-on support, while split mode prints roof-down body and glue-face-down/socket-up lips.
-- In scope: optional planar socket-floor split, named two-child contract and print poses, all full/half-cell layouts and taller roofs, glue instructions and physical invariants.
-Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance. The snap lock is now implemented (EB-9). Historical EB-7 support revision is unchanged; its physical acceptance and family rollout remain pending.
+- Name: two-part-only keyed glue interface, accepted 2026-10-23.
+- Anchor: accepted `drill_storage.bin.lid` for the accepted bin body; no downstream body redesign.
+- Public print result: exactly `lid_body` and `stacking_lips`, with no one-piece alternative or support/split switches. Preserve all full/half-cell layouts and taller roofs.
+- Joint scope: keyed positive location, light retention during adhesive cure and adhesive relief; preserve snap-in closure, roof, socket fit and stacking pitch.
+- Current bin integration passes full, offset half-grid, minimum half-cell,
+  all-half-cell, organized and taller-lid cases. Both default child STLs were
+  exported by the actual build worker; physical glue/retention acceptance is pending.
+
+The common [joint design](stackable-cover-cad-contract.md#joint-design-for-this-slice)
+uses a 0.4 mm roof lap, asymmetric key, clearance with sparse crush retention
+ribs, adhesive relief and hard seating lands at the original socket-floor datum.
+At the default 1 mm roof, backing is 0.6 mm generally and 0.5 mm below
+the 0.1 mm-deep adhesive reservoirs; the interior roof remains unchanged.
+Integrated predicates pass; physical fit calibration remains pending. The closure
+and 2.5 mm foot seat retain their original clearance.
 
 ## Applicable specification constraints
 
 | Requirement | Consequence |
 | --- | --- |
 | EB-2 | Lid footprint and receiving sockets align with every full/half foot of the matching base, without exceeding the 0.5 mm grid gap. |
-| EB-3 | Independently printable lift-off lid; default minimum is 2.5 mm socket + 1 mm solid ceiling + 3 mm locating skirt = 6.5 mm total. A configurable height grows the plate/roof while keeping skirt engagement at 3 mm, so optional bin fixtures cannot be fouled. |
+| EB-3 | Independently printable removable lid; default minimum is 2.5 mm socket + 1 mm solid ceiling + 3 mm locating skirt = 6.5 mm total. Configurable height grows the plate/roof while preserving skirt engagement; EB-9 retains the snap closure. |
 | EB-4 | A 1 mm body wall remains viable: derive skirt width from the body cavity and a PETG sliding fit; keep a flat rim bearing on the accepted body's 0.6 mm landing. |
-| EB-5 | Expose a Boolean lid support option enabled by default; leaving it off yields a clean one-piece lid. Match the other drill holders' black base/translucent PETG cover appearance in leaf exports and the scene. |
-| EB-7 | Connect the existing central lattice to a gapped rounded perimeter rail following the narrowest roof/socket contour; replace four welded nibs with two accessible smaller tabs. Slicer and physical acceptance, not CAD topology, decide removal and sag success. |
-| EB-8 | Split at the 2.5 mm socket-floor plane; complete roof/skirt belongs to `lid_body`, all connected receiver walls/webs to one `stacking_lips` child/STL, with unchanged ideal assembled geometry. |
+| EB-5 | Preserve presentation; remove the former public support Boolean. |
+| EB-7 | Historical support-only revision, no longer the public printing path. |
+| EB-8 | Exactly two named print children with keyed location, light cure-time retention and glue relief; retain complete roof/skirt and connected receiver walls/webs. |
 
 ## Evidence-backed dimensions
 
@@ -35,7 +45,7 @@ Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance
 | Plug engagement | 3 mm minimum | Three times 1 mm rim budget; lift-off locating skirt |
 | Outer shell | grid span minus 0.5 mm | Existing accepted bin body |
 | Fixture clearance | 3.6 mm below body rim | 3 mm skirt plus 0.6 mm service gap; accepted body's optional fixture headroom refined during lid integration |
-| Existing support body | 0.8 mm ribs, 5 mm centre pitch | `models.lib.gridfinity_socket` (extracted unchanged from the bin lid); retained to isolate attachment/edge-coverage changes |
+| Historical support body | 0.8 mm ribs, 5 mm centre pitch | Superseded one-piece support revision; historical process rows below are not new-joint dimensions |
 | Nominal roof process gap | 0.2 mm retained trial candidate | Baseline and candidate slices: OrcaSlicer 2.4.2, Centauri Carbon 0.4 mm / Generic PETG, uniform 0.2 mm first/normal layers, generated supports and brim off. Lattice ends at Z=2.4 mm; Z=2.6 mm contains only attachments inside the sockets; full roof Bridge starts at Z=2.8 mm with HEIGHT=0.2. One empty layer remains away from tabs on this profile; other layer schedules require rechecking |
 | Perimeter process separation | 0.6 mm each side, rail 0.8 mm thick | Proposed positive XY manufacturing gap, not a mating-fit allowance; offset the narrowest socket/roof contour including its corner radius |
 | New tab necks | Two 0.4 × 0.8 mm sections per cell, measured 0.64 mm² total; gap height plus 0.02 mm roof overlap | Gate measured both necks; candidate slice preserves two attachment locations per socket at Z=2.6. Old four 0.6 × 0.6 mm nibs totalled 1.44 mm². Printed fracture/removal remains unproven |
@@ -45,20 +55,23 @@ Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance
 
 | Question | Resolution path | Blocking effect |
 | --- | --- | --- |
-| Effective Z/XY gaps, tab extrusion and first roof toolpaths on other profiles | Current recorded 0.4 mm nozzle / 0.2 mm-layer PETG slice passes visual path inspection; repeat for a different profile | One profile's sliced result does not establish general printability or physical release |
-| Release effort, short-side sag, residual nibs, roof damage and actual foot fit | Representative socket coupon, then full bin lid, on the target PETG printer | Physical support revision acceptance and family rollout remain blocked until trial results are accepted |
+| Joint location, retention and adhesive relief | Integrated CAD gates, then printed dry-fit and cured-bond trial | Current joint verification and physical acceptance remain pending; old support slices cannot close this gate |
+| Full/half-cell joint fit and loaded stacking | Representative minimum, shifted, multi-cell and taller lids with matching feet | Preserve foot seating/closure and stack pitch; actual fit and strength require printed evidence |
 
 ## Service and assembly constraints
 
-1. With supports enabled, reach through each open socket to cut the two weak tabs at the straight perimeter rail midpoints, then peel the connected rail/lattice inward. Do not pry against the finished rim or skirt. Trim any roof-side tab remnants without changing the foot seat; confirm full-depth mating-foot seating before stacking. Tabs survive the recorded slice; cutting access and removal effort await physical trials. With supports disabled, use slicer support or verify the approximately 37 mm socket bridge on the target printer.
-2. The skirt locates and locks: the bead on the skirt detents into the bin's groove. Pull the lid to unsnap and access the bin.
-3. Closed display scene is not a slicer part; base and lid each have a separate print-pose model.
+1. Print both named child STLs in supplied poses. Dry-fit the keyed joint, confirm complete seating and matching upper-foot orientation, then apply PETG-compatible adhesive without fouling sockets or closure. Light retention helps during cure; it is not proof of bond strength.
+2. The skirt bead still detents into the bin groove. Pull the cured lid to unsnap and access the bin.
+3. Closed display scene is not a slicer part; export the base and both lid children separately.
 
 ## Required skills
 
 `model-documentation`, `cad-iteration`, `box-closures`, `fdm-fits-and-clearances`, `build123d-geometry-ops`.
 
-## Verifiable predicates
+## Historical verification — superseded support and planar-split implementations
+
+These results predate the 2026-10-23 keyed joint; retained baseline evidence
+does not establish that current geometry, slices or downloads have passed.
 
 - [x] Revised support-on lid is one valid connected solid on z=0 within OCC tolerance; each full/half-cell rail/lattice body is a single bed-seated component, retained by exactly two measured 0.32 mm² necks.
 - [x] Support material backs previously empty straight-edge bands and all rounded corners. The old lattice fails both sockets' coverage predicates; full-cell backing extends 2.26 mm beyond the old lattice envelope.
@@ -70,7 +83,7 @@ Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance
 - [x] Integration create/export smoke produced two valid connected bed-seated children and both independent STLs for all seven confirmed stackable leaves; three bin parameter variations also remained valid and connected. Independent review passed with the bed-area wording nit now corrected.
 - Shared split-gate red proof on bin specimens: socket-down lips fail equivalence with 94.108221 mm³ missing material; body raised 0.3 mm fails pose/bed, equivalence and connectivity; body lowered 0.3 mm fails direct overlap with 223.432254 mm³ intersecting material. Positive full bin gate, ruff and ty passed.
 
-## Visual review
+## Historical visual review
 
 - Current views: regenerated `exports/drill_storage.bin.lid.html` (shaded interactive GLB) and `exports/drill_storage.bin.lid_bottom.png` (socket-side hidden-line render); STL is `exports/drill_storage.bin.lid.stl`. Viewer rendered without browser errors and was opened on the user's machine. The clean lid's zero Boolean difference establishes the unchanged seated silhouette.
 - Human review: cutting/peeling access, short-side/corner backing, full/half-cell sockets, and unchanged roof/rim/skirt.
@@ -79,12 +92,12 @@ Deferred interfaces: no gasket, fastener, locating pin or adhesive-gap allowance
 
 ## Acceptance gate
 
-- Purpose/decision signal: user explicitly confirmed the bin lid still closes the bin and receives Gridfinity feet, and approved the support-only revision on 2026-09-30.
-- Acceptance signal: CAD, independent review, recorded-profile slicing and visual/export proof complete; physical trial pending. Record coupon/full-lid removal, roof sag/damage and mating-foot fit before accepting this anchor. No claim that removal difficulty or sag is physically fixed is justified yet.
-- Split purpose/decision signal: user confirmed the optional separate-lips delta for this accepted lid on 2026-09-30. Ideal CAD fit remains unchanged; actual adhesive strength, flatness, alignment and bond-line height require physical print/glue acceptance. Glue edges stay square for full flat contact. See the [family print/glue instructions](../README.md#separate-printable-stacking-lips).
-- Family rollout: closed until the user physically accepts this named bin-lid support anchor; this approval does not change shared `box.py` supports or other models.
+- Current purpose/decision signal: on 2026-10-23 the user retained the accepted bin lid as anchor and approved two-part-only printing with keyed location, light self-retention and glue relief.
+- Current CAD/print/export evidence: pending integration, separate from the historical records above.
+- Physical acceptance: pending dry-fit location/retention, joint seating and relief, adhesive compatibility/cured strength, matching-foot fit and loaded-stack trials.
+- The old support-anchor rollout gate is historical, not a requirement to retain a one-piece mode. No body/foot/snap redesign is authorized.
 
-## Split print edge survey
+## Historical planar split edge survey
 
 Integration `sharp_convex_edges` audit; counts are body / lips.
 

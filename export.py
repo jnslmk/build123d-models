@@ -3,6 +3,7 @@
 import fontfix  # noqa: F401 -- preload system libfontconfig before OCP imports
 
 import io
+import json
 import re
 import sys
 import warnings
@@ -55,10 +56,13 @@ def _slugify(value: str) -> str:
 
 def _export_child_stls(part: Part | Compound, name: str) -> list[Path]:
     """Export individual child STL files when a compound exposes named children."""
+    metadata = EXPORTS_DIR / f"{name}.parts.json"
     if not isinstance(part, Compound) or not getattr(part, "children", None):
+        metadata.unlink(missing_ok=True)
         return []
 
     written = []
+    parts = []
     for index, child in enumerate(part.children, start=1):
         label = getattr(child, "label", None) or f"part_{index}"
         path = EXPORTS_DIR / f"{name}_{_slugify(label)}.stl"
@@ -69,9 +73,12 @@ def _export_child_stls(part: Part | Compound, name: str) -> list[Path]:
             angular_tolerance=STL_ANGULAR_TOLERANCE,
         )
         written.append(path)
+        parts.append({"label": label, "filename": path.name})
 
     if written:
         print(f"Exported {len(written)} individual STL files for {name}")
+    metadata.write_text(json.dumps(parts))
+    written.append(metadata)
     return written
 
 
@@ -95,7 +102,7 @@ def export(
     """Export a GLB plus the requested printable formats.
 
     ``stl`` defaults to true for existing callers. ``children=False`` skips
-    per-child STL files; incremental and artifact builds never publish them.
+    per-child STL files for callers that only need the combined preview.
 
     Returns the paths actually written, so callers can stamp exactly what was
     produced.

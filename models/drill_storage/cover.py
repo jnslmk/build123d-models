@@ -32,20 +32,6 @@ from .box import (
 from . import config as c
 from .sets import COVER_TIP_CLEARANCE, DrillSet
 
-SUPPORT_PARAM = {
-    "name": "support",
-    "label": "Include breakaway socket supports",
-    "type": "boolean",
-    "default": True,
-}
-
-SEPARATE_STACKING_LIPS_PARAM = {
-    "name": "separate_stacking_lips",
-    "label": "Separate stacking lips",
-    "type": "boolean",
-    "default": False,
-}
-
 
 def create_cover_for(drill_set: DrillSet) -> Part:
     """The cover for one ``sets.DrillSet``, labelled and coloured."""
@@ -55,10 +41,8 @@ def create_cover_for(drill_set: DrillSet) -> Part:
     return cover
 
 
-def create_stackable_cover_for(
-    drill_set: DrillSet, support: bool = True, separate_stacking_lips: bool = False
-) -> Part | Compound:
-    """The same collar fit, as one supported print or two support-free prints."""
+def _create_finished_stackable_cover_for(drill_set: DrillSet) -> Part:
+    """Build the clean assembled reference used for splitting and fit checks."""
     cover_h = cover_height_for(
         drill_set.max_len,
         headroom=COVER_TIP_CLEARANCE,
@@ -67,17 +51,17 @@ def create_stackable_cover_for(
         cap_h=CAP_H + STACK_SOCKET_DEPTH,
         stack_lip_h=BASE_H,
     )
-    cover = create_cover(
-        drill_set.label,
-        cover_h=cover_h,
-        stackable=True,
-        support=support and not separate_stacking_lips,
-    )
+    cover = create_cover(drill_set.label, cover_h=cover_h, stackable=True)
     cover.label = f"cover_stackable_{drill_set.name}"
     cover.color = COVER_COLOR
-    if separate_stacking_lips:
-        return split_stacking_lips(cover, STACK_SOCKET_DEPTH)
     return cover
+
+
+def create_stackable_cover_for(drill_set: DrillSet) -> Compound:
+    """Return the roof-down body and matching socket-up stacking lips."""
+    return split_stacking_lips(
+        _create_finished_stackable_cover_for(drill_set), STACK_SOCKET_DEPTH
+    )
 
 
 __all__ = ["create_cover_for", "create_stackable_cover_for"]

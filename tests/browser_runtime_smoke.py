@@ -48,6 +48,7 @@ def _stage_page(
                 "assembly": False,
                 "updated": None,
                 "stl": None,
+                "parts": [],
                 "step": None,
                 "glb": f"exports/{name}.glb",
                 "thumb": None,
@@ -246,11 +247,22 @@ class BrowserPageSourceSmoke(unittest.TestCase):
             )
             lid = assets["models"][0]
             lid["params"] = model_params(lid_name)
-            # A real binary STL makes the prebuilt/default download observable;
-            # The split downloads below come from the real model in WASM.
-            prebuilt = root / "exports" / f"{lid_name}.stl"
-            export_stl(Box(10, 10, 10), str(prebuilt))
-            lid["stl"] = f"exports/{lid_name}.stl"
+            # Real static child files exercise downloads before runtime approval.
+            # Live downloads below still come from the real lid built in WASM.
+            prebuilt_parts = {}
+            lid["parts"] = []
+            for index, label in enumerate(("lid_body", "stacking_lips")):
+                filename = f"{lid_name}_{label}.stl"
+                prebuilt = root / "exports" / filename
+                export_stl(Box(10 + index, 10, 10), str(prebuilt))
+                prebuilt_parts[filename] = prebuilt.read_bytes()
+                lid["parts"].append(
+                    {
+                        "label": label,
+                        "filename": filename,
+                        "url": f"exports/{filename}",
+                    }
+                )
             assets["models"][2]["assembly"] = True
             (root / "models-manifest.json").write_text(json.dumps(assets))
             release_boot = threading.Event()
@@ -314,27 +326,50 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             page.wait_for_function(
                                 "() => document.querySelector('#vstatus').classList.contains('hidden')"
                             )
-                            split = page.get_by_label(
-                                "Separate stacking lips", exact=True
-                            )
-                            self.assertFalse(split.is_checked())
-                            self.assertTrue(page.locator("#btn-stl").is_visible())
-                            self.assertTrue(page.locator("#part-downloads").is_hidden())
-                            with page.expect_download() as pending_download:
-                                page.click("#btn-stl")
-                            default_download = pending_download.value
-                            self.assertEqual(
-                                default_download.suggested_filename, f"{lid_name}.stl"
-                            )
-                            default_path = default_download.path()
-                            assert default_path is not None
-                            self.assertEqual(
-                                default_path.read_bytes(), prebuilt.read_bytes()
-                            )
 
-                            # Opt in using the actual checkbox and runtime approval UI.
-                            split.check()
-                            page.wait_for_selector("#optin", state="visible")
+                            def download_parts() -> dict[str, bytes]:
+                                downloaded = {}
+                                for label in ("lid body", "stacking lips"):
+                                    with page.expect_download() as pending_download:
+                                        page.get_by_role(
+                                            "button",
+                                            name=f"Download {label} STL",
+                                            exact=True,
+                                        ).click()
+                                    item = pending_download.value
+                                    path = item.path()
+                                    assert path is not None
+                                    downloaded[item.suggested_filename] = (
+                                        path.read_bytes()
+                                    )
+                                return downloaded
+
+                            def rebuild_default_parameters() -> None:
+                                # Revert is the real UI path back to parameter
+                                # generation, including covers with no controls.
+                                page.locator(".cm-content").click()
+                                page.keyboard.press("Control+Home")
+                                page.keyboard.insert_text("# temporary editor change\n")
+                                page.click("#btn-revert")
+
+                            self.assertEqual(
+                                page.get_by_label(
+                                    "Separate stacking lips", exact=True
+                                ).count(),
+                                0,
+                            )
+                            self.assertEqual(
+                                page.get_by_label(
+                                    "Include breakaway socket supports", exact=True
+                                ).count(),
+                                0,
+                            )
+                            self.assertTrue(page.locator("#btn-stl").is_hidden())
+                            self.assertTrue(
+                                page.locator("#part-downloads").is_visible()
+                            )
+                            self.assertEqual(download_parts(), prebuilt_parts)
+                            self.assertEqual(page.evaluate("window.generatedJobs"), [])
                             self.assertFalse(
                                 any(
                                     path.startswith(("/model-sources/", "/fonts/"))
@@ -344,14 +379,23 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 ),
                                 requests,
                             )
+                            # Running the unchanged real source is now how a
+                            # no-parameter cover requests a live/default rebuild.
+                            page.click("#btn-code")
+                            page.wait_for_function(
+                                "() => !document.querySelector('#btn-run').disabled",
+                                timeout=15_000,
+                            )
+                            page.click("#btn-run")
+                            page.wait_for_selector("#optin", state="visible")
                             page.click("#optin-yes")
                             # Hold Python's lock response: source fetching must still
                             # finish, and rapid edits must build only the newest job.
                             self.assertTrue(source_requested.wait(30), requests)
                             self.assertFalse(page.evaluate("window.workerReady"))
-                            split.uncheck()
+                            page.click("#btn-run")
                             page.wait_for_function("() => window.preloads === 2")
-                            split.check()
+                            rebuild_default_parameters()
                             page.wait_for_function("() => window.preloads === 3")
                             self.assertEqual(page.evaluate("window.generatedJobs"), [])
                             release_boot.set()
@@ -373,6 +417,9 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             self.assertTrue(page.locator("#btn-stl").is_hidden())
                             self.assertEqual(
                                 len(page.evaluate("window.generatedJobs")), 1
+                            )
+                            self.assertNotIn(
+                                "source", page.evaluate("window.generatedJobs[0]")
                             )
                             log_text = page.locator("#log").inner_text()
                             for warning in (
@@ -408,23 +455,6 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                             roundtrip = import_step(str(step_path))
                             self.assertEqual(len(roundtrip.solids()), 2)
                             self.assertTrue(roundtrip.is_valid)
-
-                            def download_parts() -> dict[str, bytes]:
-                                downloaded = {}
-                                for label in ("lid body", "stacking lips"):
-                                    with page.expect_download() as pending_download:
-                                        page.get_by_role(
-                                            "button",
-                                            name=f"Download {label} STL",
-                                            exact=True,
-                                        ).click()
-                                    item = pending_download.value
-                                    path = item.path()
-                                    assert path is not None
-                                    downloaded[item.suggested_filename] = (
-                                        path.read_bytes()
-                                    )
-                                return downloaded
 
                             live_parts = download_parts()
                             bounds = []
@@ -482,32 +512,10 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 ):
                                     self.assertAlmostEqual(actual, expected, delta=0.02)
 
-                            split.uncheck()
-                            page.wait_for_function(
-                                "() => window.buildResults.length === 1 && "
-                                "document.querySelector('#part-downloads').hidden"
-                            )
-                            self.assertEqual(
-                                page.locator("#part-download-buttons button").count(), 0
-                            )
-                            self.assertTrue(page.locator("#btn-stl").is_disabled())
-                            page.wait_for_function(
-                                "() => window.buildResults.length === 2 && "
-                                "!document.querySelector('#btn-stl').disabled"
-                            )
-                            self.assertTrue(page.locator("#part-downloads").is_hidden())
-                            self.assertEqual(
-                                page.locator("#part-download-buttons button").count(), 0
-                            )
-                            self.assertTrue(page.locator("#btn-stl").is_visible())
-                            self.assertEqual(
-                                page.evaluate("window.buildResults[1].labels"), []
-                            )
-
-                            # Return twice to the warm entry: each transfer must leave
-                            # cached child buffers intact for the next download.
-                            for expected_count in (3, 5):
-                                split.check()
+                            # Repeating the same build must leave cached child
+                            # buffers intact for every subsequent download.
+                            for expected_count in (2, 3):
+                                rebuild_default_parameters()
                                 page.wait_for_function(
                                     """count => window.buildResults.length === count &&
                                     !document.querySelector('#part-downloads').hidden""",
@@ -522,12 +530,6 @@ class BrowserPageSourceSmoke(unittest.TestCase):
                                 self.assertTrue(page.locator("#btn-stl").is_hidden())
                                 self.assertEqual(download_parts(), live_parts)
                                 self.assertEqual(download_step(), live_step)
-                                if expected_count == 3:
-                                    split.uncheck()
-                                    page.wait_for_function(
-                                        "() => window.buildResults.length === 4 && "
-                                        "document.querySelector('#part-downloads').hidden"
-                                    )
 
                             page.select_option("#family", "lens_cap")
                             self.assertTrue(page.locator("#part-downloads").is_hidden())

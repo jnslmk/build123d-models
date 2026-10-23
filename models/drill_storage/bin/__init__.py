@@ -16,9 +16,9 @@ PARAMS = [
 
 
 def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Compound:
-    """Closed scene without the lid's sacrificial print support.
+    """Closed inspection scene using the clean finished lid reference.
 
-    `base.create()` and `lid.create()` remain the separately downloadable parts.
+    `base.create()` and the two children of `lid.create()` are the print jobs.
     """
     body = base.create(**bin_options)
     lid_options = {
@@ -33,7 +33,7 @@ def create(lid_height: float = config.LID_MIN_HEIGHT, **bin_options: Any) -> Com
         )
         if name in bin_options
     }
-    cover = lid.create(**lid_options, lid_height=lid_height, support=False)
+    cover = lid._create_finished(**lid_options, lid_height=lid_height)
     cover = as_part(
         Pos(
             0,

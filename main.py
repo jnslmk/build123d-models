@@ -134,7 +134,7 @@ def _build(name: str) -> dict:
             name,
             step=not assembly,
             stl=not assembly,
-            children=False,
+            children=not assembly,
         )
         if assembly and not any(path.suffix == ".glb" for path in written):
             raise RuntimeError("assembly preview GLB export failed")

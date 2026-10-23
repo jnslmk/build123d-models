@@ -46,18 +46,17 @@ extra 6 mm buys a whole Gridfinity unit back on the cover (9U, not 10U) and
 still leaves 4.6 mm of solid body between the bores and the foot.
 
 **Stackable cover: 49.4 mm** (67.4 mm = 9U + 4.4 mm assembled). It
-retains the collar snap fit but has a 4.4 mm full-foot socket and a built-in,
-breakaway grid under the socket for top-down printing. The unchanged 1×1
-foot seats for a 9U stack pitch. Remove the grid and nibs before stacking;
-the experimental 42 mm lip mouth (~0.14 mm nominal wall, zero nominal gap
+retains the collar snap fit and a 4.4 mm full-foot socket. Print both PETG
+children and glue the keyed, lightly retaining joint; there is no one-piece/support
+mode. The unchanged foot seats for a 9U stack pitch. The experimental 42 mm
+lip mouth (~0.14 mm nominal wall, zero nominal gap
 between neighbouring cells) needs a physical print trial. The original
 smooth cover remains 45 mm and support-free. See the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
-Enable **Separate stacking lips** for support-free `lid_body` and
-socket-up `stacking_lips` prints; the default remains one piece with support.
-Download the two child STLs and glue their flat faces after dry-aligning the
-centred 0.25 mm lip overhang.
+The stackable leaf always provides `lid_body` and `stacking_lips` child STLs.
+Download and print both; dry-fit the locating/retention features before gluing
+and keep adhesive clear of the foot socket.
 See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
 
 The sibling set, `drill_storage.hex`, is the 16-piece 25 mm driver-bit box —

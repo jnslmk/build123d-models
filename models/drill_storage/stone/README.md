@@ -25,16 +25,15 @@ three, despite the shortest drill list, because a 12 mm masonry bit runs 150 mm.
 **Stackable cover: 141.4 mm** (165.4 mm = 23U + 4.4 mm assembled).
 Its 42 mm experimental lip seats the full 4.4 mm of the unchanged 1×1
 foot, for a 23U stack pitch, while the original 137 mm smooth cover remains
-available. Print mouth-up, break out the integrated support lattice and
-remove its four attachment nibs before stacking. The ~0.14 mm nominal lip
+available. Print both PETG child STLs and glue the keyed, lightly retaining joint;
+there is no one-piece/support mode. The ~0.14 mm nominal lip
 mouth wall and zero nominal gap between adjacent 42 mm cells require a
 physical print and fit trial; see the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
-Enable **Separate stacking lips** for support-free `lid_body` and
-socket-up `stacking_lips` prints; the default remains one piece with support.
-Download the two child STLs and glue their flat faces after dry-aligning the
-centred 0.25 mm lip overhang.
+The stackable leaf always provides `lid_body` and `stacking_lips` child STLs.
+Download and print both; dry-fit the locating/retention features before gluing
+and keep adhesive clear of the foot socket.
 See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
 
 ## Bores are cut to the shank, which is ground below nominal

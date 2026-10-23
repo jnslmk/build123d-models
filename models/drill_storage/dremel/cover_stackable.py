@@ -1,30 +1,38 @@
-"""Alternate PETG Dremel cover with two full-depth stacking receivers."""
+"""PETG Dremel cover printed as a body and two-cell glue-on receiver."""
 
-from build123d import BuildPart, BuildSketch, Plane, Pos, RectangleRounded, add, extrude
+from build123d import (
+    BuildPart,
+    BuildSketch,
+    Compound,
+    Part,
+    Plane,
+    Pos,
+    RectangleRounded,
+    add,
+    extrude,
+)
 
 from models.lib.gridfinity import GRID
 from models.drill_storage.box import (
     STACK_LIP_R,
     STACK_LIP_W,
     STACK_SOCKET_DEPTH,
-    add_stacking_support,
     cut_stacking_socket,
     split_stacking_lips,
 )
-from models.drill_storage.cover import SEPARATE_STACKING_LIPS_PARAM, SUPPORT_PARAM
 from models.drill_storage.tools import COVER_GLASS
 from models.lib.edges import as_part, reseat_on_bed
 from . import config as c, cover
 
-PARAMS = [SUPPORT_PARAM, SEPARATE_STACKING_LIPS_PARAM]
+PARAMS = []
 IS_ASSEMBLY = False
 CELL_Y = (-GRID / 2, GRID / 2)
 STACK_PITCH = 8 * 7.0
 HEIGHT = STACK_PITCH - c.SEAT_Z + STACK_SOCKET_DEPTH
 
 
-def create(support: bool = True, separate_stacking_lips: bool = False):
-    """Return one socket-down print, or body and socket-up lips for gluing."""
+def _create_finished() -> Part:
+    """Build the clean assembled reference for splitting and interface checks."""
     # Build the receiver upright, then invert it onto the print bed. The common
     # snap-cover builder retains its 2 mm cap and label at the shorter height.
     with BuildPart() as receiver:
@@ -43,19 +51,17 @@ def create(support: bool = True, separate_stacking_lips: bool = False):
         add(reseat_on_bed(lip, flip=True))
         add(Pos(0, 0, STACK_SOCKET_DEPTH) * cover._create(HEIGHT - STACK_SOCKET_DEPTH))
     result = body.part
-    if separate_stacking_lips:
-        result.color = COVER_GLASS
-        return split_stacking_lips(result, STACK_SOCKET_DEPTH)
-    if support:
-        for y in CELL_Y:
-            centered = as_part(Pos(0, -y, 0) * result)
-            result = as_part(Pos(0, y, 0) * add_stacking_support(centered))
     result.color = COVER_GLASS
     return result
 
 
+def create() -> Compound:
+    """Return the roof-down body and socket-up receiver as separate prints."""
+    return split_stacking_lips(_create_finished(), STACK_SOCKET_DEPTH)
+
+
 def check():
-    """Prove both receivers, tool clearance and removable support behavior."""
+    """Prove both receivers, unchanged tool clearance and the retained glue joint."""
     from build123d import Align, Cylinder, Locations, Rotation
 
     from models.drill_storage import config as family
@@ -64,16 +70,11 @@ def check():
     from . import base, insert
 
     report = Report()
-    clean = create(support=False)
-    supported = create()
+    clean = _create_finished()
     bb = clean.bounding_box()
-    check_split_lips(report, create(separate_stacking_lips=True), clean)
+    check_split_lips(report, create(), clean)
     report.check(
         clean.is_valid and len(clean.solids()) == 1, "clean cover is one valid solid"
-    )
-    report.check(
-        supported.is_valid and len(supported.solids()) == 1,
-        "supported cover is one valid solid",
     )
     report.check(abs(bb.min.Z) < 1e-6, "socket-down print pose rests on z=0")
     report.check(
@@ -103,13 +104,6 @@ def check():
     report.check((upright & too_low).volume > 1, "socket floors stop over-insertion")
     for y in CELL_Y:
         report.check(not is_solid_at(clean, 0, y, 2), f"clean socket at y={y} is open")
-        report.check(
-            is_solid_at(supported, 0, y, 2), f"support lattice at y={y} is present"
-        )
-        report.check(
-            not is_solid_at(supported, 0, y, STACK_SOCKET_DEPTH - 0.1),
-            f"lattice at y={y} has one-layer release gap",
-        )
         report.check(
             is_solid_at(clean, 0, y, STACK_SOCKET_DEPTH + cover.CAP_H - 0.1),
             f"socket at y={y} retains 2 mm roof",

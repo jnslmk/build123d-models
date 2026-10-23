@@ -66,17 +66,16 @@ Gridfinity unit.
 **Stackable cover: 113.4 mm** (137.4 mm = 19U + 4.4 mm assembled).
 Its experimental 42 mm-wide lip seats the whole 4.4 mm of the unchanged
 1×1 foot for a 19U stacking pitch, retaining the snap and drill clearance.
-Print mouth-up with the built-in lattice under the socket, then break it out
-and remove the four nibs before stacking. The lip mouth's ~0.14 mm nominal
+Print the two PETG children and glue their keyed, lightly retaining joint;
+there is no one-piece/support mode. The lip mouth's ~0.14 mm nominal
 wall and zero nominal gap to an adjacent 42 mm cell require a printed fit
 and durability trial. The smooth 109 mm cover remains the support-free,
 41.5 mm-wide option; see the
 [stackable-cover specification](../docs/stackable-cover-specification.md).
 
-Enable **Separate stacking lips** for support-free `lid_body` and
-socket-up `stacking_lips` prints; the default remains one piece with support.
-Download the two child STLs and glue their flat faces after dry-aligning the
-centred 0.25 mm lip overhang. This does not change the sideways holder.
+The stackable leaf always provides `lid_body` and `stacking_lips` child STLs.
+Download and print both; dry-fit the locating/retention features before gluing
+and keep adhesive clear of the foot socket. This does not change the sideways holder.
 See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
 
 The countersink is packed by its 10 mm head — which stands above the tray rather

@@ -71,15 +71,14 @@ build still closes on this base; it just leaves 8 mm of air over the tips.
 full-depth foot socket and 42 mm experimental lip locate an unchanged 1×1
 foot at a 20U stack pitch while retaining clearance over the 132 mm twist
 drill and the same collar snap. The original 116 mm smooth cover still fits
-that base. Print the stackable cover mouth-up and remove its built-in
-breakaway lattice and nibs before stacking. The ~0.14 mm nominal lip mouth
+that base. Print both stackable child STLs and glue the keyed, lightly retaining
+joint; there is no one-piece/support mode. The ~0.14 mm nominal lip mouth
 wall and zero nominal gap to an adjacent 42 mm cell require a physical trial;
 see the [stackable-cover specification](../docs/stackable-cover-specification.md).
 
-Enable **Separate stacking lips** for support-free `lid_body` and
-socket-up `stacking_lips` prints; the default remains one piece with support.
-Download the two child STLs and glue their flat faces after dry-aligning the
-centred 0.25 mm lip overhang. This does not change the sideways holder.
+The stackable leaf always provides `lid_body` and `stacking_lips` child STLs.
+Download and print both; dry-fit the locating/retention features before gluing
+and keep adhesive clear of the foot socket. This does not change the sideways holder.
 See [print/glue instructions and physical limits](../README.md#separate-printable-stacking-lips).
 
 The tap drops into a hex socket for its 10 mm across-flats shank and is legended

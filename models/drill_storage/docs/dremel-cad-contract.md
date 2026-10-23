@@ -4,14 +4,22 @@
 
 - **Context:** `models/drill_storage/README.md`.
 - **Specification:** [Dremel specification](dremel-specification.md), DR-1–DR-10; common split-print requirements [SC-4](stackable-cover-specification.md).
-- **Acceptance signal:** The user confirmed 8U stacking pitch and the lower-floor repack, then approved optional separate lips for all seven stackable lids on 2026-09-30.
+- **Acceptance signal:** User accepted two-part-only stackable printing and keyed locating/light retention/glue relief on 2026-10-23; smooth covers remain unchanged.
 
 ## Current slice
 
-- **Name:** Approved optional separate stacking lips.
-- **Anchor:** The accepted 8U stackable PETG cover.
-- **In scope:** Optional socket-floor split into two named support-free print-pose children; keep both receivers and their connecting web in one lip STL, document planar glue usage and verify ideal assembled equivalence.
+- **Name:** Two-part-only keyed glue interface.
+- **Anchor:** The existing accepted 8U stackable PETG cover.
+- **In scope:** Exactly `lid_body` and `stacking_lips`, independent print-pose STLs, keyed location, light cure-time retention and glue relief. Both receivers/web remain one lip child. Remove one-piece alternatives and public support/split controls.
 - **Unchanged:** Accepted six-column base/insert, diameter counts and calibrated fits, 8U stacking pitch, 2 mm roof, feet, cartridge retention, flat shoulder z=24, label/snap, smooth cover and parent scene. The lower-floor evidence below is historical verification, not split-print proof.
+
+The common [joint design](stackable-cover-cad-contract.md#joint-design-for-this-slice)
+uses a 0.4 mm keyed roof lap with hard seating lands, adhesive relief and sparse
+crush ribs for light retention. Both receiver webs share the same connected lip
+child; preserve the 2 mm accepted roof envelope, 4.4 mm socket depth and 8U
+pitch. The current Dremel gate and common joint predicates pass, and the actual
+build worker exported both child STLs. Printed fit/strength remain unverified;
+see the common contract for current edge-survey exceptions.
 
 ## Evidence-backed dimensions
 
@@ -26,7 +34,10 @@
 | Smooth cover | Unchanged 46 mm print height, assembled top z=70; 15 mm headroom on the lower floor |
 | Materials | ASA base, TPU insert, PETG covers |
 
-## Verifiable predicates
+## Historical verification — accepted anchors and superseded planar split
+
+All results below predate the 2026-10-23 glue-joint change and remain baseline
+evidence only. Current joint CAD/print/export verification is pending integration.
 
 - [x] All 55 closed floor disks have solid backing at z=0.02, 1.5 and 2.98.
 - [x] Every guide and matching cartridge land/relief retains the accepted radius.
@@ -56,10 +67,10 @@ User accepted the layout and height decision, not printed performance.
 Six-millimetre horizontal pitch reduces tool-head packing clearance; trial
 actual tools, the 1 mm headroom, floor strength, TPU grip and snap effort.
 The existing approximately 0.14 mm receiver mouth walls remain an accepted
-experimental print-trial exception. Remove both support lattices and attachment
-nibs before stacking; verify foot fit, neighbouring cells and loaded strength.
+experimental print-trial exception. Verify printed foot fit, neighbouring cells
+and loaded strength after fully seating and curing the two-part joint.
 Reprint both the base and TPU insert: the previous 5×11 insert is incompatible.
-Current CAD integration passed the assembly and stackable-cover physical gates.
+Historical CAD integration passed the assembly and stackable-cover geometry gates.
 Restoring the old z=8 floor caused 110 stackable tool/roof failures, proving the
 clearance gate rejects the old geometry. Measured top/pitch/roof/tip are
 60.4 / 56 / 54 / 53 mm. Base, insert and stackable HTML views were rebuilt and
@@ -67,17 +78,18 @@ opened locally; the shorter cover's right PNG was inspected. The smooth parent
 scene was rebuilt with the repacked base/insert. The user accepted the visual
 result with “commit and push” on 2026-09-30; physical print trials remain pending.
 
-The user approved the optional split-print delta on 2026-09-30. Print the body
-roof-down and the one-piece lip field glue-face-down/socket-up, without socket
-supports. Dry-align its centred 0.25 mm per-side overhang before gluing; see
-[family instructions](../README.md#separate-printable-stacking-lips).
-Adhesive compatibility, cured strength, printed flatness, actual bond-line
-height and loaded-stack durability remain physically unverified. New interface
-perimeter edges intentionally remain square; only the overlapping planar regions
-are bonded, not the whole bed-face area. This option does not assert acceptance
-of the existing experimental thin walls.
+The user accepted two-part-only printing and keyed locating/light retention/glue
+relief on 2026-10-23. Print both supplied child poses, dry-fit the keyed joint,
+check complete seating and apply PETG-compatible adhesive without fouling
+sockets or closure; see [family instructions](../README.md#separate-printable-stacking-lips).
+Light retention is intended for alignment during cure, not as a replacement
+for the adhesive. Preserve the accepted 8U stack pitch, 2 mm roof and headroom.
+Current joint CAD/print/export evidence is pending integration. Printed fit,
+retention effort, glue relief, adhesive compatibility/cured strength, flatness
+and loaded-stack durability remain physically unverified. Historical planar
+equivalence and edge surveys below do not prove this joint or bonded area.
 
-## Current edge survey
+## Historical edge survey
 
 The base has 26 sharp / 55 unclassifiable edges: eight cover-seat perimeter
 edges retain the flat shoulder, two foot/body junctions preserve the foot
@@ -92,7 +104,7 @@ engagement, eight receiver mouth edges preserve the experimental thin wall,
 and eight receiver/body transitions preserve the flat shoulder. The reused
 support lattices are sacrificial and excluded from the clean-cover survey.
 
-### Split print edge survey
+### Historical planar split edge survey
 
 Integration `sharp_convex_edges` audit; counts are body / lips.
 

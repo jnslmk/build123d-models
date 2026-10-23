@@ -1007,12 +1007,25 @@ function renderPartDownloads() {
     const button = document.createElement('button');
     button.className = 'primary';
     button.textContent = `Download ${part.label.replace(/_/g, ' ')} STL`;
-    button.addEventListener('click', () => download(part.stl, part.filename, 'model/stl'));
+    button.addEventListener('click', async () => {
+      try {
+        if (part.url) {
+          const response = await fetch(part.url);
+          if (!response.ok) throw new Error(`STL download failed: ${response.status}`);
+          download(await response.arrayBuffer(), part.filename, 'model/stl');
+        } else {
+          download(part.stl, part.filename, 'model/stl');
+        }
+      } catch (error) {
+        log(String(error));
+      }
+    });
     el.partDownloadButtons.append(button);
   }
 }
-function clearLiveDownloads() {
-  lastStl = null; lastGlb = null; lastStep = null; lastParts = [];
+function clearLiveDownloads(restorePrebuilt = false) {
+  lastStl = null; lastGlb = null; lastStep = null;
+  lastParts = restorePrebuilt ? (current?.parts || []) : [];
   renderPartDownloads();
   showDownloads(!current?.assembly);
 }
@@ -1212,7 +1225,7 @@ function selectModel(name) {
   if (document.body.classList.contains('code-open')) loadEditorSource();
   buildForm(current.params || []);
   if (document.body.classList.contains('about-open')) loadDocumentation();
-  clearLiveDownloads();
+  clearLiveDownloads(true);
   el.btnStl.disabled = !current.stl;
   el.btnStep.disabled = !current.step;
   // Instant preview from the CI-rendered assets, whether or not the WASM runtime
